@@ -320,6 +320,9 @@ details.more[open] summary{margin-bottom:8px}
 .pf .draft-pt{fill:#E0283E}
 .pf .ah{fill:var(--pf-edge)}
 .pf .ah.key{fill:var(--pf-key)}
+.pf .mv.shift{stroke:#C4513F;stroke-width:1.6}
+.pf .ah.shift{fill:#C4513F}
+.ped-tools{display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
 .pf .dot{fill:var(--pf-key)}
 .pf .pl{fill:#fff;stroke:#7D8880;stroke-width:1.3}
 .pf .pl.idle{stroke:#B3BCB5}
