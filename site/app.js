@@ -990,13 +990,13 @@ function lineupText(lu) {
 // ([{ at, text, side, dot }]) and view (the part of the field to show).
 const PLAY_CATS = ['Ruck', 'Edge', 'Hands', 'Kick', 'Other'];
 const MOVE_KINDS = { run: 'Run', pass: 'Pass', kick: 'Kick', dummy: 'Dummy pass', shift: 'Defender move' };
-const STARTER_IDS = ['quickie-out', 'quickie-in', 'ninja', 'out-the-back', 'hands-inside', 'hands-outside', 'wrap-block'];
+const STARTER_IDS = ['quickie-out', 'quickie-in', 'ninja', 'out-the-back', 'hands-inside', 'hands-outside', 'wrap-block', 'back-inside-block'];
 // Each starter play carries its own rev, bumped when its drawing changes (see upgradePlays).
 // STARTER_SET is bumped when starters are added or retired: set 4 retired Switch and Finisher
-// and added the two Hands plays; set 5 added Wrap Block.
-const STARTER_SET = 5;
+// and added the two Hands plays; set 5 added Wrap Block; set 6 added Back Inside Block.
+const STARTER_SET = 6;
 const RETIRED_STARTERS = ['switch', 'finisher'];
-const STARTER_SINCE = { 'hands-inside': 4, 'hands-outside': 4, 'wrap-block': 5 };
+const STARTER_SINCE = { 'hands-inside': 4, 'hands-outside': 4, 'wrap-block': 5, 'back-inside-block': 6 };
 const swapSlot = id => /^[LR][WLRM]$/.test(id) ? (id[0] === 'L' ? 'R' : 'L') + id[1] : id;
 const flipSide = s => String(s || '').replace(/[lr]/g, c => c === 'l' ? 'r' : 'l');
 function mirrorText(text) {
@@ -1115,6 +1115,26 @@ function starterPlays() {
           { t: 'pass', pts: [[29.6, 45.7], [33.5, 45.8]] },
           { t: 'pass', key: true, pts: [[32.5, 42.4], [40.5, 43.5]] },
           { t: 'pass', pts: [[32, 40.8], [37.9, 41.1]] }
+        ] }),
+    // Back Inside Block, from the coach's drawing: two sweepers (LR inside, LL outside) come across
+    // from deep while RR and RL run block lines in. RR, with the ball, passes out to the outside
+    // sweeper (1.2), who passes back inside to the inside sweeper (1.3).
+    base('back-inside-block', 6, 'Back Inside Block', 'Edge', 'When their defenders push up and slide out: the block lines hold them, and the ball comes back inside.',
+      'RR takes the ball on a block line and passes out to the outside sweeper, who gives it back inside to the inside sweeper.',
+      'RM plays the ball; LM, at dummy half, passes to RR (1.1).\nLR and LL sweep across from deep behind the ruck: LR on the inside, LL on the outside.\nRR runs a block line in towards the ball and passes out to LL, the outside sweeper (1.2).\nRL runs a second block line in, across the sweepers, to hold their defenders.\nLL passes back inside to LR (1.3), who goes through the gap.',
+      { focus: ['LR'], view: { x0: 14, x1: 50, y0: 36, y1: 58 },
+        players: { RM: [25, 46], LM: [24.6, 49.6], LR: [28.2, 52.6], LL: [29.6, 56], LW: [3.2, 56.5], RR: [31.6, 51], RL: [40.2, 51.6], RW: [47.2, 56] },
+        notes: { RM: { text: 'Plays the ball', side: 'l' }, LM: { text: 'Dummy half', side: 'l' }, LR: { text: 'Inside sweeper', side: 'l' }, LL: { text: 'Outside sweeper', side: 'l' },
+          RR: { text: 'Block', side: 'ar' }, RL: { text: 'Block', side: 'bl' } },
+        labels: [{ at: [28, 49.8], text: '1.1', side: 'a' }, { at: [33.2, 44.8], text: '1.2', side: 'a' }, { at: [39.75, 42.4], text: '1.3 inside', side: 'a' }],
+        moves: [
+          { t: 'pass', pts: [[24.6, 49.6], [31.5, 50]] },
+          { t: 'run', pts: [[31.6, 51], [29.8, 39.4]] },
+          { t: 'run', pts: [[40.2, 51.6], [33.6, 39.4]] },
+          { t: 'run', curve: true, pts: [[29.6, 56], [34.4, 56.8], [39.2, 55.4], [42, 52.4], [42.8, 48], [42.6, 43.4], [42, 38.6]] },
+          { t: 'run', key: true, curve: true, pts: [[28.2, 52.6], [31.4, 53.6], [34, 52], [35.6, 48.8], [36.6, 45.2], [37.2, 41.8], [37.6, 38.6]] },
+          { t: 'pass', pts: [[30.6, 44.6], [42.7, 46]] },
+          { t: 'pass', key: true, pts: [[42.5, 42.2], [37, 42.6]] }
         ] })
   ];
 }
