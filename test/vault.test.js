@@ -8,7 +8,7 @@ const FAST = 1000;
 const sample = {
   team: { name: 'DragonTag Mixed 20s', event: 'NSW State Cup', eventStart: '2027-03-19', maxMales: 4, positions: ['Wing'] },
   players: [
-    { id: 'p1', name: 'Mia Tuala', gender: 'F', number: '4', positions: ['Half'], phone: '0412 345 678', status: 'injured', notes: 'hamstring' }
+    { id: 'p1', name: 'Mia Tuala', gender: 'F', number: '4', positions: ['Rover'], phone: '0412 345 678', status: 'injured', notes: 'hamstring' }
   ],
   sessions: [{ id: 's1', date: '2026-10-20', start: '18:00', venue: 'Field 2', notes: 'Bring water', cancelled: false, attendance: { p1: 'absent' } }],
   lineups: [{ id: 'l1', name: 'Starting 8', slots: [{ id: 'LW', label: 'LW', name: 'Left wing', group: 'Wing', x: 5, y: 60, playerId: 'p1' }] }],

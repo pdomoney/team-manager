@@ -34,7 +34,7 @@ export function build({ dataDir = 'data', outDir = 'dist', siteDir = 'site', log
   }
   fs.writeFileSync(path.join(outDir, 'data', 'manifest.json'), JSON.stringify({ builtAt: new Date().toISOString(), files: published }, null, 2) + '\n');
   fs.writeFileSync(path.join(outDir, '.nojekyll'), '');
-  log(published.length ? `Published ${published.join(' and ')}.` : 'No team data yet. The site will show the set-up screen.');
+  log(published.length ? `Published ${published.join(' and ')}.` : 'No team data yet. The site opens in test mode.');
   return published;
 }
 

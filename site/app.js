@@ -28,12 +28,12 @@ const SLOT_DEFS = [
   { id: 'RM', label: 'RM', name: 'Right middle', group: 'Middle' },
   { id: 'RL', label: 'RL', name: 'Right link', group: 'Link' },
   { id: 'RW', label: 'RW', name: 'Right wing', group: 'Wing' },
-  { id: 'H', label: 'H', name: 'Half', group: 'Half' }
+  { id: 'R', label: 'R', name: 'Rover', group: 'Rover' }
 ];
 // Field is 50 m wide x 70 m long plus 5 m in-goal each end (y 0–80). The team attacks up the page.
 const SHAPES = {
-  attack: { LW: [5, 60], LL: [12, 55], LM: [18.5, 49], M: [25, 41], RM: [31.5, 49], RL: [38, 55], RW: [45, 60], H: [25, 55] },
-  defence: { LW: [4, 38], LL: [11, 39.5], LM: [18, 38], M: [25, 39.5], RM: [32, 38], RL: [39, 39.5], RW: [46, 38], H: [25, 52] }
+  attack: { LW: [5, 60], LL: [12, 55], LM: [18.5, 49], M: [25, 41], RM: [31.5, 49], RL: [38, 55], RW: [45, 60], R: [25, 55] },
+  defence: { LW: [4, 38], LL: [11, 39.5], LM: [18, 38], M: [25, 39.5], RM: [32, 38], RL: [39, 39.5], RW: [46, 38], R: [25, 52] }
 };
 const STATUS = { available: 'Available', injured: 'Injured', unavailable: 'Unavailable' };
 const ROLL = { present: 'Here', late: 'Late', apology: 'Apol', absent: 'Absent' };
@@ -95,18 +95,34 @@ function defaultData() {
       eventStart: '2027-03-19', eventEnd: '2027-03-21',
       venue: 'C.ex Coffs International Stadium, Coffs Harbour',
       trainingVenue: '', trainingStart: '18:00', trainingEnd: '19:30',
-      maxMales: 4, positions: ['Wing', 'Link', 'Middle', 'Half']
+      maxMales: 4, positions: ['Wing', 'Link', 'Rover', 'Middle']
     },
     players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [],
     teamPass: '', teamSalt: '', updatedAt: null
   };
 }
 const arr = v => Array.isArray(v) ? v : [];
+// Earlier versions called the eighth position "Half"; it is now "Rover". Custom names are left alone.
+function renameHalfToRover(d) {
+  const t = d.team || {};
+  if (Array.isArray(t.positions) && t.positions.join('|') === 'Wing|Link|Middle|Half') {
+    t.positions = ['Wing', 'Link', 'Rover', 'Middle'];
+    arr(d.players).forEach(p => { if (Array.isArray(p.positions)) p.positions = p.positions.map(x => x === 'Half' ? 'Rover' : x); });
+  }
+  arr(d.lineups).forEach(l => arr(l.slots).forEach(sl => {
+    if (sl.id !== 'H' || sl.group !== 'Half') return;
+    sl.id = 'R'; sl.group = 'Rover';
+    if (sl.label === 'H') sl.label = 'R';
+    if (sl.name === 'Half') sl.name = 'Rover';
+  }));
+  return d;
+}
 function normalize(d) {
   const base = defaultData();
   if (!d || typeof d !== 'object') return base;
   const out = { ...base, ...d, team: { ...base.team, ...(d.team || {}) } };
   ['players', 'sessions', 'lineups', 'messages', 'notices'].forEach(k => { out[k] = arr(out[k]); });
+  renameHalfToRover(out);
   if (!out.lineups.length) out.lineups = base.lineups;
   out.sessions.forEach(s => { if (!s.attendance || typeof s.attendance !== 'object') s.attendance = {}; });
   out.players.forEach(p => { p.positions = arr(p.positions); if (!p.status) p.status = 'available'; });
@@ -117,6 +133,7 @@ function normalizeTeam(t) {
   const out = { ...base, ...(t || {}), team: { ...base.team, ...((t && t.team) || {}) } };
   ['players', 'sessions', 'lineups', 'notices'].forEach(k => { out[k] = arr(out[k]); });
   if (!out.lineups.length) out.lineups = base.lineups;
+  renameHalfToRover(out);
   out.players.forEach(p => { p.positions = arr(p.positions); });
   return out;
 }
@@ -1090,9 +1107,9 @@ async function copyText(text, done = 'Copied') {
 /* ---------- sample data ---------- */
 function loadSample() {
   const people = [
-    ['Mia Tuala', 'F', '4', ['Middle', 'Half']], ['Jade Nguyen', 'F', '7', ['Half']], ['Chloe Ritchie', 'F', '2', ['Wing']], ['Ava Kelleher', 'F', '11', ['Link']],
+    ['Mia Tuala', 'F', '4', ['Middle', 'Rover']], ['Jade Nguyen', 'F', '7', ['Rover']], ['Chloe Ritchie', 'F', '2', ['Wing']], ['Ava Kelleher', 'F', '11', ['Link']],
     ['Leilani Faleolo', 'F', '9', ['Middle']], ['Grace O’Brien', 'F', '14', ['Wing', 'Link']], ['Sienna Park', 'F', '3', ['Link']], ['Tayla Morgan', 'F', '16', ['Wing']],
-    ['Josh Halloran', 'M', '1', ['Middle']], ['Liam Tupou', 'M', '5', ['Middle', 'Link']], ['Kai Brennan', 'M', '8', ['Half', 'Link']], ['Noah Fitzgerald', 'M', '6', ['Wing']],
+    ['Josh Halloran', 'M', '1', ['Middle']], ['Liam Tupou', 'M', '5', ['Middle', 'Link']], ['Kai Brennan', 'M', '8', ['Rover', 'Link']], ['Noah Fitzgerald', 'M', '6', ['Wing']],
     ['Ethan Moana', 'M', '10', ['Middle']], ['Isaac Delaney', 'M', '12', ['Link']], ['Jayden Sio', 'M', '13', ['Wing', 'Link']], ['Tom Whitfield', 'M', '15', ['Middle']]
   ];
   data.players = people.map(([name, gender, number, positions]) => ({ id: uid(), name, gender, number, phone: '', positions, status: 'available', notes: '' }));
@@ -1109,7 +1126,7 @@ function loadSample() {
     data.sessions.push(s); d.setDate(d.getDate() + 7);
   }
   const byName = n => data.players.find(p => p.name.startsWith(n)).id;
-  const pick = { LW: 'Chloe', LL: 'Ava', LM: 'Mia', M: 'Josh', RM: 'Liam', RL: 'Isaac', RW: 'Jayden', H: 'Jade' };
+  const pick = { LW: 'Chloe', LL: 'Ava', LM: 'Mia', M: 'Josh', RM: 'Liam', RL: 'Isaac', RW: 'Jayden', R: 'Jade' };
   data.lineups[0].slots.forEach(s => { s.playerId = byName(pick[s.id]); });
   if (!data.team.trainingVenue) data.team.trainingVenue = 'Home ground, field 2';
   save(); state.msgDraft = null; render(); toast('Sample squad loaded');
