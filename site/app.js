@@ -990,13 +990,13 @@ function lineupText(lu) {
 // ([{ at, text, side, dot }]) and view (the part of the field to show).
 const PLAY_CATS = ['Ruck', 'Edge', 'Hands', 'Kick', 'Other'];
 const MOVE_KINDS = { run: 'Run', pass: 'Pass', kick: 'Kick', dummy: 'Dummy pass', shift: 'Defender move' };
-const STARTER_IDS = ['quickie-out', 'quickie-in', 'ninja', 'out-the-back', 'hands-inside', 'hands-outside'];
+const STARTER_IDS = ['quickie-out', 'quickie-in', 'ninja', 'out-the-back', 'hands-inside', 'hands-outside', 'wrap-block'];
 // Each starter play carries its own rev, bumped when its drawing changes (see upgradePlays).
 // STARTER_SET is bumped when starters are added or retired: set 4 retired Switch and Finisher
-// and added the two Hands plays.
-const STARTER_SET = 4;
+// and added the two Hands plays; set 5 added Wrap Block.
+const STARTER_SET = 5;
 const RETIRED_STARTERS = ['switch', 'finisher'];
-const STARTER_SINCE = { 'hands-inside': 4, 'hands-outside': 4 };
+const STARTER_SINCE = { 'hands-inside': 4, 'hands-outside': 4, 'wrap-block': 5 };
 const swapSlot = id => /^[LR][WLRM]$/.test(id) ? (id[0] === 'L' ? 'R' : 'L') + id[1] : id;
 const flipSide = s => String(s || '').replace(/[lr]/g, c => c === 'l' ? 'r' : 'l');
 function mirrorText(text) {
@@ -1096,7 +1096,26 @@ function starterPlays() {
     base('hands-outside', 4, 'Hands – outside shoulder', 'Hands', 'When their defenders are coming in hard, or we have the numbers out wide.',
       'Through the hands: each receiver runs at the outside shoulder of the defender in front, away from the ball.',
       'RM plays the ball; LM, at dummy half, passes right to RR.\nRR runs at the outside shoulder of the defender in front (away from the ball) and passes to RL.\nRL does the same and passes to RW.\nRW takes the outside shoulder of the last defender and goes around them.',
-      handsPlay([[[30.2, 51], [33.2, 39.4]], [[36.6, 54], [40.4, 39.4]], [[44.6, 56.5], [47.5, 39.4]]]))
+      handsPlay([[[30.2, 51], [33.2, 39.4]], [[36.6, 54], [40.4, 39.4]], [[44.6, 56.5], [47.5, 39.4]]])),
+    // Wrap Block, from the coach's drawing: RR passes to RL (W2.1) and wraps around the back, behind
+    // RW's block line, to take RL's pass (W2.2). Option: RL passes to RW on the inside line instead.
+    base('wrap-block', 5, 'Wrap Block', 'Edge', 'When their edge defenders are holding their spots: the inside lines hold them while RR wraps around.',
+      'RR passes and wraps around the back, behind RW’s block line, to take RL’s pass and finish outside.',
+      'LM, at dummy half, passes to RR.\nRR runs forward, passes to RL (W2.1), then wraps around behind RL.\nRL runs an inside line, and RW runs a block line in towards the ball, to hold their defenders.\nRR wraps behind RW’s block line, takes RL’s pass (W2.2) and finishes outside the last defender.\nOption: if their defence drifts out to cover the wrap, RL passes to RW on the inside line instead.',
+      { focus: ['RR'], view: { x0: 11, x1: 48, y0: 36, y1: 54 },
+        players: { RM: [22, 46], LM: [21.6, 49.6], LR: [14.8, 51.6], LL: [8.4, 54], LW: [2.6, 56.5], RR: [28.4, 50.4], RL: [34.8, 50.4], RW: [41.2, 50.4] },
+        defence: { marker: [22, 43], line: [3, 9.4, 15.8, 22.2, 28.6, 35, 41.4].map(x => [x, 39]) },
+        notes: { RM: { text: 'Plays the ball', side: 'l' }, LM: { text: 'Dummy half', side: 'l' }, RR: { text: 'Passes, then wraps', side: 'b' }, RW: { text: 'Block', side: 'r' } },
+        labels: [{ at: [31.6, 45.7], text: 'W2.1', side: 'a' }, { at: [36.5, 43], text: 'W2.2', side: 'b' }, { at: [31.8, 40.9], text: 'Option', side: 'l' }],
+        moves: [
+          { t: 'pass', pts: [[21.6, 49.6], [28.4, 50.4]] },
+          { t: 'run', pts: [[34.8, 50.4], [31.2, 38]] },
+          { t: 'run', pts: [[41.2, 50.4], [36.8, 38]] },
+          { t: 'run', key: true, curve: true, pts: [[28.4, 50.4], [29.6, 45.7], [32.2, 47.1], [35.1, 47.6], [37.9, 46.8], [39.6, 45.3], [41.6, 41.3], [43.4, 37.6]] },
+          { t: 'pass', pts: [[29.6, 45.7], [33.5, 45.8]] },
+          { t: 'pass', key: true, pts: [[32.5, 42.4], [40.5, 43.5]] },
+          { t: 'pass', pts: [[32, 40.8], [37.9, 41.1]] }
+        ] })
   ];
 }
 // Keeps a team's plays in step with the starter plays:
