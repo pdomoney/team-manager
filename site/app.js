@@ -20,20 +20,24 @@ import { GitHub, repoFromLocation } from './github.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data' };
 
+// Eight on field, symmetrical: from the centre out to each touch line, Middle, Rover, Link, Wing.
 const SLOT_DEFS = [
   { id: 'LW', label: 'LW', name: 'Left wing', group: 'Wing' },
   { id: 'LL', label: 'LL', name: 'Left link', group: 'Link' },
+  { id: 'LR', label: 'LR', name: 'Left rover', group: 'Rover' },
   { id: 'LM', label: 'LM', name: 'Left middle', group: 'Middle' },
-  { id: 'M', label: 'M', name: 'Middle', group: 'Middle' },
   { id: 'RM', label: 'RM', name: 'Right middle', group: 'Middle' },
+  { id: 'RR', label: 'RR', name: 'Right rover', group: 'Rover' },
   { id: 'RL', label: 'RL', name: 'Right link', group: 'Link' },
-  { id: 'RW', label: 'RW', name: 'Right wing', group: 'Wing' },
-  { id: 'R', label: 'R', name: 'Rover', group: 'Rover' }
+  { id: 'RW', label: 'RW', name: 'Right wing', group: 'Wing' }
 ];
 // Field is 50 m wide x 70 m long plus 5 m in-goal each end (y 0–80). The team attacks up the page.
+// Players are spread evenly across the width, mirrored about the centre (x = 25).
+const ACROSS = { M: 3.2, R: 9.6, L: 16, W: 22.4 };
+const mirror = (depth) => Object.fromEntries(['W', 'L', 'R', 'M'].flatMap(k => [[`L${k}`, [+(25 - ACROSS[k]).toFixed(1), depth[k]]], [`R${k}`, [+(25 + ACROSS[k]).toFixed(1), depth[k]]]]));
 const SHAPES = {
-  attack: { LW: [5, 60], LL: [12, 55], LM: [18.5, 49], M: [25, 41], RM: [31.5, 49], RL: [38, 55], RW: [45, 60], R: [25, 55] },
-  defence: { LW: [4, 38], LL: [11, 39.5], LM: [18, 38], M: [25, 39.5], RM: [32, 38], RL: [39, 39.5], RW: [46, 38], R: [25, 52] }
+  attack: mirror({ M: 42, R: 47, L: 52, W: 57 }),     // arrowhead: middles up at the ruck, wings deepest
+  defence: mirror({ M: 41, R: 38, L: 41, W: 38 })  // flat line, slightly staggered so names don't collide
 };
 const STATUS = { available: 'Available', injured: 'Injured', unavailable: 'Unavailable' };
 const ROLL = { present: 'Here', late: 'Late', apology: 'Apol', absent: 'Absent' };
@@ -117,12 +121,34 @@ function renameHalfToRover(d) {
   }));
   return d;
 }
+// The previous field layout had a centre Middle (M) and a single Rover (R). Move to the paired layout:
+// shared positions keep their player and any custom name; the Rover goes to LR and the centre Middle to RR.
+const PREV_SLOTS = 'LL,LM,LW,M,R,RL,RM,RW';
+function toPairedLayout(d) {
+  arr(d.lineups).forEach(l => {
+    const slots = arr(l.slots);
+    if (slots.map(s => s.id).sort().join(',') !== PREV_SLOTS) return;
+    const old = Object.fromEntries(slots.map(s => [s.id, s]));
+    const carry = { LR: 'R', RR: 'M' };
+    l.slots = SLOT_DEFS.map(def => {
+      const from = old[def.id];
+      return {
+        ...def,
+        ...(from ? { label: from.label || def.label, name: from.name || def.name } : {}),
+        x: SHAPES.attack[def.id][0], y: SHAPES.attack[def.id][1],
+        playerId: (from || old[carry[def.id]] || {}).playerId || null
+      };
+    });
+  });
+  return d;
+}
 function normalize(d) {
   const base = defaultData();
   if (!d || typeof d !== 'object') return base;
   const out = { ...base, ...d, team: { ...base.team, ...(d.team || {}) } };
   ['players', 'sessions', 'lineups', 'messages', 'notices'].forEach(k => { out[k] = arr(out[k]); });
   renameHalfToRover(out);
+  toPairedLayout(out);
   if (!out.lineups.length) out.lineups = base.lineups;
   out.sessions.forEach(s => { if (!s.attendance || typeof s.attendance !== 'object') s.attendance = {}; });
   out.players.forEach(p => { p.positions = arr(p.positions); if (!p.status) p.status = 'available'; });
@@ -134,6 +160,7 @@ function normalizeTeam(t) {
   ['players', 'sessions', 'lineups', 'notices'].forEach(k => { out[k] = arr(out[k]); });
   if (!out.lineups.length) out.lineups = base.lineups;
   renameHalfToRover(out);
+  toPairedLayout(out);
   out.players.forEach(p => { p.positions = arr(p.positions); });
   return out;
 }
@@ -812,11 +839,11 @@ function fieldSVG(lu, interactive) {
     const p = playerById(sl.playerId);
     const g = p ? (p.gender === 'F' ? 'F' : p.gender === 'M' ? 'M' : 'U') : '';
     s += `<g class="slot ${p ? g.toLowerCase() : 'empty'}" data-slot="${sl.id}" transform="translate(${sl.x} ${sl.y})" ${interactive ? 'tabindex="0" role="button"' : ''} aria-label="${esc(sl.name)}: ${p ? esc(p.name) : 'empty'}">
-      <circle class="hit" r="4.2"/><circle class="disc" r="3"/>
-      <text class="lbl" dy="0.78">${esc(p ? (p.number || initials(p)) : sl.label)}</text>`;
+      <circle class="hit" r="4"/><circle class="disc" r="2.7"/>
+      <text class="lbl" dy="0.72">${esc(p ? (p.number || initials(p)) : sl.label)}</text>`;
     if (p) {
-      s += `<circle class="gb ${g}" cx="2.4" cy="-2.4" r="1.1"/><text class="gl" x="2.4" y="-2.4" dy="0.5">${g === 'U' ? '?' : g}</text>`;
-      s += `<text class="pos" y="-4">${esc(sl.label)}</text><text class="nm" y="5.3">${esc(shortName(p))}</text>`;
+      s += `<circle class="gb ${g}" cx="2.1" cy="-2.1" r="1"/><text class="gl" x="2.1" y="-2.1" dy="0.46">${g === 'U' ? '?' : g}</text>`;
+      s += `<text class="pos" y="-3.7">${esc(sl.label)}</text><text class="nm" y="4.9">${esc(shortName(p))}</text>`;
     }
     s += `</g>`;
   }
@@ -1110,7 +1137,7 @@ function loadSample() {
     ['Mia Tuala', 'F', '4', ['Middle', 'Rover']], ['Jade Nguyen', 'F', '7', ['Rover']], ['Chloe Ritchie', 'F', '2', ['Wing']], ['Ava Kelleher', 'F', '11', ['Link']],
     ['Leilani Faleolo', 'F', '9', ['Middle']], ['Grace O’Brien', 'F', '14', ['Wing', 'Link']], ['Sienna Park', 'F', '3', ['Link']], ['Tayla Morgan', 'F', '16', ['Wing']],
     ['Josh Halloran', 'M', '1', ['Middle']], ['Liam Tupou', 'M', '5', ['Middle', 'Link']], ['Kai Brennan', 'M', '8', ['Rover', 'Link']], ['Noah Fitzgerald', 'M', '6', ['Wing']],
-    ['Ethan Moana', 'M', '10', ['Middle']], ['Isaac Delaney', 'M', '12', ['Link']], ['Jayden Sio', 'M', '13', ['Wing', 'Link']], ['Tom Whitfield', 'M', '15', ['Middle']]
+    ['Ethan Moana', 'M', '10', ['Middle']], ['Isaac Delaney', 'M', '12', ['Link']], ['Jayden Sio', 'M', '13', ['Wing', 'Link']], ['Tom Whitfield', 'M', '15', ['Rover', 'Middle']]
   ];
   data.players = people.map(([name, gender, number, positions]) => ({ id: uid(), name, gender, number, phone: '', positions, status: 'available', notes: '' }));
   data.players[11].status = 'injured';
@@ -1126,7 +1153,7 @@ function loadSample() {
     data.sessions.push(s); d.setDate(d.getDate() + 7);
   }
   const byName = n => data.players.find(p => p.name.startsWith(n)).id;
-  const pick = { LW: 'Chloe', LL: 'Ava', LM: 'Mia', M: 'Josh', RM: 'Liam', RL: 'Isaac', RW: 'Jayden', R: 'Jade' };
+  const pick = { LW: 'Chloe', LL: 'Ava', LR: 'Jade', LM: 'Mia', RM: 'Josh', RR: 'Kai', RL: 'Isaac', RW: 'Jayden' };
   data.lineups[0].slots.forEach(s => { s.playerId = byName(pick[s.id]); });
   if (!data.team.trainingVenue) data.team.trainingVenue = 'Home ground, field 2';
   save(); state.msgDraft = null; render(); toast('Sample squad loaded');
