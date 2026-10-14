@@ -101,7 +101,7 @@ const pick = (o, keys) => Object.fromEntries(keys.filter(k => o && o[k] !== unde
 // The players' copy. Anything not listed here stays in the coach's file only.
 export function teamView(d) {
   return {
-    team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions']),
+    team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field']),
     players: (d.players || []).map(p => pick(p, ['id', 'name', 'gender', 'number', 'positions'])),
     sessions: (d.sessions || []).map(s => pick(s, ['id', 'date', 'start', 'end', 'venue', 'focus', 'notes', 'cancelled'])),
     lineups: (d.lineups || []).map(l => ({

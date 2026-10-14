@@ -178,11 +178,19 @@ main{max-width:720px;margin:0 auto;padding:16px}
 .field .mark{stroke:#fff;fill:none;stroke-width:.3;opacity:.9}
 .field .mark.dash{stroke-dasharray:1 1;stroke-width:.22;opacity:.75}
 .field .fl{font-size:1.6px;fill:rgba(255,255,255,.8);font-weight:600}
-.field .zone.red{fill:#C8232F;fill-opacity:.62}
-.field .zone.good{fill:#F2C14E;fill-opacity:.42}
+.field .ch-red{fill:#E0283E;fill-opacity:.3}
+.field .ch-out{fill:#5BA4F0;fill-opacity:.16}
+.field .ch-touch{fill:#fff;fill-opacity:.10}
+.field .ch-line{stroke:#fff;stroke-width:.2;stroke-dasharray:.8 .8;opacity:.75}
+.field .ch-line.red{stroke:#FF5A6A;stroke-width:.4;stroke-dasharray:none;opacity:1}
+.field .chl{font-size:1.35px;font-weight:700;fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.35);stroke-width:.3px}
+.field .zone.red{fill:#C8232F;fill-opacity:.55}
+.field .zone.good{fill:#F2C14E;fill-opacity:.36}
 .field .zone-line{stroke:#fff;stroke-width:.3;opacity:.9}
-.field .zl{font-size:1.75px;font-weight:700;fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.35);stroke-width:.35px}
-.field .zm{font-size:1.4px;font-weight:600;fill:rgba(255,255,255,.85);text-anchor:end}
+.field .zl{font-size:1.7px;font-weight:700;fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.4);stroke-width:.4px}
+.field .zm{font-size:1.3px;font-weight:600;fill:rgba(255,255,255,.9);text-anchor:end}
+.field .zz{fill:none;stroke:#fff;stroke-width:.45;stroke-dasharray:1.2 .7;stroke-linejoin:round}
+.layer-chips{margin-bottom:10px}
 .ratio{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:10px 0 2px}
 .ratio .pill{font-size:13px;padding:4px 10px}
 .field-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}

@@ -39,6 +39,15 @@ const SHAPES = {
   attack: mirror({ M: 42, R: 47, L: 52, W: 57 }),     // arrowhead: middles up at the ruck, wings deepest
   defence: mirror({ M: 41, R: 38, L: 41, W: 38 })  // flat line, slightly staggered so names don't collide
 };
+// Field markings for an Oztag field (50 m wide, 70 m try line to try line). Rugby league's 20 m zones
+// on a 100 m field scale to 14 m here. Channels run try line to try line: a narrow touch channel each
+// side, a wider outside channel, and a narrow red channel down the middle.
+const FIELD_DEFAULTS = { zone: 14, touch: 5, middle: 12 };
+function fieldDims(f) {
+  const F = { ...FIELD_DEFAULTS, ...(f || {}) };
+  const outside = (50 - F.middle - 2 * F.touch) / 2;
+  return { ...F, outside, bounds: [0, F.touch, F.touch + outside, F.touch + outside + F.middle, 50 - F.touch, 50] };
+}
 const STATUS = { available: 'Available', injured: 'Injured', unavailable: 'Unavailable' };
 const ROLL = { present: 'Here', late: 'Late', apology: 'Apol', absent: 'Absent' };
 const FOCUS_IDEAS = ['Defence line speed', 'Attack shape', 'Ball skills', 'Fitness', 'Set plays', 'Kick chase', 'Match simulation', 'Tagging technique'];
@@ -99,7 +108,8 @@ function defaultData() {
       eventStart: '2027-03-19', eventEnd: '2027-03-21',
       venue: 'C.ex Coffs International Stadium, Coffs Harbour',
       trainingVenue: '', trainingStart: '18:00', trainingEnd: '19:30',
-      maxMales: 4, positions: ['Wing', 'Link', 'Rover', 'Middle']
+      maxMales: 4, positions: ['Wing', 'Link', 'Rover', 'Middle'],
+      field: { ...FIELD_DEFAULTS }
     },
     players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [],
     teamPass: '', teamSalt: '', updatedAt: null
@@ -146,6 +156,7 @@ function normalize(d) {
   const base = defaultData();
   if (!d || typeof d !== 'object') return base;
   const out = { ...base, ...d, team: { ...base.team, ...(d.team || {}) } };
+  out.team.field = { ...FIELD_DEFAULTS, ...((d.team && d.team.field) || {}) };
   ['players', 'sessions', 'lineups', 'messages', 'notices'].forEach(k => { out[k] = arr(out[k]); });
   renameHalfToRover(out);
   toPairedLayout(out);
@@ -157,6 +168,7 @@ function normalize(d) {
 function normalizeTeam(t) {
   const base = teamView(defaultData());
   const out = { ...base, ...(t || {}), team: { ...base.team, ...((t && t.team) || {}) } };
+  out.team.field = { ...FIELD_DEFAULTS, ...((t && t.team && t.team.field) || {}) };
   ['players', 'sessions', 'lineups', 'notices'].forEach(k => { out[k] = arr(out[k]); });
   if (!out.lineups.length) out.lineups = base.lineups;
   renameHalfToRover(out);
@@ -183,6 +195,7 @@ let gh = { autoPublish: true, ...repoFromLocation(), ...(readJson(KEYS.github) |
 const state = {
   tab: 'home', squadFilter: 'all', squadSearch: '', trainingView: 'schedule', showPast: false,
   lineupId: null, moveMode: false, msgTpl: 'reminder', msgSession: null, msgDraft: null, postNotice: true,
+  layers: { zones: true, channels: true, zigzag: false, ...(readJson('tm-field-layers') || {}) },
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false
 };
 const isCoach = () => S.role === 'coach' && !state.preview;
@@ -809,7 +822,13 @@ function viewField() {
       <button data-act="move-mode" data-on="0" aria-pressed="${!state.moveMode}">Pick players</button>
       <button data-act="move-mode" data-on="1" aria-pressed="${state.moveMode}">Move positions</button>
     </div>` : ''}
+    <div class="chips layer-chips" role="group" aria-label="Show on the field">
+      <button class="chip" data-act="layer" data-k="zones" aria-pressed="${!!state.layers.zones}">Zones</button>
+      <button class="chip" data-act="layer" data-k="channels" aria-pressed="${!!state.layers.channels}">Channels</button>
+      <button class="chip" data-act="layer" data-k="zigzag" aria-pressed="${!!state.layers.zigzag}">Zig-zag</button>
+    </div>
     <div class="field-wrap">${fieldSVG(lu, coach)}</div>
+    ${state.layers.zigzag ? '<p class="hint" style="text-align:center">Zig-zag: work the ball into one side to pull their defence across, then switch to the other side.</p>' : ''}
     ${coach ? `<div class="ratio">
       <span class="pill ${males > max ? 'bad' : 'ok'}">${males} of ${max} males max</span>
       <span class="pill neutral">${females} female</span>
@@ -831,15 +850,14 @@ function fieldSVG(lu, interactive) {
   s += `<rect x="0" y="0" width="50" height="80" fill="var(--turf)"/>`;
   for (let y = 5, i = 0; y < 75; y += 5, i++) if (i % 2) s += `<rect x="0" y="${y}" width="50" height="5" fill="var(--turf-2)"/>`;
   s += `<rect x="0" y="0" width="50" height="5" fill="var(--turf-3)"/><rect x="0" y="75" width="50" height="5" fill="var(--turf-3)"/>`;
-  // Attacking zones: red zone = their try line to their 20 m line; good ball = halfway to their 20 m line.
-  s += `<g class="zones" aria-hidden="true"><rect class="zone red" x="0" y="5" width="50" height="20"/><rect class="zone good" x="0" y="25" width="50" height="15"/>`;
-  s += `<line class="zone-line" x1="0" x2="50" y1="25" y2="25"/>`;
-  s += `<text class="zl" x="25" y="8.6">Red zone: their 20 m</text><text class="zl" x="25" y="28.6">Good ball: halfway to their 20 m</text>`;
-  s += `<text class="zm" x="49" y="24.2">20 m</text></g>`;
+  const F = fieldDims(V.team.field), L = state.layers;
+  if (L.channels) s += channelsSVG(F);
+  if (L.zones) s += zonesSVG(F);
   s += `<rect class="mark" x="0" y="0" width="50" height="80"/>`;
   s += `<line class="mark" x1="0" x2="50" y1="5" y2="5"/><line class="mark" x1="0" x2="50" y1="75" y2="75"/><line class="mark" x1="0" x2="50" y1="40" y2="40"/>`;
   s += `<line class="mark dash" x1="0" x2="50" y1="30" y2="30"/><line class="mark dash" x1="0" x2="50" y1="50" y2="50"/>`;
   s += `<text class="fl" x="25" y="3.1">Attacking this way ↑</text><text class="fl" x="25" y="78.1">Our try line</text>`;
+  if (L.zigzag) s += zigzagSVG(F);
   for (const sl of lu.slots) {
     const p = playerById(sl.playerId);
     const g = p ? (p.gender === 'F' ? 'F' : p.gender === 'M' ? 'M' : 'U') : '';
@@ -853,6 +871,34 @@ function fieldSVG(lu, interactive) {
     s += `</g>`;
   }
   return s + '</svg>';
+}
+// Channels run try line to try line (y 5 to 75).
+function channelsSVG(F) {
+  const b = F.bounds, kinds = ['touch', 'out', 'red', 'out', 'touch'], names = ['Touch', 'Outside', 'Red', 'Outside', 'Touch'];
+  let s = '<g class="channels" aria-hidden="true">';
+  kinds.forEach((k, i) => { s += `<rect class="ch-${k}" x="${b[i]}" y="5" width="${b[i + 1] - b[i]}" height="70"/>`; });
+  [1, 2, 3, 4].forEach(i => { s += `<line class="ch-line${i === 2 || i === 3 ? ' red' : ''}" x1="${b[i]}" x2="${b[i]}" y1="5" y2="75"/>`; });
+  names.forEach((n, i) => { s += `<text class="chl" x="${(b[i] + b[i + 1]) / 2}" y="7.3">${n}</text>`; });
+  return s + '</g>';
+}
+// Zones: our red zone (danger zone) from our try line; good ball from halfway to their zone line.
+function zonesSVG(F) {
+  const z = F.zone, theirs = 5 + z, ours = 75 - z;
+  let s = '<g class="zones" aria-hidden="true">';
+  s += `<rect class="zone good" x="0" y="${theirs}" width="50" height="${40 - theirs}"/>`;
+  s += `<rect class="zone red" x="0" y="${ours}" width="50" height="${75 - ours}"/>`;
+  s += `<line class="zone-line" x1="0" x2="50" y1="${theirs}" y2="${theirs}"/><line class="zone-line" x1="0" x2="50" y1="${ours}" y2="${ours}"/>`;
+  s += `<text class="zl" x="25" y="${theirs + 3}">Good ball: halfway to their ${z} m</text>`;
+  s += `<text class="zl" x="25" y="${75 - 1.6}">Red zone: our ${z} m, danger</text>`;
+  s += `<text class="zm" x="49.4" y="${theirs - 0.7}">${z} m</text><text class="zm" x="49.4" y="${ours - 0.7}">${z} m</text>`;
+  return s + '</g>';
+}
+// The attack works one side, then the other, compressing the defence each way.
+function zigzagSVG(F) {
+  const lx = F.touch + F.outside / 2, rx = 50 - lx;
+  const pts = [[25, 70], [lx, 62], [rx, 52], [lx, 42], [rx, 32], [lx, 22], [25, 11]];
+  return `<g class="zigzag" aria-hidden="true"><defs><marker id="zz-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="#fff"/></marker></defs>
+    <polyline class="zz" points="${pts.map(p => p.join(',')).join(' ')}" marker-mid="url(#zz-arrow)" marker-end="url(#zz-arrow)"/></g>`;
 }
 function bindField() {
   const svg = $('#field'); if (!svg || !isCoach()) return;
@@ -1016,6 +1062,13 @@ function settingsBody() {
       <label class="field-l"><span>Usual start</span><input type="time" name="trainingStart" value="${esc(T.trainingStart)}"></label>
       <label class="field-l"><span>Usual finish</span><input type="time" name="trainingEnd" value="${esc(T.trainingEnd)}"></label>
     </div>
+    <h3 class="form-sec">Field zones and channels</h3>
+    <label class="field-l"><span>Zone depth from each try line (m)</span><input type="number" name="fieldZone" min="5" max="30" step="1" value="${esc(T.field.zone)}"><small>Sets the red zone (our end) and where good ball ends (their end). League uses 20 m on a 100 m field; 14 m is the same share of a 70 m Oztag field.</small></label>
+    <div class="two">
+      <label class="field-l"><span>Touch channels (m)</span><input type="number" name="fieldTouch" min="2" max="10" step="0.5" value="${esc(T.field.touch)}"></label>
+      <label class="field-l"><span>Red middle channel (m)</span><input type="number" name="fieldMiddle" min="4" max="20" step="0.5" value="${esc(T.field.middle)}"></label>
+    </div>
+    <p class="hint" style="margin-top:-6px;margin-bottom:14px">The two outside channels share the rest of the 50 m width: ${esc(fieldDims(T.field).outside)} m each now.</p>
     <label class="field-l"><span>Position groups</span><input type="text" name="positions" value="${esc(T.positions.join(', '))}"><small>Preferred-position options for players. Separate with commas.</small></label>
     <button class="btn primary block" type="submit">Save settings</button>
   </form>
@@ -1233,6 +1286,7 @@ const actions = {
   }),
 
   'lineup-menu': coachOnly(() => lineupMenu()),
+  'layer': el => { const k = el.dataset.k; state.layers[k] = !state.layers[k]; store.set('tm-field-layers', JSON.stringify(state.layers)); render(); },
   'move-mode': coachOnly(el => { state.moveMode = el.dataset.on === '1'; render(); }),
   'shape': coachOnly(el => { const sh = SHAPES[el.dataset.shape]; curLineup().slots.forEach(s => { if (sh[s.id]) { s.x = sh[s.id][0]; s.y = sh[s.id][1]; } }); save(); render(); }),
   'assign': coachOnly(el => {
@@ -1452,7 +1506,11 @@ document.addEventListener('submit', async e => {
     T.venue = str('venue'); T.maxMales = Number(str('maxMales')) || 4;
     T.trainingVenue = str('trainingVenue'); T.trainingStart = str('trainingStart'); T.trainingEnd = str('trainingEnd');
     const pos = str('positions').split(',').map(x => x.trim()).filter(Boolean); if (pos.length) T.positions = pos;
-    save(); render(); toast('Settings saved');
+    const zone = Number(str('fieldZone')), touch = Number(str('fieldTouch')), middle = Number(str('fieldMiddle'));
+    const fits = zone >= 5 && zone <= 30 && touch >= 2 && middle >= 4 && (50 - middle - 2 * touch) / 2 >= 3;
+    if (fits) T.field = { zone, touch, middle };
+    save(); render();
+    toast(fits ? 'Settings saved' : "Saved, except the field sizes: they don't fit a 50 m wide field.");
   }
   if (kind === 'github') {
     const changed = gh.owner !== str('owner') || gh.repo !== str('repo');
