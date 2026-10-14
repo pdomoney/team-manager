@@ -293,33 +293,52 @@ details.more[open] summary{margin-bottom:8px}
 .play-row{appearance:none;width:100%;background:none;border:0;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:10px 12px;text-align:left;cursor:pointer}
 .play-row:first-child{border-top:0}
 .play-row:hover{background:#F7F8F4}
-.play-thumb{width:84px;flex:none;border-radius:6px;overflow:hidden;background:var(--pitch-2);line-height:0}
+.play-thumb{width:96px;flex:none;border-radius:8px;overflow:hidden;background:#EEF2EC;border:1px solid var(--line);line-height:0}
 .play-thumb svg{width:100%;height:auto;display:block}
 .play-when{white-space:normal;display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.field.play{width:100%;max-width:520px;display:block;margin:0 auto;height:auto}
-.field .ch-line.faint{opacity:.35}
-.field .ch-line.red.faint{opacity:.6}
-.play .df{fill:rgba(0,0,0,.18);stroke:#fff;stroke-width:.3}
-.play .df.mk{stroke:#FFB3BB;stroke-width:.4}
-.play .mv{fill:none;stroke:#fff;stroke-width:.35;stroke-linecap:round;stroke-linejoin:round}
-.play .mv.key{stroke:#FFD24D;stroke-width:.5}
-.play .mv.pass{stroke-dasharray:1 .7}
-.play .mv.kick{stroke-dasharray:.1 .7;stroke-width:.5}
-.play .mv.dummy{stroke-dasharray:.6 .6;opacity:.85}
-.play .mv.draft{stroke:#7FE3FF;stroke-width:.4;stroke-dasharray:.8 .5}
-.play .draft-pt{fill:#7FE3FF}
-.play .pl{fill:#fff;stroke:var(--pitch);stroke-width:.3}
-.play .pl.focus{fill:#FFD24D}
-.play .pl.ghost{fill-opacity:.4;stroke-dasharray:.5 .35}
-.play .pl.ghost + .plt{opacity:.6}
-.play .plt{font-family:var(--font-d);font-size:1.25px;font-weight:700;fill:var(--ink);text-anchor:middle}
-.play .tg{fill:var(--tag);stroke:#fff;stroke-width:.15}
-.play .tgt{font-family:var(--font-d);font-size:1px;font-weight:700;fill:#fff;text-anchor:middle}
-.play.thumb .pl{stroke-width:.4}
-.play.editor{touch-action:manipulation;cursor:crosshair}
-.play-legend{justify-content:center;margin-top:10px}
-.play-legend svg{vertical-align:-1px;margin-right:4px}
-.play-legend i{display:inline-block;width:11px;height:11px;margin-right:4px;vertical-align:-1px}
+.play-card{margin:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 8px 10px}
+.play-headline{font-weight:600;font-size:16px;line-height:1.35;margin:0 6px 10px;color:var(--ink)}
+/* Play diagrams, drawn like the playbook: a light field, hollow grey defenders, grey runs and passes, the key moves in blue */
+.pf{--pf-turf:#EEF2EC;--pf-edge:#8F9A93;--pf-key:#2F6FD6;display:block;width:100%;max-width:520px;height:auto;margin:0 auto;font-family:var(--font-b);user-select:none;-webkit-user-select:none}
+.pf text{pointer-events:none}
+.pf .pf-turf{fill:var(--pf-turf)}
+.pf .pf-ingoal{fill:#E1E7DE}
+.pf .pf-line{stroke:#A3ADA6;stroke-width:1.25}
+.pf .pf-chan{stroke:#DCE2DA;stroke-width:1}
+.pf .pf-zone{stroke:#C9D1C8;stroke-width:1.25}
+.pf .pf-q{font-size:11.5px;fill:var(--muted)}
+.pf .pf-note,.pf .pf-lbl{font-size:12px;fill:var(--muted);paint-order:stroke;stroke:var(--pf-turf);stroke-width:4px;stroke-linejoin:round}
+.pf .pf-lbl{fill:var(--ink);font-weight:600}
+.pf .df{fill:var(--pf-turf);stroke:var(--pf-edge);stroke-width:1.25}
+.pf .mv{fill:none;stroke:var(--pf-edge);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.pf .mv.key{stroke:var(--pf-key);stroke-width:2.25}
+.pf .mv.pass{stroke-dasharray:5 4}
+.pf .mv.pass.key{stroke-width:1.9}
+.pf .mv.kick{stroke-dasharray:.5 4.5;stroke-width:2.2}
+.pf .mv.dummy{stroke-dasharray:3 3}
+.pf .mv.draft{stroke:#E0283E;stroke-width:2;stroke-dasharray:5 3}
+.pf .draft-pt{fill:#E0283E}
+.pf .ah{fill:var(--pf-edge)}
+.pf .ah.key{fill:var(--pf-key)}
+.pf .dot{fill:var(--pf-key)}
+.pf .pl{fill:#fff;stroke:#7D8880;stroke-width:1.3}
+.pf .pl.idle{stroke:#B3BCB5}
+.pf .pl.focus{fill:#DCE7F8;stroke:var(--pf-key);stroke-width:2}
+.pf .pl.ghost{fill:var(--pf-turf);stroke-dasharray:3.5 2.5}
+.pf .plt{font-family:var(--font-d);font-size:12.5px;font-weight:700;fill:var(--ink);text-anchor:middle}
+.pf .idle + .plt,.pf .ghost + .plt{fill:#8F9A93}
+.pf .tg{fill:var(--tag);stroke:#fff;stroke-width:1.2}
+.pf .tgt{font-family:var(--font-d);font-size:9.5px;font-weight:700;fill:#fff;text-anchor:middle}
+.pf.thumb .mv{stroke-width:5}
+.pf.thumb .mv.key{stroke-width:6.5}
+.pf.thumb .mv.pass{stroke-dasharray:11 8}
+.pf.thumb .df,.pf.thumb .pl{stroke-width:3.5}
+.pf.thumb .pl.focus{stroke-width:5}
+.pf.thumb .pf-line{stroke-width:3}
+.pf.thumb .pf-chan,.pf.thumb .pf-zone{display:none}
+.pf.editor{touch-action:manipulation;cursor:crosshair}
+.play-legend{justify-content:center;margin-top:8px;gap:6px 14px}
+.play-legend span{display:inline-flex;align-items:center;gap:5px}
 .play-h{font-size:20px;margin-bottom:6px}
 .steps{margin:0;padding-left:22px}
 .steps li{margin-bottom:6px}

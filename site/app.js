@@ -161,6 +161,7 @@ function normalize(d) {
   ['players', 'sessions', 'lineups', 'messages', 'notices', 'plays'].forEach(k => { out[k] = arr(out[k]); });
   renameHalfToRover(out);
   toPairedLayout(out);
+  upgradePlays(out);
   if (!out.lineups.length) out.lineups = base.lineups;
   out.sessions.forEach(s => { if (!s.attendance || typeof s.attendance !== 'object') s.attendance = {}; });
   out.players.forEach(p => { p.positions = arr(p.positions); if (!p.status) p.status = 'available'; });
@@ -174,6 +175,7 @@ function normalizeTeam(t) {
   if (!out.lineups.length) out.lineups = base.lineups;
   renameHalfToRover(out);
   toPairedLayout(out);
+  upgradePlays(out);
   out.players.forEach(p => { p.positions = arr(p.positions); });
   return out;
 }
@@ -982,125 +984,271 @@ function lineupText(lu) {
 /* ---------- Plays ---------- */
 // Plays are stored attacking right (side: 'right') and mirrored for the left: x becomes 50 - x,
 // position codes swap sides (RR <-> LR) and so do the words left/right in the text.
+// Positions are metres on the 50 x 80 field: their try line at y = 5, ours at y = 75.
+// Optional extras: headline (one line on what the play achieves), notes beside players
+// ({ RM: { text, side } }, plus 'marker' and 'line' for the defence labels), free labels
+// ([{ at, text, side, dot }]) and view (the part of the field to show).
 const PLAY_CATS = ['Ruck', 'Edge', 'Switch', 'Finisher', 'Kick', 'Other'];
 const MOVE_KINDS = { run: 'Run', pass: 'Pass', kick: 'Kick', dummy: 'Dummy pass' };
 const STARTER_IDS = ['quickie-out', 'quickie-in', 'ninja', 'out-the-back', 'switch', 'finisher'];
+const STARTER_REV = 2;   // bump when the starter drawings change; starters the coach hasn't edited are refreshed
 const swapSlot = id => /^[LR][WLRM]$/.test(id) ? (id[0] === 'L' ? 'R' : 'L') + id[1] : id;
+const flipSide = s => String(s || '').replace(/[lr]/g, c => c === 'l' ? 'r' : 'l');
 function mirrorText(text) {
   return String(text || '')
     .replace(/\b([LR])([WLRM])\b/g, (m, a, b) => (a === 'L' ? 'R' : 'L') + b)
     .replace(/\b(left|right|Left|Right)\b/g, w => ({ left: 'right', right: 'left', Left: 'Right', Right: 'Left' }[w]));
 }
-const defaultDefence = ry => ({ marker: [25, ry - 3], line: [3.6, 10.7, 17.9, 25, 32.1, 39.3, 46.4].map(x => [x, ry - 7]) });
-const formation = (ry, rx = 25) => ({
-  RM: [rx, ry], LM: [rx - 0.4, ry + 2.8],
-  LR: [16.5, ry + 5], LL: [10, ry + 8], LW: [3.5, ry + 11],
-  RR: [33, ry + 5], RL: [40, ry + 8], RW: [46.5, ry + 11]
+const LINE_XS = [3.6, 10.7, 17.9, 25, 32.1, 39.3, 46.4];
+const defaultDefence = (ry, xs = LINE_XS) => ({ marker: [25, ry - 3], line: xs.map(x => [x, ry - 7]) });
+const formation = ry => ({
+  RM: [25, ry], LM: [23.8, ry + 3.2],
+  LR: [18.4, ry + 5], LL: [12.4, ry + 8], LW: [3.2, ry + 10.5],
+  RR: [31.6, ry + 5], RL: [37.6, ry + 8], RW: [46.8, ry + 10.5]
 });
 const shiftY = (pts, dy) => pts.map(([x, y]) => [x, +(y + dy).toFixed(1)]);
 
 function starterPlays() {
-  const base = (id, name, category, when, steps, extra) => ({
-    id, name, category, when, steps, side: 'right', builtin: true,
-    players: formation(46), defence: defaultDefence(46), moves: [], focus: [], tags: {}, ...extra
+  const base = (id, name, category, when, headline, steps, extra) => ({
+    id, name, category, when, headline, steps, side: 'right', builtin: true, rev: STARTER_REV,
+    players: formation(46), defence: defaultDefence(46), moves: [], focus: [], tags: {}, notes: {}, labels: [], ...extra
   });
-  const bounce = [{ t: 'run', pts: [[25, 46], [29, 50.4]] }, { t: 'pass', key: true, pts: [[24.6, 48.8], [28.4, 50.6]] }];
-  const ruckView = { x0: 11, x1: 39, y0: 34, y1: 56 };   // zoom in on the ruck for the ruck plays
-  const otb = [
-    { t: 'pass', pts: [[24.6, 48.8], [32.2, 50.6]] },
-    { t: 'run', pts: [[33, 51], [31.6, 41.6]] },
-    { t: 'run', pts: [[40, 54], [36.4, 42.4]] },
-    { t: 'run', key: true, curve: true, pts: [[25, 46], [27.6, 52.5], [33.5, 55.5], [38, 53]] },
-    { t: 'pass', key: true, pts: [[31.9, 44.5], [37.7, 52.5]] }
-  ];
+  // Ruck plays: zoom in on the ruck. RM leaves the ruck straight away, so it is drawn dashed there.
+  const ruck = { ghost: ['RM'], view: { x0: 13.5, x1: 36.5, y0: 37, y1: 53.5 } };
+  const catchAt = [29.4, 50.4];
+  const bounce = [{ t: 'run', pts: [[25, 46], catchAt] }, { t: 'pass', key: true, pts: [[23.8, 49.2], catchAt] }];
+  const ruckNotes = { RM: { text: 'Plays the ball', side: 'l' }, LM: { text: 'Dummy half', side: 'l' } };
+  const rmCatches = { at: catchAt, text: 'RM catches', side: 'bl', dot: true };
+  // Out the back, as drawn in the playbook. The Finisher runs the same shape inside their 14 m.
+  const otbPlayers = ry => ({
+    RM: [25, ry], LM: [23.8, ry + 3.2], RR: [31.6, ry + 4.9], RL: [36.4, ry + 1.2], RW: [48.1, ry + 9.6],
+    LR: [18.4, ry + 5.8], LL: [12.1, ry + 7.1], LW: [4, ry + 9.3]
+  });
+  const otbMoves = ry => [
+    { t: 'pass', pts: [[23.8, 49.2], [31.6, 50.9]] },
+    { t: 'run', pts: [[31.6, 50.9], [31.5, 40.6]] },
+    { t: 'run', pts: [[36.4, 47.2], [35, 40.6]] },
+    { t: 'run', key: true, curve: true, pts: [[25, 46], [27.6, 52.4], [34, 55.4], [40.6, 51.8]] },
+    { t: 'pass', key: true, pts: [[31.5, 46.4], [40.6, 51.8]] }
+  ].map(m => ({ ...m, pts: shiftY(m.pts, ry - 46) }));
+  const otbNotes = { RM: { text: 'Plays the ball,\nthen loops', side: 'l' }, LM: { text: 'Dummy half', side: 'l' }, RL: { text: 'Decoy', side: 'ar' } };
   return [
     base('quickie-out', 'Quickie Out', 'Ruck', 'Tags 1–3, when their marker or the first defender beside the ruck is slow off the line.',
+      'RM plays the ball fast, bounces out and takes a short pass back through the gap beside the marker.',
       'RM is tagged, plays the ball fast and bounces out to the right.\nLM, at dummy half, steps forward and gives a short pass back to RM.\nRM hits the gap between the marker and the next defender on the right.',
-      { focus: ['RM'], ghost: ['RM'], view: ruckView, moves: [...bounce, { t: 'run', key: true, pts: [[29, 50.4], [29, 38.6]] }] }),
+      { ...ruck, focus: ['RM'], notes: ruckNotes, labels: [rmCatches],
+        moves: [...bounce, { t: 'run', key: true, pts: [catchAt, [28.8, 37.6]] }] }),
     base('quickie-in', 'Quickie In', 'Ruck', 'After a Quickie Out has worked, when the defence starts sliding with RM.',
+      'RM bounces out the same way as the Quickie Out, then cuts back inside, behind the marker.',
       'RM plays the ball and bounces out to the right, as in the Quickie Out.\nLM steps forward and passes back to RM.\nRM cuts back inside, behind the marker, into the gap on the other side.',
-      { focus: ['RM'], ghost: ['RM'], view: ruckView, moves: [...bounce, { t: 'run', key: true, curve: true, pts: [[29, 50.4], [27.8, 47.6], [23, 44.6], [21, 38.6]] }] }),
+      { ...ruck, focus: ['RM'], notes: { ...ruckNotes, marker: { text: 'Marker', side: 'r' } }, labels: [rmCatches],
+        moves: [...bounce, { t: 'run', key: true, curve: true, pts: [catchAt, [28.2, 46.8], [25.4, 44.6], [22.6, 42.4], [21.6, 37.6]] }] }),
     base('ninja', 'Ninja', 'Ruck', 'Only after the Quickies have worked and the marker is chasing RM.',
+      'The marker chases RM, so LM shows the pass and runs through the hole it leaves.',
       'RM plays the ball and runs the Quickie Out line as a decoy.\nLM, at dummy half, shows the pass to RM but keeps the ball.\nLM steps through the hole the marker leaves when it chases RM.',
-      { focus: ['LM'], ghost: ['RM'], view: ruckView, defence: { ...defaultDefence(46), marker: [28.6, 43.4] },
-        moves: [{ t: 'run', pts: [[25, 46], [29, 50.4], [30.4, 41.2]] }, { t: 'dummy', pts: [[24.6, 48.8], [27.8, 49.9]] }, { t: 'run', key: true, pts: [[24.6, 48.8], [23.8, 38.6]] }] }),
+      { ...ruck, focus: ['LM'], defence: { ...defaultDefence(46), marker: [28.2, 43.6] },
+        notes: { LM: { text: 'Dummy half', side: 'l' }, marker: { text: 'Chases RM', side: 'al' } },
+        labels: [{ at: [30.2, 45], text: 'RM decoy', side: 'r' }],
+        moves: [{ t: 'run', pts: [[25, 46], catchAt, [30.6, 40]] }, { t: 'dummy', pts: [[23.8, 49.2], [27.8, 50]] }, { t: 'run', key: true, pts: [[23.8, 49.2], [22.8, 37.6]] }] }),
     base('out-the-back', 'Out the back', 'Edge', 'Tags 3–5, attacking the wider side of the ruck.',
+      'RL’s decoy holds their line, and RM loops around to hit the gap.',
       'RM plays the ball, then loops around behind RR and RL.\nLM, at dummy half, passes to RR.\nRR runs at the inside shoulder of their Rover to hold them.\nRL runs a short decoy line at the gap.\nRR passes behind RL to RM, who hits the gap with RW outside.',
-      { focus: ['RM'], moves: [...otb, { t: 'run', key: true, pts: [[38, 53], [42.8, 38.6]] }, { t: 'run', pts: [[46.5, 57], [47, 43]] }] }),
+      { focus: ['RM'], players: otbPlayers(46), notes: otbNotes, view: { x0: 14, x1: 50, y0: 37, y1: 57.5 },
+        labels: [{ at: [40.6, 51.8], text: 'RM catches', side: 'br', dot: true }],
+        moves: [...otbMoves(46), { t: 'run', key: true, pts: [[40.6, 51.8], [43, 40.4]] }, { t: 'run', pts: [[48.1, 55.6], [48.3, 42.6]] }] }),
     base('switch', 'Switch', 'Switch', 'When their defence has crowded one side and the other side is short of defenders. Called by the Rover.',
+      'Our last plays went left, so their line is crowded there. Switch play right and outnumber them.',
       'Our last plays went left, so their defence has crowded that side.\nRM plays the ball; LM, at dummy half, passes right to RR.\nRR draws the first defender and passes to RL.\nRL draws the last defender and passes to RW, who runs through.',
-      { focus: ['RW'],
-        players: { RM: [32, 46], LM: [31.4, 48.8], RR: [37, 51], RL: [42.2, 54], RW: [47.4, 57], LR: [24, 51], LL: [16, 54], LW: [7, 57] },
-        defence: { marker: [32, 43], line: [[6, 39], [12, 39], [18, 39], [24, 39], [30.5, 39], [38.6, 39], [45.6, 39]] },
+      { focus: ['RW'], view: { x0: 0, x1: 50, y0: 36, y1: 59.5 },
+        players: { RM: [20, 46], LM: [18.6, 49.8], LR: [12.4, 51.6], LL: [7, 54.4], LW: [2.6, 57], RR: [27.6, 51.6], RL: [36.4, 54.4], RW: [46.6, 57] },
+        defence: { marker: [20, 43], line: [4.4, 9.8, 15.2, 20.6, 26.4, 33.4, 41.8].map(x => [x, 39]) },
+        notes: { line: { text: 'Their line, crowded to the left' } },
         moves: [
-          { t: 'pass', pts: [[31.4, 48.8], [36.6, 50.6]] }, { t: 'run', pts: [[37, 51], [37.8, 44.5]] },
-          { t: 'pass', key: true, pts: [[37.6, 46], [41.8, 50.6]] }, { t: 'run', pts: [[42.2, 54], [42.6, 46.2]] },
-          { t: 'pass', key: true, pts: [[42.5, 48], [46.9, 52.2]] }, { t: 'run', key: true, pts: [[47.4, 57], [47.6, 38.4]] }
+          { t: 'pass', pts: [[18.6, 49.8], [27.6, 51.6]] },
+          { t: 'run', pts: [[27.6, 51.6], [28.2, 43.6]] },
+          { t: 'pass', key: true, pts: [[28.1, 45.2], [36.9, 49.6]] },
+          { t: 'run', pts: [[36.4, 54.4], [37.2, 44.6]] },
+          { t: 'pass', key: true, pts: [[37.1, 46], [46.6, 51.4]] },
+          { t: 'run', key: true, pts: [[46.6, 57], [46.9, 37.6]] }
         ] }),
     base('finisher', 'Finisher', 'Finisher', 'Tag 5 or 6 inside their 14 m. RW must be a female player, for a 2-point try.',
+      'Out the back inside their 14 m, then RM draws the last defender and RW scores in the corner.',
       'RM plays the ball and loops; LM, at dummy half, passes to RR.\nRR runs at the inside shoulder; RL runs the short decoy line.\nRR passes behind RL to RM.\nRM draws the last defender and passes to RW, who scores in the corner.',
-      { focus: ['RW'], tags: { RW: 'F' }, players: formation(24), defence: defaultDefence(24),
+      { focus: ['RW'], tags: { RW: 'F' }, players: otbPlayers(16), view: { x0: 14, x1: 50, y0: 0, y1: 28 },
+        defence: defaultDefence(16, [3.6, 10.7, 17.9, 25, 32.1, 39.3, 45.6]),
+        notes: { ...otbNotes, RW: { text: 'Female\nfinisher', side: 'l' } },
+        labels: [{ at: [40.6, 21.8], text: 'RM catches', side: 'br', dot: true }, { at: [47.4, 2.2], text: 'Try in the corner', side: 'l' }],
         moves: [
-          ...otb.map(m => ({ ...m, pts: shiftY(m.pts, -22) })),
-          { t: 'run', key: true, pts: [[38, 31], [42.4, 21]] },
-          { t: 'pass', key: true, pts: [[42.4, 21.6], [46.6, 23.4]] },
-          { t: 'run', key: true, pts: [[46.5, 35], [46.7, 23.4], [46.2, 4]] }
+          ...otbMoves(16),
+          { t: 'run', key: true, pts: [[40.6, 21.8], [43.2, 12.6]] },
+          { t: 'pass', key: true, pts: [[43.1, 13.8], [48.1, 13.4]] },
+          { t: 'run', key: true, pts: [[48.1, 25.6], [48.3, 13.6], [48.3, 2.6]] }
         ] })
   ];
+}
+// Starter plays from an earlier version are swapped for the current drawings, unless the coach edited them.
+function upgradePlays(d) {
+  const fresh = Object.fromEntries(starterPlays().map(p => [p.id, p]));
+  d.plays = arr(d.plays).map(p => p && p.builtin && !p.edited && fresh[p.id] && (p.rev || 1) < STARTER_REV ? fresh[p.id] : p);
+  return d;
 }
 
 function playGeom(play, side) {
   const flip = side !== (play.side || 'right');
   const P = pt => flip ? [+(50 - pt[0]).toFixed(2), pt[1]] : pt;
-  const players = {}; Object.entries(play.players || {}).forEach(([id, pt]) => { players[flip ? swapSlot(id) : id] = P(pt); });
-  const tags = {}; Object.entries(play.tags || {}).forEach(([id, v]) => { tags[flip ? swapSlot(id) : id] = v; });
-  const focus = (play.focus || []).map(id => flip ? swapSlot(id) : id), ghost = (play.ghost || []).map(id => flip ? swapSlot(id) : id);
+  const id = s => flip ? swapSlot(s) : s, txt = t => flip ? mirrorText(t) : String(t ?? ''), sd = s => flip ? flipSide(s) : (s || '');
+  const players = {}; Object.entries(play.players || {}).forEach(([k, pt]) => { players[id(k)] = P(pt); });
+  const tags = {}; Object.entries(play.tags || {}).forEach(([k, v]) => { tags[id(k)] = v; });
+  const notes = {}; Object.entries(play.notes || {}).forEach(([k, n]) => { if (n && n.text != null) notes[id(k)] = { text: txt(n.text), side: sd(n.side) }; });
+  const labels = (play.labels || []).filter(l => l && l.at && l.text).map(l => ({ ...l, at: P(l.at), text: txt(l.text), side: sd(l.side || 'r') }));
+  const focus = (play.focus || []).map(id), ghost = (play.ghost || []).map(id);
   const v = play.view, view = v ? (flip ? { ...v, x0: 50 - v.x1, x1: 50 - v.x0 } : v) : null;
   const d = play.defence || defaultDefence(46);
-  return { flip, players, tags, focus, ghost, view, marker: d.marker ? P(d.marker) : null, line: (d.line || []).map(P), moves: (play.moves || []).map(m => ({ ...m, pts: m.pts.map(P) })) };
+  return { flip, players, tags, notes, labels, focus, ghost, view, headline: txt(play.headline),
+    marker: d.marker ? P(d.marker) : null, line: (d.line || []).map(P), moves: (play.moves || []).map(m => ({ ...m, pts: m.pts.map(P) })) };
 }
 function pathD(pts, curve) {
-  if (!curve || pts.length < 3) return 'M' + pts.map(p => p.join(' ')).join('L');
-  let d = `M${pts[0].join(' ')}`;
+  const f = p => `${+p[0].toFixed(1)} ${+p[1].toFixed(1)}`;
+  if (!curve || pts.length < 3) return 'M' + pts.map(f).join('L');
+  let d = `M${f(pts[0])}`;
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
     const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
-    d += `C${c1.map(n => n.toFixed(2)).join(' ')} ${c2.map(n => n.toFixed(2)).join(' ')} ${p2.join(' ')}`;
+    d += `C${f(c1)} ${f(c2)} ${f(p2)}`;
   }
   return d;
 }
+
+// Drawing sizes are in screen units, so circles and words stay the same size however far the
+// picture is zoomed in. 380 units wide is roughly one unit per pixel on a phone.
+const PW = 380, PPAD = 14, PR = 12, DR = 9, DOT = 4.5;
+function playFrame(g, opts) {
+  let v;
+  if (opts.full) v = { x0: 0, x1: 50, y0: 0, y1: 80 };
+  else if (g.view) v = { ...g.view };
+  else {
+    const ys = [...Object.values(g.players), ...g.moves.flatMap(m => m.pts), ...g.line, ...(g.marker ? [g.marker] : []), ...g.labels.map(l => l.at)].map(p => p[1]);
+    v = { x0: 0, x1: 50, y0: Math.max(0, Math.floor(Math.min(...ys) - 2.5)), y1: Math.min(80, Math.ceil(Math.max(...ys) + 2.5)) };
+  }
+  const k = (PW - 2 * PPAD) / (v.x1 - v.x0);
+  const top = v.y0 > 5 && !opts.thumb ? 24 : PPAD;   // room for "Their try line is this way" when it is off the picture
+  const H = Math.round(top + (v.y1 - v.y0) * k + PPAD);
+  const X = x => +(PPAD + (x - v.x0) * k).toFixed(1), Y = y => +(top + (y - v.y0) * k).toFixed(1);
+  const shows = ([x, y]) => X(x) >= 0 && X(x) <= PW && Y(y) >= 0 && Y(y) <= H;
+  return { ...v, k, top, H, X, Y, shows };
+}
+// Words beside a point: side is l, r, a (above), b (below), or a corner such as bl / br.
+function svgWords(cx, cy, r, side, text, cls) {
+  const lines = String(text).split('\n').filter(l => l.trim()), lh = 13.5, n = lines.length;
+  if (!n) return '';
+  const h = /l/.test(side) ? 'l' : /r/.test(side) ? 'r' : '', v = /a/.test(side) ? 'a' : /b/.test(side) ? 'b' : /c/.test(side) ? 'c' : '';
+  let x = cx, y, anchor = 'middle';
+  if (!v) { x = h === 'l' ? cx - r - 6 : cx + r + 6; anchor = h === 'l' ? 'end' : 'start'; y = cy + 4 - (n - 1) * lh / 2; }
+  else {
+    y = v === 'a' ? cy - r - 6 - (n - 1) * lh : v === 'b' ? cy + r + 13 : cy + 4 - (n - 1) * lh / 2;
+    if (h) { x = h === 'l' ? cx - 4 : cx + 4; anchor = h === 'l' ? 'end' : 'start'; }
+  }
+  return `<text class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}">${lines.map((l, i) => `<tspan x="${x.toFixed(1)}" ${i ? `dy="${lh}"` : ''}>${esc(l)}</tspan>`).join('')}</text>`;
+}
+// Start a line at the edge of the player it leaves from, and stop it at the edge of whoever it reaches.
+function trimLine(pts, blockers) {
+  const out = pts.map(p => p.slice()); if (out.length < 2) return out;
+  const near = p => blockers.find(b => Math.hypot(b.x - p[0], b.y - p[1]) < b.r + 5);
+  const move = (i, j, gap) => {
+    const b = near(out[i]); if (!b) return;
+    const dx = out[j][0] - b.x, dy = out[j][1] - b.y, len = Math.hypot(dx, dy);
+    if (len > b.r + gap + 4) out[i] = [b.x + dx / len * (b.r + gap), b.y + dy / len * (b.r + gap)];
+  };
+  move(0, 1, 2); move(out.length - 1, out.length - 2, 3);
+  return out;
+}
 let svgSeq = 0;
 function playSVG(play, side, opts = {}) {
-  const g = playGeom(play, side), k = `p${++svgSeq}`;
-  const pts = [...Object.values(g.players), ...g.moves.flatMap(m => m.pts), ...g.line, ...(g.marker ? [g.marker] : []), ...((opts.drawing && opts.drawing.pts) || [])];
-  let y0 = Math.floor(Math.min(...pts.map(p => p[1])) - 4), y1 = Math.ceil(Math.max(...pts.map(p => p[1])) + 4);
-  let x0 = -1, x1 = 51;
-  if (g.view && !opts.full) ({ x0, x1, y0, y1 } = g.view);
-  if (opts.full) { y0 = -1; y1 = 81; }
-  y0 = Math.max(-1, y0); y1 = Math.min(81, y1);
-  const F = fieldDims(V.team.field);
-  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="field play ${opts.thumb ? 'thumb' : ''} ${opts.editor ? 'editor' : ''}" viewBox="${x0} ${y0} ${x1 - x0} ${y1 - y0}" role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
-  s += `<defs><marker id="${k}-w" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="#fff"/></marker><marker id="${k}-g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="#FFD24D"/></marker></defs>`;
-  s += `<rect x="0" y="0" width="50" height="80" fill="var(--turf)"/>`;
-  for (let y = 5, i = 0; y < 75; y += 5, i++) if (i % 2) s += `<rect x="0" y="${y}" width="50" height="5" fill="var(--turf-2)"/>`;
-  s += `<rect x="0" y="0" width="50" height="5" fill="var(--turf-3)"/><rect x="0" y="75" width="50" height="5" fill="var(--turf-3)"/>`;
-  [1, 2, 3, 4].forEach(i => { s += `<line class="ch-line${i === 2 || i === 3 ? ' red' : ''} faint" x1="${F.bounds[i]}" x2="${F.bounds[i]}" y1="5" y2="75"/>`; });
-  s += `<rect class="mark" x="0" y="0" width="50" height="80"/><line class="mark" x1="0" x2="50" y1="5" y2="5"/><line class="mark" x1="0" x2="50" y1="75" y2="75"/><line class="mark" x1="0" x2="50" y1="40" y2="40"/>`;
-  if (!opts.thumb && y0 < 4) s += `<text class="fl" x="25" y="3.1">Their try line ↑</text>`;
-  g.line.forEach((p, i) => { s += `<g class="dfg" data-df="${i}" transform="translate(${p[0]} ${p[1]})"><circle class="df" r="1.4"/></g>`; });
-  if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${g.marker[0]} ${g.marker[1]})"><circle class="df mk" r="1.4"/></g>`;
+  const g = playGeom(play, side), fr = playFrame(g, opts), { X, Y, k, H } = fr, id = `p${++svgSeq}`;
+  const thumb = !!opts.thumb, words = !thumb, F = fieldDims(V.team.field);
+  const pr = thumb ? 15 : PR, dr = thumb ? 11 : DR, dot = thumb ? 7 : DOT;
+  const XY = p => [X(p[0]), Y(p[1])];
+  // field: the tint runs to the picture's edge wherever the field carries on past it
+  const L = fr.x0 <= 0 ? X(0) : 0, R = fr.x1 >= 50 ? X(50) : PW, T = fr.y0 <= 0 ? Y(0) : 0, B = fr.y1 >= 80 ? Y(80) : H;
+  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="pf${thumb ? ' thumb' : ''}${opts.editor ? ' editor' : ''}" viewBox="0 0 ${PW} ${H}" data-x0="${fr.x0}" data-y0="${fr.y0}" data-k="${k}" data-top="${fr.top}" role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
+  const aw = thumb ? 22 : 8, ak = thumb ? 24 : 10;
+  s += `<defs><marker id="${id}-g" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${aw}" markerHeight="${aw}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker><marker id="${id}-b" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${ak}" markerHeight="${ak}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah key"/></marker></defs>`;
+  s += `<rect class="pf-turf" x="${L}" y="${T}" width="${R - L}" height="${B - T}"/>`;
+  [[0, 5], [75, 80]].forEach(([a, b]) => { const ya = Math.max(T, Y(a)), yb = Math.min(B, Y(b)); if (yb > ya) s += `<rect class="pf-ingoal" x="${L}" y="${ya}" width="${R - L}" height="${yb - ya}"/>`; });
+  const yT = Math.max(T, Y(5)), yB = Math.min(B, Y(75));
+  const hline = (y, cls) => { const py = Y(y); if (py > T && py < B) s += `<line class="${cls}" x1="${L}" x2="${R}" y1="${py}" y2="${py}"/>`; };
+  F.bounds.slice(1, 5).forEach(bx => { const px = X(bx); if (px > 0 && px < PW && yB > yT) s += `<line class="pf-chan" x1="${px}" x2="${px}" y1="${yT}" y2="${yB}"/>`; });
+  hline(5 + F.zone, 'pf-zone'); hline(75 - F.zone, 'pf-zone');
+  hline(5, 'pf-line'); hline(75, 'pf-line');
+  [0, 50].forEach(x => { const px = X(x); if (px >= 0 && px <= PW) s += `<line class="pf-line" x1="${px}" x2="${px}" y1="${T}" y2="${B}"/>`; });
+  if (T > 0 && Y(0) > 0) s += `<line class="pf-line" x1="${L}" x2="${R}" y1="${T}" y2="${T}"/>`;
+  if (B < H) s += `<line class="pf-line" x1="${L}" x2="${R}" y1="${B}" y2="${B}"/>`;
+  // the field's own labels go on the side away from the play: the left when attacking right
+  const away = side === 'left' ? `x="${Math.min(R, PW) - 6}" text-anchor="end"` : `x="${Math.max(L, 0) + 6}"`;
+  if (words) {
+    if (fr.y0 > 5) s += `<text class="pf-q" ${side === 'left' ? `x="${Math.max(L, 0) + 6}"` : `x="${Math.min(R, PW) - 6}" text-anchor="end"`} y="16">Their try line is this way ↑</text>`;
+    else s += `<text class="pf-q" ${away} y="${Y(5) - 6}">Their try line</text>`;
+    if (fr.y1 >= 75) s += `<text class="pf-q" ${away} y="${Y(75) + 15}">Our try line</text>`;
+    const mid = (Math.max(T, fr.top) + Math.min(B, H - PPAD)) / 2;
+    if (!opts.editor && X(50) <= PW - 2) s += `<text class="pf-q" transform="translate(${X(50) - 5} ${mid.toFixed(1)}) rotate(-90)" text-anchor="middle">Touch line</text>`;
+    if (!opts.editor && X(0) >= 2) s += `<text class="pf-q" transform="translate(${X(0) + 5} ${mid.toFixed(1)}) rotate(90)" text-anchor="middle">Touch line</text>`;
+  }
+  // defence
+  const defs = g.line.map((p, i) => ({ p, i })).filter(d => opts.editor || fr.shows(d.p));
+  defs.forEach(({ p, i }) => { s += `<g class="dfg" data-df="${i}" transform="translate(${X(p[0])} ${Y(p[1])})"><circle class="df" r="${dr}"/></g>`; });
+  if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${X(g.marker[0])} ${Y(g.marker[1])})"><circle class="df mk" r="${dr}"/></g>`;
+  if (words && defs.length) {
+    const text = g.notes.line ? g.notes.line.text : 'Their line, 7 m back';
+    const ly = Math.min(...defs.map(d => Y(d.p[1]))) - dr - 9;
+    if (text) s += `<text class="pf-note" ${away} y="${ly.toFixed(1)}">${esc(text)}</text>`;
+  }
+  if (words && g.marker) {
+    const n = g.notes.marker || { text: 'Marker', side: 'l' };
+    if (n.text) s += svgWords(X(g.marker[0]), Y(g.marker[1]), dr, n.side || 'l', n.text, 'pf-note');
+  }
+  // who is in the play: anyone with a line, a note, a tag or a highlight
+  const starts = g.moves.map(m => m.pts[0]);
+  const busy = pid => g.focus.includes(pid) || g.notes[pid] || g.tags[pid] || starts.some(q => Math.hypot(q[0] - g.players[pid][0], q[1] - g.players[pid][1]) < 1);
+  const shown = Object.entries(g.players).filter(([, p]) => opts.editor || fr.shows(p));
+  const dots = g.labels.filter(l => l.dot);
+  const blockers = [
+    ...shown.map(([, p]) => ({ x: X(p[0]), y: Y(p[1]), r: pr })),
+    ...g.line.map(p => ({ x: X(p[0]), y: Y(p[1]), r: dr })), ...(g.marker ? [{ x: X(g.marker[0]), y: Y(g.marker[1]), r: dr }] : []),
+    ...dots.map(l => ({ x: X(l.at[0]), y: Y(l.at[1]), r: dot }))
+  ];
+  const player = ([pid, p]) => {
+    const tag = g.tags[pid], cls = ['pl', g.focus.includes(pid) && 'focus', g.ghost.includes(pid) && 'ghost', !opts.editor && !busy(pid) && 'idle'].filter(Boolean).join(' ');
+    return `<g class="plg" data-pl="${pid}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${pid}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}</g>`;
+  };
+  shown.filter(([pid]) => g.ghost.includes(pid)).forEach(e => { s += player(e); });
   g.moves.forEach((m, i) => {
-    s += `<path class="mv ${m.t} ${m.key ? 'key' : ''}" d="${pathD(m.pts, m.curve)}" ${m.t === 'dummy' ? '' : `marker-end="url(#${k}-${m.key ? 'g' : 'w'})"`}${opts.editor ? ` data-mv="${i}"` : ''}/>`;
+    const pts = trimLine(m.pts.map(XY), blockers);
+    s += `<path class="mv ${m.t}${m.key ? ' key' : ''}" d="${pathD(pts, m.curve)}"${m.t === 'dummy' ? '' : ` marker-end="url(#${id}-${m.key ? 'b' : 'g'})"`}${opts.editor ? ` data-mv="${i}"` : ''}/>`;
   });
   if (opts.drawing && opts.drawing.pts.length) {
-    s += `<path class="mv draft" d="${pathD(opts.drawing.pts, opts.drawing.curve)}"/>`;
-    opts.drawing.pts.forEach(p => { s += `<circle class="draft-pt" cx="${p[0]}" cy="${p[1]}" r=".7"/>`; });
+    s += `<path class="mv draft" d="${pathD(opts.drawing.pts.map(XY), opts.drawing.curve)}"/>`;
+    opts.drawing.pts.forEach(p => { s += `<circle class="draft-pt" cx="${X(p[0])}" cy="${Y(p[1])}" r="4"/>`; });
   }
-  Object.entries(g.players).forEach(([id, p]) => {
-    const tag = g.tags[id];
-    s += `<g class="plg" data-pl="${id}" transform="translate(${p[0]} ${p[1]})"><circle class="pl ${g.focus.includes(id) ? 'focus' : ''} ${g.ghost.includes(id) ? 'ghost' : ''}" r="1.8"/>${opts.thumb ? '' : `<text class="plt" dy=".45">${id}</text>`}${tag ? `<circle class="tg" cx="1.5" cy="-1.5" r=".8"/><text class="tgt" x="1.5" y="-1.5" dy=".35">${esc(tag)}</text>` : ''}</g>`;
-  });
+  dots.forEach(l => { s += `<circle class="dot" cx="${X(l.at[0])}" cy="${Y(l.at[1])}" r="${dot}"/>`; });
+  shown.filter(([pid]) => !g.ghost.includes(pid)).forEach(e => { s += player(e); });
+  if (words) {
+    shown.forEach(([pid, p]) => { const n = g.notes[pid]; if (n && n.text) s += svgWords(X(p[0]), Y(p[1]), pr, n.side || 'r', n.text, 'pf-note'); });
+    g.labels.forEach((l, i) => { s += svgWords(X(l.at[0]), Y(l.at[1]), l.dot ? dot : 0, l.side || 'r', l.text, (l.dot ? 'pf-lbl' : 'pf-note') + (opts.editor ? '" data-lb="' + i : '')); });
+  }
   return s + '</svg>';
+}
+function playLegend(play, side) {
+  const g = playGeom(play, side), kinds = new Set(g.moves.map(m => m.t));
+  const grey = '#8F9A93', blue = '#2F6FD6';
+  const sw = (dash, colour, arrow = true, w = 1.6) => `<svg width="30" height="10" viewBox="0 0 30 10" aria-hidden="true"><line x1="1" y1="5" x2="${arrow ? 22 : 29}" y2="5" stroke="${colour}" stroke-width="${w}" stroke-linecap="round" ${dash ? `stroke-dasharray="${dash}"` : ''}/>${arrow ? `<path d="M21 1.5L28.5 5L21 8.5z" fill="${colour}"/>` : ''}</svg>`;
+  return `<div class="legend play-legend">
+    ${kinds.has('run') ? `<span>${sw('', grey)}Run</span>` : ''}
+    ${kinds.has('pass') ? `<span>${sw('5 4', grey)}Pass</span>` : ''}
+    ${kinds.has('kick') ? `<span>${sw('1 4.5', grey)}Kick</span>` : ''}
+    ${kinds.has('dummy') ? `<span>${sw('3 3', grey, false)}Dummy pass</span>` : ''}
+    ${g.moves.some(m => m.key) ? `<span>${sw('', blue, true, 2.4)}The key moves</span>` : ''}
+    <span><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="${grey}" stroke-width="1.3"/></svg>Defender</span>
+  </div>`;
 }
 const playById = id => V.plays.find(p => p.id === id);
 const playSteps = (play, side) => {
@@ -1108,6 +1256,7 @@ const playSteps = (play, side) => {
   return String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
 };
 const playWhen = (play, side) => side !== (play.side || 'right') ? mirrorText(play.when) : (play.when || '');
+const playHeadline = (play, side) => side !== (play.side || 'right') ? mirrorText(play.headline) : (play.headline || '');
 
 function viewPlays() {
   const coach = isCoach();
@@ -1118,30 +1267,24 @@ function viewPlays() {
     <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.</p>
     ${V.plays.length ? `<div class="list">${V.plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
-      <span class="grow"><span class="name" style="display:block">${esc(p.name)}</span><span class="sub play-when">${esc(playWhen(p, state.playSide))}</span></span>
+      <span class="grow"><span class="name" style="display:block">${esc(p.name)}</span><span class="sub play-when">${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
       <span class="pill neutral">${esc(p.category || 'Other')}</span>
     </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add one, or restore the starter plays.' : 'No plays yet.'}</p></div>`}
     ${coach && missing ? `<button class="link-btn" data-act="plays-restore">Restore the ${missing} missing starter play${missing === 1 ? '' : 's'}</button>` : ''}`;
 }
 function viewPlay(p) {
-  const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side);
-  const kinds = new Set(p.moves.map(m => m.t));
-  const sw = (cls, dash, colour) => `<svg width="26" height="10" viewBox="0 0 26 10" aria-hidden="true"><line x1="1" y1="5" x2="21" y2="5" stroke="${colour}" stroke-width="2" ${dash ? `stroke-dasharray="${dash}"` : ''}/>${cls === 'dummy' ? '' : `<path d="M20 1L25 5L20 9z" fill="${colour}"/>`}</svg>`;
+  const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side), head = playHeadline(p, side);
   return `<button class="toggle-past" data-act="play-back">← All plays</button>
     <div class="sec-h"><h2>${esc(p.name)}</h2><span class="pill neutral">${esc(p.category || 'Other')}</span></div>
     <div class="seg" role="group" aria-label="Direction">
       <button data-act="play-side" data-side="left" aria-pressed="${side === 'left'}">Attacking left</button>
       <button data-act="play-side" data-side="right" aria-pressed="${side === 'right'}">Attacking right</button>
     </div>
-    <div class="field-wrap">${playSVG(p, side)}</div>
-    <div class="legend play-legend">
-      ${kinds.has('run') ? `<span>${sw('run', '', '#5B6861')}Run</span>` : ''}
-      ${kinds.has('pass') ? `<span>${sw('pass', '4 3', '#5B6861')}Pass</span>` : ''}
-      ${kinds.has('kick') ? `<span>${sw('kick', '1 3', '#5B6861')}Kick</span>` : ''}
-      ${kinds.has('dummy') ? `<span>${sw('dummy', '3 3', '#5B6861')}Dummy pass</span>` : ''}
-      <span>${sw('key', '', '#E3A400')}The key move</span>
-      <span><i style="background:#fff;border:1.5px solid #5B6861;border-radius:50%"></i>Defender</span>
-    </div>
+    <figure class="play-card">
+      ${head ? `<figcaption class="play-headline">${esc(head)}</figcaption>` : ''}
+      ${playSVG(p, side)}
+      ${playLegend(p, side)}
+    </figure>
     ${when ? `<section class="sec" style="margin-top:16px"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
     ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}
     ${coach ? `<div class="btn-row"><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
@@ -1150,35 +1293,42 @@ function viewPlay(p) {
 
 /* ----- Play editor (coach) ----- */
 function blankPlay() {
-  return { id: uid(), name: '', category: 'Other', when: '', steps: '', side: 'right', builtin: false,
-    players: formation(46), defence: defaultDefence(46), moves: [], focus: [], tags: {} };
+  return { id: uid(), name: '', category: 'Other', when: '', headline: '', steps: '', side: 'right', builtin: false,
+    players: formation(46), defence: defaultDefence(46), moves: [], focus: [], tags: {}, notes: {}, labels: [] };
 }
 function openPlayEditor(play) {
   const draft = JSON.parse(JSON.stringify(play || blankPlay()));
   if (draft.side && draft.side !== 'right') {   // edit everything in the attacking-right orientation
     const g = playGeom(draft, 'right');
-    Object.assign(draft, { side: 'right', players: g.players, tags: g.tags, focus: g.focus, moves: g.moves, defence: { marker: g.marker, line: g.line }, steps: mirrorText(draft.steps), when: mirrorText(draft.when) });
+    Object.assign(draft, { side: 'right', players: g.players, tags: g.tags, focus: g.focus, ghost: g.ghost, notes: g.notes, labels: g.labels, view: g.view || undefined, moves: g.moves,
+      defence: { marker: g.marker, line: g.line }, steps: mirrorText(draft.steps), when: mirrorText(draft.when), headline: mirrorText(draft.headline) });
   }
   if (!draft.defence) draft.defence = defaultDefence(46);
+  draft.notes = draft.notes || {}; draft.labels = draft.labels || [];
   state.ped = { draft, tool: 'run', key: false, curve: false, drawing: null, isNew: !play };
   const slots = SLOT_DEFS.map(s => s.id);
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off">
     <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
     <label class="field-l"><span>Type</span><select name="category">${PLAY_CATS.map(c => `<option ${c === draft.category ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+    <label class="field-l"><span>Headline</span><input type="text" name="headline" value="${esc(draft.headline)}" placeholder="What the play does, in one line"></label>
     <label class="field-l"><span>When to use it</span><input type="text" name="when" value="${esc(draft.when)}" placeholder="e.g. Tag 5 inside their 14 m"></label>
     <label class="field-l"><span>Steps, one per line</span><textarea name="steps" rows="5" placeholder="Use LW, LL, LR, LM, RM, RR, RL, RW so the left version swaps them automatically.">${esc(draft.steps)}</textarea></label>
     <h3 class="form-sec">Diagram</h3>
     <p class="hint" style="margin:-4px 0 10px">Draw it attacking right; the app makes the left version. Pick a line type, tap where it starts (on a player to start from them), tap each point it passes, then tap Finish line.</p>
     <div class="seg ped-tools" id="ped-tools">${pedToolButtons()}</div>
+    <div id="ped-label-box" hidden>
+      <label class="field-l" style="margin-bottom:8px"><span>Label</span><input type="text" id="ped-label-text" placeholder="e.g. RM catches"></label>
+      <p class="hint" style="margin:-2px 0 10px">Type the words, then tap a player to put them beside that player, or tap anywhere else on the field. Tick Key move for a blue dot on the spot.</p>
+    </div>
     <div class="opts" style="margin-bottom:10px">
-      <label class="opt"><input type="checkbox" data-change="ped-key"><span>Key move (gold)</span></label>
+      <label class="opt"><input type="checkbox" data-change="ped-key"><span>Key move (blue)</span></label>
       <label class="opt"><input type="checkbox" data-change="ped-curve"><span>Curved</span></label>
     </div>
-    <div class="field-wrap" id="ped-field"></div>
+    <div class="play-card" id="ped-field"></div>
     <div class="btn-row" style="margin-top:10px"><button type="button" class="btn" data-act="ped-finish">Finish line</button><button type="button" class="btn" data-act="ped-undo">Undo</button></div>
     <div id="ped-moves" style="margin-top:10px"></div>
     <details class="more"><summary>Highlight players</summary>
-      <p class="muted small" style="margin-bottom:8px">Gold players are the ones to watch. F marks a female finisher.</p>
+      <p class="muted small" style="margin-bottom:8px">Blue players are the ones to watch. F marks a female finisher.</p>
       <div class="opts" style="margin-bottom:8px">${slots.map(id => `<label class="opt"><input type="checkbox" data-change="ped-focus" value="${id}" ${draft.focus.includes(id) ? 'checked' : ''}><span>${id}</span></label>`).join('')}</div>
       <div class="opts">${slots.map(id => `<label class="opt"><input type="checkbox" data-change="ped-tag" value="${id}" ${draft.tags[id] === 'F' ? 'checked' : ''}><span>${id} F</span></label>`).join('')}</div>
     </details>
@@ -1188,28 +1338,36 @@ function openPlayEditor(play) {
 }
 function pedToolButtons() {
   const t = state.ped.tool;
-  return [['move', 'Move'], ['run', 'Run'], ['pass', 'Pass'], ['kick', 'Kick'], ['dummy', 'Dummy']].map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${t === k}">${l}</button>`).join('');
+  return [['move', 'Move'], ['run', 'Run'], ['pass', 'Pass'], ['kick', 'Kick'], ['dummy', 'Dummy'], ['label', 'Label']].map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${t === k}">${l}</button>`).join('');
 }
 function refreshPlayEditor() {
   const E = state.ped; if (!E) return;
   const f = $('#ped-field'); if (!f) return;
   f.innerHTML = playSVG(E.draft, 'right', { full: true, editor: true, svgId: 'ped-svg', drawing: E.drawing ? { ...E.drawing, curve: E.curve } : null });
   $('#ped-tools').innerHTML = pedToolButtons();
-  $('#ped-moves').innerHTML = E.draft.moves.length ? `<div class="list">${E.draft.moves.map((m, i) => `<div class="row" style="padding:6px 6px 6px 12px"><span class="grow small">${i + 1}. ${MOVE_KINDS[m.t] || m.t}${m.key ? ', key' : ''}${m.curve ? ', curved' : ''}</span><button type="button" class="btn sm danger" data-act="ped-del-move" data-i="${i}">Remove</button></div>`).join('')}</div>`
-    : `<p class="muted small">No lines yet.</p>`;
+  const box = $('#ped-label-box'); if (box) box.hidden = E.tool !== 'label';
+  const d = E.draft, rows = [
+    ...d.moves.map((m, i) => `<div class="row" style="padding:6px 6px 6px 12px"><span class="grow small">${i + 1}. ${MOVE_KINDS[m.t] || m.t}${m.key ? ', key' : ''}${m.curve ? ', curved' : ''}</span><button type="button" class="btn sm danger" data-act="ped-del-move" data-i="${i}">Remove</button></div>`),
+    ...Object.entries(d.notes).filter(([, n]) => n && n.text).map(([k, n]) => `<div class="row" style="padding:6px 6px 6px 12px"><span class="grow small">Beside ${esc(k === 'marker' ? 'the marker' : k === 'line' ? 'their line' : k)}: “${esc(n.text.replace(/\n/g, ' '))}”</span><button type="button" class="btn sm danger" data-act="ped-del-note" data-k="${esc(k)}">Remove</button></div>`),
+    ...d.labels.map((l, i) => `<div class="row" style="padding:6px 6px 6px 12px"><span class="grow small">Label: “${esc(l.text)}”${l.dot ? ' with a dot' : ''}</span><button type="button" class="btn sm danger" data-act="ped-del-label" data-i="${i}">Remove</button></div>`)
+  ];
+  $('#ped-moves').innerHTML = rows.length ? `<div class="list">${rows.join('')}</div>` : `<p class="muted small">No lines yet.</p>`;
   bindPlayEditor();
 }
 function bindPlayEditor() {
   const svg = $('#ped-svg'); if (!svg) return;
-  const E = state.ped; let drag = null;
-  const at = e => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse()); return [clamp(+q.x.toFixed(1), 0, 50), clamp(+q.y.toFixed(1), 0, 80)]; };
+  const E = state.ped, d = svg.dataset; let drag = null;
+  const user = e => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
+  const metres = q => [clamp(+(+d.x0 + (q.x - PPAD) / +d.k).toFixed(1), 0, 50), clamp(+(+d.y0 + (q.y - +d.top) / +d.k).toFixed(1), 0, 80)];
+  const at = e => metres(user(e));
+  const nearest = p => Object.entries(E.draft.players).map(([id, q]) => ({ id, q, d: Math.hypot(q[0] - p[0], q[1] - p[1]) })).sort((a, b) => a.d - b.d)[0];
   svg.addEventListener('pointerdown', e => {
     if (E.tool !== 'move') return;
     const t = e.target.closest('[data-pl],[data-df],[data-mk]'); if (!t) return;
     e.preventDefault(); drag = { el: t, ds: { ...t.dataset } };
     try { svg.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
   });
-  svg.addEventListener('pointermove', e => { if (!drag) return; drag.p = at(e); drag.el.setAttribute('transform', `translate(${drag.p[0]} ${drag.p[1]})`); });
+  svg.addEventListener('pointermove', e => { if (!drag) return; const q = user(e); drag.p = metres(q); drag.el.setAttribute('transform', `translate(${q.x.toFixed(1)} ${q.y.toFixed(1)})`); });
   const end = () => {
     if (!drag) return;
     const { ds, p } = drag; drag = null; if (!p) return;
@@ -1222,9 +1380,19 @@ function bindPlayEditor() {
   svg.addEventListener('click', e => {
     if (E.tool === 'move') return;
     let p = at(e);
+    if (E.tool === 'label') {
+      const input = $('#ped-label-text'), text = (input ? input.value : '').trim(), near = nearest(p);
+      if (near && near.d < 1.8) {
+        if (text) E.draft.notes[near.id] = { text, side: near.q[0] > 40 || (near.q[0] < 25 && near.q[0] > 10) ? 'l' : 'r' };
+        else delete E.draft.notes[near.id];
+      } else if (text) E.draft.labels.push({ at: p, text, side: p[0] > 38 ? 'l' : 'r', ...(E.key ? { dot: true } : {}) });
+      else { toast('Type the label first, then tap the field'); return; }
+      if (input) input.value = '';
+      refreshPlayEditor(); return;
+    }
     if (!E.drawing) {
-      const near = Object.values(E.draft.players).map(q => ({ q, d: Math.hypot(q[0] - p[0], q[1] - p[1]) })).sort((a, b) => a.d - b.d)[0];
-      if (near && near.d < 3) p = near.q.slice();
+      const near = nearest(p);
+      if (near && near.d < 2) p = near.q.slice();
       E.drawing = { pts: [] };
     }
     E.drawing.pts.push(p); refreshPlayEditor();
@@ -1235,9 +1403,20 @@ function finishPlayLine() {
   if (E.drawing.pts.length >= 2) E.draft.moves.push({ t: E.tool, pts: E.drawing.pts, ...(E.key ? { key: true } : {}), ...(E.curve ? { curve: true } : {}) });
   E.drawing = null; return true;
 }
+// A zoomed play keeps everything that matters in the picture after it is edited.
+function fitPlayView(play) {
+  const v = play.view; if (!v) return play;
+  const starts = (play.moves || []).map(m => m.pts[0]);
+  const pts = [...(play.moves || []).flatMap(m => m.pts), ...(play.labels || []).map(l => l.at),
+    ...Object.entries(play.players || {}).filter(([id, p]) => (play.focus || []).includes(id) || (play.notes || {})[id] || starts.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1)).map(([, p]) => p)];
+  if (!pts.length) return play;
+  const m = 1.5, xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  play.view = { x0: Math.max(0, Math.min(v.x0, Math.min(...xs) - m)), x1: Math.min(50, Math.max(v.x1, Math.max(...xs) + m)), y0: Math.max(0, Math.min(v.y0, Math.min(...ys) - m)), y1: Math.min(80, Math.max(v.y1, Math.max(...ys) + m)) };
+  return play;
+}
 function playShareText(p, side) {
-  const steps = playSteps(p, side), when = playWhen(p, side);
-  return `🏉 *${p.name}* (attacking ${side})${when ? `\n${when}` : ''}\n\n${steps.map((l, i) => `${i + 1}. ${l}`).join('\n')}`;
+  const steps = playSteps(p, side), when = playWhen(p, side), head = playHeadline(p, side);
+  return `🏉 *${p.name}* (attacking ${side})${head ? `\n${head}` : ''}${when ? `\n\n_When:_ ${when}` : ''}\n\n${steps.map((l, i) => `${i + 1}. ${l}`).join('\n')}`;
 }
 
 /* ---------- Messages (coach) ---------- */
@@ -1581,6 +1760,8 @@ const actions = {
     refreshPlayEditor();
   }),
   'ped-del-move': coachOnly(el => { state.ped.draft.moves.splice(Number(el.dataset.i), 1); refreshPlayEditor(); }),
+  'ped-del-note': coachOnly(el => { delete state.ped.draft.notes[el.dataset.k]; refreshPlayEditor(); }),
+  'ped-del-label': coachOnly(el => { state.ped.draft.labels.splice(Number(el.dataset.i), 1); refreshPlayEditor(); }),
   'move-mode': coachOnly(el => { state.moveMode = el.dataset.on === '1'; render(); }),
   'shape': coachOnly(el => { const sh = SHAPES[el.dataset.shape]; curLineup().slots.forEach(s => { if (sh[s.id]) { s.x = sh[s.id][0]; s.y = sh[s.id][1]; } }); save(); render(); }),
   'assign': coachOnly(el => {
@@ -1848,7 +2029,9 @@ document.addEventListener('submit', async e => {
     const E = state.ped; if (!E) return;
     if (!str('name')) { toast('Give the play a name'); return; }
     finishPlayLine();
-    Object.assign(E.draft, { name: str('name'), category: str('category') || 'Other', when: str('when'), steps: String(f.get('steps') || '').trim() });
+    Object.assign(E.draft, { name: str('name'), category: str('category') || 'Other', headline: str('headline'), when: str('when'), steps: String(f.get('steps') || '').trim() });
+    if (E.draft.builtin) E.draft.edited = true;   // keep the coach's version when the starter drawings are updated
+    fitPlayView(E.draft);
     const i = data.plays.findIndex(p => p.id === E.draft.id);
     if (i >= 0) data.plays[i] = E.draft; else data.plays.push(E.draft);
     state.playId = E.draft.id; state.ped = null;

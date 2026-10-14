@@ -67,6 +67,14 @@ test('the team view leaves out everything private', () => {
   assert.equal(v.notices[0].text, 'Uniforms Saturday');
 });
 
+test('players get the whole play drawing, including its notes and labels', () => {
+  const play = { id: 'otb', name: 'Out the back', headline: 'RM loops', side: 'right', builtin: true, rev: 2, edited: true,
+    players: { RM: [25, 46] }, moves: [{ t: 'run', pts: [[25, 46], [30, 40]] }], view: { x0: 14, x1: 50, y0: 37, y1: 57 },
+    notes: { RM: { text: 'Plays the ball', side: 'l' } }, labels: [{ at: [41, 51], text: 'RM catches', side: 'br', dot: true }] };
+  const v = teamView({ ...sample, plays: [play] });
+  assert.deepEqual(v.plays[0], play);
+});
+
 test('invite links survive any password characters', () => {
   for (const pw of ['plain', 'with spaces & symbols/+=?', 'Grace O’Brien 🏉']) {
     const enc = toB64Url(pw);
