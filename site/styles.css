@@ -399,6 +399,12 @@ details.more[open] summary{margin-bottom:8px}
 .ped-phases .phase-bar{margin-bottom:4px}
 .ped-phase-del{font-size:14px;margin:0 0 6px}
 .ped-ptitle{margin-bottom:10px}
+.ped-list{margin-bottom:10px}
+.ped-codes{grid-template-columns:repeat(auto-fill,minmax(34px,1fr))}
+.pills{display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.cast-key{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;font-size:13px;color:var(--muted);margin:6px 4px 0}
+.cast-key b{color:var(--ink);font-family:var(--font-d);font-size:14px}
+.link-btn.inline{display:inline;padding:0;margin-left:4px;font-size:inherit}
 .play-h{font-size:20px;margin-bottom:6px}
 .steps{margin:0;padding-left:22px}
 .steps li{margin-bottom:6px}

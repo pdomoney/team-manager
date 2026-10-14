@@ -112,7 +112,7 @@ function defaultData() {
       maxMales: 4, positions: ['Wing', 'Link', 'Rover', 'Middle'],
       field: { ...FIELD_DEFAULTS }
     },
-    players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [], plays: starterPlays(),
+    players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [], plays: starterPlays(), playerSets: [],
     teamPass: '', teamSalt: '', updatedAt: null
   };
 }
@@ -158,7 +158,7 @@ function normalize(d) {
   if (!d || typeof d !== 'object') return base;
   const out = { ...base, ...d, team: { ...base.team, ...(d.team || {}) } };
   out.team.field = { ...FIELD_DEFAULTS, ...((d.team && d.team.field) || {}) };
-  ['players', 'sessions', 'lineups', 'messages', 'notices', 'plays'].forEach(k => { out[k] = arr(out[k]); });
+  ['players', 'sessions', 'lineups', 'messages', 'notices', 'plays', 'playerSets'].forEach(k => { out[k] = arr(out[k]); });
   renameHalfToRover(out);
   toPairedLayout(out);
   upgradePlays(out);
@@ -171,7 +171,7 @@ function normalizeTeam(t) {
   const base = teamView(defaultData());
   const out = { ...base, ...(t || {}), team: { ...base.team, ...((t && t.team) || {}) } };
   out.team.field = { ...FIELD_DEFAULTS, ...((t && t.team && t.team.field) || {}) };
-  ['players', 'sessions', 'lineups', 'notices', 'plays'].forEach(k => { out[k] = arr(out[k]); });
+  ['players', 'sessions', 'lineups', 'notices', 'plays', 'playerSets'].forEach(k => { out[k] = arr(out[k]); });
   if (!out.lineups.length) out.lineups = base.lineups;
   renameHalfToRover(out);
   toPairedLayout(out);
@@ -1000,11 +1000,58 @@ const RETIRED_STARTERS = ['switch', 'finisher'];
 const STARTER_SINCE = { 'hands-inside': 4, 'hands-outside': 4, 'wrap-block': 5, 'back-inside-block': 6 };
 const swapSlot = id => /^[LR][WLRM]$/.test(id) ? (id[0] === 'L' ? 'R' : 'L') + id[1] : id;
 const flipSide = s => String(s || '').replace(/[lr]/g, c => c === 'l' ? 'r' : 'l');
-function mirrorText(text) {
-  return String(text || '')
-    .replace(/\b([LR])([WLRM])\b/g, (m, a, b) => (a === 'L' ? 'R' : 'L') + b)
-    .replace(/\b(left|right|Left|Right)\b/g, w => ({ left: 'right', right: 'left', Left: 'Right', Right: 'Left' }[w]));
+// The attacking-left version of some words: player codes swap sides (LR <-> RR, or whatever pairs the
+// play's player list has) and so do the words left and right.
+const escRe = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function mirrorText(text, pairs) {
+  const P = pairs || OZTAG_PAIRS, keys = Object.keys(P);
+  let out = String(text || '');
+  if (keys.length) out = out.replace(new RegExp(`\\b(${keys.sort((a, b) => b.length - a.length).map(escRe).join('|')})\\b`, 'g'), m => P[m]);
+  return out.replace(/\b(left|right|Left|Right)\b/g, w => ({ left: 'right', right: 'left', Left: 'Right', Right: 'Left' }[w]));
 }
+// Replace whole words in one pass, so a word that is replaced is not replaced again.
+function replaceWords(text, map) {
+  const keys = Object.keys(map).filter(k => k && map[k] !== k); if (!keys.length) return String(text ?? '');
+  return String(text ?? '').replace(new RegExp(`(?<![\\w])(${keys.sort((a, b) => b.length - a.length).map(escRe).join('|')})(?![\\w])`, 'g'), m => map[m]);
+}
+
+/* ----- Player lists ----- */
+// The labels on the players come from a list: Oztag's eight positions, rugby league's thirteen, or one
+// the coach makes. A play keeps its drawing (the eight spots, LW to RW inside) and says which list it
+// uses and which label each spot shows. Labels pair up for the attacking-left version by their names
+// (Left wing <-> Right wing) or by an L/R at the start of the code. In the play's words, number labels
+// are written as names ("Hooker passes to Halfback") so numbers in the text are never mistaken for players.
+const SLOT_IDS = SLOT_DEFS.map(s => s.id);
+const BUILTIN_SETS = [
+  { id: 'oztag', name: 'Oztag', builtin: true, labels: SLOT_DEFS.map(s => ({ code: s.id, name: s.name })) },
+  { id: 'league', name: 'Rugby league', builtin: true,
+    labels: [['1', 'Fullback'], ['2', 'Right wing'], ['3', 'Right centre'], ['4', 'Left centre'], ['5', 'Left wing'], ['6', 'Five-eighth'], ['7', 'Halfback'],
+      ['8', 'Left prop'], ['9', 'Hooker'], ['10', 'Right prop'], ['11', 'Left second row'], ['12', 'Right second row'], ['13', 'Lock']].map(([code, name]) => ({ code, name })),
+    slots: { LW: '5', LL: '4', LR: '6', LM: '9', RM: '13', RR: '7', RL: '3', RW: '2' } }
+];
+const allSets = () => [...BUILTIN_SETS, ...arr((V || data || {}).playerSets)];
+const getSet = id => allSets().find(x => x.id === (id || 'oztag')) || BUILTIN_SETS[0];
+const isNumberCode = c => /^\d+$/.test(String(c));
+function setPairs(set) {
+  if (set._pairs) return set._pairs;
+  const by = {}, pairs = {};
+  set.labels.forEach(l => { by[l.name.toLowerCase()] = l.code; });
+  const codes = new Set(set.labels.map(l => l.code));
+  set.labels.forEach(l => {
+    const other = by[mirrorText(l.name, {}).toLowerCase()];
+    if (other && other !== l.code) pairs[l.code] = other;
+    else if (/^[LR]/.test(l.code)) { const c = (l.code[0] === 'L' ? 'R' : 'L') + l.code.slice(1); if (codes.has(c)) pairs[l.code] = c; }
+  });
+  Object.defineProperty(set, '_pairs', { value: pairs, enumerable: false });
+  return pairs;
+}
+const OZTAG_PAIRS = Object.fromEntries(SLOT_IDS.map(id => [id, swapSlot(id)]));
+const labelName = (set, code) => (set.labels.find(l => l.code === code) || {}).name || '';
+const wordFor = (set, code) => isNumberCode(code) ? labelName(set, code) || code : code;   // how a label is written in the words
+const defaultWho = set => set.slots ? { ...set.slots } : Object.fromEntries(SLOT_IDS.map((id, i) => [id, set.id === 'oztag' ? id : (set.labels[i] || {}).code || '']));
+const whoOf = (play, slot) => { const w = play.who || {}; return w[slot] !== undefined ? w[slot] : defaultWho(getSet(play.set))[slot]; };
+// Pairs for mirroring the words of a play: its list's codes that are written as codes (not as names).
+const textPairs = play => { const p = setPairs(getSet(play.set)); return Object.fromEntries(Object.entries(p).filter(([c]) => !isNumberCode(c))); };
 const round1 = n => Math.round(n * 10) / 10;
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 const LINE_XS = [3.6, 10.7, 17.9, 25, 32.1, 39.3, 46.4];
@@ -1180,7 +1227,7 @@ function phaseView(play, i) {
   return { ...play, players: ph.players || {}, defence: ph.defence || defaultDefence(46), moves: ph.moves || [], notes: ph.notes || {}, labels: ph.labels || [],
     view: ph.view, focus: ph.focus || [], ghost: ph.ghost || [], tags: ph.tags || {}, title: ph.title || '' };
 }
-const phaseTitle = (play, i, side) => { const t = phaseView(play, i).title || ''; return side !== (play.side || 'right') ? mirrorText(t) : t; };
+const phaseTitle = (play, i, side) => { const t = phaseView(play, i).title || ''; return side !== (play.side || 'right') ? mirrorText(t, textPairs(play)) : t; };
 // The usual shape around a ruck anywhere on the field, squeezed in near a touch line.
 function formationAt(rx, ry) {
   const L = clamp((rx - 2.5) / 3, 2.4, 8), R = clamp((47.5 - rx) / 3, 2.4, 8);
@@ -1199,7 +1246,9 @@ function defenceAt(rx, ry) {
 function playGeom(play, side) {
   const flip = side !== (play.side || 'right');
   const P = pt => flip ? [+(50 - pt[0]).toFixed(2), pt[1]] : pt;
-  const id = s => flip ? swapSlot(s) : s, txt = t => flip ? mirrorText(t) : String(t ?? ''), sd = s => flip ? flipSide(s) : (s || '');
+  const pairs = textPairs(play), set = getSet(play.set), opp = setPairs(set);
+  const id = s => flip ? swapSlot(s) : s, txt = t => flip ? mirrorText(t, pairs) : String(t ?? ''), sd = s => flip ? flipSide(s) : (s || '');
+  const codes = {}; Object.keys(play.players || {}).forEach(k => { const c = whoOf(play, k); codes[id(k)] = flip ? (opp[c] || c) : c; });
   const players = {}; Object.entries(play.players || {}).forEach(([k, pt]) => { players[id(k)] = P(pt); });
   const tags = {}; Object.entries(play.tags || {}).forEach(([k, v]) => { tags[id(k)] = v; });
   const notes = {}; Object.entries(play.notes || {}).forEach(([k, n]) => { if (n && n.text != null) notes[id(k)] = { text: txt(n.text), side: sd(n.side) }; });
@@ -1207,7 +1256,7 @@ function playGeom(play, side) {
   const focus = (play.focus || []).map(id), ghost = (play.ghost || []).map(id);
   const v = play.view, view = v ? (flip ? { ...v, x0: 50 - v.x1, x1: 50 - v.x0 } : v) : null;
   const d = play.defence || defaultDefence(46);
-  return { flip, players, tags, notes, labels, focus, ghost, view, headline: txt(play.headline),
+  return { flip, players, codes, set, tags, notes, labels, focus, ghost, view, headline: txt(play.headline),
     marker: d.marker ? P(d.marker) : null, line: (d.line || []).map(P), moves: (play.moves || []).map(m => ({ ...m, pts: m.pts.map(P) })) };
 }
 function pathD(pts, curve) {
@@ -1321,7 +1370,8 @@ function playSVG(play, side, opts = {}) {
   ];
   const player = ([pid, p]) => {
     const tag = g.tags[pid], cls = ['pl', g.focus.includes(pid) && 'focus', g.ghost.includes(pid) && 'ghost', !opts.editor && !busy(pid) && 'idle'].filter(Boolean).join(' ');
-    return `<g class="plg" data-pl="${pid}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${pid}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}</g>`;
+    const code = g.codes[pid] ?? pid;
+    return `<g class="plg" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}</g>`;
   };
   shown.filter(([pid]) => g.ghost.includes(pid)).forEach(e => { s += player(e); });
   g.moves.forEach((m, i) => {
@@ -1364,11 +1414,11 @@ function playLegend(play, side) {
 }
 const playById = id => V.plays.find(p => p.id === id);
 const playSteps = (play, side) => {
-  const text = side !== (play.side || 'right') ? mirrorText(play.steps) : play.steps;
+  const text = side !== (play.side || 'right') ? mirrorText(play.steps, textPairs(play)) : play.steps;
   return String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
 };
-const playWhen = (play, side) => side !== (play.side || 'right') ? mirrorText(play.when) : (play.when || '');
-const playHeadline = (play, side) => side !== (play.side || 'right') ? mirrorText(play.headline) : (play.headline || '');
+const playWhen = (play, side) => side !== (play.side || 'right') ? mirrorText(play.when, textPairs(play)) : (play.when || '');
+const playHeadline = (play, side) => side !== (play.side || 'right') ? mirrorText(play.headline, textPairs(play)) : (play.headline || '');
 
 function viewPlays() {
   const coach = isCoach();
@@ -1376,10 +1426,10 @@ function viewPlays() {
   state.playId = null;
   const missing = STARTER_IDS.filter(id => !V.plays.some(p => p.id === id)).length;
   return `<div class="sec-h"><h2>Plays</h2>${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div>
-    <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.</p>
+    <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.${coach ? ` <button class="link-btn inline" data-act="psets">Player lists</button>` : ''}</p>
     ${V.plays.length ? `<div class="list">${V.plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
-      <span class="grow"><span class="name" style="display:block">${esc(p.name)}</span><span class="sub play-when">${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
+      <span class="grow"><span class="name" style="display:block">${esc(p.name)}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
       <span class="pill neutral">${esc(p.category || 'Other')}</span>
     </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add one, or restore the starter plays.' : 'No plays yet.'}</p></div>`}
     ${coach && missing ? `<button class="link-btn" data-act="plays-restore">Restore the ${missing} missing starter play${missing === 1 ? '' : 's'}</button>` : ''}`;
@@ -1388,7 +1438,7 @@ function viewPlay(p) {
   const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side);
   state.playPhase = clamp(state.playPhase || 0, 0, phaseCount(p) - 1);
   return `<button class="toggle-past" data-act="play-back">← All plays</button>
-    <div class="sec-h"><h2>${esc(p.name)}</h2><span class="pill neutral">${esc(p.category || 'Other')}</span></div>
+    <div class="sec-h"><h2>${esc(p.name)}</h2><span class="pills">${p.set && p.set !== 'oztag' ? `<span class="pill neutral">${esc(getSet(p.set).name)}</span>` : ''}<span class="pill neutral">${esc(p.category || 'Other')}</span></span></div>
     <div class="seg" role="group" aria-label="Direction">
       <button data-act="play-side" data-side="left" aria-pressed="${side === 'left'}">Attacking left</button>
       <button data-act="play-side" data-side="right" aria-pressed="${side === 'right'}">Attacking right</button>
@@ -1406,11 +1456,43 @@ function playFigure(p, side, i) {
     ${title ? `<p class="phase-title">${esc(title)}</p>` : ''}
     ${playSVG(view, side, { anim: true })}
     ${playLegend(view, side)}
+    ${castKey(view, side)}
     <div class="anim-bar">
       <button type="button" class="btn sm primary" data-act="anim-play">${anim.playing ? 'Pause' : anim.done ? 'Play again' : 'Play'}</button>
       <button type="button" class="btn sm${anim.slow ? ' on' : ''}" data-act="anim-slow" aria-pressed="${!!anim.slow}">Slow</button>
       ${n > 1 ? `<span class="muted small">Phase ${i + 1} of ${n}</span>` : ''}
     </div>`;
+}
+
+// What the labels mean, when they aren't Oztag's: "7 Halfback · 9 Hooker ..."
+function castKey(play, side) {
+  const g = playGeom(play, side); if (g.set.id === 'oztag') return '';
+  const fr = playFrame(g, {}), shown = Object.entries(g.players).filter(([, q]) => fr.shows(q)).map(([id]) => g.codes[id]);
+  const codes = [...new Set(shown.filter(Boolean))].sort((a, b) => (parseFloat(a) || 99) - (parseFloat(b) || 99) || String(a).localeCompare(b));
+  return `<p class="cast-key">${codes.map(c => `<span><b>${esc(c)}</b> ${esc(labelName(g.set, c))}</span>`).join('')}</p>`;
+}
+
+/* ----- Player lists (coach) ----- */
+function openPlayerLists() {
+  const used = id => data.plays.filter(p => (p.set || 'oztag') === id).length;
+  openSheet('Player lists', `<p class="hint" style="margin:-4px 0 12px">A play shows its players with labels from one of these lists. To use a list, duplicate or edit a play and pick it under Player labels: the drawing stays the same and only the labels and words change.</p>
+    <div class="list">${allSets().map(x => `<div class="row" style="padding:10px 8px 10px 14px">
+      <span class="grow"><span class="name" style="display:block">${esc(x.name)}</span><span class="sub">${x.labels.length} players · ${x.labels.map(l => esc(l.code)).join(' ')}${used(x.id) ? ` · used by ${used(x.id)} play${used(x.id) === 1 ? '' : 's'}` : ''}</span></span>
+      ${x.builtin ? `<button class="btn sm" data-act="pset-copy" data-id="${esc(x.id)}">Copy</button>` : `<button class="btn sm" data-act="pset-edit" data-id="${esc(x.id)}">Edit</button>`}
+    </div>`).join('')}</div>
+    <button class="btn primary block" style="margin-top:14px" data-act="pset-new">New list</button>
+    <p class="hint" style="margin-top:12px">League tag, for example, is played with up to 11 a side from 13 years up.</p>`, 'psets');
+}
+function openPlayerListForm(x) {
+  const lines = x ? x.labels.map(l => `${l.code} ${l.name}`).join('\n') : '';
+  openSheet(x && x.id ? `Edit ${x.name}` : 'New player list', `<form data-form="pset" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(x && x.id || '')}">
+    <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(x ? x.name : '')}" placeholder="e.g. League tag"></label>
+    <label class="field-l"><span>Players, one per line: the label, then the name</span><textarea name="labels" rows="12" placeholder="1 Fullback&#10;2 Right wing&#10;3 Right centre&#10;4 Left centre&#10;5 Left wing&#10;6 Five-eighth&#10;7 Halfback">${esc(lines)}</textarea>
+      <small>Labels show inside the players' circles, so keep them to 3 or 4 characters. Players pair up for the attacking-left version when their names say Left and Right (Left wing and Right wing), or when the label starts with L or R (LC and RC). The first eight go on the eight spots of a play when you switch it to this list; change any of them in the editor.</small></label>
+    <button class="btn primary block" type="submit">Save list</button>
+    ${x && x.id ? `<button type="button" class="btn danger block" style="margin-top:10px" data-act="pset-del" data-id="${esc(x.id)}">Delete this list</button>` : ''}
+  </form>`, 'pset');
 }
 
 /* ----- Animation ----- */
@@ -1607,9 +1689,11 @@ function blankPlay() {
 function openPlayEditor(play) {
   const draft = JSON.parse(JSON.stringify(play || blankPlay()));
   if (draft.side && draft.side !== 'right') {   // edit everything in the attacking-right orientation
-    const right = view => { const g = playGeom(view, 'right'); return { players: g.players, tags: g.tags, focus: g.focus, ghost: g.ghost, notes: g.notes, labels: g.labels, view: g.view || undefined, moves: g.moves, defence: { marker: g.marker, line: g.line }, title: mirrorText(view.title) }; };
+    const tp = textPairs(draft), op = setPairs(getSet(draft.set));
+    const right = view => { const g = playGeom(view, 'right'); return { players: g.players, tags: g.tags, focus: g.focus, ghost: g.ghost, notes: g.notes, labels: g.labels, view: g.view || undefined, moves: g.moves, defence: { marker: g.marker, line: g.line }, title: mirrorText(view.title, tp) }; };
     const phases = arr(draft.phases).map((ph, i) => right(phaseView(draft, i + 1)));
-    Object.assign(draft, right(draft), { side: 'right', phases, steps: mirrorText(draft.steps), when: mirrorText(draft.when), headline: mirrorText(draft.headline) });
+    const who = draft.who ? Object.fromEntries(Object.entries(draft.who).map(([k, c]) => [swapSlot(k), op[c] || c])) : undefined;
+    Object.assign(draft, right(draft), { side: 'right', phases, who, steps: mirrorText(draft.steps, tp), when: mirrorText(draft.when, tp), headline: mirrorText(draft.headline, tp) });
   }
   const tidy = ph => {
     ph.defence = ph.defence || defaultDefence(46); ph.defence.line = ph.defence.line || [];
@@ -1634,6 +1718,7 @@ function openPlayEditor(play) {
     </div>
     <div id="ped-diagram" class="ped-diagram">
       <div class="ped-phases" id="ped-phases"></div>
+      <label class="field-l ped-list"><span>Player labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select></label>
       <label class="field-l ped-ptitle"><span id="ped-ptitle-l">Phase 1</span><input type="text" id="ped-ptitle" data-input="ped-ptitle" value="${esc(draft.title || '')}" placeholder="What happens in this phase, e.g. Tag 2: hands right"></label>
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
       <div class="ped-main">
@@ -1687,27 +1772,43 @@ function fitView(play) {
   return { x0: round1(Math.max(0, x0)), x1: round1(x1), y0: round1(Math.max(0, y0)), y1: round1(Math.min(80, y1)) };
 }
 
-// Each undo step keeps the drawing as it was. A swap of two players also changed the words on the
-// Words tab, which the coach may have typed in since, so undoing it swaps the codes back there.
-function pedSnap(swap = null) {
+// Each undo step keeps the drawing as it was. A step that also changed the words on the Words tab
+// (a player's label, or the player list) keeps those words too.
+const PED_WORDS = ['headline', 'when', 'steps'];
+const pedWords = () => Object.fromEntries(PED_WORDS.map(k => { const f = $(`#sheet [name=${k}]`); return [k, f ? f.value : '']; }));
+function pedSnap(words = null) {
   const E = state.ped; if (!E) return;
-  E.undo.push({ draft: JSON.stringify(E.draft), swap }); if (E.undo.length > 60) E.undo.shift();
+  E.undo.push({ draft: JSON.stringify(E.draft), words }); if (E.undo.length > 60) E.undo.shift();
   E.dirty = true;
 }
-const swapCodes = (text, a, b) => String(text ?? '').replace(new RegExp(`\\b(${a}|${b})\\b`, 'g'), m => m === a ? b : a);
-// Swap two positions over: each spot keeps its lines, words and highlight, and the codes in the
-// play's words change to match.
-function pedSwapPlayers(d, a, b) {
-  [d.players[a], d.players[b]] = [d.players[b], d.players[a]];
-  const swapKeys = o => { const A = o[a], B = o[b]; delete o[a]; delete o[b]; if (B !== undefined) o[a] = B; if (A !== undefined) o[b] = A; };
-  swapKeys(d.notes); swapKeys(d.tags);
-  const swapList = l => l.map(x => x === a ? b : x === b ? a : x);
-  d.focus = swapList(d.focus); d.ghost = swapList(d.ghost);
-  Object.values(d.notes).forEach(n => { if (n && n.text) n.text = swapCodes(n.text, a, b); });
-  d.labels.forEach(l => { l.text = swapCodes(l.text, a, b); });
+// Rename players in every word of the play: the phases' notes, labels and titles, and the Words tab.
+function pedRenameWords(map) {
+  const E = state.ped;
+  [E.draft, ...E.draft.phases].forEach(ph => {
+    Object.values(ph.notes || {}).forEach(n => { if (n && n.text) n.text = replaceWords(n.text, map); });
+    (ph.labels || []).forEach(l => { l.text = replaceWords(l.text, map); });
+    if (ph.title) ph.title = replaceWords(ph.title, map);
+  });
+  PED_WORDS.forEach(k => { const f = $(`#sheet [name=${k}]`); if (f) f.value = replaceWords(f.value, map); });
+  pedSyncTitle();
 }
-function pedSwapWords(a, b) {
-  ['headline', 'when', 'steps'].forEach(k => { const f = $(`#sheet [name=${k}]`); if (f) f.value = swapCodes(f.value, a, b); });
+// A spot shows a different label from the play's list. If another spot had it, they swap labels.
+// Only the labels change: every spot keeps its lines, words and highlight.
+function pedSetWho(slot, code) {
+  const E = state.ped, d = E.draft, set = getSet(d.set), cur = whoOf(d, slot); if (cur === code) return;
+  const other = SLOT_IDS.find(s => s !== slot && whoOf(d, s) === code);
+  pedSnap(pedWords());
+  d.who = { ...Object.fromEntries(SLOT_IDS.map(s => [s, whoOf(d, s)])), [slot]: code, ...(other ? { [other]: cur } : {}) };
+  pedRenameWords({ [wordFor(set, cur)]: wordFor(set, code), ...(other ? { [wordFor(set, code)]: wordFor(set, cur) } : {}) });
+}
+// Use another player list: every spot takes that list's label for it, and the words follow.
+function pedSetList(id) {
+  const E = state.ped, d = E.draft, from = getSet(d.set), to = getSet(id); if (from.id === to.id) return;
+  const who = defaultWho(to), map = {};
+  SLOT_IDS.forEach(s => { const a = wordFor(from, whoOf(d, s)), b = wordFor(to, who[s]); if (a && b) map[a] = b; });
+  pedSnap(pedWords());
+  d.set = to.id; d.who = who;
+  pedRenameWords(map);
 }
 function pedSelect(sel) { const E = state.ped; E.sel = sel; E.selH = null; E.textSnap = false; }
 function pedNearest(E, p, kind, r) {
@@ -1764,15 +1865,16 @@ function pedPanel(E) {
   if (sel && ['pl', 'df', 'mk'].includes(sel.k)) {
     const key = pedNoteKey(sel), n = d.notes[key];
     const text = n ? n.text : sel.k === 'mk' ? 'Marker' : '';
-    const who = sel.k === 'pl' ? sel.id : sel.k === 'mk' ? 'The marker' : 'Defender';
+    const set = getSet(E.draft.set), code = sel.k === 'pl' ? whoOf(E.draft, sel.id) : '';
+    const who = sel.k === 'pl' ? (code ? `${code}${labelName(set, code) && labelName(set, code) !== code ? ` · ${labelName(set, code)}` : ''}` : 'No label') : sel.k === 'mk' ? 'The marker' : 'Defender';
     let s = `<div class="ped-h3">${esc(who)}</div>`;
     if (sel.k === 'pl') {
-      s += `<div class="ped-sub">Who plays here</div>
-        <div class="seg ped-codes" role="group" aria-label="Who plays here">${SLOT_DEFS.map(p => `<button type="button" data-act="ped-swap" data-to="${p.id}" aria-pressed="${p.id === sel.id}">${p.id}</button>`).join('')}</div>
-        <p class="hint" style="margin:-4px 0 12px">Tap another position to swap them over. The lines and words stay on this spot, and the play's words change to the new codes.</p>`;
+      s += `<div class="ped-sub">Who plays here <span class="muted">(${esc(set.name)})</span></div>
+        <div class="seg ped-codes" role="group" aria-label="Who plays here">${set.labels.map(l => `<button type="button" data-act="ped-who" data-code="${esc(l.code)}" aria-pressed="${l.code === code}" title="${esc(l.name)}">${esc(l.code)}</button>`).join('')}</div>
+        <p class="hint" style="margin:-4px 0 12px">Tap another label to put that player here (if someone else had it, they swap). The lines and words stay on this spot, and the play's words change to match.</p>`;
       s += `<div class="btn-row" style="margin-bottom:10px">${btn('ped-pl', 'Highlight', d.focus.includes(sel.id), 'data-f="focus"')}${btn('ped-pl', 'Female (F)', d.tags[sel.id] === 'F', 'data-f="tag"')}${btn('ped-pl', 'Dashed: leaves this spot', d.ghost.includes(sel.id), 'data-f="ghost"')}</div>`;
     }
-    s += `<label class="field-l"><span>Words beside ${sel.k === 'pl' ? esc(sel.id) : 'them'}</span><textarea id="ped-text" data-input="ped-text" rows="2" placeholder="${sel.k === 'pl' ? 'e.g. Dummy half' : 'e.g. A defender'}">${esc(text)}</textarea></label>`;
+    s += `<label class="field-l"><span>Words beside ${sel.k === 'pl' ? esc(code || 'them') : 'them'}</span><textarea id="ped-text" data-input="ped-text" rows="2" placeholder="${sel.k === 'pl' ? 'e.g. Dummy half' : 'e.g. A defender'}">${esc(text)}</textarea></label>`;
     s += sides((n && n.side) || (sel.k === 'mk' ? 'l' : 'r'));
     if (sel.k !== 'pl') s += `<label class="field-l"><span>Words above their line</span><input type="text" data-input="ped-line" value="${esc(d.notes.line ? d.notes.line.text : 'Their line, 7 m back')}"></label>`;
     return s + `<p class="hint">Drag ${sel.k === 'pl' ? 'the player to move them; lines that start or end on them move too' : 'them to move them'}.</p>`;
@@ -1838,7 +1940,7 @@ function pedUndo() {
   const step = E.undo.pop();
   E.draft = JSON.parse(step.draft); E.selH = null; E.drawing = null; E.textSnap = false;
   E.phase = Math.min(E.phase, E.draft.phases.length); pedSyncTitle();
-  if (step.swap) { pedSwapWords(...step.swap); if (E.sel && E.sel.k === 'pl' && step.swap.includes(E.sel.id)) E.sel = { k: 'pl', id: step.swap.find(c => c !== E.sel.id) }; }
+  if (step.words) PED_WORDS.forEach(k => { const f = $(`#sheet [name=${k}]`); if (f) f.value = step.words[k]; });
   const d = pedCur(E), s = E.sel;   // keep the selection if it is still there
   if (s && !((s.k === 'mv' && d.moves[s.i]) || (s.k === 'lb' && d.labels[s.i]) || (s.k === 'pl' && d.players[s.id]) || (s.k === 'df' && d.defence.line[s.i]) || (s.k === 'mk' && d.defence.marker))) E.sel = null;
   refreshPlayEditor();
@@ -2296,6 +2398,16 @@ const actions = {
     data.plays = data.plays.filter(x => x.id !== p.id); state.playId = null; save(); render(); toast('Play deleted');
   }),
   'play-share': coachOnly(el => { const p = playById(el.dataset.id); if (!p) return; const t = playShareText(p, state.playSide); logMessage(t, 'WhatsApp'); openWhatsApp(t); }),
+  'psets': coachOnly(() => openPlayerLists()),
+  'pset-new': coachOnly(() => openPlayerListForm(null)),
+  'pset-edit': coachOnly(el => openPlayerListForm(data.playerSets.find(x => x.id === el.dataset.id))),
+  'pset-copy': coachOnly(el => { const x = getSet(el.dataset.id); openPlayerListForm({ name: `${x.name} (my version)`, labels: x.labels }); }),
+  'pset-del': coachOnly(el => {
+    const id = el.dataset.id, n = data.plays.filter(p => p.set === id).length;
+    if (n) { toast(`${n} play${n === 1 ? ' uses' : 's use'} this list. Switch ${n === 1 ? 'it' : 'them'} to another list first.`); return; }
+    if (!confirm('Delete this player list?')) return;
+    data.playerSets = data.playerSets.filter(x => x.id !== id); save(); openPlayerLists(); toast('List deleted');
+  }),
   'plays-restore': coachOnly(() => {
     const starters = starterPlays(), have = new Set(data.plays.map(p => p.id));
     const add = starters.filter(p => !have.has(p.id));
@@ -2337,12 +2449,10 @@ const actions = {
     else { const set = new Set(d[f]); set.has(id) ? set.delete(id) : set.add(id); d[f] = [...set]; }
     refreshPlayEditor();
   }),
-  'ped-swap': coachOnly(el => {
-    const E = state.ped, a = E.sel && E.sel.k === 'pl' && E.sel.id, b = el.dataset.to;
-    if (!a || !b || a === b) return;
-    pedSnap([a, b]); [E.draft, ...E.draft.phases].forEach(ph => { pedSwapPlayers(ph, a, b); if (ph.title) ph.title = swapCodes(ph.title, a, b); }); pedSwapWords(a, b); pedSyncTitle();
-    E.sel = { k: 'pl', id: b };   // the same spot, now played by b
-    refreshPlayEditor(); toast(`${a} and ${b} swapped`);
+  'ped-who': coachOnly(el => {
+    const E = state.ped, slot = E.sel && E.sel.k === 'pl' && E.sel.id; if (!slot) return;
+    const before = whoOf(E.draft, slot); pedSetWho(slot, el.dataset.code); refreshPlayEditor();
+    if (before !== el.dataset.code) toast(`${el.dataset.code} plays here now`);
   }),
   'ped-lb-dot': coachOnly(() => {
     const E = state.ped, l = E.sel && pedCur(E).labels[E.sel.i]; if (!l) return;
@@ -2450,6 +2560,7 @@ document.addEventListener('change', e => {
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
   if (k === 'msg-session') { state.msgSession = e.target.value; state.msgDraft = buildTemplate(state.msgTpl); render(); }
   if (k === 'post-notice') state.postNotice = e.target.checked;
+  if (k === 'ped-list' && state.ped) { pedSetList(e.target.value); refreshPlayEditor(); toast(`Showing ${getSet(e.target.value).name} labels`); }
   if (k === 'ped-side' && state.ped && state.ped.sel) {
     const E = state.ped, d = pedCur(E); pedSnap();
     if (E.sel.k === 'lb' && d.labels[E.sel.i]) d.labels[E.sel.i].side = e.target.value;
@@ -2644,6 +2755,19 @@ document.addEventListener('submit', async e => {
     if (i >= 0) data.plays[i] = E.draft; else data.plays.push(E.draft);
     state.playId = E.draft.id; state.ped = null;
     save(); closeSheet(); render(); toast('Play saved');
+    return;
+  }
+  if (kind === 'pset') {
+    const labels = [], seen = new Set();
+    for (const line of String(f.get('labels') || '').split('\n').map(l => l.trim()).filter(Boolean)) {
+      const m = line.match(/^(\S+)\s*(.*)$/), code = m[1].slice(0, 4), name = (m[2] || '').trim() || code;
+      if (seen.has(code)) { toast(`${code} is in the list twice`); return; }
+      seen.add(code); labels.push({ code, name });
+    }
+    if (!str('name') || !labels.length) { toast('Give the list a name and at least one player'); return; }
+    const id = str('id'), old = data.playerSets.find(x => x.id === id);
+    if (old) Object.assign(old, { name: str('name'), labels }); else data.playerSets.push({ id: uid(), name: str('name'), labels });
+    save(); openPlayerLists(); toast('List saved');
     return;
   }
   if (kind === 'notice') {

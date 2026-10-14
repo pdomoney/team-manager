@@ -109,7 +109,8 @@ export function teamView(d) {
       slots: (l.slots || []).map(s => pick(s, ['id', 'label', 'name', 'group', 'x', 'y', 'playerId']))
     })),
     notices: (d.notices || []).slice(0, 30).map(n => pick(n, ['id', 'at', 'text'])),
-    plays: (d.plays || []).map(p => pick(p, ['id', 'name', 'category', 'headline', 'when', 'steps', 'side', 'builtin', 'rev', 'edited', 'players', 'defence', 'moves', 'focus', 'ghost', 'view', 'tags', 'notes', 'labels', 'title', 'phases'])),
+    plays: (d.plays || []).map(p => pick(p, ['id', 'name', 'category', 'headline', 'when', 'steps', 'side', 'builtin', 'rev', 'edited', 'players', 'defence', 'moves', 'focus', 'ghost', 'view', 'tags', 'notes', 'labels', 'title', 'phases', 'set', 'who'])),
+    playerSets: (d.playerSets || []).map(x => pick(x, ['id', 'name', 'labels', 'slots'])),
     updatedAt: d.updatedAt || null
   };
 }
