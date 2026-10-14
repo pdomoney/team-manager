@@ -69,7 +69,7 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 
 | Path | What it holds |
 | --- | --- |
-| `team.enc.json` | The players' copy, encrypted with the team password: team and tournament details, squad names, gender, numbers and preferred positions, training sessions, lineups and notices. |
+| `team.enc.json` | The players' copy, encrypted with the team password: team and tournament details, squad names, gender, numbers and preferred positions, training sessions, lineups, notices and plays. |
 | `coach.enc.json` | Everything, encrypted with the coach password: the above plus phone numbers, availability and injuries, player notes, roll calls, sent messages, and the team password (so the coach can re-encrypt the players' copy and make invite links). |
 
 Each file is JSON with the fields `format`, `version`, `role`, `kdf`, `salt`, `iv` and `data` (the encrypted content, base64).

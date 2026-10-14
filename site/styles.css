@@ -322,7 +322,44 @@ details.more[open] summary{margin-bottom:8px}
 .pf .ah.key{fill:var(--pf-key)}
 .pf .mv.shift{stroke:#C4513F;stroke-width:1.6}
 .pf .ah.shift{fill:#C4513F}
+/* Play editor */
 .ped-tools{display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
+.ped-types{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;margin-bottom:10px}
+.ped-types button{padding:6px 2px;font-size:14px}
+.ped-card{padding:6px;touch-action:none;-webkit-touch-callout:none}
+.ped-card .pf{max-width:640px;max-height:72vh}
+.ped-under{display:flex;gap:8px;justify-content:space-between;margin-top:8px}
+.ped-under .btn[disabled]{opacity:.45;cursor:default}
+.ped-panel{margin-top:12px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px}
+.ped-panel .field-l{margin-bottom:10px}
+.ped-panel .hint{margin:8px 0 0}
+.ped-h3{font-weight:700;font-size:16px;margin-bottom:8px}
+.btn.on{background:var(--sky-soft);border-color:var(--sky);color:var(--sky-ink)}
+.ped-save{position:sticky;bottom:calc(-24px - env(safe-area-inset-bottom));margin:16px -16px 0;padding:10px 16px calc(12px + env(safe-area-inset-bottom));background:var(--chalk);border-top:1px solid var(--line);z-index:2}
+.pf.editor .mv-hit{fill:none;stroke:transparent;stroke-width:18;stroke-linecap:round;pointer-events:stroke;cursor:pointer}
+.pf.editor .plg,.pf.editor .dfg{cursor:grab}
+.pf.editor [data-lb]{pointer-events:auto;cursor:grab}
+.pf .ped-lbh{fill:transparent}
+.pf .ped-dim{fill:#16201B;fill-opacity:.07;pointer-events:none}
+.pf .ped-frame{fill:none;stroke:#5B6861;stroke-width:1.2;stroke-dasharray:6 4;pointer-events:none}
+.pf .ped-fbody{fill:transparent;cursor:move}
+.pf .ped-edge{fill:#fff;stroke:var(--pf-key);stroke-width:2.5}
+.pf .ped-edge.x{cursor:ew-resize}
+.pf .ped-edge.y{cursor:ns-resize}
+.pf .ped-glow{fill:none;stroke:var(--pf-key);stroke-opacity:.16;stroke-width:14;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.pf .ped-h{fill:#fff;stroke:var(--pf-key);stroke-width:2.2;cursor:grab}
+.pf .ped-h.start{fill:var(--pf-key)}
+.pf .ped-h.on{stroke-width:4}
+.pf .ped-add{cursor:copy}
+.pf .ped-add circle{fill:#fff;fill-opacity:.9;stroke:var(--pf-key);stroke-width:1.2;stroke-dasharray:2.5 2}
+.pf .ped-add path{stroke:var(--pf-key);stroke-width:1.6}
+.pf .ped-ring{fill:none;stroke:var(--pf-key);stroke-width:2;stroke-dasharray:4 3;pointer-events:none}
+@media (min-width:900px){
+  .panel.wide{max-width:1040px}
+  .ped-diagram{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:0 16px;align-items:start}
+  .ped-diagram .ped-tools{grid-column:1 / -1}
+  .ped-diagram .ped-panel{margin-top:0;position:sticky;top:0}
+}
 .pf .dot{fill:var(--pf-key)}
 .pf .pl{fill:#fff;stroke:#7D8880;stroke-width:1.3}
 .pf .pl.idle{stroke:#B3BCB5}

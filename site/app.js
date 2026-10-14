@@ -1072,19 +1072,19 @@ function starterPlays() {
           { t: 'shift', pts: [[25, 43], [27.4, 43.3]] },
           { t: 'run', key: true, curve: true, pts: [lm, [23.5, 46.2], [23.5, 43], [23, 37.6]] }
         ] }),
-    // Out the back, as drawn in the playbook.
-    base('out-the-back', 4, 'Out the back', 'Edge', 'Tags 3–5, attacking the wider side of the ruck.',
-      'RL’s decoy holds their line, and RM loops around to hit the gap.',
-      'RM plays the ball, then loops around behind RR and RL.\nLM, at dummy half, passes to RR.\nRR runs at the inside shoulder of their Rover to hold them.\nRL runs a short decoy line at the gap.\nRR passes behind RL to RM, who hits the gap with RW outside.',
-      { focus: ['RM'], view: { x0: 14, x1: 50, y0: 37, y1: 57.5 },
-        players: { RM: [25, 46], LM: [23.6, 49.6], RR: [31.6, 50.9], RL: [36.4, 47.2], RW: [48.1, 55.6], LR: [18.4, 51.8], LL: [12.1, 53.1], LW: [4, 55.3] },
-        notes: { RM: { text: 'Plays the ball,\nthen loops', side: 'l' }, LM: { text: 'Dummy half', side: 'l' }, RL: { text: 'Decoy', side: 'ar' }, RW: { text: 'Stays wide', side: 'l' } },
-        labels: [{ at: [40.6, 51.8], text: 'RM catches', side: 'br', dot: true }],
+    // Out the back: the dummy half passes, then loops around the back to take the ball again.
+    base('out-the-back', 5, 'Out the back', 'Edge', 'Tags 3–5, attacking the wider side of the ruck.',
+      'RL’s decoy holds their line, and LM loops around from dummy half to hit the gap.',
+      'RM plays the ball.\nLM, at dummy half, passes to RR, then loops around behind RR and RL.\nRR runs at the inside shoulder of their Rover to hold them.\nRL runs a short decoy line at the gap.\nRR passes behind RL to LM, who hits the gap with RW outside.',
+      { focus: ['LM'], view: { x0: 14, x1: 50, y0: 37, y1: 57.5 },
+        players: { RM: [25, 46], LM: [23.6, 49.6], RR: [31.6, 50.9], RL: [36.4, 47.2], RW: [48.1, 55.6], LR: [17.6, 52.8], LL: [11.6, 54], LW: [4, 55.3] },
+        notes: { RM: { text: 'Plays the ball', side: 'l' }, LM: { text: 'Dummy half,\nthen loops', side: 'l' }, RL: { text: 'Decoy', side: 'ar' }, RW: { text: 'Stays wide', side: 'l' } },
+        labels: [{ at: [40.6, 51.8], text: 'LM catches', side: 'br', dot: true }],
         moves: [
           { t: 'pass', pts: [[23.6, 49.6], [31.6, 50.9]] },
           { t: 'run', pts: [[31.6, 50.9], [31.5, 40.6]] },
           { t: 'run', pts: [[36.4, 47.2], [35, 40.6]] },
-          { t: 'run', key: true, curve: true, pts: [[25, 46], [27.4, 50.8], [31.8, 54.6], [36.8, 55.1], [40.6, 51.8]] },
+          { t: 'run', key: true, curve: true, pts: [[23.6, 49.6], [26.6, 53.4], [31.8, 55.4], [36.8, 55.2], [40.6, 51.8]] },
           { t: 'pass', key: true, pts: [[31.5, 46.4], [40.6, 51.8]] },
           { t: 'run', key: true, pts: [[40.6, 51.8], [43, 40.4]] },
           { t: 'run', pts: [[48.1, 55.6], [48.3, 42.6]] }
@@ -1159,14 +1159,14 @@ function pathD(pts, curve) {
 // Drawing sizes are in screen units, so circles and words stay the same size however far the
 // picture is zoomed in. 380 units wide is roughly one unit per pixel on a phone.
 const PW = 380, PPAD = 14, PR = 12, DR = 9, DOT = 4.5;
+// A play without a chosen picture shows the whole width, as deep as everything on it.
+function autoFrame(g) {
+  const ys = [...Object.values(g.players), ...g.moves.flatMap(m => m.pts), ...g.line, ...(g.marker ? [g.marker] : []), ...g.labels.map(l => l.at)].map(p => p[1]);
+  if (!ys.length) return { x0: 0, x1: 50, y0: 30, y1: 60 };
+  return { x0: 0, x1: 50, y0: Math.max(0, Math.floor(Math.min(...ys) - 2.5)), y1: Math.min(80, Math.ceil(Math.max(...ys) + 2.5)) };
+}
 function playFrame(g, opts) {
-  let v;
-  if (opts.full) v = { x0: 0, x1: 50, y0: 0, y1: 80 };
-  else if (g.view) v = { ...g.view };
-  else {
-    const ys = [...Object.values(g.players), ...g.moves.flatMap(m => m.pts), ...g.line, ...(g.marker ? [g.marker] : []), ...g.labels.map(l => l.at)].map(p => p[1]);
-    v = { x0: 0, x1: 50, y0: Math.max(0, Math.floor(Math.min(...ys) - 2.5)), y1: Math.min(80, Math.ceil(Math.max(...ys) + 2.5)) };
-  }
+  const v = { ...(opts.viewport || (opts.full ? { x0: 0, x1: 50, y0: 0, y1: 80 } : g.view || autoFrame(g))) };
   const k = (PW - 2 * PPAD) / (v.x1 - v.x0);
   const top = v.y0 > 5 && !opts.thumb ? 24 : PPAD;   // room for "Their try line is this way" when it is off the picture
   const H = Math.round(top + (v.y1 - v.y0) * k + PPAD);
@@ -1261,7 +1261,9 @@ function playSVG(play, side, opts = {}) {
   g.moves.forEach((m, i) => {
     const pts = trimLine(m.pts.map(XY), blockers);
     const head = m.t === 'shift' ? 'r' : m.key ? 'b' : 'g';
-    s += `<path class="mv ${m.t}${m.key && m.t !== 'shift' ? ' key' : ''}" d="${pathD(pts, m.curve)}"${m.t === 'dummy' ? '' : ` marker-end="url(#${id}-${head})"`}${opts.editor ? ` data-mv="${i}"` : ''}/>`;
+    const d = pathD(pts, m.curve);
+    s += `<path class="mv ${m.t}${m.key && m.t !== 'shift' ? ' key' : ''}" d="${d}"${m.t === 'dummy' ? '' : ` marker-end="url(#${id}-${head})"`}${opts.editor ? ` data-mv="${i}"` : ''}/>`;
+    if (opts.editor) s += `<path class="mv-hit" d="${d}" data-mv="${i}"/>`;
   });
   if (opts.drawing && opts.drawing.pts.length) {
     s += `<path class="mv draft" d="${pathD(opts.drawing.pts.map(XY), opts.drawing.curve)}"/>`;
@@ -1274,6 +1276,8 @@ function playSVG(play, side, opts = {}) {
     defs.forEach(({ p, i }) => { const n = g.notes['d' + i]; if (n && n.text) s += svgWords(X(p[0]), Y(p[1]), dr, n.side || 'r', n.text, 'pf-note'); });
     g.labels.forEach((l, i) => { s += svgWords(X(l.at[0]), Y(l.at[1]), l.dot ? dot : 0, l.side || 'r', l.text, (l.dot ? 'pf-lbl' : 'pf-note') + (opts.editor ? '" data-lb="' + i : '')); });
   }
+  if (opts.editor) g.labels.forEach((l, i) => { s += `<circle class="ped-lbh" data-lb="${i}" cx="${X(l.at[0])}" cy="${Y(l.at[1])}" r="11"/>`; });
+  if (opts.overlay) s += opts.overlay(fr);
   return s + '</svg>';
 }
 function playLegend(play, side) {
@@ -1332,9 +1336,22 @@ function viewPlay(p) {
 }
 
 /* ----- Play editor (coach) ----- */
+// The editor draws the play attacking right; the app makes the left version.
+//   Select    tap a line, player, defender or label to change it, or drag it to move it. A chosen
+//             line shows handles on its start, bends and end: drag them, or drag a small + to add a bend.
+//   Run, Pass, Dummy, Kick, Defender   drag from where the line starts to where it ends.
+//   Label     tap the field to put words there, or a player or defender to put words beside them.
+//   Picture   drag the frame's edges to set how wide and deep the picture is.
+const PED_TOOLS = [['select', 'Select'], ['run', 'Run'], ['pass', 'Pass'], ['dummy', 'Dummy'], ['kick', 'Kick'], ['shift', 'Defender'], ['label', 'Label'], ['frame', 'Picture']];
+const PED_NAMES = Object.fromEntries(PED_TOOLS);
+const PED_DRAW = ['run', 'pass', 'dummy', 'kick', 'shift'];
+const PED_SIDES = [['l', 'Left'], ['r', 'Right'], ['a', 'Above'], ['b', 'Below'], ['al', 'Above left'], ['ar', 'Above right'], ['bl', 'Below left'], ['br', 'Below right']];
+const round1 = n => Math.round(n * 10) / 10;
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
 function blankPlay() {
   return { id: uid(), name: '', category: 'Other', when: '', headline: '', steps: '', side: 'right', builtin: false,
-    players: formation(46), defence: defaultDefence(46), moves: [], focus: [], tags: {}, notes: {}, labels: [] };
+    players: formation(46), defence: defaultDefence(46), moves: [], focus: [], tags: {}, ghost: [], notes: {}, labels: [] };
 }
 function openPlayEditor(play) {
   const draft = JSON.parse(JSON.stringify(play || blankPlay()));
@@ -1343,118 +1360,294 @@ function openPlayEditor(play) {
     Object.assign(draft, { side: 'right', players: g.players, tags: g.tags, focus: g.focus, ghost: g.ghost, notes: g.notes, labels: g.labels, view: g.view || undefined, moves: g.moves,
       defence: { marker: g.marker, line: g.line }, steps: mirrorText(draft.steps), when: mirrorText(draft.when), headline: mirrorText(draft.headline) });
   }
-  if (!draft.defence) draft.defence = defaultDefence(46);
-  draft.notes = draft.notes || {}; draft.labels = draft.labels || [];
-  state.ped = { draft, tool: 'run', key: false, curve: false, drawing: null, isNew: !play };
-  const slots = SLOT_DEFS.map(s => s.id);
-  openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off">
-    <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
-    <label class="field-l"><span>Type</span><select name="category">${[...PLAY_CATS, ...(PLAY_CATS.includes(draft.category) ? [] : [draft.category])].map(c => `<option ${c === draft.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
-    <label class="field-l"><span>Headline</span><input type="text" name="headline" value="${esc(draft.headline)}" placeholder="What the play does, in one line"></label>
-    <label class="field-l"><span>When to use it</span><input type="text" name="when" value="${esc(draft.when)}" placeholder="e.g. Tag 5 inside their 14 m"></label>
-    <label class="field-l"><span>Steps, one per line</span><textarea name="steps" rows="5" placeholder="Use LW, LL, LR, LM, RM, RR, RL, RW so the left version swaps them automatically.">${esc(draft.steps)}</textarea></label>
-    <h3 class="form-sec">Diagram</h3>
-    <p class="hint" style="margin:-4px 0 10px">Draw it attacking right; the app makes the left version. Pick a line type, tap where it starts (on a player to start from them), tap each point it passes, then tap Finish line. Defender draws a red arrow from a defender, to show them being drawn in.</p>
-    <div class="seg ped-tools" id="ped-tools">${pedToolButtons()}</div>
-    <div id="ped-label-box" hidden>
-      <label class="field-l" style="margin-bottom:8px"><span>Label</span><input type="text" id="ped-label-text" placeholder="e.g. RM catches"></label>
-      <p class="hint" style="margin:-2px 0 10px">Type the words, then tap a player to put them beside that player, or tap anywhere else on the field. Tick Key move for a blue dot on the spot.</p>
+  draft.defence = draft.defence || defaultDefence(46); draft.defence.line = draft.defence.line || [];
+  ['moves', 'focus', 'ghost', 'labels'].forEach(k => { draft[k] = draft[k] || []; });
+  draft.notes = draft.notes || {}; draft.tags = draft.tags || {}; draft.players = draft.players || formation(46);
+  state.ped = { draft, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, undo: [], dirty: false, tab: 'diagram' };
+  openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
+    <div class="two">
+      <label class="field-l"><span>Name</span><input type="text" name="name" value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
+      <label class="field-l"><span>Type</span><select name="category">${[...PLAY_CATS, ...(PLAY_CATS.includes(draft.category) ? [] : [draft.category])].map(c => `<option ${c === draft.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
     </div>
-    <div class="opts" style="margin-bottom:10px">
-      <label class="opt"><input type="checkbox" data-change="ped-key"><span>Key move (blue)</span></label>
-      <label class="opt"><input type="checkbox" data-change="ped-curve"><span>Curved</span></label>
+    <div class="seg" role="group" aria-label="What to edit">
+      <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="true">Diagram</button>
+      <button type="button" data-act="ped-tab" data-tab="words" aria-pressed="false">Words</button>
     </div>
-    <div class="play-card" id="ped-field"></div>
-    <div class="btn-row" style="margin-top:10px"><button type="button" class="btn" data-act="ped-finish">Finish line</button><button type="button" class="btn" data-act="ped-undo">Undo</button></div>
-    <div id="ped-moves" style="margin-top:10px"></div>
-    <details class="more"><summary>Highlight players</summary>
-      <p class="muted small" style="margin-bottom:8px">Blue players are the ones to watch. F marks a female finisher.</p>
-      <div class="opts" style="margin-bottom:8px">${slots.map(id => `<label class="opt"><input type="checkbox" data-change="ped-focus" value="${id}" ${draft.focus.includes(id) ? 'checked' : ''}><span>${id}</span></label>`).join('')}</div>
-      <div class="opts">${slots.map(id => `<label class="opt"><input type="checkbox" data-change="ped-tag" value="${id}" ${draft.tags[id] === 'F' ? 'checked' : ''}><span>${id} F</span></label>`).join('')}</div>
-    </details>
-    <button class="btn primary block" type="submit" style="margin-top:16px">Save play</button>
+    <div id="ped-words" hidden>
+      <label class="field-l"><span>Headline</span><input type="text" name="headline" value="${esc(draft.headline)}" placeholder="What the play does, in one line"></label>
+      <label class="field-l"><span>When to use it</span><input type="text" name="when" value="${esc(draft.when)}" placeholder="e.g. Tag 5 inside their 14 m"></label>
+      <label class="field-l"><span>Steps, one per line</span><textarea name="steps" rows="6" placeholder="Use LW, LL, LR, LM, RM, RR, RL, RW so the left version swaps them automatically.">${esc(draft.steps)}</textarea></label>
+    </div>
+    <div id="ped-diagram" class="ped-diagram">
+      <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
+      <div class="ped-main">
+        <div class="play-card ped-card"><div id="ped-field"></div></div>
+        <div class="ped-under"><button type="button" class="btn sm" data-act="ped-undo">Undo</button><button type="button" class="btn sm" data-act="ped-whole">Show the whole field</button></div>
+      </div>
+      <div id="ped-panel" class="ped-panel"></div>
+    </div>
+    <div class="ped-save"><button class="btn primary block" type="submit">Save play</button></div>
   </form>`, 'play-editor');
-  refreshPlayEditor();
+  const panel = $('#sheet .panel'); if (panel) panel.classList.add('wide');
+  bindPlayEditor(); refreshPlayEditor();
 }
-function pedToolButtons() {
-  const t = state.ped.tool;
-  return [['move', 'Move'], ['run', 'Run'], ['pass', 'Pass'], ['kick', 'Kick'], ['dummy', 'Dummy'], ['shift', 'Defender'], ['label', 'Label']].map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${t === k}">${l}</button>`).join('');
+
+// The picture frame: the play's chosen view, or the automatic one.
+const pedFrame = E => E.draft.view || autoFrame(playGeom(E.draft, 'right'));
+// The editor shows the frame with a margin around it, or the whole field. It holds still while dragging.
+function pedViewport(E) {
+  if (E.lockView) return E.lockView;
+  if (E.whole) return { x0: 0, x1: 50, y0: 0, y1: 80 };
+  const f = pedFrame(E), m = 4;
+  return { x0: Math.max(0, f.x0 - m), x1: Math.min(50, f.x1 + m), y0: Math.max(0, f.y0 - m), y1: Math.min(80, f.y1 + m) };
+}
+function frameFit(f, edge) {
+  const v = { ...f }, MW = 10, MD = 8;
+  if (edge === 'x0') v.x0 = clamp(v.x0, 0, v.x1 - MW);
+  if (edge === 'x1') v.x1 = clamp(v.x1, v.x0 + MW, 50);
+  if (edge === 'y0') v.y0 = clamp(v.y0, 0, v.y1 - MD);
+  if (edge === 'y1') v.y1 = clamp(v.y1, v.y0 + MD, 80);
+  return { x0: round1(v.x0), x1: round1(v.x1), y0: round1(v.y0), y1: round1(v.y1) };
+}
+function frameMove(f, dx, dy) {
+  const w = f.x1 - f.x0, h = f.y1 - f.y0, x0 = clamp(f.x0 + dx, 0, 50 - w), y0 = clamp(f.y0 + dy, 0, 80 - h);
+  return { x0: round1(x0), x1: round1(x0 + w), y0: round1(y0), y1: round1(y0 + h) };
+}
+// Fit the picture to the lines, labels and the players in the play, with their defensive line.
+function fitView(play) {
+  const g = playGeom(play, 'right'), starts = g.moves.map(m => m.pts[0]);
+  const busy = Object.entries(g.players).filter(([id, p]) => g.focus.includes(id) || (g.notes[id] && g.notes[id].text) || starts.some(q => dist(q, p) < 1)).map(([, p]) => p);
+  const pts = [...g.moves.flatMap(m => m.pts), ...g.labels.map(l => l.at), ...busy];
+  if (!pts.length) return autoFrame(g);
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  let x0 = Math.min(...xs) - 3, x1 = Math.max(...xs) + 3, y0 = Math.min(...ys) - 2.5, y1 = Math.max(...ys) + 2.5;
+  const near = g.line.filter(p => p[0] >= x0 && p[0] <= x1).map(p => p[1]);
+  if (near.length) y0 = Math.min(y0, Math.min(...near) - 2.5);
+  if (x1 - x0 < 16) { const c = (x0 + x1) / 2; x0 = c - 8; x1 = c + 8; }
+  if (x0 < 0) { x1 -= x0; x0 = 0; } if (x1 > 50) { x0 -= x1 - 50; x1 = 50; }
+  return { x0: round1(Math.max(0, x0)), x1: round1(x1), y0: round1(Math.max(0, y0)), y1: round1(Math.min(80, y1)) };
+}
+
+function pedSnap() {
+  const E = state.ped; if (!E) return;
+  E.undo.push(JSON.stringify(E.draft)); if (E.undo.length > 60) E.undo.shift();
+  E.dirty = true;
+}
+function pedSelect(sel) { const E = state.ped; E.sel = sel; E.selH = null; E.textSnap = false; }
+function pedNearest(E, p, kind, r) {
+  const d = E.draft;
+  const list = kind === 'defence' ? [...(d.defence.marker ? [d.defence.marker] : []), ...d.defence.line] : Object.values(d.players);
+  const best = list.map(q => ({ q, d: dist(q, p) })).sort((a, b) => a.d - b.d)[0];
+  return best && best.d <= r ? best.q.slice() : null;
+}
+const pedNoteKey = sel => sel.k === 'pl' ? sel.id : sel.k === 'mk' ? 'marker' : 'd' + sel.i;
+
+function pedOverlay(E, fr) {
+  const { X, Y, H } = fr, d = E.draft, f = pedFrame(E);
+  const fx0 = X(f.x0), fx1 = X(f.x1), fy0 = Y(f.y0), fy1 = Y(f.y1);
+  let s = `<path class="ped-dim" fill-rule="evenodd" d="M0 0H${PW}V${H}H0Z M${fx0} ${fy0}V${fy1}H${fx1}V${fy0}Z"/>`;
+  s += `<rect class="ped-frame${d.view ? '' : ' auto'}" x="${fx0}" y="${fy0}" width="${(fx1 - fx0).toFixed(1)}" height="${(fy1 - fy0).toFixed(1)}"/>`;
+  if (E.tool === 'frame') {
+    s += `<rect class="ped-fbody" data-fb="1" x="${fx0}" y="${fy0}" width="${(fx1 - fx0).toFixed(1)}" height="${(fy1 - fy0).toFixed(1)}"/>`;
+    const bar = (e, x, y, w, h) => `<rect class="ped-edge ${e[0]}" data-fe="${e}" x="${(x - w / 2).toFixed(1)}" y="${(y - h / 2).toFixed(1)}" width="${w}" height="${h}" rx="5"/>`;
+    const cx = (fx0 + fx1) / 2, cy = (fy0 + fy1) / 2;
+    s += bar('y0', cx, fy0, 48, 14) + bar('y1', cx, fy1, 48, 14) + bar('x0', fx0, cy, 14, 48) + bar('x1', fx1, cy, 14, 48);
+  }
+  const sel = E.sel;
+  if (sel && sel.k === 'mv' && d.moves[sel.i]) {
+    const m = d.moves[sel.i], pts = m.pts.map(p => [X(p[0]), Y(p[1])]);
+    s += `<path class="ped-glow" d="${pathD(pts, m.curve)}"/>`;
+    pts.slice(1).forEach((q, j) => { const a = pts[j]; s += `<g class="ped-add" data-hadd="${j}" transform="translate(${((a[0] + q[0]) / 2).toFixed(1)} ${((a[1] + q[1]) / 2).toFixed(1)})"><circle r="8"/><path d="M-4 0H4M0 -4V4"/></g>`; });
+    pts.forEach((q, j) => { s += `<circle class="ped-h${j === 0 ? ' start' : ''}${E.selH === j ? ' on' : ''}" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="8"/>`; });
+  }
+  const ring = (p, r) => `<circle class="ped-ring" cx="${X(p[0])}" cy="${Y(p[1])}" r="${r}"/>`;
+  if (sel && sel.k === 'pl' && d.players[sel.id]) s += ring(d.players[sel.id], PR + 5);
+  if (sel && sel.k === 'df' && d.defence.line[sel.i]) s += ring(d.defence.line[sel.i], DR + 5);
+  if (sel && sel.k === 'mk' && d.defence.marker) s += ring(d.defence.marker, DR + 5);
+  if (sel && sel.k === 'lb' && d.labels[sel.i]) s += ring(d.labels[sel.i].at, 11);
+  if (E.drawing) {
+    const pts = E.drawing.pts.map(p => [X(p[0]), Y(p[1])]);
+    s += `<path class="mv draft" d="${pathD(pts)}"/>` + pts.map(q => `<circle class="draft-pt" cx="${q[0]}" cy="${q[1]}" r="4"/>`).join('');
+  }
+  return s;
+}
+function pedPanel(E) {
+  const d = E.draft, sel = E.sel;
+  const btn = (act, label, on, extra = '') => `<button type="button" class="btn sm${on ? ' on' : ''}" data-act="${act}" aria-pressed="${!!on}" ${extra}>${label}</button>`;
+  const del = (label) => `<button type="button" class="btn sm danger" data-act="ped-del">${label}</button>`;
+  const sides = side => `<label class="field-l"><span>Where the words go</span><select data-change="ped-side">${PED_SIDES.map(([v, l]) => `<option value="${v}" ${v === side ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
+  if (sel && sel.k === 'mv' && d.moves[sel.i]) {
+    const m = d.moves[sel.i], bend = E.selH > 0 && E.selH < m.pts.length - 1;
+    return `<div class="ped-h3">${MOVE_KINDS[m.t] || m.t}${m.key ? ', a key move' : ''}</div>
+      <div class="seg ped-types" role="group" aria-label="Line type">${PED_DRAW.map(t => `<button type="button" data-act="ped-mv-type" data-t="${t}" aria-pressed="${m.t === t}">${PED_NAMES[t]}</button>`).join('')}</div>
+      <div class="btn-row">${m.t !== 'shift' ? btn('ped-mv', 'Key move (blue)', m.key, 'data-f="key"') : ''}${btn('ped-mv', 'Curved', m.curve, 'data-f="curve"')}${bend ? btn('ped-mv', 'Remove this bend', false, 'data-f="unbend"') : ''}${del('Delete line')}</div>
+      <p class="hint">Drag the round handles to move the start, the end or a bend. Drag a small + to add a bend. Drag the line itself to move all of it.</p>`;
+  }
+  if (sel && ['pl', 'df', 'mk'].includes(sel.k)) {
+    const key = pedNoteKey(sel), n = d.notes[key];
+    const text = n ? n.text : sel.k === 'mk' ? 'Marker' : '';
+    const who = sel.k === 'pl' ? sel.id : sel.k === 'mk' ? 'The marker' : 'Defender';
+    let s = `<div class="ped-h3">${esc(who)}</div>`;
+    if (sel.k === 'pl') s += `<div class="btn-row" style="margin-bottom:10px">${btn('ped-pl', 'Highlight', d.focus.includes(sel.id), 'data-f="focus"')}${btn('ped-pl', 'Female (F)', d.tags[sel.id] === 'F', 'data-f="tag"')}${btn('ped-pl', 'Dashed: leaves this spot', d.ghost.includes(sel.id), 'data-f="ghost"')}</div>`;
+    s += `<label class="field-l"><span>Words beside ${sel.k === 'pl' ? esc(sel.id) : 'them'}</span><textarea id="ped-text" data-input="ped-text" rows="2" placeholder="${sel.k === 'pl' ? 'e.g. Dummy half' : 'e.g. A defender'}">${esc(text)}</textarea></label>`;
+    s += sides((n && n.side) || (sel.k === 'mk' ? 'l' : 'r'));
+    if (sel.k !== 'pl') s += `<label class="field-l"><span>Words above their line</span><input type="text" data-input="ped-line" value="${esc(d.notes.line ? d.notes.line.text : 'Their line, 7 m back')}"></label>`;
+    return s + `<p class="hint">Drag ${sel.k === 'pl' ? 'the player to move them; lines that start or end on them move too' : 'them to move them'}.</p>`;
+  }
+  if (sel && sel.k === 'lb' && d.labels[sel.i]) {
+    const l = d.labels[sel.i];
+    return `<div class="ped-h3">Label</div>
+      <label class="field-l"><span>Words</span><textarea id="ped-text" data-input="ped-text" rows="2">${esc(l.text)}</textarea></label>
+      ${sides(l.side || 'r')}
+      <div class="btn-row">${btn('ped-lb-dot', 'Blue dot on the spot', l.dot)}${del('Delete label')}</div>
+      <p class="hint">Drag the label's spot to move it.</p>`;
+  }
+  if (E.tool === 'frame') {
+    const f = pedFrame(E);
+    return `<div class="ped-h3">Picture: ${round1(f.x1 - f.x0)} m wide, ${round1(f.y1 - f.y0)} m deep${d.view ? '' : ' (automatic)'}</div>
+      <div class="btn-row">${btn('ped-frame', 'Fit to the play', false, 'data-f="fit"')}${btn('ped-frame', 'Whole width', false, 'data-f="width"')}${btn('ped-frame', 'Whole field', false, 'data-f="field"')}${d.view ? btn('ped-frame', 'Automatic', false, 'data-f="auto"') : ''}</div>
+      <p class="hint">Drag the blue handles to set how wide and deep the picture is, or drag inside the frame to move it. Anything outside the frame is left out of the picture.</p>`;
+  }
+  if (PED_DRAW.includes(E.tool)) {
+    return `<div class="ped-h3">Draw ${E.tool === 'shift' ? 'defender moves' : MOVE_KINDS[E.tool].toLowerCase() + ' lines'}</div>
+      <div class="btn-row">${E.tool !== 'shift' ? btn('ped-opt', 'Key move (blue)', E.key, 'data-f="key"') : ''}${btn('ped-opt', 'Curved', E.curve, 'data-f="curve"')}</div>
+      <p class="hint">${E.tool === 'shift' ? 'Drag from a defender to where they move.' : E.tool === 'pass' || E.tool === 'dummy' ? 'Drag from the passer (or a point on their run) to the receiver.' : 'Drag from a player to where the line ends.'} Tap a line to change it.</p>`;
+  }
+  if (E.tool === 'label') return `<p class="hint">Tap the field to add words there, or tap a player or defender to put words beside them.</p>`;
+  return `<p class="hint">Tap a line, player, defender or label to change it, or drag it to move it. Pick Run, Pass, Dummy, Kick or Defender to draw a new line, and Picture to set how much of the field shows.</p>`;
+}
+function refreshPedField() {
+  const E = state.ped, box = $('#ped-field'); if (!E || !box) return;
+  box.innerHTML = playSVG(E.draft, 'right', { editor: true, svgId: 'ped-svg', viewport: pedViewport(E), overlay: fr => pedOverlay(E, fr) });
 }
 function refreshPlayEditor() {
-  const E = state.ped; if (!E) return;
-  const f = $('#ped-field'); if (!f) return;
-  f.innerHTML = playSVG(E.draft, 'right', { full: true, editor: true, svgId: 'ped-svg', drawing: E.drawing ? { ...E.drawing, curve: E.curve } : null });
-  $('#ped-tools').innerHTML = pedToolButtons();
-  const box = $('#ped-label-box'); if (box) box.hidden = E.tool !== 'label';
-  const d = E.draft, rows = [
-    ...d.moves.map((m, i) => `<div class="row" style="padding:6px 6px 6px 12px"><span class="grow small">${i + 1}. ${MOVE_KINDS[m.t] || m.t}${m.key ? ', key' : ''}${m.curve ? ', curved' : ''}</span><button type="button" class="btn sm danger" data-act="ped-del-move" data-i="${i}">Remove</button></div>`),
-    ...Object.entries(d.notes).filter(([, n]) => n && n.text).map(([k, n]) => `<div class="row" style="padding:6px 6px 6px 12px"><span class="grow small">Beside ${esc(k === 'marker' ? 'the marker' : k === 'line' ? 'their line' : /^d\d+$/.test(k) ? `defender ${+k.slice(1) + 1}` : k)}: “${esc(n.text.replace(/\n/g, ' '))}”</span><button type="button" class="btn sm danger" data-act="ped-del-note" data-k="${esc(k)}">Remove</button></div>`),
-    ...d.labels.map((l, i) => `<div class="row" style="padding:6px 6px 6px 12px"><span class="grow small">Label: “${esc(l.text)}”${l.dot ? ' with a dot' : ''}</span><button type="button" class="btn sm danger" data-act="ped-del-label" data-i="${i}">Remove</button></div>`)
-  ];
-  $('#ped-moves').innerHTML = rows.length ? `<div class="list">${rows.join('')}</div>` : `<p class="muted small">No lines yet.</p>`;
-  bindPlayEditor();
+  const E = state.ped; if (!E || !$('#ped-field')) return;
+  $('#ped-tools').innerHTML = PED_TOOLS.map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${E.tool === k}">${l}</button>`).join('');
+  refreshPedField();
+  $('#ped-panel').innerHTML = pedPanel(E);
+  const u = $('[data-act="ped-undo"]'); if (u) u.disabled = !E.undo.length;
+  const w = $('[data-act="ped-whole"]'); if (w) w.textContent = E.whole ? 'Zoom to the picture' : 'Show the whole field';
+  if (E.focusText) { E.focusText = false; const t = $('#ped-text'); if (t) { t.focus(); t.select(); } }
+}
+function pedUndo() {
+  const E = state.ped; if (!E || !E.undo.length) return;
+  E.draft = JSON.parse(E.undo.pop()); E.selH = null; E.drawing = null; E.textSnap = false;
+  const d = E.draft, s = E.sel;   // keep the selection if it is still there
+  if (s && !((s.k === 'mv' && d.moves[s.i]) || (s.k === 'lb' && d.labels[s.i]) || (s.k === 'pl' && d.players[s.id]) || (s.k === 'df' && d.defence.line[s.i]) || (s.k === 'mk' && d.defence.marker))) E.sel = null;
+  refreshPlayEditor();
+}
+function pedDelete() {
+  const E = state.ped; if (!E || !E.sel) return false;
+  const d = E.draft, sel = E.sel;
+  if (sel.k === 'mv' && d.moves[sel.i]) { pedSnap(); d.moves.splice(sel.i, 1); }
+  else if (sel.k === 'lb' && d.labels[sel.i]) { pedSnap(); d.labels.splice(sel.i, 1); }
+  else return false;
+  pedSelect(null); refreshPlayEditor(); return true;
+}
+// What a tap landed on.
+function pedPick(t) {
+  const hit = q => t && t.closest && t.closest(q);
+  const h = hit('[data-pl]'); if (h) return { k: 'pl', id: h.dataset.pl };
+  if (hit('[data-mk]')) return { k: 'mk' };
+  const df = hit('[data-df]'); if (df) return { k: 'df', i: +df.dataset.df };
+  const lb = hit('[data-lb]'); if (lb) return { k: 'lb', i: +lb.dataset.lb };
+  const mv = hit('[data-mv]'); if (mv) return { k: 'mv', i: +mv.dataset.mv };
+  return null;
 }
 function bindPlayEditor() {
-  const svg = $('#ped-svg'); if (!svg) return;
-  const E = state.ped, d = svg.dataset; let drag = null;
-  const user = e => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
-  const metres = q => [clamp(+(+d.x0 + (q.x - PPAD) / +d.k).toFixed(1), 0, 50), clamp(+(+d.y0 + (q.y - +d.top) / +d.k).toFixed(1), 0, 80)];
-  const at = e => metres(user(e));
-  const closest = (p, list) => list.map(([id, q]) => ({ id, q, d: Math.hypot(q[0] - p[0], q[1] - p[1]) })).sort((a, b) => a.d - b.d)[0];
-  const defenders = () => [...(E.draft.defence.marker ? [['marker', E.draft.defence.marker]] : []), ...E.draft.defence.line.map((q, i) => ['d' + i, q])];
-  const nearest = p => closest(p, Object.entries(E.draft.players));
-  svg.addEventListener('pointerdown', e => {
-    if (E.tool !== 'move') return;
-    const t = e.target.closest('[data-pl],[data-df],[data-mk]'); if (!t) return;
-    e.preventDefault(); drag = { el: t, ds: { ...t.dataset } };
-    try { svg.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
+  const box = $('#ped-field'); if (!box) return;
+  let drag = null, raf = 0;
+  const svgEl = () => box.querySelector('svg');
+  const toMetres = e => {
+    const s = svgEl(), p = s.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
+    const q = p.matrixTransform(s.getScreenCTM().inverse()), d = s.dataset;
+    return [clamp(round1(+d.x0 + (q.x - PPAD) / +d.k), 0, 50), clamp(round1(+d.y0 + (q.y - +d.top) / +d.k), 0, 80)];
+  };
+  const later = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; refreshPedField(); }); };
+  // points of lines that start or end on a spot, so they follow the player or defender there
+  const anchored = (d, spot) => d.moves.flatMap((m, i) => m.pts.map((q, j) => (j === 0 || j === m.pts.length - 1) && dist(q, spot) < 0.4 ? [i, j] : null).filter(Boolean));
+  box.addEventListener('pointerdown', e => {
+    const E = state.ped, s = svgEl(); if (!E || !s || (e.button && e.button > 0)) return;
+    const p = toMetres(e), t = e.target, d = E.draft, hit = q => t.closest && t.closest(q);
+    E.lockView = pedViewport(E);
+    drag = { p0: p, moved: false, tap: t };
+    const h = hit('[data-h]'), add = hit('[data-hadd]'), fe = hit('[data-fe]'), fb = hit('[data-fb]');
+    if (E.sel && E.sel.k === 'mv' && d.moves[E.sel.i] && (h || add)) {
+      if (add) { pedSnap(); const j = +add.dataset.hadd + 1; d.moves[E.sel.i].pts.splice(j, 0, p); E.selH = j; Object.assign(drag, { kind: 'handle', j, moved: true }); }
+      else { E.selH = +h.dataset.h; Object.assign(drag, { kind: 'handle', j: E.selH }); }
+      refreshPlayEditor();
+    } else if (E.tool === 'frame' && (fe || fb)) {
+      Object.assign(drag, { kind: fe ? 'edge' : 'frame', edge: fe && fe.dataset.fe, f0: { ...pedFrame(E) } });
+    } else if (PED_DRAW.includes(E.tool)) {
+      drag.kind = 'draw';
+      drag.start = pedNearest(E, p, E.tool === 'shift' ? 'defence' : 'players', 2) || p;
+    } else if (E.tool === 'label') {
+      drag.kind = 'label';
+    } else {
+      const sel = pedPick(t); pedSelect(sel);
+      if (sel && sel.k === 'pl') Object.assign(drag, { kind: 'pl', orig: d.players[sel.id].slice(), links: anchored(d, d.players[sel.id]) });
+      else if (sel && sel.k === 'df') Object.assign(drag, { kind: 'df', orig: d.defence.line[sel.i].slice(), links: anchored(d, d.defence.line[sel.i]) });
+      else if (sel && sel.k === 'mk') Object.assign(drag, { kind: 'mk', orig: d.defence.marker.slice(), links: anchored(d, d.defence.marker) });
+      else if (sel && sel.k === 'lb') Object.assign(drag, { kind: 'lb', orig: d.labels[sel.i].at.slice() });
+      else if (sel && sel.k === 'mv') Object.assign(drag, { kind: 'mv', orig: d.moves[sel.i].pts.map(q => q.slice()) });
+      else drag.kind = 'none';
+      refreshPlayEditor();
+    }
+    try { box.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
+    e.preventDefault();
   });
-  svg.addEventListener('pointermove', e => { if (!drag) return; const q = user(e); drag.p = metres(q); drag.el.setAttribute('transform', `translate(${q.x.toFixed(1)} ${q.y.toFixed(1)})`); });
-  const end = () => {
-    if (!drag) return;
-    const { ds, p } = drag; drag = null; if (!p) return;
-    if (ds.pl) E.draft.players[ds.pl] = p;
-    else if (ds.df !== undefined) E.draft.defence.line[Number(ds.df)] = p;
-    else if (ds.mk) E.draft.defence.marker = p;
+  box.addEventListener('pointermove', e => {
+    const E = state.ped; if (!drag || !E) return;
+    const p = toMetres(e), d = E.draft;
+    if (!drag.moved) {
+      if (dist(p, drag.p0) < 0.6) return;
+      drag.moved = true;
+      if (!['draw', 'label', 'none'].includes(drag.kind)) pedSnap();
+    }
+    const dx = p[0] - drag.p0[0], dy = p[1] - drag.p0[1];
+    const shift = q => [clamp(round1(q[0] + dx), 0, 50), clamp(round1(q[1] + dy), 0, 80)];
+    const follow = to => (drag.links || []).forEach(([i, j]) => { if (d.moves[i]) d.moves[i].pts[j] = to.slice(); });
+    switch (drag.kind) {
+      case 'handle': d.moves[E.sel.i].pts[drag.j] = p; break;
+      case 'draw': E.drawing = { pts: [drag.start, p] }; break;
+      case 'edge': d.view = frameFit({ ...drag.f0, [drag.edge]: drag.edge[0] === 'x' ? p[0] : p[1] }, drag.edge); break;
+      case 'frame': d.view = frameMove(drag.f0, dx, dy); break;
+      case 'pl': d.players[E.sel.id] = shift(drag.orig); follow(d.players[E.sel.id]); break;
+      case 'df': d.defence.line[E.sel.i] = shift(drag.orig); follow(d.defence.line[E.sel.i]); break;
+      case 'mk': d.defence.marker = shift(drag.orig); follow(d.defence.marker); break;
+      case 'lb': d.labels[E.sel.i].at = shift(drag.orig); break;
+      case 'mv': d.moves[E.sel.i].pts = drag.orig.map(shift); break;
+      default: return;
+    }
+    later();
+  });
+  const end = e => {
+    const E = state.ped, k = drag; drag = null;
+    try { box.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
+    if (!E || !k) return;
+    const d = E.draft;
+    if (k.kind === 'draw') {
+      const line = E.drawing; E.drawing = null;
+      if (k.moved && line && dist(line.pts[0], line.pts[1]) >= 1) {
+        pedSnap();
+        let to = line.pts[1];
+        if (E.tool === 'pass' || E.tool === 'dummy') to = pedNearest(E, to, 'players', 1.8) || to;
+        d.moves.push({ t: E.tool, pts: [line.pts[0], to], ...(E.key && E.tool !== 'shift' ? { key: true } : {}), ...(E.curve ? { curve: true } : {}) });
+        pedSelect({ k: 'mv', i: d.moves.length - 1 });
+      } else pedSelect(pedPick(k.tap));   // a tap picks what it landed on
+    } else if (k.kind === 'label' && !k.moved) {
+      const sel = pedPick(k.tap);
+      if (sel && sel.k !== 'mv') pedSelect(sel);
+      else { pedSnap(); d.labels.push({ at: k.p0, text: 'Label', side: k.p0[0] > 38 ? 'l' : 'r' }); pedSelect({ k: 'lb', i: d.labels.length - 1 }); }
+      E.focusText = true;
+    } else if (k.kind === 'handle' && k.moved && E.sel && d.moves[E.sel.i]) {
+      const m = d.moves[E.sel.i], last = m.pts.length - 1;
+      if (k.j === 0 || k.j === last) { const near = pedNearest(E, m.pts[k.j], m.t === 'shift' && k.j === 0 ? 'defence' : 'players', 1.5); if (near) m.pts[k.j] = near; }
+    }
+    E.lockView = null;
     refreshPlayEditor();
   };
-  svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
-  svg.addEventListener('click', e => {
-    if (E.tool === 'move') return;
-    let p = at(e);
-    if (E.tool === 'label') {
-      const input = $('#ped-label-text'), text = (input ? input.value : '').trim(), near = closest(p, [...Object.entries(E.draft.players), ...defenders()]);
-      if (near && near.d < 1.8) {
-        if (text) E.draft.notes[near.id] = { text, side: near.q[0] > 40 || (near.q[0] < 25 && near.q[0] > 10) ? 'l' : 'r' };
-        else delete E.draft.notes[near.id];
-      } else if (text) E.draft.labels.push({ at: p, text, side: p[0] > 38 ? 'l' : 'r', ...(E.key ? { dot: true } : {}) });
-      else { toast('Type the label first, then tap the field'); return; }
-      if (input) input.value = '';
-      refreshPlayEditor(); return;
-    }
-    if (!E.drawing) {
-      const near = E.tool === 'shift' ? closest(p, defenders()) : nearest(p);
-      if (near && near.d < 2) p = near.q.slice();
-      E.drawing = { pts: [] };
-    }
-    E.drawing.pts.push(p); refreshPlayEditor();
-  });
-}
-function finishPlayLine() {
-  const E = state.ped; if (!E || !E.drawing) return false;
-  if (E.drawing.pts.length >= 2) E.draft.moves.push({ t: E.tool, pts: E.drawing.pts, ...(E.key && E.tool !== 'shift' ? { key: true } : {}), ...(E.curve ? { curve: true } : {}) });
-  E.drawing = null; return true;
-}
-// A zoomed play keeps everything that matters in the picture after it is edited.
-function fitPlayView(play) {
-  const v = play.view; if (!v) return play;
-  const starts = (play.moves || []).map(m => m.pts[0]);
-  const pts = [...(play.moves || []).flatMap(m => m.pts), ...(play.labels || []).map(l => l.at),
-    ...Object.entries(play.players || {}).filter(([id, p]) => (play.focus || []).includes(id) || (play.notes || {})[id] || starts.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1)).map(([, p]) => p)];
-  if (!pts.length) return play;
-  const m = 1.5, xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
-  play.view = { x0: Math.max(0, Math.min(v.x0, Math.min(...xs) - m)), x1: Math.min(50, Math.max(v.x1, Math.max(...xs) + m)), y0: Math.max(0, Math.min(v.y0, Math.min(...ys) - m)), y1: Math.min(80, Math.max(v.y1, Math.max(...ys) + m)) };
-  return play;
+  box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
 }
 function playShareText(p, side) {
   const steps = playSteps(p, side), when = playWhen(p, side), head = playHeadline(p, side);
@@ -1663,6 +1856,10 @@ function openSheet(title, body, key = null) {
   sh.hidden = false; document.body.classList.add('locked'); state.sheet = key;
   setTimeout(() => { const b = sh.querySelector('.panel-head .icon-btn'); if (b) b.focus(); }, 30);
 }
+function requestCloseSheet() {
+  if (state.sheet === 'play-editor' && state.ped && state.ped.dirty && !confirm('Close without saving the changes to this play?')) return;
+  closeSheet();
+}
 function closeSheet() {
   const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; document.body.classList.remove('locked'); state.sheet = null;
   if (lastFocus && document.contains(lastFocus)) try { lastFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
@@ -1708,7 +1905,7 @@ function loadSample() {
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
   'tab': el => { if (el.dataset.tab === 'plays') state.playId = null; state.tab = el.dataset.tab; history.replaceState(null, '', '#' + state.tab); closeSheet(); render(); window.scrollTo(0, 0); },
-  'close-sheet': () => closeSheet(),
+  'close-sheet': () => requestCloseSheet(),
   'settings': () => openSheet('Settings', settingsBody(), 'settings'),
   'lock-mode': el => { state.lockMode = el.dataset.mode; state.lockMsg = ''; renderLock(); },
   'refresh': async () => {
@@ -1793,17 +1990,46 @@ const actions = {
     data.plays = [...starters.filter(p => add.includes(p)), ...data.plays].sort((a, b) => (STARTER_IDS.indexOf(a.id) + 1 || 99) - (STARTER_IDS.indexOf(b.id) + 1 || 99));
     save(); render(); toast(`${add.length} starter play${add.length === 1 ? '' : 's'} restored`);
   }),
-  'ped-tool': coachOnly(el => { state.ped.tool = el.dataset.t; state.ped.drawing = null; refreshPlayEditor(); }),
-  'ped-finish': coachOnly(() => { if (!finishPlayLine()) toast('Tap on the field to start a line'); refreshPlayEditor(); }),
-  'ped-undo': coachOnly(() => {
-    const E = state.ped;
-    if (E.drawing && E.drawing.pts.length) { E.drawing.pts.pop(); if (!E.drawing.pts.length) E.drawing = null; }
-    else E.draft.moves.pop();
+  'ped-tool': coachOnly(el => { const E = state.ped; E.tool = el.dataset.t; E.drawing = null; if (E.tool !== 'select') pedSelect(null); refreshPlayEditor(); }),
+  'ped-tab': coachOnly(el => {
+    const E = state.ped; E.tab = el.dataset.tab;
+    $('#ped-words').hidden = E.tab !== 'words'; $('#ped-diagram').hidden = E.tab !== 'diagram';
+    document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === E.tab)));
+  }),
+  'ped-undo': coachOnly(() => pedUndo()),
+  'ped-whole': coachOnly(() => { state.ped.whole = !state.ped.whole; refreshPlayEditor(); }),
+  'ped-del': coachOnly(() => pedDelete()),
+  'ped-opt': coachOnly(el => { const E = state.ped; E[el.dataset.f] = !E[el.dataset.f]; refreshPlayEditor(); }),
+  'ped-mv-type': coachOnly(el => {
+    const E = state.ped, m = E.sel && E.draft.moves[E.sel.i]; if (!m) return;
+    pedSnap(); m.t = el.dataset.t; if (m.t === 'shift') delete m.key; refreshPlayEditor();
+  }),
+  'ped-mv': coachOnly(el => {
+    const E = state.ped, m = E.sel && E.draft.moves[E.sel.i], f = el.dataset.f; if (!m) return;
+    pedSnap();
+    if (f === 'unbend') { m.pts.splice(E.selH, 1); E.selH = null; }
+    else { if (m[f]) delete m[f]; else m[f] = true; E[f] = !!m[f]; }
     refreshPlayEditor();
   }),
-  'ped-del-move': coachOnly(el => { state.ped.draft.moves.splice(Number(el.dataset.i), 1); refreshPlayEditor(); }),
-  'ped-del-note': coachOnly(el => { delete state.ped.draft.notes[el.dataset.k]; refreshPlayEditor(); }),
-  'ped-del-label': coachOnly(el => { state.ped.draft.labels.splice(Number(el.dataset.i), 1); refreshPlayEditor(); }),
+  'ped-pl': coachOnly(el => {
+    const E = state.ped, d = E.draft, id = E.sel && E.sel.id, f = el.dataset.f; if (!id) return;
+    pedSnap();
+    if (f === 'tag') { if (d.tags[id] === 'F') delete d.tags[id]; else d.tags[id] = 'F'; }
+    else { const set = new Set(d[f]); set.has(id) ? set.delete(id) : set.add(id); d[f] = [...set]; }
+    refreshPlayEditor();
+  }),
+  'ped-lb-dot': coachOnly(() => {
+    const E = state.ped, l = E.sel && E.draft.labels[E.sel.i]; if (!l) return;
+    pedSnap(); if (l.dot) delete l.dot; else l.dot = true; refreshPlayEditor();
+  }),
+  'ped-frame': coachOnly(el => {
+    const E = state.ped, d = E.draft, f = el.dataset.f; pedSnap();
+    if (f === 'fit') d.view = fitView(d);
+    if (f === 'width') d.view = { ...pedFrame(E), x0: 0, x1: 50 };
+    if (f === 'field') d.view = { x0: 0, x1: 50, y0: 0, y1: 80 };
+    if (f === 'auto') delete d.view;
+    refreshPlayEditor();
+  }),
   'move-mode': coachOnly(el => { state.moveMode = el.dataset.on === '1'; render(); }),
   'shape': coachOnly(el => { const sh = SHAPES[el.dataset.shape]; curLineup().slots.forEach(s => { if (sh[s.id]) { s.x = sh[s.id][0]; s.y = sh[s.id][1]; } }); save(); render(); }),
   'assign': coachOnly(el => {
@@ -1873,21 +2099,36 @@ document.addEventListener('click', e => {
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault(); fn(el, e);
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('#sheet').hidden) { requestCloseSheet(); return; }
+  if (state.sheet !== 'play-editor' || !state.ped || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if ((e.key === 'Delete' || e.key === 'Backspace') && pedDelete()) e.preventDefault();
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); pedUndo(); }
+});
 document.addEventListener('input', e => {
   const k = e.target.dataset.input; if (!k) return;
   if (k === 'squad-search') { state.squadSearch = e.target.value; const l = $('#squad-list'); if (l) l.innerHTML = squadList(); }
   if (k === 'msg') state.msgDraft = e.target.value;
+  if ((k === 'ped-text' || k === 'ped-line') && state.ped && state.ped.sel) {
+    const E = state.ped, d = E.draft;
+    if (!E.textSnap) { pedSnap(); E.textSnap = true; }
+    if (k === 'ped-line') d.notes.line = { text: e.target.value };
+    else if (E.sel.k === 'lb' && d.labels[E.sel.i]) d.labels[E.sel.i].text = e.target.value;
+    else { const key = pedNoteKey(E.sel); d.notes[key] = { ...(d.notes[key] || { side: E.sel.k === 'mk' ? 'l' : 'r' }), text: e.target.value }; }
+    refreshPedField();
+  }
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
   if (k === 'msg-session') { state.msgSession = e.target.value; state.msgDraft = buildTemplate(state.msgTpl); render(); }
   if (k === 'post-notice') state.postNotice = e.target.checked;
-  if (k === 'ped-key' && state.ped) state.ped.key = e.target.checked;
-  if (k === 'ped-curve' && state.ped) { state.ped.curve = e.target.checked; refreshPlayEditor(); }
-  if (k === 'ped-focus' && state.ped) { const f = new Set(state.ped.draft.focus); e.target.checked ? f.add(e.target.value) : f.delete(e.target.value); state.ped.draft.focus = [...f]; refreshPlayEditor(); }
-  if (k === 'ped-tag' && state.ped) { const t = state.ped.draft.tags; if (e.target.checked) t[e.target.value] = 'F'; else delete t[e.target.value]; refreshPlayEditor(); }
+  if (k === 'ped-side' && state.ped && state.ped.sel) {
+    const E = state.ped, d = E.draft; pedSnap();
+    if (E.sel.k === 'lb' && d.labels[E.sel.i]) d.labels[E.sel.i].side = e.target.value;
+    else { const key = pedNoteKey(E.sel); d.notes[key] = { text: E.sel.k === 'mk' ? 'Marker' : '', ...(d.notes[key] || {}), side: e.target.value }; }
+    refreshPedField();
+  }
   if (k === 'repeat') { const u = e.target.closest('form').querySelector('.repeat-until'); if (u) u.hidden = !e.target.checked; }
   if (k === 'import-file') {
     const file = e.target.files && e.target.files[0]; if (!file || !isCoach()) return;
@@ -2069,11 +2310,9 @@ document.addEventListener('submit', async e => {
   }
   if (kind === 'play') {
     const E = state.ped; if (!E) return;
-    if (!str('name')) { toast('Give the play a name'); return; }
-    finishPlayLine();
+    if (!str('name')) { toast('Give the play a name'); const n = form.querySelector('[name=name]'); if (n) n.focus(); return; }
     Object.assign(E.draft, { name: str('name'), category: str('category') || 'Other', headline: str('headline'), when: str('when'), steps: String(f.get('steps') || '').trim() });
     if (E.draft.builtin) E.draft.edited = true;   // keep the coach's version when the starter drawings are updated
-    fitPlayView(E.draft);
     const i = data.plays.findIndex(p => p.id === E.draft.id);
     if (i >= 0) data.plays[i] = E.draft; else data.plays.push(E.draft);
     state.playId = E.draft.id; state.ped = null;
