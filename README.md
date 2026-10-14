@@ -12,6 +12,8 @@ A phone-first app for running the DragonTag Mixed 20s Oztag team in the lead-up 
 | Countdown, schedule, notices | ✓ | ✓ |
 | Squad names, numbers, positions | ✓ edit | ✓ view |
 | Lineups on the field | ✓ edit | ✓ view |
+| Game systems on the Lineup page (exit set, good ball, zig-zag, their red zone, when to kick, defence up and slide) | ✓ edit | ✓ view |
+| Plays | ✓ edit | ✓ view |
 | Phone numbers, injuries, notes | ✓ | – |
 | Roll call and attendance | ✓ | – |
 | WhatsApp messages, publishing, settings | ✓ | – |
@@ -69,7 +71,7 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 
 | Path | What it holds |
 | --- | --- |
-| `team.enc.json` | The players' copy, encrypted with the team password: team and tournament details, squad names, gender, numbers and preferred positions, training sessions, lineups, notices and plays. |
+| `team.enc.json` | The players' copy, encrypted with the team password: team and tournament details, squad names, gender, numbers and preferred positions, training sessions, lineups, notices, plays, and the coach's changes to the game systems. |
 | `coach.enc.json` | Everything, encrypted with the coach password: the above plus phone numbers, availability and injuries, player notes, roll calls, sent messages, and the team password (so the coach can re-encrypt the players' copy and make invite links). |
 
 Each file is JSON with the fields `format`, `version`, `role`, `kdf`, `salt`, `iv` and `data` (the encrypted content, base64).

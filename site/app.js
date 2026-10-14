@@ -112,11 +112,12 @@ function defaultData() {
       maxMales: 4, positions: ['Wing', 'Link', 'Rover', 'Middle'],
       field: { ...FIELD_DEFAULTS }
     },
-    players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [], plays: starterPlays(), playerSets: [],
+    players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [], plays: starterPlays(), playerSets: [], systems: {},
     teamPass: '', teamSalt: '', updatedAt: null
   };
 }
 const arr = v => Array.isArray(v) ? v : [];
+const obj = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
 // Earlier versions called the eighth position "Half"; it is now "Rover". Custom names are left alone.
 function renameHalfToRover(d) {
   const t = d.team || {};
@@ -159,6 +160,7 @@ function normalize(d) {
   const out = { ...base, ...d, team: { ...base.team, ...(d.team || {}) } };
   out.team.field = { ...FIELD_DEFAULTS, ...((d.team && d.team.field) || {}) };
   ['players', 'sessions', 'lineups', 'messages', 'notices', 'plays', 'playerSets'].forEach(k => { out[k] = arr(out[k]); });
+  out.systems = obj(out.systems);
   renameHalfToRover(out);
   toPairedLayout(out);
   upgradePlays(out);
@@ -172,6 +174,7 @@ function normalizeTeam(t) {
   const out = { ...base, ...(t || {}), team: { ...base.team, ...((t && t.team) || {}) } };
   out.team.field = { ...FIELD_DEFAULTS, ...((t && t.team && t.team.field) || {}) };
   ['players', 'sessions', 'lineups', 'notices', 'plays', 'playerSets'].forEach(k => { out[k] = arr(out[k]); });
+  out.systems = obj(out.systems);
   if (!out.lineups.length) out.lineups = base.lineups;
   renameHalfToRover(out);
   toPairedLayout(out);
@@ -198,7 +201,8 @@ let gh = { autoPublish: true, ...repoFromLocation(), ...(readJson(KEYS.github) |
 const state = {
   tab: 'home', squadFilter: 'all', squadSearch: '', trainingView: 'schedule', showPast: false,
   lineupId: null, moveMode: false, msgTpl: 'reminder', msgSession: null, msgDraft: null, postNotice: true,
-  layers: { zones: true, channels: true, zigzag: false, ...(readJson('tm-field-layers') || {}) },
+  layers: { zones: true, channels: true, ...(readJson('tm-field-layers') || {}) },
+  system: null, sysFlip: false,
   playId: null, playSide: 'right', ped: null,
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false
 };
@@ -821,7 +825,7 @@ function viewField() {
   const males = onField.filter(p => p.gender === 'M').length, females = onField.filter(p => p.gender === 'F').length;
   const max = Number(V.team.maxMales) || 4;
   const bench = sortedPlayers().filter(p => !onField.includes(p));
-  const coach = isCoach();
+  const coach = isCoach(), sys = curSystem(), ownSpots = sys && sys.pos;
   return `<div class="cols lineup-cols"><div class="lineup-ctrl">
     <div class="lineup-bar">
       <select aria-label="Choose lineup" data-change="lineup">${V.lineups.map(l => `<option value="${l.id}" ${l.id === lu.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>
@@ -834,22 +838,26 @@ function viewField() {
     <div class="chips layer-chips" role="group" aria-label="Show on the field">
       <button class="chip" data-act="layer" data-k="zones" aria-pressed="${!!state.layers.zones}">Zones</button>
       <button class="chip" data-act="layer" data-k="channels" aria-pressed="${!!state.layers.channels}">Channels</button>
-      <button class="chip" data-act="layer" data-k="zigzag" aria-pressed="${!!state.layers.zigzag}">Zig-zag</button>
+    </div>
+    <div class="sys-chips" role="group" aria-label="Game systems">
+      ${SYSTEMS.map(x => `<button class="chip sys-chip g-${x.group.toLowerCase()}" data-act="system" data-id="${x.id}" aria-pressed="${state.system === x.id}">${esc(x.name)}</button>`).join('')}
     </div>
     </div><div class="col lineup-pitch">
     <div class="field-wrap">${fieldSVG(lu, coach)}</div>
     </div><div class="col lineup-side">
-    ${state.layers.zigzag ? '<p class="hint zigzag-hint">Zig-zag: work the ball into one side to pull their defence across, then switch to the other side.</p>' : ''}
+    ${sys ? systemCard(sys, lu) : `<p class="hint sys-hint">Tap a system to see where everyone stands and what to do at that stage of the game.</p>`}
     ${coach ? `<div class="ratio">
       <span class="pill ${males > max ? 'bad' : 'ok'}">${males} of ${max} males max</span>
       <span class="pill neutral">${females} female</span>
       <span class="pill ${onField.length === 8 ? 'ok' : 'neutral'}">${onField.length}/8 on field</span>
     </div>
     ${males > max ? `<p class="note" style="background:var(--bad-soft);margin-top:8px">Too many males on field for mixed. Swap ${males - max} out for a female player.</p>` : ''}
-    <p class="hint" style="text-align:center">${state.moveMode ? 'Drag the circles to set your shape.' : 'Tap a position to put a player there.'}</p>
+    <p class="hint" style="text-align:center">${ownSpots === 'none' ? 'Players are hidden for this one. Tap it again to see your lineup.'
+      : state.moveMode ? (ownSpots ? `Drag the circles to change where they stand in ${esc(sys.name)}. Their lines move with them.` : 'Drag the circles to set your shape.')
+      : 'Tap a position to put a player there.'}</p>
     <div class="field-tools">
-      <button class="btn sm" data-act="shape" data-shape="attack">Attack shape</button>
-      <button class="btn sm" data-act="shape" data-shape="defence">Defence line</button>
+      ${ownSpots ? '' : `<button class="btn sm" data-act="shape" data-shape="attack">Attack shape</button>
+      <button class="btn sm" data-act="shape" data-shape="defence">Defence line</button>`}
       <button class="btn wa sm" data-act="lineup-share">${icon('chat', 18)}Send lineup</button>
     </div>` : ''}
     <section class="sec" style="margin-top:22px"><div class="sec-h"><h2>Interchange (${bench.length})</h2></div>
@@ -858,27 +866,31 @@ function viewField() {
     </div></div>`;
 }
 function fieldSVG(lu, interactive) {
-  let s = `<svg id="field" class="field ${state.moveMode && interactive ? 'moving' : ''} ${interactive ? 'interactive' : ''}" viewBox="-3 -1 56 82" role="group" aria-label="Field positions for ${esc(lu.name)}">`;
+  let s = `<svg id="field" class="field ${state.moveMode && interactive ? 'moving' : ''} ${interactive ? 'interactive' : ''}${state.system ? ' has-sys' : ''}" viewBox="-3 -1 56 82" role="group" aria-label="Field positions for ${esc(lu.name)}">`;
   s += `<rect x="0" y="0" width="50" height="80" fill="var(--turf)"/>`;
   for (let y = 5, i = 0; y < 75; y += 5, i++) if (i % 2) s += `<rect x="0" y="${y}" width="50" height="5" fill="var(--turf-2)"/>`;
   s += `<rect x="0" y="0" width="50" height="5" fill="var(--turf-3)"/><rect x="0" y="75" width="50" height="5" fill="var(--turf-3)"/>`;
-  const F = fieldDims(V.team.field), L = state.layers;
+  const F = fieldDims(V.team.field), L = state.layers, sys = curSystem();
+  const at = id => { const sl = lu.slots.find(x => x.id === id); return sl ? sysSpot(sys, sl) : null; };
   if (L.channels) s += channelsSVG(F);
   if (L.zones) s += zonesSVG(F);
+  if (sys) s += sysUnder(sys, F);
   s += `<rect class="mark" x="0" y="0" width="50" height="80"/>`;
   s += `<line class="mark" x1="0" x2="50" y1="5" y2="5"/><line class="mark" x1="0" x2="50" y1="75" y2="75"/><line class="mark" x1="0" x2="50" y1="40" y2="40"/>`;
   s += `<line class="mark dash" x1="0" x2="50" y1="30" y2="30"/><line class="mark dash" x1="0" x2="50" y1="50" y2="50"/>`;
-  s += `<text class="fl" x="25" y="3.1">Attacking this way ↑</text><text class="fl" x="25" y="78.1">Our try line</text>`;
-  if (L.zigzag) s += zigzagSVG(F);
+  s += `<text class="fl" x="25" y="3.1">${sys && sys.defence ? 'They attack this way ↓' : 'Attacking this way ↑'}</text><text class="fl" x="25" y="78.1">Our try line</text>`;
+  if (sys) s += sysOver(sys, F, at, slotLabels(lu));
   for (const sl of lu.slots) {
-    const p = playerById(sl.playerId);
+    if (sys && sys.pos === 'none') break;
+    const p = playerById(sl.playerId), [x, y] = sysSpot(sys, sl);
     const g = p ? (p.gender === 'F' ? 'F' : p.gender === 'M' ? 'M' : 'U') : '';
-    s += `<g class="slot ${p ? g.toLowerCase() : 'empty'}" data-slot="${sl.id}" transform="translate(${sl.x} ${sl.y})" ${interactive ? 'tabindex="0" role="button"' : ''} aria-label="${esc(sl.name)}: ${p ? esc(p.name) : 'empty'}">
-      <circle class="hit" r="4"/><circle class="disc" r="2.7"/>
-      <text class="lbl" dy="0.72">${esc(p ? (p.number || initials(p)) : sl.label)}</text>`;
+    s += `<g class="slot ${p ? g.toLowerCase() : 'empty'}" data-slot="${sl.id}" transform="translate(${x} ${y})" ${interactive ? 'tabindex="0" role="button"' : ''} aria-label="${esc(sl.name)}: ${p ? esc(p.name) : 'empty'}">
+      <circle class="hit" r="4"/><circle class="disc" r="${sys ? 2.3 : 2.7}"/>
+      <text class="lbl" dy="0.72">${esc(sys || !p ? sl.label : p.number || initials(p))}</text>`;
     if (p) {
-      s += `<circle class="gb ${g}" cx="2.1" cy="-2.1" r="1"/><text class="gl" x="2.1" y="-2.1" dy="0.46">${g === 'U' ? '?' : g}</text>`;
-      s += `<text class="pos" y="-3.7">${esc(sl.label)}</text><text class="nm" y="4.9">${esc(shortName(p))}</text>`;
+      const b = sys ? 1.8 : 2.1;
+      s += `<circle class="gb ${g}" cx="${b}" cy="${-b}" r="${sys ? 0.85 : 1}"/><text class="gl" x="${b}" y="${-b}" dy="0.46">${g === 'U' ? '?' : g}</text>`;
+      s += `${sys ? '' : `<text class="pos" y="-3.7">${esc(sl.label)}</text>`}<text class="nm" y="${sys ? 4.3 : 4.9}">${esc(shortName(p))}</text>`;
     }
     s += `</g>`;
   }
@@ -912,10 +924,386 @@ function zigzagSVG(F) {
   return `<g class="zigzag" aria-hidden="true"><defs><marker id="zz-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="#fff"/></marker></defs>
     <polyline class="zz" points="${pts.map(p => p.join(',')).join(' ')}" marker-mid="url(#zz-arrow)" marker-end="url(#zz-arrow)"/></g>`;
 }
+
+/* ----- Game systems ----- */
+// How we line up and what we do at each stage of the game, taken from the playbook. A system puts the
+// eight positions where they stand in that situation (the saved lineup is untouched), draws the runs,
+// passes and kicks, and lists the key points and each position's job beside the field.
+// Positions are metres on the field: their try line y 5, halfway y 40, ours y 75.
+// Marks: band (shades a zone), line (a target line across the field), ball, opp (their players),
+// tag (a numbered ruck), text, zigzag, and lines (run, pass, kick, roll). A line can be tied to a player:
+// `who` with points relative to them (or `d` for a straight line), and `to` ends it at another player,
+// so when the coach moves a player their lines move too. {z} in the words is the zone depth (Settings).
+// flip: the system also has a mirror image (the ruck on the other side), shown with a button.
+const JOB_GROUPS = ['Middles', 'Rovers', 'Links', 'Wings'];
+const SYSTEMS = [
+  { id: 'exit', group: 'Attack', name: 'Exit set', title: 'Exit set: out of our red zone', flip: true,
+    when: 'We have the ball inside our {z}. Get out safely, then kick long on tag 5 or 6.',
+    pos: { RM: [25, 64], LM: [19.2, 67.2], RR: [31.6, 68.8], LR: [13.6, 70.6], LL: [6.2, 72.8], LW: [3, 64.4], RL: [38.8, 72.4], RW: [47, 64.4] },
+    marks: [
+      { t: 'band', zone: 'ours' }, { t: 'line', zone: 'ours', text: 'Out by tag 3', a: 'e' },
+      { t: 'chain', pts: [[25, 64], [29.2, 57], [26, 51.4], [24.2, 46.2], [25, 41.4]] },
+      { t: 'tag', at: [29.2, 57], n: 2 }, { t: 'tag', at: [26, 51.4], n: 3 }, { t: 'tag', at: [24.2, 46.2], n: 4 }, { t: 'tag', at: [25, 41.4], n: 5, hot: true },
+      { t: 'pass', who: 'LM', to: 'RR' },
+      { t: 'run', who: 'RR', d: [-2.4, -11.8], key: true },
+      { t: 'run', who: 'LR', d: [2.6, -9.4] },
+      { t: 'kick', pts: [[25, 41.4], [15.6, 22.8]] }, { t: 'roll', pts: [[15.6, 22.8], [12.8, 15]] },
+      { t: 'text', at: [2.2, 33.2], text: 'Tag 5 or 6:\nlong, low exit kick', a: 's' }
+    ],
+    points: [
+      'Play the ball fast every time. A slow one lets them reset.',
+      'Tags 1–3: Middles and Rovers carry hard and straight, one short pass off the ruck at most. No wide or looping passes near our line.',
+      'Protect both tags: no spins into defenders, and two hands on the ball.',
+      'Aim to be out of our red zone by tag 3.',
+      'Tag 5: exit kick if we’ve made under 20 m this set. Tag 6: exit kick, always, unless we’re clear.',
+      'Kick long and low so it bounces and rolls. Out on the full gives them the ball where we kicked it.',
+      'Before the first tag (say, after scooping up a loose ball) a kick is allowed too. Use it if their back field is empty.'
+    ],
+    jobs: {
+      Middles: 'Hard, straight carries on tags 1–3, then a fast play-the-ball. Nearest Middle plays dummy half.',
+      Rovers: 'First receiver: carry straight or give one short pass. Our kicker on tag 5 or 6.',
+      Links: 'Hold your width so their line stays spread. Chase the kick as a line.',
+      Wings: 'Stay wide. Chase the kick: onside behind the kicker, then up together.'
+    } },
+  { id: 'good', group: 'Attack', name: 'Good ball', title: 'Attack in good ball', flip: true,
+    when: 'Between halfway and their {z}. Tags 1–4 build the pressure; tags 5–6 cash it in.',
+    pos: { RM: [26.2, 33], LM: [20.4, 36.4], LR: [14.2, 40.4], LL: [8, 45.6], LW: [2.8, 53.2], RR: [32.4, 39.4], RL: [39, 45], RW: [47, 51.8] },
+    plays: ['quickie-out', 'quickie-in', 'ninja', 'out-the-back', 'hands-inside', 'hands-outside'],
+    marks: [
+      { t: 'band', zone: 'good' },
+      { t: 'run', who: 'RM', d: [0, -9.4] }, { t: 'run', who: 'LM', d: [1.4, -12] },
+      { t: 'text', at: [23.6, 18.8], text: 'Tags 1–2:\nMiddles' },
+      { t: 'run', who: 'RR', pts: [[0, 0], [2.6, -7], [6.2, -14.4]], curve: true, key: true },
+      { t: 'run', who: 'LR', pts: [[0, 0], [-2.2, -7], [-5, -13.6]], curve: true, opt: true },
+      { t: 'text', at: [31.2, 19.6], text: 'Tags 3–4: a Rover\npicks the side', a: 's' },
+      { t: 'pass', who: 'RL', to: 'RW' },
+      { t: 'run', who: 'RW', d: [0.2, -20], key: true },
+      { t: 'text', at: [45.2, 36.4], text: 'Tags 5–6:\nfinish on\nthe edge', a: 'e' }
+    ],
+    points: [
+      'Tags 1–2: Middles run hard at the gaps beside the marker. Play the ball fast.',
+      'Tags 3–4: a Rover takes the ball and attacks one side. Rovers count defenders each side and call it; go to the short side if they’re thin.',
+      'Fix a defender before every pass, and attack the inside shoulder.',
+      'Hold width and depth: Wings on the touch line until the ball comes; receivers start deep and run onto it.',
+      'Decoys must look like they’ll get the ball, every time.',
+      'Tags 5–6: run the play. Kick on 5 only if their back field is empty; on 6, a long, low kick into space or to bounce into touch near their {z}.'
+    ],
+    jobs: {
+      Middles: 'Hard, straight runs at the gaps beside the marker on tags 1–3. Nearest plays dummy half; after playing the ball, loop around as the extra runner.',
+      Rovers: 'First receivers and playmakers. Count defenders, call the side, and kick when it’s on.',
+      Links: 'Fix their Link, then pass to the Wing. Cut back against a sliding line; decoy so the ball can go out the back.',
+      Wings: 'Finish at full pace near the touch line. Stay wide, call the numbers, chase every kick.'
+    } },
+  { id: 'zigzag', group: 'Attack', name: 'Zig-zag', title: 'Zig-zag: one side, then the other',
+    when: 'Any time we have the ball: work one side, then switch to the other.',
+    pos: null, plays: ['hands-inside', 'hands-outside'],
+    marks: [{ t: 'zigzag' }],
+    points: [
+      'Work the ball into one side for a play or two, to pull their defence across.',
+      'Then go to the other side, where they’re now short of numbers.',
+      'Rovers count defenders each side of the ruck every play and call it.',
+      'Every change of direction makes their line shuffle across, and the gap opens on the far side.',
+      'Links and Wings on the far side stay wide and ready: that’s where the space will be.'
+    ],
+    jobs: null },
+  { id: 'strike', group: 'Attack', name: 'Their red zone', title: 'Attack their red zone', flip: true,
+    when: 'Inside their {z}. Build on tags 1–4; score on 5 or 6, or win a line drop-out.',
+    pos: { RM: [25.6, 17.4], LM: [20, 20.8], RR: [31.6, 23], RL: [37.8, 19.4], RW: [47.6, 22.6], LR: [13.8, 24], LL: [8, 29.4], LW: [2.6, 23.4] },
+    plays: ['out-the-back', 'wrap-block', 'back-inside-block'],
+    marks: [
+      { t: 'band', zone: 'theirs' },
+      { t: 'pass', who: 'LM', to: 'RR' },
+      { t: 'run', who: 'RR', d: [0.2, -7.6] },
+      { t: 'run', who: 'RL', d: [-1.6, -8] },
+      { t: 'run', who: 'LM', pts: [[0, 0], [2.6, 5.4], [8.6, 9.2], [15.6, 9.2], [20.4, 6.4], [22.6, 0.2], [23.4, -10.4]], curve: true, key: true },
+      { t: 'run', who: 'RW', d: [0.2, -12.8] },
+      { t: 'kick', who: 'RR', pts: [[0.2, -6], [-3, -20.4]] },
+      { t: 'text', at: [27.4, 9.6], text: 'Shut down? Grubber\nto die over the line', a: 'e' },
+      { t: 'text', at: [32, 34.2], text: 'Out the back:\ndummy half loops' }
+    ],
+    points: [
+      'Tags 1–4: keep building. Hard Middles, fast play-the-ball, count the numbers.',
+      'Tag 5: our strike play, or the early grubber while their sweeper is still in the line.',
+      'Tag 6: the best play for the spot. Shut down? Grubber to die over their line for a line drop-out.',
+      'Finish in a female player’s hands where we can, with the males as decoys (2 points, if the State Cup by-law holds).',
+      'Score standing up, or ground it after crossing. Diving short with a defender close counts as a tag.',
+      'Once they cover our female finishers, the same play works with the ball staying in a decoy’s hands.'
+    ],
+    jobs: {
+      Middles: 'Fast play-the-ball. The dummy half loops around for Out the back.',
+      Rovers: 'Run at their Rover’s inside shoulder to hold them, then pass behind the decoy, or grubber.',
+      Links: 'A short decoy line at the gap. Make it look real.',
+      Wings: 'Stay wide until the ball comes and finish in the corner. Chase every grubber.'
+    } },
+  { id: 'kick', group: 'Kick', name: 'When to kick', title: 'When to kick',
+    when: 'Kicks come on tags 5–6. Where we are on the field decides which one.',
+    pos: 'none',
+    table: [
+      ['Their red zone', 'Grubber behind a flat or rushing line', 'Run the play; grubber for the drop-out if it’s shut down'],
+      ['Midfield', 'Only if their back field is empty', 'Long, low kick into space, or to bounce into touch near their {z}'],
+      ['Our half', 'Exit kick if we’ve made under 20 m this set', 'Exit kick, always, unless we’re clear']
+    ],
+    marks: [
+      { t: 'band', zone: 'theirs' }, { t: 'band', zone: 'good', soft: true }, { t: 'band', zone: 'half' },
+      { t: 'text', at: [2, 10.2], text: 'THEIR RED ZONE', a: 's', cls: 'h' },
+      { t: 'text', at: [2, 12.8], text: 'Tag 5: grubber behind a flat line\nTag 6: play, or grubber for the drop-out', a: 's' },
+      { t: 'kick', pts: [[44.6, 23], [43.4, 2.6]] },
+      { t: 'text', at: [42.2, 10.2], text: 'Rolls over:\nline drop-out', a: 'e' },
+      { t: 'text', at: [2, 24.4], text: 'MIDFIELD', a: 's', cls: 'h' },
+      { t: 'text', at: [2, 27], text: 'Tag 5: only if their back field is empty\nTag 6: long and low, to space or touch', a: 's' },
+      { t: 'kick', pts: [[33, 38], [44.4, 30.4]] }, { t: 'roll', pts: [[44.4, 30.4], [50.6, 27]] },
+      { t: 'text', at: [2, 44.4], text: 'OUR HALF', a: 's', cls: 'h' },
+      { t: 'text', at: [2, 47], text: 'Tag 5: exit kick if we’ve made under 20 m\nTag 6: exit kick, always, unless we’re clear', a: 's' },
+      { t: 'kick', pts: [[38, 68], [41.6, 49.6]] }, { t: 'roll', pts: [[41.6, 49.6], [42.6, 42.4]] },
+      { t: 'text', at: [25, 71.6], text: 'Tags 1–4: no kicks (except before the first tag)' }
+    ],
+    points: [
+      'No kicks on tags 1–4, except before the first tag of a set.',
+      'Low only: no higher than the referee’s shoulder. Grubbers and long, low kicks.',
+      'A kick that rolls over their try line, touched or not, is a line drop-out: the ball back on their line.',
+      'Bounce it into touch: their ball 10 m in from where it went out. Out on the full: their ball where we kicked it.',
+      'Chase as a line, starting behind the kicker. We can’t dive on our own kick, but we can kick it on.',
+      'Don’t kick with a clear overlap, or into their best runner’s hands. A kick with no chase is a turnover.'
+    ],
+    jobs: {
+      Rovers: 'Our main kickers. Look for the space behind their line on tag 5.',
+      Wings: 'Chase every kick, close to the touch line.'
+    } },
+  { id: 'up', group: 'Defence', name: 'Defence up', title: 'Defence: Up (tags 2–4)', defence: true,
+    when: 'Tags 2–4: they can’t kick, so we rush up together.',
+    pos: { LM: [22, 26], LW: [3.2, 32.6], LL: [9.4, 31], LR: [15.6, 32.4], RM: [28.4, 31], RR: [34.6, 32.4], RL: [40.8, 31], RW: [47, 32.6] },
+    marks: [
+      { t: 'opp', pts: [[20.4, 18.8], [14.8, 16.2], [29, 16.2], [8.6, 13.6], [35.4, 13.6], [3, 11.2], [41.8, 11.2], [47, 9]] },
+      { t: 'ball', at: [22, 22] },
+      ...['LL', 'LR', 'RM', 'RR', 'RL'].map(who => ({ t: 'run', who, d: [0, -6.4] })),
+      { t: 'run', who: 'LW', d: [0.6, -6] }, { t: 'run', who: 'RW', d: [-0.6, -6] },
+      { t: 'text', at: [25, 43.4], text: '“Up!” Together, on the dummy half’s touch' }
+    ],
+    points: [
+      'Count the tags out loud. Everyone repeats it.',
+      '“Up!”: the whole line goes forward together on the dummy half’s touch. No one shoots out alone.',
+      'Stay square, feet set before the carrier arrives. Inside shoulder first: never beaten on the inside.',
+      'Marker: square, 1 m in front of the play-the-ball. Never chase the ball.',
+      'Match their numbers: count attackers each side and push or pull a defender across before the ball is played.',
+      'Tag with intent: on the hip they’re running toward. Hold it up, drop it at the mark, get back 7 m.'
+    ],
+    jobs: {
+      Middles: 'Nearest Middle is the marker: square, 1 m in front, a mini line with the other Middle. Never beaten inside.',
+      Rovers: 'Lead the line speed. The open-side Rover calls “Up” and counts the numbers.',
+      Links: 'Square, inside shoulder first. Track your runner; don’t bite on decoys.',
+      Wings: 'In the line, a step deep. Call the edge numbers. Come up and in only on a call.'
+    } },
+  { id: 'slide', group: 'Defence', name: 'Defence slide', title: 'Defence: Slide (tags 5–6)', defence: true, flip: true,
+    when: 'Tags 5–6, and anywhere inside our {z}: the kick and the wide shift are the threats.',
+    pos: { LM: [17, 26], LW: [3.4, 32.6], LL: [10, 31], RM: [23.4, 31], RR: [29.6, 32.4], RL: [35.8, 31], RW: [43.2, 33.6], LR: [25.4, 46] },
+    marks: [
+      { t: 'opp', pts: [[15.4, 18.8], [9.4, 16.2], [3.4, 13.8], [23.4, 16.2], [30, 14.4], [36.6, 13.2], [43.2, 12.2], [48, 11.4]] },
+      { t: 'ball', at: [17, 22] },
+      ...['RM', 'RR', 'RL'].map(who => ({ t: 'run', who, d: [5.4, -3.4] })),
+      { t: 'run', who: 'LR', pts: [[-9.8, -14.4], [0, 0]] },
+      { t: 'text', at: [28.6, 46.6], text: 'Sweeper, 10–15 m back', a: 's' },
+      { t: 'text', at: [7, 39.6], text: 'Short side holds' },
+      { t: 'text', at: [38.2, 42.6], text: 'Open side slides' }
+    ],
+    points: [
+      '“Sweep!” on tag 4, so we’re set for tag 5.',
+      'The short-side Rover drops 10–15 m back as the sweeper and calls from behind.',
+      'The open side slides toward the ball, staying on the inside of the carrier. The touch line is our 9th defender.',
+      'Marker: same job. The second Middle covers the dummy half’s run.',
+      'Wings a step deeper on tag 5; turn early for grubbers. Inside our 10 m, come up and in to shut the last pass.',
+      'Never let a grubber roll over our line: that’s their line drop-out. Pick it up clean; no diving.'
+    ],
+    jobs: {
+      Middles: 'Same marker job. The second Middle covers the dummy half’s run.',
+      Rovers: 'Short-side Rover drops 10–15 m back as the sweeper. Open-side Rover slides with the ball.',
+      Links: 'Slide with the pass, staying on the inside of the ball carrier.',
+      Wings: 'A step deeper on tag 5; turn early for grubbers. Inside our 10 m, come up and in.'
+    } }
+];
+const systemBase = id => SYSTEMS.find(s => s.id === id) || null;
+// The system on show is remembered on this device. (Zig-zag used to be a field layer.)
+{
+  const was = store.get('tm-field-system'), zz = state.layers.zigzag;
+  delete state.layers.zigzag;
+  state.system = systemBase(was) ? was : was === null && zz ? 'zigzag' : null;
+}
+// The words with the zone depth filled in, and the lineup's own position labels if it renamed any.
+function sysWords(text, F, labels) {
+  const t = String(text ?? '').replace(/\{z\}/g, `${F.zone} m`);
+  return labels ? replaceWords(t, labels) : t;
+}
+// A system as shown: the coach's changes (positions, words) over the playbook version, mirrored if asked.
+function systemView(id, flip) {
+  const base = systemBase(id); if (!base) return null;
+  const o = (V.systems || {})[id] || {};
+  const pos = base.pos && typeof base.pos === 'object' ? { ...base.pos, ...(o.pos || {}) } : base.pos;
+  const jobs = base.jobs || o.jobs ? { ...(base.jobs || {}), ...(o.jobs || {}) } : null;
+  const sys = { ...base, pos, jobs, when: o.when ?? base.when, points: o.points ?? base.points, flipped: false,
+    edited: !!(o.pos && Object.keys(o.pos).length) || o.when != null || !!o.points || !!o.jobs };
+  return flip && base.flip ? flipSystem(sys) : sys;
+}
+function flipSystem(sys) {
+  const fx = p => [round1(50 - p[0]), p[1]], rx = p => [-p[0], p[1]];
+  const txt = t => mirrorText(t, OZTAG_PAIRS), anchor = a => ({ s: 'e', e: 's' }[a] || a);
+  const pos = sys.pos && typeof sys.pos === 'object' ? Object.fromEntries(Object.entries(sys.pos).map(([k, p]) => [swapSlot(k), fx(p)])) : sys.pos;
+  const marks = sys.marks.map(m => {
+    const out = { ...m };
+    if (m.who) out.who = swapSlot(m.who);
+    if (m.to) out.to = swapSlot(m.to);
+    if (m.d) out.d = rx(m.d);
+    if (m.pts) out.pts = m.pts.map(m.who ? rx : fx);
+    if (m.at) out.at = fx(m.at);
+    if (m.text) out.text = txt(m.text);
+    if (m.a) out.a = anchor(m.a);
+    return out;
+  });
+  const jobs = sys.jobs ? Object.fromEntries(Object.entries(sys.jobs).map(([k, v]) => [k, txt(v)])) : null;
+  return { ...sys, pos, marks, jobs, when: txt(sys.when), points: sys.points.map(txt), title: sys.title, flipped: true };
+}
+// Where each position stands while a system is shown (null: the lineup's own spots; 'none': hidden).
+const sysSpot = (sys, sl) => sys && sys.pos && typeof sys.pos === 'object' && sys.pos[sl.id] ? sys.pos[sl.id] : [sl.x, sl.y];
+const curSystem = () => state.system ? systemView(state.system, state.sysFlip) : null;
+// A line's points on the field.
+function sysLine(m, at) {
+  const o = m.who ? at(m.who) : null;
+  let pts = m.d ? [[0, 0], m.d] : m.pts ? m.pts : [[0, 0]];
+  if (o) pts = pts.map(p => [o[0] + p[0], o[1] + p[1]]);
+  if (m.to && at(m.to)) pts = [...pts, at(m.to)];
+  return pts.length > 1 ? pts : null;
+}
+// Pull the ends of a line off the circles it starts or finishes at.
+function sysTrim(pts, spots) {
+  const out = pts.map(p => p.slice());
+  const pull = (i, j, gap) => {
+    const hit = spots.find(s => Math.hypot(s.p[0] - out[i][0], s.p[1] - out[i][1]) < 0.7); if (!hit) return;
+    const dx = out[j][0] - out[i][0], dy = out[j][1] - out[i][1], len = Math.hypot(dx, dy);
+    const g = gap(hit); if (len > g + 1) out[i] = [out[i][0] + dx / len * g, out[i][1] + dy / len * g];
+  };
+  pull(0, 1, h => h.r + 0.4); pull(out.length - 1, out.length - 2, h => h.r + 0.9);
+  return out;
+}
+const f1 = n => +n.toFixed(2);
+function sysText(x, y, text, a, cls) {
+  const lines = String(text).split('\n');
+  return `<text class="sy-t${a === 's' || a === 'e' ? ' a' + a : ''}${cls ? ' ' + cls : ''}" x="${f1(x)}" y="${f1(y)}">${lines.map((l, i) => `<tspan x="${f1(x)}" ${i ? 'dy="1.9"' : ''}>${esc(l)}</tspan>`).join('')}</text>`;
+}
+// The shading, under the field markings.
+function sysUnder(sys, F) {
+  const z = F.zone, ys = { ours: [75 - z, 75], theirs: [5, 5 + z], good: [5 + z, 40], half: [40, 75] };
+  return sys.marks.filter(m => m.t === 'band').map(m => { const [a, b] = ys[m.zone]; return `<rect class="sy-band ${m.zone}${m.soft ? ' soft' : ''}" x="0" y="${a}" width="50" height="${b - a}"/>`; }).join('');
+}
+// The lines, rucks and words, over the field markings and under the players.
+function sysOver(sys, F, at, labels) {
+  const spots = [];
+  if (sys.pos !== 'none') SLOT_IDS.forEach(id => { const p = at(id); if (p) spots.push({ p, r: 2.75 }); });
+  sys.marks.forEach(m => { if (m.t === 'tag') spots.push({ p: m.at, r: 1.25 }); });
+  const words = t => sysWords(t, F, labels);
+  let s = `<g class="sys" aria-hidden="true"><defs>${[['w', 'run'], ['k', 'key'], ['g', 'kick']].map(([k, c]) => `<marker id="sy-${k}" viewBox="0 0 10 10" refX="8.5" refY="5" markerUnits="userSpaceOnUse" markerWidth="${k === 'k' ? 2.2 : 1.9}" markerHeight="${k === 'k' ? 2.2 : 1.9}" orient="auto"><path class="sy-ah ${c}" d="M0 0L10 5L0 10z"/></marker>`).join('')}</defs>`;
+  for (const m of sys.marks) {
+    if (m.t === 'line') { const y = m.zone === 'ours' ? 75 - F.zone : m.zone === 'theirs' ? 5 + F.zone : m.y; s += `<line class="sy-line" x1="0" x2="50" y1="${y}" y2="${y}"/>`; if (m.text) s += sysText(m.a === 'e' ? 49.2 : m.a === 's' ? 0.8 : 25, y - 0.8, words(m.text), m.a, 'tl'); }
+    else if (m.t === 'zigzag') s += zigzagSVG(F);
+    else if (m.t === 'chain') s += `<polyline class="sy-chain" points="${m.pts.map(p => p.join(',')).join(' ')}"/>`;
+    else if (m.t === 'opp') s += m.pts.map(p => `<circle class="sy-opp" cx="${p[0]}" cy="${p[1]}" r="1.55"/>`).join('');
+  }
+  for (const m of sys.marks) {
+    if (!['run', 'pass', 'kick', 'roll'].includes(m.t)) continue;
+    const raw = sysLine(m, at); if (!raw) continue;
+    const pts = sysTrim(raw, spots), head = m.t === 'roll' ? '' : m.t === 'kick' ? 'g' : m.key ? 'k' : 'w';
+    s += `<path class="sy-mv ${m.t}${m.key ? ' key' : ''}${m.opt ? ' opt' : ''}" d="${pathD(pts, m.curve)}"${head ? ` marker-end="url(#sy-${head})"` : ''}/>`;
+  }
+  for (const m of sys.marks) {
+    if (m.t === 'tag') s += `<g class="sy-tag${m.hot ? ' hot' : ''}" transform="translate(${m.at[0]} ${m.at[1]})"><circle r="1.25"/><text dy="0.52">${m.n}</text></g>`;
+    else if (m.t === 'ball') s += `<g class="sy-ball" transform="translate(${m.at[0]} ${m.at[1]}) rotate(-30)"><ellipse rx="1.05" ry="0.68"/><path d="M-0.5 0H0.5"/></g>`;
+    else if (m.t === 'text') s += sysText(m.at[0], m.at[1], words(m.text), m.a, m.cls);
+  }
+  return s + '</g>';
+}
+// The lineup's own position labels, where it renamed any (LW -> W1), so the words match the field.
+const slotLabels = lu => { const m = {}; lu.slots.forEach(s => { if (s.label && s.label !== s.id) m[s.id] = s.label; }); return Object.keys(m).length ? m : null; };
+// The two ways round of a system that has a mirror image, and which one the playbook draws.
+const sysSides = sys => sys.defence ? { names: ['Ruck left', 'Ruck right'], base: 0 } : { names: ['Attacking left', 'Attacking right'], base: 1 };
+function sysLegend(sys) {
+  const kinds = new Set(sys.marks.map(m => m.t)), key = sys.marks.some(m => m.key);
+  const sw = (cls, head = true) => `<svg width="34" height="14" viewBox="0 0 34 14" aria-hidden="true"><rect width="34" height="14" rx="3" fill="#2F7D4E"/><line class="lg ${cls}" x1="4" y1="7" x2="${head ? 25 : 30}" y2="7"/>${head ? `<path class="lg-h ${cls}" d="M24 3L31 7L24 11z"/>` : ''}</svg>`;
+  const items = [
+    kinds.has('run') && `<span>${sw('run')}Run</span>`,
+    key && `<span>${sw('key')}Key move</span>`,
+    kinds.has('pass') && `<span>${sw('pass')}Pass</span>`,
+    kinds.has('kick') && `<span>${sw('kick')}Kick</span>`,
+    kinds.has('roll') && `<span>${sw('roll', false)}Bounce and roll</span>`,
+    kinds.has('tag') && `<span><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="#fff" stroke="#16201B" stroke-width="1"/><text x="7" y="10" text-anchor="middle" font-size="8.5" font-weight="700" fill="#16201B">2</text></svg>Ruck, by tag</span>`,
+    kinds.has('opp') && `<span><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="#E6ECE8" stroke="#C4513F" stroke-width="1.4"/></svg>Their players</span>`
+  ].filter(Boolean);
+  return items.length ? `<div class="legend sys-legend">${items.join('')}</div>` : '';
+}
+function systemCard(sys, lu) {
+  const F = fieldDims(V.team.field), labels = slotLabels(lu), w = t => sysWords(t, F, labels), coach = isCoach();
+  const plays = (sys.plays || []).map(playById).filter(Boolean), jobs = sys.jobs ? JOB_GROUPS.filter(g => sys.jobs[g]) : [];
+  const sides = sys.flip ? sysSides(sys) : null, cur = sides ? (state.sysFlip ? 1 - sides.base : sides.base) : 0;
+  return `<section class="sys-card g-${sys.group.toLowerCase()}">
+    <div class="sys-head"><h3>${esc(sys.title)}</h3><span class="pill neutral">${esc(sys.group)}</span></div>
+    <p class="sys-when">${esc(w(sys.when))}</p>
+    ${sides ? `<div class="seg sys-side" role="group" aria-label="Which way round">${sides.names.map((n, i) => `<button data-act="sys-side" data-flip="${i === sides.base ? 0 : 1}" aria-pressed="${i === cur}">${n}</button>`).join('')}</div>` : ''}
+    ${sysLegend(sys)}
+    ${sys.table ? `<table class="sys-table"><thead><tr><th scope="col">Where we are</th><th scope="col">Tag 5</th><th scope="col">Tag 6</th></tr></thead><tbody>
+      ${sys.table.map(r => `<tr><th scope="row">${esc(w(r[0]))}</th><td>${esc(w(r[1]))}</td><td>${esc(w(r[2]))}</td></tr>`).join('')}</tbody></table>` : ''}
+    <div class="sys-cols"><div>
+    <h4 class="sys-h">Key points</h4>
+    <ul class="sys-points">${sys.points.map(p => `<li>${esc(w(p))}</li>`).join('')}</ul>
+    </div>${jobs.length || plays.length ? `<div>
+    ${jobs.length ? `<h4 class="sys-h">Jobs</h4><dl class="sys-jobs">${jobs.map(g => `<div><dt>${g}</dt><dd>${esc(w(sys.jobs[g]))}</dd></div>`).join('')}</dl>` : ''}
+    ${plays.length ? `<h4 class="sys-h">Plays for this</h4><div class="sys-plays">${plays.map(p => `<button class="chip" data-act="sys-play" data-id="${esc(p.id)}">${esc(p.name)}</button>`).join('')}</div>` : ''}
+    </div>` : ''}</div>
+    ${coach ? `<div class="btn-row sys-tools"><button class="btn sm" data-act="sys-edit" data-id="${sys.id}">Edit words</button><button class="btn wa sm" data-act="sys-share">${icon('chat', 18)}Send</button></div>
+      ${sys.edited ? `<p class="hint">You’ve changed this from the playbook. <button class="link-btn inline" data-act="sys-reset" data-id="${sys.id}">Put it back</button></p>` : ''}` : ''}
+  </section>`;
+}
+function openSystemEditor(id) {
+  const sys = systemView(id, false), F = fieldDims(data.team.field), w = t => sysWords(t, F);
+  if (!sys) return;
+  openSheet(`Edit “${sys.name}”`, `<form class="sys-form" data-form="system"><input type="hidden" name="id" value="${esc(id)}">
+    <label class="field-l"><span>When</span><textarea name="when" rows="2">${esc(w(sys.when))}</textarea></label>
+    <label class="field-l"><span>Key points</span><textarea name="points" rows="9">${esc(sys.points.map(w).join('\n'))}</textarea><small>One point per line.</small></label>
+    ${JOB_GROUPS.map(g => `<label class="field-l"><span>Job: ${g}</span><textarea name="job-${g}" rows="2">${esc(w((sys.jobs || {})[g] || ''))}</textarea></label>`).join('')}
+    <p class="hint" style="margin-bottom:12px">To change where players stand, close this, choose Move positions and drag the circles while the system is showing.</p>
+    <button class="btn primary block" type="submit">Save</button></form>`);
+}
+function saveSystemWords(id, f) {
+  const base = systemBase(id); if (!base) return;
+  const F = fieldDims(data.team.field), w = t => sysWords(t, F);
+  const o = { ...(data.systems[id] || {}) };
+  const when = f.when.trim(), points = f.points.split('\n').map(l => l.trim()).filter(Boolean);
+  if (when === w(base.when)) delete o.when; else o.when = when;
+  if (points.join('\n') === base.points.map(w).join('\n')) delete o.points; else o.points = points;
+  const jobs = {};
+  JOB_GROUPS.forEach(g => { const v = (f.jobs[g] || '').trim(); if (v !== w((base.jobs || {})[g] || '')) jobs[g] = v; });
+  if (Object.keys(jobs).length) o.jobs = jobs; else delete o.jobs;
+  if (Object.keys(o).length) data.systems[id] = o; else delete data.systems[id];
+}
+// Where a player stands in the system on show: the coach's own spot, kept the playbook way round.
+function moveSystemSpot(slotId, x, y) {
+  const base = systemBase(state.system); if (!base) return;
+  const flip = state.sysFlip && base.flip, id = flip ? swapSlot(slotId) : slotId;
+  const o = data.systems[base.id] || (data.systems[base.id] = {});
+  o.pos = { ...(o.pos || {}), [id]: [round1(flip ? 50 - x : x), round1(y)] };
+}
+function systemShareText(sys, lu) {
+  const F = fieldDims(V.team.field), w = t => sysWords(t, F, slotLabels(lu));
+  const sides = sys.flip ? sysSides(sys) : null, side = sides ? ` (${sides.names[state.sysFlip ? 1 - sides.base : sides.base].toLowerCase()})` : '';
+  const table = sys.table ? `\n\n${sys.table.map(r => `*${w(r[0])}*: tag 5, ${w(r[1]).replace(/^./, c => c.toLowerCase())}; tag 6, ${w(r[2]).replace(/^./, c => c.toLowerCase())}.`).join('\n')}` : '';
+  const jobs = sys.jobs ? JOB_GROUPS.filter(g => sys.jobs[g]).map(g => `${g}: ${w(sys.jobs[g])}`) : [];
+  return `🏉 *${sys.title}*${side}\n${w(sys.when)}${table}\n\n${sys.points.map(p => `• ${w(p)}`).join('\n')}${jobs.length ? `\n\n*Jobs*\n${jobs.join('\n')}` : ''}\n\nSee where you stand: Lineup page in the team app.`;
+}
 function bindField() {
   const svg = $('#field'); if (!svg || !isCoach()) return;
   let drag = null;
   const toSvg = e => { const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); };
+  // While a system with its own spots is showing, moving a player changes that system, not the lineup.
+  const sysOwn = () => { const sys = curSystem(); return sys && sys.pos && typeof sys.pos === 'object'; };
+  const place = (id, x, y) => {
+    if (sysOwn()) { moveSystemSpot(id, x, y); save(); render(); return; }
+    const sl = curLineup().slots.find(s => s.id === id); sl.x = x; sl.y = y; save();
+  };
   svg.addEventListener('pointerdown', e => {
     if (!state.moveMode) return;
     const g = e.target.closest('[data-slot]'); if (!g) return;
@@ -930,8 +1318,8 @@ function bindField() {
   });
   const end = () => {
     if (!drag) return;
-    if (drag.x != null) { const sl = curLineup().slots.find(s => s.id === drag.id); sl.x = +drag.x.toFixed(1); sl.y = +drag.y.toFixed(1); save(); }
-    drag = null;
+    const d = drag; drag = null;
+    if (d.x != null) place(d.id, +d.x.toFixed(1), +d.y.toFixed(1));
   };
   svg.addEventListener('pointerup', end);
   svg.addEventListener('pointercancel', end);
@@ -941,12 +1329,15 @@ function bindField() {
     if (!state.moveMode && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openAssign(g.dataset.slot); return; }
     if (state.moveMode && e.key.startsWith('Arrow')) {
       e.preventDefault();
-      const sl = curLineup().slots.find(s => s.id === g.dataset.slot), d = e.shiftKey ? 5 : 1;
-      if (e.key === 'ArrowUp') sl.y = clamp(sl.y - d, 1.5, 78.5);
-      if (e.key === 'ArrowDown') sl.y = clamp(sl.y + d, 1.5, 78.5);
-      if (e.key === 'ArrowLeft') sl.x = clamp(sl.x - d, 1.5, 48.5);
-      if (e.key === 'ArrowRight') sl.x = clamp(sl.x + d, 1.5, 48.5);
-      g.setAttribute('transform', `translate(${sl.x} ${sl.y})`); save();
+      const id = g.dataset.slot, sl = curLineup().slots.find(s => s.id === id), d = e.shiftKey ? 5 : 1;
+      let [x, y] = sysSpot(curSystem(), sl);
+      if (e.key === 'ArrowUp') y = clamp(y - d, 1.5, 78.5);
+      if (e.key === 'ArrowDown') y = clamp(y + d, 1.5, 78.5);
+      if (e.key === 'ArrowLeft') x = clamp(x - d, 1.5, 48.5);
+      if (e.key === 'ArrowRight') x = clamp(x + d, 1.5, 48.5);
+      g.setAttribute('transform', `translate(${x} ${y})`);
+      place(id, round1(x), round1(y));
+      if (sysOwn()) { const back = $(`#field [data-slot="${id}"]`); if (back) back.focus(); }
     }
   });
 }
@@ -2410,6 +2801,19 @@ const actions = {
 
   'lineup-menu': coachOnly(() => lineupMenu()),
   'layer': el => { const k = el.dataset.k; state.layers[k] = !state.layers[k]; store.set('tm-field-layers', JSON.stringify(state.layers)); render(); },
+  'system': el => {
+    const id = el.dataset.id; state.system = state.system === id ? null : id; state.sysFlip = false;
+    store.set('tm-field-system', state.system || ''); render();
+  },
+  'sys-side': el => { state.sysFlip = el.dataset.flip === '1'; render(); },
+  'sys-play': el => { state.tab = 'plays'; state.playId = el.dataset.id; state.playPhase = 0; history.replaceState(null, '', '#plays'); render(); window.scrollTo(0, 0); },
+  'sys-edit': coachOnly(el => openSystemEditor(el.dataset.id)),
+  'sys-reset': coachOnly(el => {
+    const b = systemBase(el.dataset.id); if (!b) return;
+    if (!confirm(`Put “${b.name}” back to the playbook version? Your changes to its words and positions will go.`)) return;
+    delete data.systems[b.id]; save(); render(); toast('Back to the playbook version');
+  }),
+  'sys-share': coachOnly(() => { const sys = curSystem(); if (!sys) return; const t = systemShareText(sys, curLineup()); logMessage(t, 'WhatsApp'); openWhatsApp(t); }),
   'play-open': el => { state.playId = el.dataset.id; state.playPhase = 0; render(); window.scrollTo(0, 0); },
   'play-phase': el => { const p = playById(state.playId); if (!p) return; animStop(); animShowPhase(p, Number(el.dataset.i)); anim.planFor = null; },
   'anim-play': () => animStart(),
@@ -2688,6 +3092,11 @@ document.addEventListener('submit', async e => {
   }
   if (!isCoach()) return;
 
+  if (kind === 'system') {
+    saveSystemWords(str('id'), { when: raw('when'), points: raw('points'), jobs: Object.fromEntries(JOB_GROUPS.map(g => [g, raw('job-' + g)])) });
+    save(); closeSheet(); render(); toast('Saved');
+    return;
+  }
   if (kind === 'player') {
     const id = str('id'); const p = id ? playerById(id) : { id: uid() };
     if (!str('name')) { toast('Add a name'); return; }

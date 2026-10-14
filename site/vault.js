@@ -111,6 +111,8 @@ export function teamView(d) {
     notices: (d.notices || []).slice(0, 30).map(n => pick(n, ['id', 'at', 'text'])),
     plays: (d.plays || []).map(p => pick(p, ['id', 'name', 'category', 'headline', 'when', 'steps', 'side', 'builtin', 'rev', 'edited', 'players', 'defence', 'moves', 'focus', 'ghost', 'view', 'tags', 'notes', 'labels', 'title', 'phases', 'set', 'who'])),
     playerSets: (d.playerSets || []).map(x => pick(x, ['id', 'name', 'labels', 'slots'])),
+    // The coach's changes to the game systems on the Lineup page (where players stand, the words).
+    systems: Object.fromEntries(Object.entries(d.systems || {}).filter(([, v]) => v && typeof v === 'object').map(([k, v]) => [k, pick(v, ['pos', 'when', 'points', 'jobs'])])),
     updatedAt: d.updatedAt || null
   };
 }

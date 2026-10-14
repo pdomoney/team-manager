@@ -75,6 +75,13 @@ test('players get the whole play drawing, including its notes and labels', () =>
   assert.deepEqual(v.plays[0], play);
 });
 
+test('players get the coach’s changes to the game systems, and nothing else from them', () => {
+  const systems = { slide: { pos: { LR: [24, 47] }, points: ['Talk to the sweeper.'], jobs: { Wings: 'Stay home.' }, note: 'coach only' }, bad: null };
+  const v = teamView({ ...sample, systems });
+  assert.deepEqual(v.systems, { slide: { pos: { LR: [24, 47] }, points: ['Talk to the sweeper.'], jobs: { Wings: 'Stay home.' } } });
+  assert.deepEqual(teamView(sample).systems, {});
+});
+
 test('invite links survive any password characters', () => {
   for (const pw of ['plain', 'with spaces & symbols/+=?', 'Grace O’Brien 🏉']) {
     const enc = toB64Url(pw);
