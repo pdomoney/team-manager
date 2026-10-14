@@ -109,6 +109,7 @@ export function teamView(d) {
       slots: (l.slots || []).map(s => pick(s, ['id', 'label', 'name', 'group', 'x', 'y', 'playerId']))
     })),
     notices: (d.notices || []).slice(0, 30).map(n => pick(n, ['id', 'at', 'text'])),
+    plays: (d.plays || []).map(p => pick(p, ['id', 'name', 'category', 'when', 'steps', 'side', 'builtin', 'players', 'defence', 'moves', 'focus', 'ghost', 'view', 'tags'])),
     updatedAt: d.updatedAt || null
   };
 }

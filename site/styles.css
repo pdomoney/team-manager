@@ -288,3 +288,39 @@ details.more summary{cursor:pointer;font-weight:600;padding:4px 0}
 details.more[open] summary{margin-bottom:8px}
 .loading{padding:40px 0;text-align:center;color:var(--muted)}
 .row-main:is(div){cursor:default}
+
+/* Plays */
+.play-row{appearance:none;width:100%;background:none;border:0;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:10px 12px;text-align:left;cursor:pointer}
+.play-row:first-child{border-top:0}
+.play-row:hover{background:#F7F8F4}
+.play-thumb{width:84px;flex:none;border-radius:6px;overflow:hidden;background:var(--pitch-2);line-height:0}
+.play-thumb svg{width:100%;height:auto;display:block}
+.play-when{white-space:normal;display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.field.play{width:100%;max-width:520px;display:block;margin:0 auto;height:auto}
+.field .ch-line.faint{opacity:.35}
+.field .ch-line.red.faint{opacity:.6}
+.play .df{fill:rgba(0,0,0,.18);stroke:#fff;stroke-width:.3}
+.play .df.mk{stroke:#FFB3BB;stroke-width:.4}
+.play .mv{fill:none;stroke:#fff;stroke-width:.35;stroke-linecap:round;stroke-linejoin:round}
+.play .mv.key{stroke:#FFD24D;stroke-width:.5}
+.play .mv.pass{stroke-dasharray:1 .7}
+.play .mv.kick{stroke-dasharray:.1 .7;stroke-width:.5}
+.play .mv.dummy{stroke-dasharray:.6 .6;opacity:.85}
+.play .mv.draft{stroke:#7FE3FF;stroke-width:.4;stroke-dasharray:.8 .5}
+.play .draft-pt{fill:#7FE3FF}
+.play .pl{fill:#fff;stroke:var(--pitch);stroke-width:.3}
+.play .pl.focus{fill:#FFD24D}
+.play .pl.ghost{fill-opacity:.4;stroke-dasharray:.5 .35}
+.play .pl.ghost + .plt{opacity:.6}
+.play .plt{font-family:var(--font-d);font-size:1.25px;font-weight:700;fill:var(--ink);text-anchor:middle}
+.play .tg{fill:var(--tag);stroke:#fff;stroke-width:.15}
+.play .tgt{font-family:var(--font-d);font-size:1px;font-weight:700;fill:#fff;text-anchor:middle}
+.play.thumb .pl{stroke-width:.4}
+.play.editor{touch-action:manipulation;cursor:crosshair}
+.play-legend{justify-content:center;margin-top:10px}
+.play-legend svg{vertical-align:-1px;margin-right:4px}
+.play-legend i{display:inline-block;width:11px;height:11px;margin-right:4px;vertical-align:-1px}
+.play-h{font-size:20px;margin-bottom:6px}
+.steps{margin:0;padding-left:22px}
+.steps li{margin-bottom:6px}
+.ped-tools button{font-size:14px;padding:8px 4px}

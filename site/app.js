@@ -56,6 +56,7 @@ const TABS = [
   { id: 'squad', label: 'Squad', icon: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.5c2.5.1 4.2 1.8 5 5"/>' },
   { id: 'training', label: 'Training', icon: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>' },
   { id: 'field', label: 'Lineup', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14M5 5.5h14M5 18.5h14"/>' },
+  { id: 'plays', label: 'Plays', icon: '<circle cx="6.5" cy="6.5" r="2.5"/><path d="M15 4.5l4 4M19 4.5l-4 4"/><path d="M7 11c0 5 4 8 10 8"/><path d="M14 16.5l3 2.5-3 2.5"/>' },
   { id: 'messages', label: 'Messages', coach: true, icon: '<path d="M20.5 11.5a8 8 0 0 1-11.6 7.2L3.5 20l1.4-4.8a8 8 0 1 1 15.6-3.7z"/>' }
 ];
 
@@ -111,7 +112,7 @@ function defaultData() {
       maxMales: 4, positions: ['Wing', 'Link', 'Rover', 'Middle'],
       field: { ...FIELD_DEFAULTS }
     },
-    players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [],
+    players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [], plays: starterPlays(),
     teamPass: '', teamSalt: '', updatedAt: null
   };
 }
@@ -157,7 +158,7 @@ function normalize(d) {
   if (!d || typeof d !== 'object') return base;
   const out = { ...base, ...d, team: { ...base.team, ...(d.team || {}) } };
   out.team.field = { ...FIELD_DEFAULTS, ...((d.team && d.team.field) || {}) };
-  ['players', 'sessions', 'lineups', 'messages', 'notices'].forEach(k => { out[k] = arr(out[k]); });
+  ['players', 'sessions', 'lineups', 'messages', 'notices', 'plays'].forEach(k => { out[k] = arr(out[k]); });
   renameHalfToRover(out);
   toPairedLayout(out);
   if (!out.lineups.length) out.lineups = base.lineups;
@@ -169,7 +170,7 @@ function normalizeTeam(t) {
   const base = teamView(defaultData());
   const out = { ...base, ...(t || {}), team: { ...base.team, ...((t && t.team) || {}) } };
   out.team.field = { ...FIELD_DEFAULTS, ...((t && t.team && t.team.field) || {}) };
-  ['players', 'sessions', 'lineups', 'notices'].forEach(k => { out[k] = arr(out[k]); });
+  ['players', 'sessions', 'lineups', 'notices', 'plays'].forEach(k => { out[k] = arr(out[k]); });
   if (!out.lineups.length) out.lineups = base.lineups;
   renameHalfToRover(out);
   toPairedLayout(out);
@@ -196,6 +197,7 @@ const state = {
   tab: 'home', squadFilter: 'all', squadSearch: '', trainingView: 'schedule', showPast: false,
   lineupId: null, moveMode: false, msgTpl: 'reminder', msgSession: null, msgDraft: null, postNotice: true,
   layers: { zones: true, channels: true, zigzag: false, ...(readJson('tm-field-layers') || {}) },
+  playId: null, playSide: 'right', ped: null,
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false
 };
 const isCoach = () => S.role === 'coach' && !state.preview;
@@ -462,6 +464,7 @@ function render() {
   if (state.tab === 'squad') v.innerHTML = viewSquad();
   if (state.tab === 'training') v.innerHTML = viewTraining();
   if (state.tab === 'field') { v.innerHTML = viewField(); bindField(); }
+  if (state.tab === 'plays') v.innerHTML = viewPlays();
   if (state.tab === 'messages') v.innerHTML = viewMessages();
 }
 
@@ -976,6 +979,267 @@ function lineupText(lu) {
   return `📋 *${lu.name}* — ${data.team.name}\n\n${lines.join('\n')}${bench.length ? `\n\n🔁 Interchange: ${bench.join(', ')}` : ''}`;
 }
 
+/* ---------- Plays ---------- */
+// Plays are stored attacking right (side: 'right') and mirrored for the left: x becomes 50 - x,
+// position codes swap sides (RR <-> LR) and so do the words left/right in the text.
+const PLAY_CATS = ['Ruck', 'Edge', 'Switch', 'Finisher', 'Kick', 'Other'];
+const MOVE_KINDS = { run: 'Run', pass: 'Pass', kick: 'Kick', dummy: 'Dummy pass' };
+const STARTER_IDS = ['quickie-out', 'quickie-in', 'ninja', 'out-the-back', 'switch', 'finisher'];
+const swapSlot = id => /^[LR][WLRM]$/.test(id) ? (id[0] === 'L' ? 'R' : 'L') + id[1] : id;
+function mirrorText(text) {
+  return String(text || '')
+    .replace(/\b([LR])([WLRM])\b/g, (m, a, b) => (a === 'L' ? 'R' : 'L') + b)
+    .replace(/\b(left|right|Left|Right)\b/g, w => ({ left: 'right', right: 'left', Left: 'Right', Right: 'Left' }[w]));
+}
+const defaultDefence = ry => ({ marker: [25, ry - 3], line: [3.6, 10.7, 17.9, 25, 32.1, 39.3, 46.4].map(x => [x, ry - 7]) });
+const formation = (ry, rx = 25) => ({
+  RM: [rx, ry], LM: [rx - 0.4, ry + 2.8],
+  LR: [16.5, ry + 5], LL: [10, ry + 8], LW: [3.5, ry + 11],
+  RR: [33, ry + 5], RL: [40, ry + 8], RW: [46.5, ry + 11]
+});
+const shiftY = (pts, dy) => pts.map(([x, y]) => [x, +(y + dy).toFixed(1)]);
+
+function starterPlays() {
+  const base = (id, name, category, when, steps, extra) => ({
+    id, name, category, when, steps, side: 'right', builtin: true,
+    players: formation(46), defence: defaultDefence(46), moves: [], focus: [], tags: {}, ...extra
+  });
+  const bounce = [{ t: 'run', pts: [[25, 46], [29, 50.4]] }, { t: 'pass', key: true, pts: [[24.6, 48.8], [28.4, 50.6]] }];
+  const ruckView = { x0: 11, x1: 39, y0: 34, y1: 56 };   // zoom in on the ruck for the ruck plays
+  const otb = [
+    { t: 'pass', pts: [[24.6, 48.8], [32.2, 50.6]] },
+    { t: 'run', pts: [[33, 51], [31.6, 41.6]] },
+    { t: 'run', pts: [[40, 54], [36.4, 42.4]] },
+    { t: 'run', key: true, curve: true, pts: [[25, 46], [27.6, 52.5], [33.5, 55.5], [38, 53]] },
+    { t: 'pass', key: true, pts: [[31.9, 44.5], [37.7, 52.5]] }
+  ];
+  return [
+    base('quickie-out', 'Quickie Out', 'Ruck', 'Tags 1–3, when their marker or the first defender beside the ruck is slow off the line.',
+      'RM is tagged, plays the ball fast and bounces out to the right.\nLM, at dummy half, steps forward and gives a short pass back to RM.\nRM hits the gap between the marker and the next defender on the right.',
+      { focus: ['RM'], ghost: ['RM'], view: ruckView, moves: [...bounce, { t: 'run', key: true, pts: [[29, 50.4], [29, 38.6]] }] }),
+    base('quickie-in', 'Quickie In', 'Ruck', 'After a Quickie Out has worked, when the defence starts sliding with RM.',
+      'RM plays the ball and bounces out to the right, as in the Quickie Out.\nLM steps forward and passes back to RM.\nRM cuts back inside, behind the marker, into the gap on the other side.',
+      { focus: ['RM'], ghost: ['RM'], view: ruckView, moves: [...bounce, { t: 'run', key: true, curve: true, pts: [[29, 50.4], [27.8, 47.6], [23, 44.6], [21, 38.6]] }] }),
+    base('ninja', 'Ninja', 'Ruck', 'Only after the Quickies have worked and the marker is chasing RM.',
+      'RM plays the ball and runs the Quickie Out line as a decoy.\nLM, at dummy half, shows the pass to RM but keeps the ball.\nLM steps through the hole the marker leaves when it chases RM.',
+      { focus: ['LM'], ghost: ['RM'], view: ruckView, defence: { ...defaultDefence(46), marker: [28.6, 43.4] },
+        moves: [{ t: 'run', pts: [[25, 46], [29, 50.4], [30.4, 41.2]] }, { t: 'dummy', pts: [[24.6, 48.8], [27.8, 49.9]] }, { t: 'run', key: true, pts: [[24.6, 48.8], [23.8, 38.6]] }] }),
+    base('out-the-back', 'Out the back', 'Edge', 'Tags 3–5, attacking the wider side of the ruck.',
+      'RM plays the ball, then loops around behind RR and RL.\nLM, at dummy half, passes to RR.\nRR runs at the inside shoulder of their Rover to hold them.\nRL runs a short decoy line at the gap.\nRR passes behind RL to RM, who hits the gap with RW outside.',
+      { focus: ['RM'], moves: [...otb, { t: 'run', key: true, pts: [[38, 53], [42.8, 38.6]] }, { t: 'run', pts: [[46.5, 57], [47, 43]] }] }),
+    base('switch', 'Switch', 'Switch', 'When their defence has crowded one side and the other side is short of defenders. Called by the Rover.',
+      'Our last plays went left, so their defence has crowded that side.\nRM plays the ball; LM, at dummy half, passes right to RR.\nRR draws the first defender and passes to RL.\nRL draws the last defender and passes to RW, who runs through.',
+      { focus: ['RW'],
+        players: { RM: [32, 46], LM: [31.4, 48.8], RR: [37, 51], RL: [42.2, 54], RW: [47.4, 57], LR: [24, 51], LL: [16, 54], LW: [7, 57] },
+        defence: { marker: [32, 43], line: [[6, 39], [12, 39], [18, 39], [24, 39], [30.5, 39], [38.6, 39], [45.6, 39]] },
+        moves: [
+          { t: 'pass', pts: [[31.4, 48.8], [36.6, 50.6]] }, { t: 'run', pts: [[37, 51], [37.8, 44.5]] },
+          { t: 'pass', key: true, pts: [[37.6, 46], [41.8, 50.6]] }, { t: 'run', pts: [[42.2, 54], [42.6, 46.2]] },
+          { t: 'pass', key: true, pts: [[42.5, 48], [46.9, 52.2]] }, { t: 'run', key: true, pts: [[47.4, 57], [47.6, 38.4]] }
+        ] }),
+    base('finisher', 'Finisher', 'Finisher', 'Tag 5 or 6 inside their 14 m. RW must be a female player, for a 2-point try.',
+      'RM plays the ball and loops; LM, at dummy half, passes to RR.\nRR runs at the inside shoulder; RL runs the short decoy line.\nRR passes behind RL to RM.\nRM draws the last defender and passes to RW, who scores in the corner.',
+      { focus: ['RW'], tags: { RW: 'F' }, players: formation(24), defence: defaultDefence(24),
+        moves: [
+          ...otb.map(m => ({ ...m, pts: shiftY(m.pts, -22) })),
+          { t: 'run', key: true, pts: [[38, 31], [42.4, 21]] },
+          { t: 'pass', key: true, pts: [[42.4, 21.6], [46.6, 23.4]] },
+          { t: 'run', key: true, pts: [[46.5, 35], [46.7, 23.4], [46.2, 4]] }
+        ] })
+  ];
+}
+
+function playGeom(play, side) {
+  const flip = side !== (play.side || 'right');
+  const P = pt => flip ? [+(50 - pt[0]).toFixed(2), pt[1]] : pt;
+  const players = {}; Object.entries(play.players || {}).forEach(([id, pt]) => { players[flip ? swapSlot(id) : id] = P(pt); });
+  const tags = {}; Object.entries(play.tags || {}).forEach(([id, v]) => { tags[flip ? swapSlot(id) : id] = v; });
+  const focus = (play.focus || []).map(id => flip ? swapSlot(id) : id), ghost = (play.ghost || []).map(id => flip ? swapSlot(id) : id);
+  const v = play.view, view = v ? (flip ? { ...v, x0: 50 - v.x1, x1: 50 - v.x0 } : v) : null;
+  const d = play.defence || defaultDefence(46);
+  return { flip, players, tags, focus, ghost, view, marker: d.marker ? P(d.marker) : null, line: (d.line || []).map(P), moves: (play.moves || []).map(m => ({ ...m, pts: m.pts.map(P) })) };
+}
+function pathD(pts, curve) {
+  if (!curve || pts.length < 3) return 'M' + pts.map(p => p.join(' ')).join('L');
+  let d = `M${pts[0].join(' ')}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += `C${c1.map(n => n.toFixed(2)).join(' ')} ${c2.map(n => n.toFixed(2)).join(' ')} ${p2.join(' ')}`;
+  }
+  return d;
+}
+let svgSeq = 0;
+function playSVG(play, side, opts = {}) {
+  const g = playGeom(play, side), k = `p${++svgSeq}`;
+  const pts = [...Object.values(g.players), ...g.moves.flatMap(m => m.pts), ...g.line, ...(g.marker ? [g.marker] : []), ...((opts.drawing && opts.drawing.pts) || [])];
+  let y0 = Math.floor(Math.min(...pts.map(p => p[1])) - 4), y1 = Math.ceil(Math.max(...pts.map(p => p[1])) + 4);
+  let x0 = -1, x1 = 51;
+  if (g.view && !opts.full) ({ x0, x1, y0, y1 } = g.view);
+  if (opts.full) { y0 = -1; y1 = 81; }
+  y0 = Math.max(-1, y0); y1 = Math.min(81, y1);
+  const F = fieldDims(V.team.field);
+  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="field play ${opts.thumb ? 'thumb' : ''} ${opts.editor ? 'editor' : ''}" viewBox="${x0} ${y0} ${x1 - x0} ${y1 - y0}" role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
+  s += `<defs><marker id="${k}-w" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="#fff"/></marker><marker id="${k}-g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="#FFD24D"/></marker></defs>`;
+  s += `<rect x="0" y="0" width="50" height="80" fill="var(--turf)"/>`;
+  for (let y = 5, i = 0; y < 75; y += 5, i++) if (i % 2) s += `<rect x="0" y="${y}" width="50" height="5" fill="var(--turf-2)"/>`;
+  s += `<rect x="0" y="0" width="50" height="5" fill="var(--turf-3)"/><rect x="0" y="75" width="50" height="5" fill="var(--turf-3)"/>`;
+  [1, 2, 3, 4].forEach(i => { s += `<line class="ch-line${i === 2 || i === 3 ? ' red' : ''} faint" x1="${F.bounds[i]}" x2="${F.bounds[i]}" y1="5" y2="75"/>`; });
+  s += `<rect class="mark" x="0" y="0" width="50" height="80"/><line class="mark" x1="0" x2="50" y1="5" y2="5"/><line class="mark" x1="0" x2="50" y1="75" y2="75"/><line class="mark" x1="0" x2="50" y1="40" y2="40"/>`;
+  if (!opts.thumb && y0 < 4) s += `<text class="fl" x="25" y="3.1">Their try line ↑</text>`;
+  g.line.forEach((p, i) => { s += `<g class="dfg" data-df="${i}" transform="translate(${p[0]} ${p[1]})"><circle class="df" r="1.4"/></g>`; });
+  if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${g.marker[0]} ${g.marker[1]})"><circle class="df mk" r="1.4"/></g>`;
+  g.moves.forEach((m, i) => {
+    s += `<path class="mv ${m.t} ${m.key ? 'key' : ''}" d="${pathD(m.pts, m.curve)}" ${m.t === 'dummy' ? '' : `marker-end="url(#${k}-${m.key ? 'g' : 'w'})"`}${opts.editor ? ` data-mv="${i}"` : ''}/>`;
+  });
+  if (opts.drawing && opts.drawing.pts.length) {
+    s += `<path class="mv draft" d="${pathD(opts.drawing.pts, opts.drawing.curve)}"/>`;
+    opts.drawing.pts.forEach(p => { s += `<circle class="draft-pt" cx="${p[0]}" cy="${p[1]}" r=".7"/>`; });
+  }
+  Object.entries(g.players).forEach(([id, p]) => {
+    const tag = g.tags[id];
+    s += `<g class="plg" data-pl="${id}" transform="translate(${p[0]} ${p[1]})"><circle class="pl ${g.focus.includes(id) ? 'focus' : ''} ${g.ghost.includes(id) ? 'ghost' : ''}" r="1.8"/>${opts.thumb ? '' : `<text class="plt" dy=".45">${id}</text>`}${tag ? `<circle class="tg" cx="1.5" cy="-1.5" r=".8"/><text class="tgt" x="1.5" y="-1.5" dy=".35">${esc(tag)}</text>` : ''}</g>`;
+  });
+  return s + '</svg>';
+}
+const playById = id => V.plays.find(p => p.id === id);
+const playSteps = (play, side) => {
+  const text = side !== (play.side || 'right') ? mirrorText(play.steps) : play.steps;
+  return String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
+};
+const playWhen = (play, side) => side !== (play.side || 'right') ? mirrorText(play.when) : (play.when || '');
+
+function viewPlays() {
+  const coach = isCoach();
+  if (state.playId && playById(state.playId)) return viewPlay(playById(state.playId));
+  state.playId = null;
+  const missing = STARTER_IDS.filter(id => !V.plays.some(p => p.id === id)).length;
+  return `<div class="sec-h"><h2>Plays</h2>${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div>
+    <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.</p>
+    ${V.plays.length ? `<div class="list">${V.plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
+      <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
+      <span class="grow"><span class="name" style="display:block">${esc(p.name)}</span><span class="sub play-when">${esc(playWhen(p, state.playSide))}</span></span>
+      <span class="pill neutral">${esc(p.category || 'Other')}</span>
+    </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add one, or restore the starter plays.' : 'No plays yet.'}</p></div>`}
+    ${coach && missing ? `<button class="link-btn" data-act="plays-restore">Restore the ${missing} missing starter play${missing === 1 ? '' : 's'}</button>` : ''}`;
+}
+function viewPlay(p) {
+  const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side);
+  const kinds = new Set(p.moves.map(m => m.t));
+  const sw = (cls, dash, colour) => `<svg width="26" height="10" viewBox="0 0 26 10" aria-hidden="true"><line x1="1" y1="5" x2="21" y2="5" stroke="${colour}" stroke-width="2" ${dash ? `stroke-dasharray="${dash}"` : ''}/>${cls === 'dummy' ? '' : `<path d="M20 1L25 5L20 9z" fill="${colour}"/>`}</svg>`;
+  return `<button class="toggle-past" data-act="play-back">← All plays</button>
+    <div class="sec-h"><h2>${esc(p.name)}</h2><span class="pill neutral">${esc(p.category || 'Other')}</span></div>
+    <div class="seg" role="group" aria-label="Direction">
+      <button data-act="play-side" data-side="left" aria-pressed="${side === 'left'}">Attacking left</button>
+      <button data-act="play-side" data-side="right" aria-pressed="${side === 'right'}">Attacking right</button>
+    </div>
+    <div class="field-wrap">${playSVG(p, side)}</div>
+    <div class="legend play-legend">
+      ${kinds.has('run') ? `<span>${sw('run', '', '#5B6861')}Run</span>` : ''}
+      ${kinds.has('pass') ? `<span>${sw('pass', '4 3', '#5B6861')}Pass</span>` : ''}
+      ${kinds.has('kick') ? `<span>${sw('kick', '1 3', '#5B6861')}Kick</span>` : ''}
+      ${kinds.has('dummy') ? `<span>${sw('dummy', '3 3', '#5B6861')}Dummy pass</span>` : ''}
+      <span>${sw('key', '', '#E3A400')}The key move</span>
+      <span><i style="background:#fff;border:1.5px solid #5B6861;border-radius:50%"></i>Defender</span>
+    </div>
+    ${when ? `<section class="sec" style="margin-top:16px"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
+    ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}
+    ${coach ? `<div class="btn-row"><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
+      <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}`;
+}
+
+/* ----- Play editor (coach) ----- */
+function blankPlay() {
+  return { id: uid(), name: '', category: 'Other', when: '', steps: '', side: 'right', builtin: false,
+    players: formation(46), defence: defaultDefence(46), moves: [], focus: [], tags: {} };
+}
+function openPlayEditor(play) {
+  const draft = JSON.parse(JSON.stringify(play || blankPlay()));
+  if (draft.side && draft.side !== 'right') {   // edit everything in the attacking-right orientation
+    const g = playGeom(draft, 'right');
+    Object.assign(draft, { side: 'right', players: g.players, tags: g.tags, focus: g.focus, moves: g.moves, defence: { marker: g.marker, line: g.line }, steps: mirrorText(draft.steps), when: mirrorText(draft.when) });
+  }
+  if (!draft.defence) draft.defence = defaultDefence(46);
+  state.ped = { draft, tool: 'run', key: false, curve: false, drawing: null, isNew: !play };
+  const slots = SLOT_DEFS.map(s => s.id);
+  openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off">
+    <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
+    <label class="field-l"><span>Type</span><select name="category">${PLAY_CATS.map(c => `<option ${c === draft.category ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+    <label class="field-l"><span>When to use it</span><input type="text" name="when" value="${esc(draft.when)}" placeholder="e.g. Tag 5 inside their 14 m"></label>
+    <label class="field-l"><span>Steps, one per line</span><textarea name="steps" rows="5" placeholder="Use LW, LL, LR, LM, RM, RR, RL, RW so the left version swaps them automatically.">${esc(draft.steps)}</textarea></label>
+    <h3 class="form-sec">Diagram</h3>
+    <p class="hint" style="margin:-4px 0 10px">Draw it attacking right; the app makes the left version. Pick a line type, tap where it starts (on a player to start from them), tap each point it passes, then tap Finish line.</p>
+    <div class="seg ped-tools" id="ped-tools">${pedToolButtons()}</div>
+    <div class="opts" style="margin-bottom:10px">
+      <label class="opt"><input type="checkbox" data-change="ped-key"><span>Key move (gold)</span></label>
+      <label class="opt"><input type="checkbox" data-change="ped-curve"><span>Curved</span></label>
+    </div>
+    <div class="field-wrap" id="ped-field"></div>
+    <div class="btn-row" style="margin-top:10px"><button type="button" class="btn" data-act="ped-finish">Finish line</button><button type="button" class="btn" data-act="ped-undo">Undo</button></div>
+    <div id="ped-moves" style="margin-top:10px"></div>
+    <details class="more"><summary>Highlight players</summary>
+      <p class="muted small" style="margin-bottom:8px">Gold players are the ones to watch. F marks a female finisher.</p>
+      <div class="opts" style="margin-bottom:8px">${slots.map(id => `<label class="opt"><input type="checkbox" data-change="ped-focus" value="${id}" ${draft.focus.includes(id) ? 'checked' : ''}><span>${id}</span></label>`).join('')}</div>
+      <div class="opts">${slots.map(id => `<label class="opt"><input type="checkbox" data-change="ped-tag" value="${id}" ${draft.tags[id] === 'F' ? 'checked' : ''}><span>${id} F</span></label>`).join('')}</div>
+    </details>
+    <button class="btn primary block" type="submit" style="margin-top:16px">Save play</button>
+  </form>`, 'play-editor');
+  refreshPlayEditor();
+}
+function pedToolButtons() {
+  const t = state.ped.tool;
+  return [['move', 'Move'], ['run', 'Run'], ['pass', 'Pass'], ['kick', 'Kick'], ['dummy', 'Dummy']].map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${t === k}">${l}</button>`).join('');
+}
+function refreshPlayEditor() {
+  const E = state.ped; if (!E) return;
+  const f = $('#ped-field'); if (!f) return;
+  f.innerHTML = playSVG(E.draft, 'right', { full: true, editor: true, svgId: 'ped-svg', drawing: E.drawing ? { ...E.drawing, curve: E.curve } : null });
+  $('#ped-tools').innerHTML = pedToolButtons();
+  $('#ped-moves').innerHTML = E.draft.moves.length ? `<div class="list">${E.draft.moves.map((m, i) => `<div class="row" style="padding:6px 6px 6px 12px"><span class="grow small">${i + 1}. ${MOVE_KINDS[m.t] || m.t}${m.key ? ', key' : ''}${m.curve ? ', curved' : ''}</span><button type="button" class="btn sm danger" data-act="ped-del-move" data-i="${i}">Remove</button></div>`).join('')}</div>`
+    : `<p class="muted small">No lines yet.</p>`;
+  bindPlayEditor();
+}
+function bindPlayEditor() {
+  const svg = $('#ped-svg'); if (!svg) return;
+  const E = state.ped; let drag = null;
+  const at = e => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse()); return [clamp(+q.x.toFixed(1), 0, 50), clamp(+q.y.toFixed(1), 0, 80)]; };
+  svg.addEventListener('pointerdown', e => {
+    if (E.tool !== 'move') return;
+    const t = e.target.closest('[data-pl],[data-df],[data-mk]'); if (!t) return;
+    e.preventDefault(); drag = { el: t, ds: { ...t.dataset } };
+    try { svg.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
+  });
+  svg.addEventListener('pointermove', e => { if (!drag) return; drag.p = at(e); drag.el.setAttribute('transform', `translate(${drag.p[0]} ${drag.p[1]})`); });
+  const end = () => {
+    if (!drag) return;
+    const { ds, p } = drag; drag = null; if (!p) return;
+    if (ds.pl) E.draft.players[ds.pl] = p;
+    else if (ds.df !== undefined) E.draft.defence.line[Number(ds.df)] = p;
+    else if (ds.mk) E.draft.defence.marker = p;
+    refreshPlayEditor();
+  };
+  svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+  svg.addEventListener('click', e => {
+    if (E.tool === 'move') return;
+    let p = at(e);
+    if (!E.drawing) {
+      const near = Object.values(E.draft.players).map(q => ({ q, d: Math.hypot(q[0] - p[0], q[1] - p[1]) })).sort((a, b) => a.d - b.d)[0];
+      if (near && near.d < 3) p = near.q.slice();
+      E.drawing = { pts: [] };
+    }
+    E.drawing.pts.push(p); refreshPlayEditor();
+  });
+}
+function finishPlayLine() {
+  const E = state.ped; if (!E || !E.drawing) return false;
+  if (E.drawing.pts.length >= 2) E.draft.moves.push({ t: E.tool, pts: E.drawing.pts, ...(E.key ? { key: true } : {}), ...(E.curve ? { curve: true } : {}) });
+  E.drawing = null; return true;
+}
+function playShareText(p, side) {
+  const steps = playSteps(p, side), when = playWhen(p, side);
+  return `🏉 *${p.name}* (attacking ${side})${when ? `\n${when}` : ''}\n\n${steps.map((l, i) => `${i + 1}. ${l}`).join('\n')}`;
+}
+
 /* ---------- Messages (coach) ---------- */
 const TEMPLATES = { reminder: 'Training reminder', cancelled: 'Training cancelled', lineup: 'Lineup', countdown: 'Countdown', invite: 'App invite', blank: 'Blank' };
 function buildTemplate(t) {
@@ -1222,7 +1486,7 @@ function loadSample() {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
-  'tab': el => { state.tab = el.dataset.tab; history.replaceState(null, '', '#' + state.tab); closeSheet(); render(); window.scrollTo(0, 0); },
+  'tab': el => { if (el.dataset.tab === 'plays') state.playId = null; state.tab = el.dataset.tab; history.replaceState(null, '', '#' + state.tab); closeSheet(); render(); window.scrollTo(0, 0); },
   'close-sheet': () => closeSheet(),
   'settings': () => openSheet('Settings', settingsBody(), 'settings'),
   'lock-mode': el => { state.lockMode = el.dataset.mode; state.lockMsg = ''; renderLock(); },
@@ -1287,6 +1551,36 @@ const actions = {
 
   'lineup-menu': coachOnly(() => lineupMenu()),
   'layer': el => { const k = el.dataset.k; state.layers[k] = !state.layers[k]; store.set('tm-field-layers', JSON.stringify(state.layers)); render(); },
+  'play-open': el => { state.playId = el.dataset.id; render(); window.scrollTo(0, 0); },
+  'play-back': () => { state.playId = null; render(); window.scrollTo(0, 0); },
+  'play-side': el => { state.playSide = el.dataset.side; render(); },
+  'play-new': coachOnly(() => openPlayEditor(null)),
+  'play-edit': coachOnly(el => { const p = playById(el.dataset.id); if (p) openPlayEditor(p); }),
+  'play-dup': coachOnly(el => {
+    const p = playById(el.dataset.id); if (!p) return;
+    const copy = { ...JSON.parse(JSON.stringify(p)), id: uid(), name: `${p.name} (copy)`, builtin: false };
+    data.plays.splice(data.plays.indexOf(p) + 1, 0, copy); state.playId = copy.id; save(); render(); toast('Play duplicated');
+  }),
+  'play-del': coachOnly(el => {
+    const p = playById(el.dataset.id); if (!p || !confirm(`Delete “${p.name}”?${p.builtin ? ' You can restore the starter plays later.' : ''}`)) return;
+    data.plays = data.plays.filter(x => x.id !== p.id); state.playId = null; save(); render(); toast('Play deleted');
+  }),
+  'play-share': coachOnly(el => { const p = playById(el.dataset.id); if (!p) return; const t = playShareText(p, state.playSide); logMessage(t, 'WhatsApp'); openWhatsApp(t); }),
+  'plays-restore': coachOnly(() => {
+    const starters = starterPlays(), have = new Set(data.plays.map(p => p.id));
+    const add = starters.filter(p => !have.has(p.id));
+    data.plays = [...starters.filter(p => add.includes(p)), ...data.plays].sort((a, b) => (STARTER_IDS.indexOf(a.id) + 1 || 99) - (STARTER_IDS.indexOf(b.id) + 1 || 99));
+    save(); render(); toast(`${add.length} starter play${add.length === 1 ? '' : 's'} restored`);
+  }),
+  'ped-tool': coachOnly(el => { state.ped.tool = el.dataset.t; state.ped.drawing = null; refreshPlayEditor(); }),
+  'ped-finish': coachOnly(() => { if (!finishPlayLine()) toast('Tap on the field to start a line'); refreshPlayEditor(); }),
+  'ped-undo': coachOnly(() => {
+    const E = state.ped;
+    if (E.drawing && E.drawing.pts.length) { E.drawing.pts.pop(); if (!E.drawing.pts.length) E.drawing = null; }
+    else E.draft.moves.pop();
+    refreshPlayEditor();
+  }),
+  'ped-del-move': coachOnly(el => { state.ped.draft.moves.splice(Number(el.dataset.i), 1); refreshPlayEditor(); }),
   'move-mode': coachOnly(el => { state.moveMode = el.dataset.on === '1'; render(); }),
   'shape': coachOnly(el => { const sh = SHAPES[el.dataset.shape]; curLineup().slots.forEach(s => { if (sh[s.id]) { s.x = sh[s.id][0]; s.y = sh[s.id][1]; } }); save(); render(); }),
   'assign': coachOnly(el => {
@@ -1367,6 +1661,10 @@ document.addEventListener('change', e => {
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
   if (k === 'msg-session') { state.msgSession = e.target.value; state.msgDraft = buildTemplate(state.msgTpl); render(); }
   if (k === 'post-notice') state.postNotice = e.target.checked;
+  if (k === 'ped-key' && state.ped) state.ped.key = e.target.checked;
+  if (k === 'ped-curve' && state.ped) { state.ped.curve = e.target.checked; refreshPlayEditor(); }
+  if (k === 'ped-focus' && state.ped) { const f = new Set(state.ped.draft.focus); e.target.checked ? f.add(e.target.value) : f.delete(e.target.value); state.ped.draft.focus = [...f]; refreshPlayEditor(); }
+  if (k === 'ped-tag' && state.ped) { const t = state.ped.draft.tags; if (e.target.checked) t[e.target.value] = 'F'; else delete t[e.target.value]; refreshPlayEditor(); }
   if (k === 'repeat') { const u = e.target.closest('form').querySelector('.repeat-until'); if (u) u.hidden = !e.target.checked; }
   if (k === 'import-file') {
     const file = e.target.files && e.target.files[0]; if (!file || !isCoach()) return;
@@ -1545,6 +1843,17 @@ document.addEventListener('submit', async e => {
     const sl = curLineup().slots.find(s => s.id === str('slot')); if (!sl) return;
     sl.label = (str('label') || sl.label).toUpperCase(); sl.name = str('name') || sl.name;
     save(); closeSheet(); render(); toast('Position renamed');
+  }
+  if (kind === 'play') {
+    const E = state.ped; if (!E) return;
+    if (!str('name')) { toast('Give the play a name'); return; }
+    finishPlayLine();
+    Object.assign(E.draft, { name: str('name'), category: str('category') || 'Other', when: str('when'), steps: String(f.get('steps') || '').trim() });
+    const i = data.plays.findIndex(p => p.id === E.draft.id);
+    if (i >= 0) data.plays[i] = E.draft; else data.plays.push(E.draft);
+    state.playId = E.draft.id; state.ped = null;
+    save(); closeSheet(); render(); toast('Play saved');
+    return;
   }
   if (kind === 'notice') {
     const text = str('text'); if (!text) return;
