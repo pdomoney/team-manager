@@ -831,6 +831,11 @@ function fieldSVG(lu, interactive) {
   s += `<rect x="0" y="0" width="50" height="80" fill="var(--turf)"/>`;
   for (let y = 5, i = 0; y < 75; y += 5, i++) if (i % 2) s += `<rect x="0" y="${y}" width="50" height="5" fill="var(--turf-2)"/>`;
   s += `<rect x="0" y="0" width="50" height="5" fill="var(--turf-3)"/><rect x="0" y="75" width="50" height="5" fill="var(--turf-3)"/>`;
+  // Attacking zones: red zone = their try line to their 20 m line; good ball = halfway to their 20 m line.
+  s += `<g class="zones" aria-hidden="true"><rect class="zone red" x="0" y="5" width="50" height="20"/><rect class="zone good" x="0" y="25" width="50" height="15"/>`;
+  s += `<line class="zone-line" x1="0" x2="50" y1="25" y2="25"/>`;
+  s += `<text class="zl" x="25" y="8.6">Red zone: their 20 m</text><text class="zl" x="25" y="28.6">Good ball: halfway to their 20 m</text>`;
+  s += `<text class="zm" x="49" y="24.2">20 m</text></g>`;
   s += `<rect class="mark" x="0" y="0" width="50" height="80"/>`;
   s += `<line class="mark" x1="0" x2="50" y1="5" y2="5"/><line class="mark" x1="0" x2="50" y1="75" y2="75"/><line class="mark" x1="0" x2="50" y1="40" y2="40"/>`;
   s += `<line class="mark dash" x1="0" x2="50" y1="30" y2="30"/><line class="mark dash" x1="0" x2="50" y1="50" y2="50"/>`;
