@@ -448,6 +448,7 @@ const isOut = p => isCoach() && p.status && p.status !== 'available';
 const statusPill = p => isOut(p) ? ` <span class="pill ${p.status}">${STATUS[p.status]}</span>` : '';
 
 function render() {
+  animStop();
   if (!S.role) return renderLock();
   V = curView();
   if (!isCoach() && state.tab === 'messages') state.tab = 'home';
@@ -1004,6 +1005,8 @@ function mirrorText(text) {
     .replace(/\b([LR])([WLRM])\b/g, (m, a, b) => (a === 'L' ? 'R' : 'L') + b)
     .replace(/\b(left|right|Left|Right)\b/g, w => ({ left: 'right', right: 'left', Left: 'Right', Right: 'Left' }[w]));
 }
+const round1 = n => Math.round(n * 10) / 10;
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 const LINE_XS = [3.6, 10.7, 17.9, 25, 32.1, 39.3, 46.4];
 const defaultDefence = (ry, xs = LINE_XS) => ({ marker: [25, ry - 3], line: xs.map(x => [x, ry - 7]) });
 const formation = ry => ({
@@ -1099,7 +1102,7 @@ function starterPlays() {
       handsPlay([[[30.2, 51], [33.2, 39.4]], [[36.6, 54], [40.4, 39.4]], [[44.6, 56.5], [47.5, 39.4]]])),
     // Wrap Block, from the coach's drawing: RR passes to RL (W2.1) and wraps around the back, behind
     // RW's block line, to take RL's pass (W2.2). Option: RL passes to RW on the inside line instead.
-    base('wrap-block', 5, 'Wrap Block', 'Edge', 'When their edge defenders are holding their spots: the inside lines hold them while RR wraps around.',
+    base('wrap-block', 6, 'Wrap Block', 'Edge', 'When their edge defenders are holding their spots: the inside lines hold them while RR wraps around.',
       'RR passes and wraps around the back, behind RW’s block line, to take RL’s pass and finish outside.',
       'LM, at dummy half, passes to RR.\nRR runs forward, passes to RL (W2.1), then wraps around behind RL.\nRL runs an inside line, and RW runs a block line in towards the ball, to hold their defenders.\nRR wraps behind RW’s block line, takes RL’s pass (W2.2) and finishes outside the last defender.\nOption: if their defence drifts out to cover the wrap, RL passes to RW on the inside line instead.',
       { focus: ['RR'], view: { x0: 11, x1: 48, y0: 36, y1: 54 },
@@ -1114,7 +1117,7 @@ function starterPlays() {
           { t: 'run', key: true, curve: true, pts: [[28.4, 50.4], [29.6, 45.7], [32.2, 47.1], [35.1, 47.6], [37.9, 46.8], [39.6, 45.3], [41.6, 41.3], [43.4, 37.6]] },
           { t: 'pass', pts: [[29.6, 45.7], [33.5, 45.8]] },
           { t: 'pass', key: true, pts: [[32.5, 42.4], [40.5, 43.5]] },
-          { t: 'pass', pts: [[32, 40.8], [37.9, 41.1]] }
+          { t: 'pass', opt: true, pts: [[32, 40.8], [37.9, 41.1]] }
         ] }),
     // Back Inside Block, from the coach's drawing: two sweepers (LR inside, LL outside) come across
     // from deep while RR and RL run block lines in. RR, with the ball, passes out to the outside
@@ -1167,6 +1170,30 @@ function upgradePlays(d, coach = true) {
   d.plays = plays;
   if (coach) d.playsRev = STARTER_SET;
   return d;
+}
+
+// Phases: phase 1 is the play itself; each later phase (the next ruck) lives in play.phases with its
+// own players, defence, lines, words, picture and title.
+const phaseCount = play => 1 + arr(play.phases).length;
+function phaseView(play, i) {
+  const ph = i ? arr(play.phases)[i - 1] : null; if (!ph) return play;
+  return { ...play, players: ph.players || {}, defence: ph.defence || defaultDefence(46), moves: ph.moves || [], notes: ph.notes || {}, labels: ph.labels || [],
+    view: ph.view, focus: ph.focus || [], ghost: ph.ghost || [], tags: ph.tags || {}, title: ph.title || '' };
+}
+const phaseTitle = (play, i, side) => { const t = phaseView(play, i).title || ''; return side !== (play.side || 'right') ? mirrorText(t) : t; };
+// The usual shape around a ruck anywhere on the field, squeezed in near a touch line.
+function formationAt(rx, ry) {
+  const L = clamp((rx - 2.5) / 3, 2.4, 8), R = clamp((47.5 - rx) / 3, 2.4, 8);
+  const P = (x, y) => [round1(clamp(x, 1.5, 48.5)), round1(clamp(y, 1, 79))];
+  return { RM: P(rx, ry), LM: P(rx - 0.4, ry + 3.6), LR: P(rx - L, ry + 5), LL: P(rx - 2 * L, ry + 8), LW: P(rx - 3 * L, ry + 10.5),
+    RR: P(rx + R, ry + 5), RL: P(rx + 2 * R, ry + 8), RW: P(rx + 3 * R, ry + 10.5) };
+}
+// Their marker and line 7 m back from a ruck (never behind their own try line), spread across the field.
+function defenceAt(rx, ry) {
+  const ly = round1(Math.max(5.5, ry - 7)), xs = [];
+  for (let k = -8; k <= 8; k++) { const x = rx + k * 6.6; if (x >= 1.8 && x <= 48.2) xs.push(x); }
+  xs.sort((a, b) => Math.abs(a - rx) - Math.abs(b - rx));
+  return { marker: [round1(rx), round1(Math.max(ly + 1.5, ry - 3))], line: xs.slice(0, 7).sort((a, b) => a - b).map(x => [round1(x), ly]) };
 }
 
 function playGeom(play, side) {
@@ -1301,7 +1328,7 @@ function playSVG(play, side, opts = {}) {
     const pts = trimLine(m.pts.map(XY), blockers);
     const head = m.t === 'shift' ? 'r' : m.key ? 'b' : 'g';
     const d = pathD(pts, m.curve);
-    s += `<path class="mv ${m.t}${m.key && m.t !== 'shift' ? ' key' : ''}" d="${d}"${m.t === 'dummy' ? '' : ` marker-end="url(#${id}-${head})"`}${opts.editor ? ` data-mv="${i}"` : ''}/>`;
+    s += `<path class="mv ${m.t}${m.key && m.t !== 'shift' ? ' key' : ''}${m.opt ? ' opt' : ''}" d="${d}"${m.t === 'dummy' ? '' : ` marker-end="url(#${id}-${head})"`}${opts.editor ? ` data-mv="${i}"` : ''}/>`;
     if (opts.editor) s += `<path class="mv-hit" d="${d}" data-mv="${i}"/>`;
   });
   if (opts.drawing && opts.drawing.pts.length) {
@@ -1317,6 +1344,7 @@ function playSVG(play, side, opts = {}) {
   }
   if (opts.editor) g.labels.forEach((l, i) => { s += `<circle class="ped-lbh" data-lb="${i}" cx="${X(l.at[0])}" cy="${Y(l.at[1])}" r="11"/>`; });
   if (opts.overlay) s += opts.overlay(fr);
+  if (opts.anim) s += `<g class="ball" transform="translate(-40 -40)"><ellipse rx="6.5" ry="4.6" transform="rotate(-35)"/><path d="M-3.2 -1.6L3.2 1.6" transform="rotate(-35)"/></g>`;
   return s + '</svg>';
 }
 function playLegend(play, side) {
@@ -1328,6 +1356,7 @@ function playLegend(play, side) {
     ${kinds.has('pass') ? `<span>${sw('5 4', grey)}Pass</span>` : ''}
     ${kinds.has('kick') ? `<span>${sw('1 4.5', grey)}Kick</span>` : ''}
     ${kinds.has('dummy') ? `<span>${sw('3 3', grey, false)}Dummy pass</span>` : ''}
+    ${g.moves.some(m => m.opt) ? `<span style="opacity:.6">${sw('5 4', grey)}Option</span>` : ''}
     ${g.moves.some(m => m.key && m.t !== 'shift') ? `<span>${sw('', blue, true, 2.4)}The key moves</span>` : ''}
     ${kinds.has('shift') ? `<span>${sw('', '#C4513F')}Defender moves</span>` : ''}
     <span><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="${grey}" stroke-width="1.3"/></svg>Defender</span>
@@ -1350,28 +1379,213 @@ function viewPlays() {
     <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.</p>
     ${V.plays.length ? `<div class="list">${V.plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
-      <span class="grow"><span class="name" style="display:block">${esc(p.name)}</span><span class="sub play-when">${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
+      <span class="grow"><span class="name" style="display:block">${esc(p.name)}</span><span class="sub play-when">${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
       <span class="pill neutral">${esc(p.category || 'Other')}</span>
     </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add one, or restore the starter plays.' : 'No plays yet.'}</p></div>`}
     ${coach && missing ? `<button class="link-btn" data-act="plays-restore">Restore the ${missing} missing starter play${missing === 1 ? '' : 's'}</button>` : ''}`;
 }
 function viewPlay(p) {
-  const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side), head = playHeadline(p, side);
+  const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side);
+  state.playPhase = clamp(state.playPhase || 0, 0, phaseCount(p) - 1);
   return `<button class="toggle-past" data-act="play-back">← All plays</button>
     <div class="sec-h"><h2>${esc(p.name)}</h2><span class="pill neutral">${esc(p.category || 'Other')}</span></div>
     <div class="seg" role="group" aria-label="Direction">
       <button data-act="play-side" data-side="left" aria-pressed="${side === 'left'}">Attacking left</button>
       <button data-act="play-side" data-side="right" aria-pressed="${side === 'right'}">Attacking right</button>
     </div>
-    <figure class="play-card">
-      ${head ? `<figcaption class="play-headline">${esc(head)}</figcaption>` : ''}
-      ${playSVG(p, side)}
-      ${playLegend(p, side)}
-    </figure>
+    <figure class="play-card" id="play-fig">${playFigure(p, side, state.playPhase)}</figure>
     ${when ? `<section class="sec" style="margin-top:16px"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
     ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}
     ${coach ? `<div class="btn-row"><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}`;
+}
+function playFigure(p, side, i) {
+  const view = phaseView(p, i), n = phaseCount(p), head = playHeadline(p, side), title = phaseTitle(p, i, side);
+  return `${head ? `<figcaption class="play-headline">${esc(head)}</figcaption>` : ''}
+    ${n > 1 ? `<div class="seg phase-bar" role="group" aria-label="Phase">${Array.from({ length: n }, (_, j) => `<button data-act="play-phase" data-i="${j}" aria-pressed="${j === i}">Phase ${j + 1}</button>`).join('')}</div>` : ''}
+    ${title ? `<p class="phase-title">${esc(title)}</p>` : ''}
+    ${playSVG(view, side, { anim: true })}
+    ${playLegend(view, side)}
+    <div class="anim-bar">
+      <button type="button" class="btn sm primary" data-act="anim-play">${anim.playing ? 'Pause' : anim.done ? 'Play again' : 'Play'}</button>
+      <button type="button" class="btn sm${anim.slow ? ' on' : ''}" data-act="anim-slow" aria-pressed="${!!anim.slow}">Slow</button>
+      ${n > 1 ? `<span class="muted small">Phase ${i + 1} of ${n}</span>` : ''}
+    </div>`;
+}
+
+/* ----- Animation ----- */
+// A phase plays out like this: each player runs along their lines (a run belongs to the player it
+// starts on; a run that starts where another ends carries on from it), and the ball goes through the
+// passes in the order they were drawn. A pass leaves when the passer reaches it and lands as the
+// receiver gets there, so players hurry or wait a little to stay in time. Players who never touch
+// the ball (decoys, block lines) run while the ball is being moved. Option passes are left out.
+const RUN_SPEED = 5, BALL_SPEED = 14;   // metres a second, as shown
+const anim = { raf: 0, playing: false, done: false, slow: false, plan: null, t: 0, last: 0, hold: 0 };
+const pathLen = pts => pts.slice(1).reduce((s, q, i) => s + dist(pts[i], q), 0);
+function pointAt(pts, a) {
+  for (let i = 1; i < pts.length; i++) {
+    const d = dist(pts[i - 1], pts[i]);
+    if (a <= d) { const f = d ? Math.max(0, a) / d : 0; return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f]; }
+    a -= d;
+  }
+  return pts[pts.length - 1].slice();
+}
+// How far along a path the nearest point to p is, and how far p is from it.
+function arcOf(pts, p) {
+  let best = { a: 0, d: dist(pts[0], p) }, acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const A = pts[i - 1], B = pts[i], L = dist(A, B), dx = B[0] - A[0], dy = B[1] - A[1];
+    const f = L ? clamp(((p[0] - A[0]) * dx + (p[1] - A[1]) * dy) / (L * L), 0, 1) : 0, d = dist([A[0] + dx * f, A[1] + dy * f], p);
+    if (d < best.d) best = { a: acc + L * f, d };
+    acc += L;
+  }
+  return best;
+}
+// The points along a drawn line, following the curve when it is curved.
+function linePoints(m) {
+  const P = m.pts; if (!m.curve || P.length < 3) return P.map(q => q.slice());
+  const out = [P[0].slice()];
+  for (let i = 0; i < P.length - 1; i++) {
+    const p0 = P[i - 1] || P[i], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    for (let k = 1; k <= 8; k++) {
+      const t = k / 8, u = 1 - t, b = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+      out.push([0, 1].map(j => b[0] * p1[j] + b[1] * c1[j] + b[2] * c2[j] + b[3] * p2[j]));
+    }
+  }
+  return out;
+}
+function planPhase(g) {
+  const runs = g.moves.filter(m => m.t === 'run').map(m => ({ pts: linePoints(m), used: false }));
+  const paths = {};
+  Object.entries(g.players).forEach(([id, p]) => {
+    let pts = [p.slice()], end = p;
+    for (let n = 0; n < 6; n++) {
+      const next = runs.find(r => !r.used && dist(r.pts[0], end) < 1); if (!next) break;
+      next.used = true; pts = pts.concat(next.pts.slice(1)); end = next.pts[next.pts.length - 1];
+    }
+    paths[id] = { pts, len: pathLen(pts), keys: [] };
+  });
+  const ids = Object.keys(paths);
+  const nearest = (p, lim, not, prefer) => {
+    let best = null;
+    ids.filter(id => id !== not).forEach(id => { const r = arcOf(paths[id].pts, p); if (r.d <= lim && (!best || r.d < best.d)) best = { id, ...r }; });
+    if (prefer && prefer !== not) { const r = arcOf(paths[prefer].pts, p); if (r.d <= lim + 1) return { id: prefer, ...r }; }
+    return best;
+  };
+  const last = id => paths[id].keys[paths[id].keys.length - 1];
+  const natural = (id, a) => { const k = last(id) || [0, 0.3]; return k[1] + Math.max(0, a - k[0]) / RUN_SPEED; };
+  const passes = [];
+  let carrier = null, free = 0.3;
+  g.moves.filter(m => (m.t === 'pass' || m.t === 'kick') && !m.opt).forEach(m => {
+    const S = m.pts[0], E = m.pts[m.pts.length - 1];
+    const from = nearest(S, 1.6, null, carrier); if (!from) return;
+    const to = nearest(E, 2.4, from.id); if (!to) return;
+    const aS = Math.max(from.a, last(from.id) ? last(from.id)[0] : 0), aE = Math.max(to.a, last(to.id) ? last(to.id)[0] : 0);
+    const flight = dist(S, E) / (m.t === 'kick' ? 10 : BALL_SPEED);
+    const t0 = Math.max(natural(from.id, aS), natural(to.id, aE) - flight, free, last(from.id) ? last(from.id)[1] : 0);
+    const t1 = Math.max(t0 + flight, last(to.id) ? last(to.id)[1] : 0);
+    paths[from.id].keys.push([aS, t0]); paths[to.id].keys.push([aE, t1]);
+    passes.push({ from: from.id, to: to.id, S, E, t0, t1, kick: m.t === 'kick' });
+    carrier = to.id; free = t1 + 0.15;
+  });
+  if (!passes.length) {   // no passes: the ball stays with whoever shows a dummy pass, or the key player
+    const dm = g.moves.find(m => m.t === 'dummy'), from = dm && nearest(dm.pts[0], 1.6);
+    carrier = from ? from.id : (g.focus.find(id => paths[id]) || null);
+  }
+  const tA = passes.length ? passes[0].t0 : 0.3, tB = passes.length ? passes[passes.length - 1].t1 : 0.3;
+  ids.forEach(id => {
+    const P = paths[id]; if (P.len < 0.3) { P.keys = [[0, 0]]; return; }
+    if (!P.keys.length) { P.keys = [[0, tA], [P.len, tA + Math.max(P.len / RUN_SPEED, tB - tA)]]; return; }
+    P.keys.sort((a, b) => a[0] - b[0]);
+    for (let i = 1; i < P.keys.length; i++) P.keys[i][1] = Math.max(P.keys[i][1], P.keys[i - 1][1]);
+    const k0 = P.keys[0]; if (k0[0] > 0.01) P.keys.unshift([0, Math.max(0.3, k0[1] - k0[0] / RUN_SPEED)]);
+    const kN = P.keys[P.keys.length - 1]; if (kN[0] < P.len - 0.01) P.keys.push([P.len, kN[1] + (P.len - kN[0]) / RUN_SPEED]);
+  });
+  const shifts = g.moves.filter(m => m.t === 'shift').map(m => {
+    const pts = linePoints(m), at = pts[0];
+    const who = g.marker && dist(g.marker, at) < 1 ? 'mk' : g.line.findIndex(q => dist(q, at) < 1);
+    return { who, pts, len: pathLen(pts), t0: tA, t1: tA + Math.max(0.9, (tB - tA) * 0.8) };
+  }).filter(s => s.who !== -1);
+  const T = Math.max(0.6, ...ids.map(id => paths[id].keys[paths[id].keys.length - 1][1]), ...passes.map(p => p.t1), ...shifts.map(s => s.t1)) + 0.4;
+  return { paths, passes, shifts, T, first: passes.length ? passes[0].from : carrier, carrier };
+}
+const arcAt = (keys, t) => {
+  if (t <= keys[0][1]) return keys[0][0];
+  for (let i = 1; i < keys.length; i++) { const [a0, t0] = keys[i - 1], [a1, t1] = keys[i]; if (t <= t1) return t1 > t0 ? a0 + (a1 - a0) * (t - t0) / (t1 - t0) : a1; }
+  return keys[keys.length - 1][0];
+};
+function animFrame(svg, plan, t) {
+  const d = svg.dataset, k = +d.k, X = x => (PPAD + (x - +d.x0) * k).toFixed(1), Y = y => (+d.top + (y - +d.y0) * k).toFixed(1);
+  const at = {};
+  Object.entries(plan.paths).forEach(([id, P]) => {
+    const q = at[id] = pointAt(P.pts, arcAt(P.keys, t)), el = svg.querySelector(`[data-pl="${id}"]`);
+    if (el) el.setAttribute('transform', `translate(${X(q[0])} ${Y(q[1])})`);
+  });
+  plan.shifts.forEach(s => {
+    const el = svg.querySelector(s.who === 'mk' ? '[data-mk]' : `[data-df="${s.who}"]`); if (!el) return;
+    const q = pointAt(s.pts, s.len * clamp((t - s.t0) / (s.t1 - s.t0), 0, 1));
+    el.setAttribute('transform', `translate(${X(q[0])} ${Y(q[1])})`);
+  });
+  const ball = svg.querySelector('.ball'); if (!ball) return;
+  const fly = plan.passes.find(p => t >= p.t0 && t < p.t1);
+  let b = null;
+  if (fly) { const f = (t - fly.t0) / (fly.t1 - fly.t0); b = [fly.S[0] + (fly.E[0] - fly.S[0]) * f, fly.S[1] + (fly.E[1] - fly.S[1]) * f]; }
+  else {
+    const done = plan.passes.filter(p => p.t1 <= t), who = done.length ? done[done.length - 1].to : plan.first;
+    if (who && at[who]) b = [at[who][0], at[who][1]];
+  }
+  if (!b) { ball.setAttribute('transform', 'translate(-40 -40)'); return; }
+  const off = fly ? 0 : 9;   // carried in the right hand
+  ball.setAttribute('transform', `translate(${(+X(b[0]) + off).toFixed(1)} ${(+Y(b[1]) - off).toFixed(1)})`);
+}
+function animStop(keepDone) {
+  if (anim.raf) cancelAnimationFrame(anim.raf);
+  anim.raf = 0; anim.playing = false; if (!keepDone) anim.done = false;
+  const svg = $('#play-fig svg'); if (svg) svg.classList.remove('animating');
+}
+function animButtons() {
+  const b = $('[data-act="anim-play"]'); if (b) b.textContent = anim.playing ? 'Pause' : anim.done ? 'Play again' : 'Play';
+}
+function animShowPhase(p, i) {
+  state.playPhase = i;
+  const fig = $('#play-fig'); if (!fig) return null;
+  fig.innerHTML = playFigure(p, state.playSide, i);
+  const svg = fig.querySelector('svg');
+  anim.plan = planPhase(playGeom(phaseView(p, i), state.playSide)); anim.t = 0;
+  return svg;
+}
+function animStart() {
+  const p = playById(state.playId); if (!p) return;
+  if (anim.playing) { animStop(); animButtons(); return; }                // pause
+  if (anim.done || !anim.plan || anim.planFor !== `${p.id}/${state.playSide}/${state.playPhase}`) {
+    animShowPhase(p, anim.done && state.playPhase === phaseCount(p) - 1 ? 0 : state.playPhase);
+    anim.planFor = `${p.id}/${state.playSide}/${state.playPhase}`;
+  }
+  anim.done = false; anim.playing = true; anim.last = performance.now(); anim.hold = 0;
+  const svg0 = $('#play-fig svg'); if (svg0) svg0.classList.add('animating');
+  animButtons();
+  const tick = now => {
+    const svg = $('#play-fig svg'); if (!svg || !anim.playing) return;
+    const dt = Math.min(0.05, (now - anim.last) / 1000) * (anim.slow ? 0.45 : 1); anim.last = now;
+    if (anim.hold > 0) {   // a short pause at the end of a phase before the next ruck
+      anim.hold -= dt;
+      if (anim.hold <= 0) {
+        const next = animShowPhase(p, state.playPhase + 1);
+        anim.planFor = `${p.id}/${state.playSide}/${state.playPhase}`;
+        if (next) { next.classList.add('animating'); animButtons(); }
+      }
+    } else {
+      anim.t = Math.min(anim.plan.T, anim.t + dt);
+      animFrame(svg, anim.plan, anim.t);
+      if (anim.t >= anim.plan.T) {
+        if (state.playPhase < phaseCount(p) - 1) anim.hold = 0.9;
+        else { anim.playing = false; anim.done = true; anim.raf = 0; animButtons(); return; }
+      }
+    }
+    anim.raf = requestAnimationFrame(tick);
+  };
+  anim.raf = requestAnimationFrame(tick);
 }
 
 /* ----- Play editor (coach) ----- */
@@ -1385,8 +1599,6 @@ const PED_TOOLS = [['select', 'Select'], ['run', 'Run'], ['pass', 'Pass'], ['dum
 const PED_NAMES = Object.fromEntries(PED_TOOLS);
 const PED_DRAW = ['run', 'pass', 'dummy', 'kick', 'shift'];
 const PED_SIDES = [['l', 'Left'], ['r', 'Right'], ['a', 'Above'], ['b', 'Below'], ['al', 'Above left'], ['ar', 'Above right'], ['bl', 'Below left'], ['br', 'Below right']];
-const round1 = n => Math.round(n * 10) / 10;
-const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
 function blankPlay() {
   return { id: uid(), name: '', category: 'Other', when: '', headline: '', steps: '', side: 'right', builtin: false,
@@ -1395,14 +1607,17 @@ function blankPlay() {
 function openPlayEditor(play) {
   const draft = JSON.parse(JSON.stringify(play || blankPlay()));
   if (draft.side && draft.side !== 'right') {   // edit everything in the attacking-right orientation
-    const g = playGeom(draft, 'right');
-    Object.assign(draft, { side: 'right', players: g.players, tags: g.tags, focus: g.focus, ghost: g.ghost, notes: g.notes, labels: g.labels, view: g.view || undefined, moves: g.moves,
-      defence: { marker: g.marker, line: g.line }, steps: mirrorText(draft.steps), when: mirrorText(draft.when), headline: mirrorText(draft.headline) });
+    const right = view => { const g = playGeom(view, 'right'); return { players: g.players, tags: g.tags, focus: g.focus, ghost: g.ghost, notes: g.notes, labels: g.labels, view: g.view || undefined, moves: g.moves, defence: { marker: g.marker, line: g.line }, title: mirrorText(view.title) }; };
+    const phases = arr(draft.phases).map((ph, i) => right(phaseView(draft, i + 1)));
+    Object.assign(draft, right(draft), { side: 'right', phases, steps: mirrorText(draft.steps), when: mirrorText(draft.when), headline: mirrorText(draft.headline) });
   }
-  draft.defence = draft.defence || defaultDefence(46); draft.defence.line = draft.defence.line || [];
-  ['moves', 'focus', 'ghost', 'labels'].forEach(k => { draft[k] = draft[k] || []; });
-  draft.notes = draft.notes || {}; draft.tags = draft.tags || {}; draft.players = draft.players || formation(46);
-  state.ped = { draft, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, undo: [], dirty: false, tab: 'diagram' };
+  const tidy = ph => {
+    ph.defence = ph.defence || defaultDefence(46); ph.defence.line = ph.defence.line || [];
+    ['moves', 'focus', 'ghost', 'labels'].forEach(k => { ph[k] = ph[k] || []; });
+    ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
+  };
+  tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
+  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, undo: [], dirty: false, tab: 'diagram' };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
     <div class="two">
       <label class="field-l"><span>Name</span><input type="text" name="name" value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
@@ -1418,6 +1633,8 @@ function openPlayEditor(play) {
       <label class="field-l"><span>Steps, one per line</span><textarea name="steps" rows="6" placeholder="Use LW, LL, LR, LM, RM, RR, RL, RW so the left version swaps them automatically.">${esc(draft.steps)}</textarea></label>
     </div>
     <div id="ped-diagram" class="ped-diagram">
+      <div class="ped-phases" id="ped-phases"></div>
+      <label class="field-l ped-ptitle"><span id="ped-ptitle-l">Phase 1</span><input type="text" id="ped-ptitle" data-input="ped-ptitle" value="${esc(draft.title || '')}" placeholder="What happens in this phase, e.g. Tag 2: hands right"></label>
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
       <div class="ped-main">
         <div class="play-card ped-card"><div id="ped-field"></div></div>
@@ -1431,12 +1648,15 @@ function openPlayEditor(play) {
   bindPlayEditor(); refreshPlayEditor();
 }
 
-// The picture frame: the play's chosen view, or the automatic one.
-const pedFrame = E => E.draft.view || autoFrame(playGeom(E.draft, 'right'));
+// The phase being edited (phase 1 is the play itself), and how it looks with the rest of the play.
+const pedCur = E => E.phase ? E.draft.phases[E.phase - 1] : E.draft;
+const pedView = E => phaseView(E.draft, E.phase);
+// The picture frame: the phase's chosen view, or the automatic one.
+const pedFrame = E => pedCur(E).view || autoFrame(playGeom(pedView(E), 'right'));
 // The editor shows the frame with a margin around it, or the whole field. It holds still while dragging.
 function pedViewport(E) {
   if (E.lockView) return E.lockView;
-  if (E.whole) return { x0: 0, x1: 50, y0: 0, y1: 80 };
+  if (E.whole || E.placing) return { x0: 0, x1: 50, y0: 0, y1: 80 };
   const f = pedFrame(E), m = 4;
   return { x0: Math.max(0, f.x0 - m), x1: Math.min(50, f.x1 + m), y0: Math.max(0, f.y0 - m), y1: Math.min(80, f.y1 + m) };
 }
@@ -1491,7 +1711,7 @@ function pedSwapWords(a, b) {
 }
 function pedSelect(sel) { const E = state.ped; E.sel = sel; E.selH = null; E.textSnap = false; }
 function pedNearest(E, p, kind, r) {
-  const d = E.draft;
+  const d = pedCur(E);
   const list = kind === 'defence' ? [...(d.defence.marker ? [d.defence.marker] : []), ...d.defence.line] : Object.values(d.players);
   const best = list.map(q => ({ q, d: dist(q, p) })).sort((a, b) => a.d - b.d)[0];
   return best && best.d <= r ? best.q.slice() : null;
@@ -1499,7 +1719,8 @@ function pedNearest(E, p, kind, r) {
 const pedNoteKey = sel => sel.k === 'pl' ? sel.id : sel.k === 'mk' ? 'marker' : 'd' + sel.i;
 
 function pedOverlay(E, fr) {
-  const { X, Y, H } = fr, d = E.draft, f = pedFrame(E);
+  const { X, Y, H } = fr, d = pedCur(E), f = pedFrame(E);
+  if (E.placing) return '';
   const fx0 = X(f.x0), fx1 = X(f.x1), fy0 = Y(f.y0), fy1 = Y(f.y1);
   let s = `<path class="ped-dim" fill-rule="evenodd" d="M0 0H${PW}V${H}H0Z M${fx0} ${fy0}V${fy1}H${fx1}V${fy0}Z"/>`;
   s += `<rect class="ped-frame${d.view ? '' : ' auto'}" x="${fx0}" y="${fy0}" width="${(fx1 - fx0).toFixed(1)}" height="${(fy1 - fy0).toFixed(1)}"/>`;
@@ -1528,7 +1749,8 @@ function pedOverlay(E, fr) {
   return s;
 }
 function pedPanel(E) {
-  const d = E.draft, sel = E.sel;
+  const d = pedCur(E), sel = E.sel;
+  if (E.placing) return `<div class="ped-h3">Add phase ${phaseCount(E.draft) + 1}</div><p class="hint" style="margin:0 0 10px">Tap the field where the next ruck is. The team lines up around it, with their defence 7 m back.</p><button type="button" class="btn sm" data-act="ped-phase-cancel">Cancel</button>`;
   const btn = (act, label, on, extra = '') => `<button type="button" class="btn sm${on ? ' on' : ''}" data-act="${act}" aria-pressed="${!!on}" ${extra}>${label}</button>`;
   const del = (label) => `<button type="button" class="btn sm danger" data-act="ped-del">${label}</button>`;
   const sides = side => `<label class="field-l"><span>Where the words go</span><select data-change="ped-side">${PED_SIDES.map(([v, l]) => `<option value="${v}" ${v === side ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
@@ -1536,8 +1758,8 @@ function pedPanel(E) {
     const m = d.moves[sel.i], bend = E.selH > 0 && E.selH < m.pts.length - 1;
     return `<div class="ped-h3">${MOVE_KINDS[m.t] || m.t}${m.key ? ', a key move' : ''}</div>
       <div class="seg ped-types" role="group" aria-label="Line type">${PED_DRAW.map(t => `<button type="button" data-act="ped-mv-type" data-t="${t}" aria-pressed="${m.t === t}">${PED_NAMES[t]}</button>`).join('')}</div>
-      <div class="btn-row">${m.t !== 'shift' ? btn('ped-mv', 'Key move (blue)', m.key, 'data-f="key"') : ''}${btn('ped-mv', 'Curved', m.curve, 'data-f="curve"')}${bend ? btn('ped-mv', 'Remove this bend', false, 'data-f="unbend"') : ''}${del('Delete line')}</div>
-      <p class="hint">Drag the round handles to move the start, the end or a bend. Drag a small + to add a bend. Drag the line itself to move all of it.</p>`;
+      <div class="btn-row">${m.t !== 'shift' ? btn('ped-mv', 'Key move (blue)', m.key, 'data-f="key"') : ''}${btn('ped-mv', 'Curved', m.curve, 'data-f="curve"')}${m.t === 'pass' || m.t === 'kick' ? btn('ped-mv', 'Option', m.opt, 'data-f="opt"') : ''}${bend ? btn('ped-mv', 'Remove this bend', false, 'data-f="unbend"') : ''}${del('Delete line')}</div>
+      <p class="hint">Drag the round handles to move the start, the end or a bend. Drag a small + to add a bend. Drag the line itself to move all of it.${m.t === 'pass' || m.t === 'kick' ? ' An Option pass is drawn lighter and left out when the play is animated.' : ''}</p>`;
   }
   if (sel && ['pl', 'df', 'mk'].includes(sel.k)) {
     const key = pedNoteKey(sel), n = d.notes[key];
@@ -1566,7 +1788,7 @@ function pedPanel(E) {
   if (E.tool === 'frame') {
     const f = pedFrame(E);
     return `<div class="ped-h3">Picture: ${round1(f.x1 - f.x0)} m wide, ${round1(f.y1 - f.y0)} m deep${d.view ? '' : ' (automatic)'}</div>
-      <div class="btn-row">${btn('ped-frame', 'Fit to the play', false, 'data-f="fit"')}${btn('ped-frame', 'Whole width', false, 'data-f="width"')}${btn('ped-frame', 'Whole field', false, 'data-f="field"')}${d.view ? btn('ped-frame', 'Automatic', false, 'data-f="auto"') : ''}</div>
+      <div class="btn-row">${btn('ped-frame', 'Fit to the phase', false, 'data-f="fit"')}${btn('ped-frame', 'Whole width', false, 'data-f="width"')}${btn('ped-frame', 'Whole field', false, 'data-f="field"')}${d.view ? btn('ped-frame', 'Automatic', false, 'data-f="auto"') : ''}</div>
       <p class="hint">Drag the blue handles to set how wide and deep the picture is, or drag inside the frame to move it. Anything outside the frame is left out of the picture.</p>`;
   }
   if (PED_DRAW.includes(E.tool)) {
@@ -1579,10 +1801,14 @@ function pedPanel(E) {
 }
 function refreshPedField() {
   const E = state.ped, box = $('#ped-field'); if (!E || !box) return;
-  box.innerHTML = playSVG(E.draft, 'right', { editor: true, svgId: 'ped-svg', viewport: pedViewport(E), overlay: fr => pedOverlay(E, fr) });
+  box.innerHTML = playSVG(pedView(E), 'right', { editor: true, svgId: 'ped-svg', viewport: pedViewport(E), overlay: fr => pedOverlay(E, fr) });
 }
 function refreshPlayEditor() {
   const E = state.ped; if (!E || !$('#ped-field')) return;
+  const n = phaseCount(E.draft);
+  $('#ped-phases').innerHTML = `<div class="seg phase-bar" role="group" aria-label="Phase">${Array.from({ length: n }, (_, j) => `<button type="button" data-act="ped-phase" data-i="${j}" aria-pressed="${j === E.phase && !E.placing}">Phase ${j + 1}</button>`).join('')}<button type="button" data-act="ped-phase-add" aria-pressed="${!!E.placing}">+ Phase</button></div>
+    ${E.phase ? `<button type="button" class="link-btn ped-phase-del" data-act="ped-phase-del">Delete phase ${E.phase + 1}</button>` : ''}`;
+  $('#ped-ptitle-l').textContent = n > 1 ? `Phase ${E.phase + 1}` : 'Phase 1 (add more phases for the next rucks)';
   $('#ped-tools').innerHTML = PED_TOOLS.map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${E.tool === k}">${l}</button>`).join('');
   refreshPedField();
   $('#ped-panel').innerHTML = pedPanel(E);
@@ -1590,18 +1816,36 @@ function refreshPlayEditor() {
   const w = $('[data-act="ped-whole"]'); if (w) w.textContent = E.whole ? 'Zoom to the picture' : 'Show the whole field';
   if (E.focusText) { E.focusText = false; const t = $('#ped-text'); if (t) { t.focus(); t.select(); } }
 }
+function pedSyncTitle() {
+  const E = state.ped, t = $('#ped-ptitle'); if (E && t) t.value = pedCur(E).title || '';
+}
+function pedSetPhase(i) {
+  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length); E.placing = false; pedSelect(null); E.drawing = null;
+  pedSyncTitle(); refreshPlayEditor();
+}
+// A new phase: the team lines up around the next ruck, with their defence 7 m back.
+function pedAddPhase(at) {
+  const E = state.ped, rx = round1(clamp(at[0], 3, 47)), ry = round1(clamp(at[1], 12, 76));
+  pedSnap();
+  E.draft.phases.push({ title: '', players: formationAt(rx, ry), defence: defenceAt(rx, ry), moves: [], focus: [], ghost: [], tags: {}, labels: [],
+    notes: { RM: { text: 'Plays the ball', side: 'l' }, LM: { text: 'Dummy half', side: 'l' } } });
+  E.whole = E.wasWhole || false;
+  pedSetPhase(E.draft.phases.length);
+  const t = $('#ped-ptitle'); if (t) t.focus();
+}
 function pedUndo() {
   const E = state.ped; if (!E || !E.undo.length) return;
   const step = E.undo.pop();
   E.draft = JSON.parse(step.draft); E.selH = null; E.drawing = null; E.textSnap = false;
+  E.phase = Math.min(E.phase, E.draft.phases.length); pedSyncTitle();
   if (step.swap) { pedSwapWords(...step.swap); if (E.sel && E.sel.k === 'pl' && step.swap.includes(E.sel.id)) E.sel = { k: 'pl', id: step.swap.find(c => c !== E.sel.id) }; }
-  const d = E.draft, s = E.sel;   // keep the selection if it is still there
+  const d = pedCur(E), s = E.sel;   // keep the selection if it is still there
   if (s && !((s.k === 'mv' && d.moves[s.i]) || (s.k === 'lb' && d.labels[s.i]) || (s.k === 'pl' && d.players[s.id]) || (s.k === 'df' && d.defence.line[s.i]) || (s.k === 'mk' && d.defence.marker))) E.sel = null;
   refreshPlayEditor();
 }
 function pedDelete() {
   const E = state.ped; if (!E || !E.sel) return false;
-  const d = E.draft, sel = E.sel;
+  const d = pedCur(E), sel = E.sel;
   if (sel.k === 'mv' && d.moves[sel.i]) { pedSnap(); d.moves.splice(sel.i, 1); }
   else if (sel.k === 'lb' && d.labels[sel.i]) { pedSnap(); d.labels.splice(sel.i, 1); }
   else return false;
@@ -1631,7 +1875,8 @@ function bindPlayEditor() {
   const anchored = (d, spot) => d.moves.flatMap((m, i) => m.pts.map((q, j) => (j === 0 || j === m.pts.length - 1) && dist(q, spot) < 0.4 ? [i, j] : null).filter(Boolean));
   box.addEventListener('pointerdown', e => {
     const E = state.ped, s = svgEl(); if (!E || !s || (e.button && e.button > 0)) return;
-    const p = toMetres(e), t = e.target, d = E.draft, hit = q => t.closest && t.closest(q);
+    const p = toMetres(e), t = e.target, d = pedCur(E), hit = q => t.closest && t.closest(q);
+    if (E.placing) { pedAddPhase(p); e.preventDefault(); return; }
     E.lockView = pedViewport(E);
     drag = { p0: p, moved: false, tap: t };
     const h = hit('[data-h]'), add = hit('[data-hadd]'), fe = hit('[data-fe]'), fb = hit('[data-fb]');
@@ -1661,7 +1906,7 @@ function bindPlayEditor() {
   });
   box.addEventListener('pointermove', e => {
     const E = state.ped; if (!drag || !E) return;
-    const p = toMetres(e), d = E.draft;
+    const p = toMetres(e), d = pedCur(E);
     if (!drag.moved) {
       if (dist(p, drag.p0) < 0.6) return;
       drag.moved = true;
@@ -1688,7 +1933,7 @@ function bindPlayEditor() {
     const E = state.ped, k = drag; drag = null;
     try { box.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
     if (!E || !k) return;
-    const d = E.draft;
+    const d = pedCur(E);
     if (k.kind === 'draw') {
       const line = E.drawing; E.drawing = null;
       if (k.moved && line && dist(line.pts[0], line.pts[1]) >= 1) {
@@ -1713,8 +1958,9 @@ function bindPlayEditor() {
   box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
 }
 function playShareText(p, side) {
-  const steps = playSteps(p, side), when = playWhen(p, side), head = playHeadline(p, side);
-  return `🏉 *${p.name}* (attacking ${side})${head ? `\n${head}` : ''}${when ? `\n\n_When:_ ${when}` : ''}\n\n${steps.map((l, i) => `${i + 1}. ${l}`).join('\n')}`;
+  const steps = playSteps(p, side), when = playWhen(p, side), head = playHeadline(p, side), n = phaseCount(p);
+  const phases = n > 1 ? `\n\n${Array.from({ length: n }, (_, i) => `Phase ${i + 1}${phaseTitle(p, i, side) ? `: ${phaseTitle(p, i, side)}` : ''}`).join('\n')}` : '';
+  return `🏉 *${p.name}* (attacking ${side})${head ? `\n${head}` : ''}${when ? `\n\n_When:_ ${when}` : ''}${phases}\n\n${steps.map((l, i) => `${i + 1}. ${l}`).join('\n')}`;
 }
 
 /* ---------- Messages (coach) ---------- */
@@ -2032,7 +2278,10 @@ const actions = {
 
   'lineup-menu': coachOnly(() => lineupMenu()),
   'layer': el => { const k = el.dataset.k; state.layers[k] = !state.layers[k]; store.set('tm-field-layers', JSON.stringify(state.layers)); render(); },
-  'play-open': el => { state.playId = el.dataset.id; render(); window.scrollTo(0, 0); },
+  'play-open': el => { state.playId = el.dataset.id; state.playPhase = 0; render(); window.scrollTo(0, 0); },
+  'play-phase': el => { const p = playById(state.playId); if (!p) return; animStop(); animShowPhase(p, Number(el.dataset.i)); anim.planFor = null; },
+  'anim-play': () => animStart(),
+  'anim-slow': el => { anim.slow = !anim.slow; el.classList.toggle('on', anim.slow); el.setAttribute('aria-pressed', String(anim.slow)); },
   'play-back': () => { state.playId = null; render(); window.scrollTo(0, 0); },
   'play-side': el => { state.playSide = el.dataset.side; render(); },
   'play-new': coachOnly(() => openPlayEditor(null)),
@@ -2060,22 +2309,29 @@ const actions = {
     document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === E.tab)));
   }),
   'ped-undo': coachOnly(() => pedUndo()),
+  'ped-phase': coachOnly(el => pedSetPhase(Number(el.dataset.i))),
+  'ped-phase-add': coachOnly(() => { const E = state.ped; if (E.placing) return; E.wasWhole = E.whole; E.placing = true; pedSelect(null); refreshPlayEditor(); }),
+  'ped-phase-cancel': coachOnly(() => { const E = state.ped; E.placing = false; E.whole = E.wasWhole || false; refreshPlayEditor(); }),
+  'ped-phase-del': coachOnly(() => {
+    const E = state.ped; if (!E.phase || !confirm(`Delete phase ${E.phase + 1}?`)) return;
+    pedSnap(); E.draft.phases.splice(E.phase - 1, 1); pedSetPhase(E.phase - 1);
+  }),
   'ped-whole': coachOnly(() => { state.ped.whole = !state.ped.whole; refreshPlayEditor(); }),
   'ped-del': coachOnly(() => pedDelete()),
   'ped-opt': coachOnly(el => { const E = state.ped; E[el.dataset.f] = !E[el.dataset.f]; refreshPlayEditor(); }),
   'ped-mv-type': coachOnly(el => {
-    const E = state.ped, m = E.sel && E.draft.moves[E.sel.i]; if (!m) return;
+    const E = state.ped, m = E.sel && pedCur(E).moves[E.sel.i]; if (!m) return;
     pedSnap(); m.t = el.dataset.t; if (m.t === 'shift') delete m.key; refreshPlayEditor();
   }),
   'ped-mv': coachOnly(el => {
-    const E = state.ped, m = E.sel && E.draft.moves[E.sel.i], f = el.dataset.f; if (!m) return;
+    const E = state.ped, m = E.sel && pedCur(E).moves[E.sel.i], f = el.dataset.f; if (!m) return;
     pedSnap();
     if (f === 'unbend') { m.pts.splice(E.selH, 1); E.selH = null; }
     else { if (m[f]) delete m[f]; else m[f] = true; E[f] = !!m[f]; }
     refreshPlayEditor();
   }),
   'ped-pl': coachOnly(el => {
-    const E = state.ped, d = E.draft, id = E.sel && E.sel.id, f = el.dataset.f; if (!id) return;
+    const E = state.ped, d = pedCur(E), id = E.sel && E.sel.id, f = el.dataset.f; if (!id) return;
     pedSnap();
     if (f === 'tag') { if (d.tags[id] === 'F') delete d.tags[id]; else d.tags[id] = 'F'; }
     else { const set = new Set(d[f]); set.has(id) ? set.delete(id) : set.add(id); d[f] = [...set]; }
@@ -2084,17 +2340,17 @@ const actions = {
   'ped-swap': coachOnly(el => {
     const E = state.ped, a = E.sel && E.sel.k === 'pl' && E.sel.id, b = el.dataset.to;
     if (!a || !b || a === b) return;
-    pedSnap([a, b]); pedSwapPlayers(E.draft, a, b); pedSwapWords(a, b);
+    pedSnap([a, b]); [E.draft, ...E.draft.phases].forEach(ph => { pedSwapPlayers(ph, a, b); if (ph.title) ph.title = swapCodes(ph.title, a, b); }); pedSwapWords(a, b); pedSyncTitle();
     E.sel = { k: 'pl', id: b };   // the same spot, now played by b
     refreshPlayEditor(); toast(`${a} and ${b} swapped`);
   }),
   'ped-lb-dot': coachOnly(() => {
-    const E = state.ped, l = E.sel && E.draft.labels[E.sel.i]; if (!l) return;
+    const E = state.ped, l = E.sel && pedCur(E).labels[E.sel.i]; if (!l) return;
     pedSnap(); if (l.dot) delete l.dot; else l.dot = true; refreshPlayEditor();
   }),
   'ped-frame': coachOnly(el => {
-    const E = state.ped, d = E.draft, f = el.dataset.f; pedSnap();
-    if (f === 'fit') d.view = fitView(d);
+    const E = state.ped, d = pedCur(E), f = el.dataset.f; pedSnap();
+    if (f === 'fit') d.view = fitView(pedView(E));
     if (f === 'width') d.view = { ...pedFrame(E), x0: 0, x1: 50 };
     if (f === 'field') d.view = { x0: 0, x1: 50, y0: 0, y1: 80 };
     if (f === 'auto') delete d.view;
@@ -2179,8 +2435,9 @@ document.addEventListener('input', e => {
   const k = e.target.dataset.input; if (!k) return;
   if (k === 'squad-search') { state.squadSearch = e.target.value; const l = $('#squad-list'); if (l) l.innerHTML = squadList(); }
   if (k === 'msg') state.msgDraft = e.target.value;
+  if (k === 'ped-ptitle' && state.ped) { pedCur(state.ped).title = e.target.value; state.ped.dirty = true; }
   if ((k === 'ped-text' || k === 'ped-line') && state.ped && state.ped.sel) {
-    const E = state.ped, d = E.draft;
+    const E = state.ped, d = pedCur(E);
     if (!E.textSnap) { pedSnap(); E.textSnap = true; }
     if (k === 'ped-line') d.notes.line = { text: e.target.value };
     else if (E.sel.k === 'lb' && d.labels[E.sel.i]) d.labels[E.sel.i].text = e.target.value;
@@ -2194,7 +2451,7 @@ document.addEventListener('change', e => {
   if (k === 'msg-session') { state.msgSession = e.target.value; state.msgDraft = buildTemplate(state.msgTpl); render(); }
   if (k === 'post-notice') state.postNotice = e.target.checked;
   if (k === 'ped-side' && state.ped && state.ped.sel) {
-    const E = state.ped, d = E.draft; pedSnap();
+    const E = state.ped, d = pedCur(E); pedSnap();
     if (E.sel.k === 'lb' && d.labels[E.sel.i]) d.labels[E.sel.i].side = e.target.value;
     else { const key = pedNoteKey(E.sel); d.notes[key] = { text: E.sel.k === 'mk' ? 'Marker' : '', ...(d.notes[key] || {}), side: e.target.value }; }
     refreshPedField();
@@ -2464,6 +2721,6 @@ function startTrial() {
 }
 
 // Exposed for automated tests only.
-window.__team = { get data() { return data; }, get teamData() { return teamData; }, S, state };
+window.__team = { get data() { return data; }, get teamData() { return teamData; }, S, state, anim, planPhase: (p, i, side) => planPhase(playGeom(phaseView(p, i), side || 'right')) };
 
 boot().finally(() => checkForUpdate());
