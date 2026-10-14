@@ -988,10 +988,15 @@ function lineupText(lu) {
 // Optional extras: headline (one line on what the play achieves), notes beside players
 // ({ RM: { text, side } }, plus 'marker' and 'line' for the defence labels), free labels
 // ([{ at, text, side, dot }]) and view (the part of the field to show).
-const PLAY_CATS = ['Ruck', 'Edge', 'Switch', 'Finisher', 'Kick', 'Other'];
+const PLAY_CATS = ['Ruck', 'Edge', 'Hands', 'Kick', 'Other'];
 const MOVE_KINDS = { run: 'Run', pass: 'Pass', kick: 'Kick', dummy: 'Dummy pass', shift: 'Defender move' };
-const STARTER_IDS = ['quickie-out', 'quickie-in', 'ninja', 'out-the-back', 'switch', 'finisher'];
-const STARTER_REV = 3;   // bump when the starter drawings change (see upgradePlays)
+const STARTER_IDS = ['quickie-out', 'quickie-in', 'ninja', 'out-the-back', 'hands-inside', 'hands-outside'];
+// Each starter play carries its own rev, bumped when its drawing changes (see upgradePlays).
+// STARTER_SET is bumped when starters are added or retired: set 4 retired Switch and Finisher
+// and added the two Hands plays.
+const STARTER_SET = 4;
+const RETIRED_STARTERS = ['switch', 'finisher'];
+const STARTER_SINCE = { 'hands-inside': 4, 'hands-outside': 4 };
 const swapSlot = id => /^[LR][WLRM]$/.test(id) ? (id[0] === 'L' ? 'R' : 'L') + id[1] : id;
 const flipSide = s => String(s || '').replace(/[lr]/g, c => c === 'l' ? 'r' : 'l');
 function mirrorText(text) {
@@ -1006,11 +1011,10 @@ const formation = ry => ({
   LR: [18.4, ry + 5], LL: [12.4, ry + 8], LW: [3.2, ry + 10.5],
   RR: [31.6, ry + 5], RL: [37.6, ry + 8], RW: [46.8, ry + 10.5]
 });
-const shiftY = (pts, dy) => pts.map(([x, y]) => [x, +(y + dy).toFixed(1)]);
 
 function starterPlays() {
-  const base = (id, name, category, when, headline, steps, extra) => ({
-    id, name, category, when, headline, steps, side: 'right', builtin: true, rev: STARTER_REV,
+  const base = (id, rev, name, category, when, headline, steps, extra) => ({
+    id, name, category, when, headline, steps, side: 'right', builtin: true, rev,
     players: formation(46), defence: defaultDefence(46), moves: [], focus: [], tags: {}, notes: {}, labels: [], ...extra
   });
   // Ruck plays: zoom in on the ruck. RM leaves the ruck straight away, so it is drawn dashed there.
@@ -1019,21 +1023,24 @@ function starterPlays() {
   const bounce = { t: 'run', pts: [[25, 46], catchAt] };
   const ruckNotes = { RM: { text: 'Plays the ball', side: 'l' }, LM: { text: 'Dummy half', side: 'b' } };
   const rmCatches = { at: catchAt, text: 'RM catches', side: 'r', dot: true };
-  // Out the back, as drawn in the playbook. The Finisher runs the same shape inside their 14 m.
-  const otbPlayers = ry => ({
-    RM: [25, ry], LM: [23.8, ry + 3.2], RR: [31.6, ry + 4.9], RL: [36.4, ry + 1.2], RW: [48.1, ry + 9.6],
-    LR: [18.4, ry + 5.8], LL: [12.1, ry + 7.1], LW: [4, ry + 9.3]
-  });
-  const otbMoves = ry => [
-    { t: 'pass', pts: [[23.8, 49.2], [31.6, 50.9]] },
-    { t: 'run', pts: [[31.6, 50.9], [31.5, 40.6]] },
-    { t: 'run', pts: [[36.4, 47.2], [35, 40.6]] },
-    { t: 'run', key: true, curve: true, pts: [[25, 46], [27.6, 52.4], [34, 55.4], [40.6, 51.8]] },
-    { t: 'pass', key: true, pts: [[31.5, 46.4], [40.6, 51.8]] }
-  ].map(m => ({ ...m, pts: shiftY(m.pts, ry - 46) }));
-  const otbNotes = { RM: { text: 'Plays the ball,\nthen loops', side: 'l' }, LM: { text: 'Dummy half', side: 'l' }, RL: { text: 'Decoy', side: 'ar' } };
+  // Hands: the ball goes through the hands from the dummy half to RW. Each receiver runs at the
+  // inside shoulder (towards the ball) or the outside shoulder (away from it) of the defender in front.
+  const hands = runs => {
+    const at = ([[x0, y0], [x1, y1]], y) => [+(x0 + (x1 - x0) * (y0 - y) / (y0 - y1)).toFixed(2), y];
+    return [
+      { t: 'pass', pts: [lm, at(runs[0], 50.2)] },
+      { t: 'run', key: true, pts: runs[0] },
+      { t: 'pass', pts: [at(runs[0], 46), at(runs[1], 48)] },
+      { t: 'run', key: true, pts: runs[1] },
+      { t: 'pass', pts: [at(runs[1], 44.6), at(runs[2], 47.5)] },
+      { t: 'run', key: true, pts: runs[2] }
+    ];
+  };
+  const handsPlay = runs => ({ focus: ['RR', 'RL', 'RW'], view: { x0: 14, x1: 50, y0: 36, y1: 58 },
+    players: { ...formation(46), RR: runs[0][0], RL: runs[1][0], RW: runs[2][0] },
+    notes: { RM: { text: 'Plays the ball', side: 'l' }, LM: { text: 'Dummy half', side: 'b' } }, moves: hands(runs) });
   return [
-    base('quickie-out', 'Quickie Out', 'Ruck', 'Tags 1–3, when their marker or the first defender beside the ruck is slow off the line.',
+    base('quickie-out', 3, 'Quickie Out', 'Ruck', 'Tags 1–3, when their marker or the first defender beside the ruck is slow off the line.',
       'LM steps out left to draw in the marker and their A defender, then passes back to RM, who runs into the space.',
       'RM is tagged, plays the ball fast and bounces out to the right.\nLM, at dummy half, picks up and steps out to the left, drawing in the marker and their left A defender.\nLM passes back to RM.\nRM runs into the space the marker has left, between the marker and the next defender on the right.',
       { ...ruck, focus: ['LM', 'RM'], labels: [rmCatches],
@@ -1046,72 +1053,80 @@ function starterPlays() {
           { t: 'pass', key: true, pts: [[22.4, 47.2], catchAt] },
           { t: 'run', key: true, pts: [catchAt, [28.9, 37.6]] }
         ] }),
-    base('quickie-in', 'Quickie In', 'Ruck', 'After a Quickie Out has worked, when the defence starts sliding with RM.',
+    base('quickie-in', 3, 'Quickie In', 'Ruck', 'After a Quickie Out has worked, when the defence starts sliding with RM.',
       'RM bounces out the same way as the Quickie Out, then cuts back inside, behind the marker.',
       'RM plays the ball and bounces out to the right, as in the Quickie Out.\nLM, at dummy half, passes back to RM.\nRM cuts back inside, behind the marker, into the gap on the other side.',
       { ...ruck, focus: ['RM'], notes: { ...ruckNotes, marker: { text: 'Marker', side: 'r' } }, labels: [rmCatches],
         moves: [bounce, { t: 'pass', key: true, pts: [lm, catchAt] },
           { t: 'run', key: true, curve: true, pts: [catchAt, [27.4, 45.6], [25.2, 44.5], [22.6, 42.4], [21.6, 37.6]] }] }),
-    base('ninja', 'Ninja', 'Ruck', 'Only after the Quickies have worked and the marker is chasing RM.',
-      'The marker chases RM, so LM shows the pass and runs through the hole it leaves.',
-      'RM plays the ball and runs the Quickie Out line as a decoy.\nLM, at dummy half, shows the pass to RM but keeps the ball.\nLM steps through the hole the marker leaves when it chases RM.',
+    // A decoy (dummy) run goes slightly forward at an angle, never back towards our own try line.
+    base('ninja', 4, 'Ninja', 'Ruck', 'Only after the Quickies have worked and the marker is chasing RM.',
+      'RM’s decoy run drags the marker away, so LM shows the pass and runs through the hole it leaves.',
+      'RM plays the ball and runs a decoy line out to the right, slightly forward at an angle.\nLM, at dummy half, shows the pass to RM but keeps the ball.\nThe marker chases RM, and LM steps through the hole it leaves.',
       { ...ruck, focus: ['LM'],
         notes: { LM: { text: 'Dummy half', side: 'b' }, marker: { text: 'Marker', side: 'ar' } },
-        labels: [{ at: [30.4, 45], text: 'RM decoy', side: 'r' }],
+        labels: [{ at: [28, 44.6], text: 'RM decoy', side: 'r' }],
         moves: [
-          { t: 'run', pts: [[25, 46], catchAt, [30.2, 40]] },
-          { t: 'dummy', pts: [lm, [27.6, 48.8]] },
-          { t: 'shift', pts: [[25, 43], [27.6, 44.4]] },
-          { t: 'run', key: true, curve: true, pts: [lm, [23.4, 46.2], [23.6, 43], [22.6, 37.6]] }
+          { t: 'run', pts: [[25, 46], [31.6, 41.8]] },
+          { t: 'dummy', pts: [lm, [27.4, 49.2]] },
+          { t: 'shift', pts: [[25, 43], [27.4, 43.3]] },
+          { t: 'run', key: true, curve: true, pts: [lm, [23.5, 46.2], [23.5, 43], [23, 37.6]] }
         ] }),
-    base('out-the-back', 'Out the back', 'Edge', 'Tags 3–5, attacking the wider side of the ruck.',
+    // Out the back, as drawn in the playbook.
+    base('out-the-back', 4, 'Out the back', 'Edge', 'Tags 3–5, attacking the wider side of the ruck.',
       'RL’s decoy holds their line, and RM loops around to hit the gap.',
       'RM plays the ball, then loops around behind RR and RL.\nLM, at dummy half, passes to RR.\nRR runs at the inside shoulder of their Rover to hold them.\nRL runs a short decoy line at the gap.\nRR passes behind RL to RM, who hits the gap with RW outside.',
-      { focus: ['RM'], players: otbPlayers(46), notes: otbNotes, view: { x0: 14, x1: 50, y0: 37, y1: 57.5 },
+      { focus: ['RM'], view: { x0: 14, x1: 50, y0: 37, y1: 57.5 },
+        players: { RM: [25, 46], LM: [23.6, 49.6], RR: [31.6, 50.9], RL: [36.4, 47.2], RW: [48.1, 55.6], LR: [18.4, 51.8], LL: [12.1, 53.1], LW: [4, 55.3] },
+        notes: { RM: { text: 'Plays the ball,\nthen loops', side: 'l' }, LM: { text: 'Dummy half', side: 'l' }, RL: { text: 'Decoy', side: 'ar' }, RW: { text: 'Stays wide', side: 'l' } },
         labels: [{ at: [40.6, 51.8], text: 'RM catches', side: 'br', dot: true }],
-        moves: [...otbMoves(46), { t: 'run', key: true, pts: [[40.6, 51.8], [43, 40.4]] }, { t: 'run', pts: [[48.1, 55.6], [48.3, 42.6]] }] }),
-    base('switch', 'Switch', 'Switch', 'When their defence has crowded one side and the other side is short of defenders. Called by the Rover.',
-      'Our last plays went left, so their line is crowded there. Switch play right and outnumber them.',
-      'Our last plays went left, so their defence has crowded that side.\nRM plays the ball; LM, at dummy half, passes right to RR.\nRR draws the first defender and passes to RL.\nRL draws the last defender and passes to RW, who runs through.',
-      { focus: ['RW'], view: { x0: 0, x1: 50, y0: 36, y1: 59.5 },
-        players: { RM: [20, 46], LM: [18.6, 49.8], LR: [12.4, 51.6], LL: [7, 54.4], LW: [2.6, 57], RR: [27.6, 51.6], RL: [36.4, 54.4], RW: [46.6, 57] },
-        defence: { marker: [20, 43], line: [4.4, 9.8, 15.2, 20.6, 26.4, 33.4, 41.8].map(x => [x, 39]) },
-        notes: { line: { text: 'Their line, crowded to the left' } },
         moves: [
-          { t: 'pass', pts: [[18.6, 49.8], [27.6, 51.6]] },
-          { t: 'run', pts: [[27.6, 51.6], [28.2, 43.6]] },
-          { t: 'pass', key: true, pts: [[28.1, 45.2], [36.9, 49.6]] },
-          { t: 'run', pts: [[36.4, 54.4], [37.2, 44.6]] },
-          { t: 'pass', key: true, pts: [[37.1, 46], [46.6, 51.4]] },
-          { t: 'run', key: true, pts: [[46.6, 57], [46.9, 37.6]] }
+          { t: 'pass', pts: [[23.6, 49.6], [31.6, 50.9]] },
+          { t: 'run', pts: [[31.6, 50.9], [31.5, 40.6]] },
+          { t: 'run', pts: [[36.4, 47.2], [35, 40.6]] },
+          { t: 'run', key: true, curve: true, pts: [[25, 46], [27.4, 50.8], [31.8, 54.6], [36.8, 55.1], [40.6, 51.8]] },
+          { t: 'pass', key: true, pts: [[31.5, 46.4], [40.6, 51.8]] },
+          { t: 'run', key: true, pts: [[40.6, 51.8], [43, 40.4]] },
+          { t: 'run', pts: [[48.1, 55.6], [48.3, 42.6]] }
         ] }),
-    base('finisher', 'Finisher', 'Finisher', 'Tag 5 or 6 inside their 14 m. RW must be a female player, for a 2-point try.',
-      'Out the back inside their 14 m, then RM draws the last defender and RW scores in the corner.',
-      'RM plays the ball and loops; LM, at dummy half, passes to RR.\nRR runs at the inside shoulder; RL runs the short decoy line.\nRR passes behind RL to RM.\nRM draws the last defender and passes to RW, who scores in the corner.',
-      { focus: ['RW'], tags: { RW: 'F' }, players: otbPlayers(16), view: { x0: 14, x1: 50, y0: 0, y1: 28 },
-        defence: defaultDefence(16, [3.6, 10.7, 17.9, 25, 32.1, 39.3, 45.6]),
-        notes: { ...otbNotes, RW: { text: 'Female\nfinisher', side: 'l' } },
-        labels: [{ at: [40.6, 21.8], text: 'RM catches', side: 'br', dot: true }, { at: [47.4, 2.2], text: 'Try in the corner', side: 'l' }],
-        moves: [
-          ...otbMoves(16),
-          { t: 'run', key: true, pts: [[40.6, 21.8], [43.2, 12.6]] },
-          { t: 'pass', key: true, pts: [[43.1, 13.8], [48.1, 13.4]] },
-          { t: 'run', key: true, pts: [[48.1, 25.6], [48.3, 13.6], [48.3, 2.6]] }
-        ] })
+    base('hands-inside', 4, 'Hands – inside shoulder', 'Hands', 'To hold their defenders where they are, so the space stays out wide.',
+      'Through the hands: each receiver runs at the inside shoulder of the defender in front, towards the ball.',
+      'RM plays the ball; LM, at dummy half, passes right to RR.\nRR runs at the inside shoulder of the defender in front (towards the ball), holds them, and passes to RL.\nRL does the same and passes to RW.\nRW runs at the inside shoulder of the last defender.',
+      handsPlay([[[33.4, 51], [31, 39.4]], [[40.2, 54], [38.2, 39.4]], [[47.6, 56.5], [45.3, 39.4]]])),
+    base('hands-outside', 4, 'Hands – outside shoulder', 'Hands', 'When their defenders are coming in hard, or we have the numbers out wide.',
+      'Through the hands: each receiver runs at the outside shoulder of the defender in front, away from the ball.',
+      'RM plays the ball; LM, at dummy half, passes right to RR.\nRR runs at the outside shoulder of the defender in front (away from the ball) and passes to RL.\nRL does the same and passes to RW.\nRW takes the outside shoulder of the last defender and goes around them.',
+      handsPlay([[[30.2, 51], [33.2, 39.4]], [[36.6, 54], [40.4, 39.4]], [[44.6, 56.5], [47.5, 39.4]]]))
   ];
 }
-// Starter plays from an earlier version are swapped for the current drawings. When the coach had
-// edited one, their version is kept beside the new one as "(your version)", so nothing is lost.
-// The players' copy only follows the coach's: it never makes copies of its own.
-function upgradePlays(d, keepEdits = true) {
-  const fresh = Object.fromEntries(starterPlays().map(p => [p.id, p]));
-  d.plays = arr(d.plays).flatMap(p => {
-    if (!p || !p.builtin || !fresh[p.id] || (p.rev || 1) >= STARTER_REV) return [p];
-    if (!p.edited) return [fresh[p.id]];
-    if (!keepEdits) return [p];
-    const { edited, rev, ...mine } = p;
-    return [fresh[p.id], { ...mine, id: uid(), name: `${p.name} (your version)`, builtin: false }];
+// Keeps a team's plays in step with the starter plays:
+// - a starter whose drawing has changed is swapped for the new one. If the coach had edited it,
+//   their version is kept beside the new one as "(your version)", so nothing is lost;
+// - starters added since the team last saw the set are added, and retired ones are removed
+//   (or kept as the coach's own play if they had edited it).
+// The players' copy only follows the coach's: it takes new drawings but never adds, removes or copies.
+function upgradePlays(d, coach = true) {
+  const starters = starterPlays(), fresh = Object.fromEntries(starters.map(p => [p.id, p]));
+  const seen = d.playsRev || Math.max(1, ...arr(d.plays).map(p => p && p.builtin ? (p.rev || 1) : 1));
+  const own = p => { const { edited, rev, ...rest } = p; return { ...rest, builtin: false }; };
+  let plays = arr(d.plays).flatMap(p => {
+    if (!p || !p.builtin) return [p];
+    if (coach && seen < STARTER_SET && RETIRED_STARTERS.includes(p.id)) return p.edited ? [own(p)] : [];
+    const f = fresh[p.id];
+    if (!f || (p.rev || 1) >= f.rev) return [p];
+    if (!p.edited) return [f];
+    return coach ? [f, { ...own(p), id: uid(), name: `${p.name} (your version)` }] : [p];
   });
+  if (coach && seen < STARTER_SET) {
+    starters.filter(f => (STARTER_SINCE[f.id] || 1) > seen && !plays.some(p => p.id === f.id)).forEach(f => {
+      const order = id => STARTER_IDS.indexOf(id);
+      let i = -1; plays.forEach((p, j) => { if (order(p.id) >= 0 && order(p.id) < order(f.id)) i = j; });
+      while (plays[i + 1] && order(plays[i + 1].id) < 0 && / \(your version\)$/.test(plays[i + 1].name || '')) i++;
+      plays.splice(i + 1, 0, f);
+    });
+  }
+  d.plays = plays;
+  if (coach) d.playsRev = STARTER_SET;
   return d;
 }
 
@@ -1175,9 +1190,9 @@ function svgWords(cx, cy, r, side, text, cls) {
 // Start a line at the edge of the player it leaves from, and stop it at the edge of whoever it reaches.
 function trimLine(pts, blockers) {
   const out = pts.map(p => p.slice()); if (out.length < 2) return out;
-  const near = p => blockers.find(b => Math.hypot(b.x - p[0], b.y - p[1]) < b.r + 5);
+  const near = (p, end) => blockers.find(b => (!end || !b.def) && Math.hypot(b.x - p[0], b.y - p[1]) < b.r + 5);
   const move = (i, j, gap) => {
-    const b = near(out[i]); if (!b) return;
+    const b = near(out[i], i > 0); if (!b) return;
     const dx = out[j][0] - b.x, dy = out[j][1] - b.y, len = Math.hypot(dx, dy);
     if (len > b.r + gap + 4) out[i] = [b.x + dx / len * (b.r + gap), b.y + dy / len * (b.r + gap)];
   };
@@ -1235,7 +1250,7 @@ function playSVG(play, side, opts = {}) {
   const dots = g.labels.filter(l => l.dot);
   const blockers = [
     ...shown.map(([, p]) => ({ x: X(p[0]), y: Y(p[1]), r: pr })),
-    ...g.line.map(p => ({ x: X(p[0]), y: Y(p[1]), r: dr })), ...(g.marker ? [{ x: X(g.marker[0]), y: Y(g.marker[1]), r: dr }] : []),
+    ...g.line.map(p => ({ x: X(p[0]), y: Y(p[1]), r: dr, def: true })), ...(g.marker ? [{ x: X(g.marker[0]), y: Y(g.marker[1]), r: dr, def: true }] : []),
     ...dots.map(l => ({ x: X(l.at[0]), y: Y(l.at[1]), r: dot }))
   ];
   const player = ([pid, p]) => {
@@ -1334,7 +1349,7 @@ function openPlayEditor(play) {
   const slots = SLOT_DEFS.map(s => s.id);
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off">
     <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
-    <label class="field-l"><span>Type</span><select name="category">${PLAY_CATS.map(c => `<option ${c === draft.category ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+    <label class="field-l"><span>Type</span><select name="category">${[...PLAY_CATS, ...(PLAY_CATS.includes(draft.category) ? [] : [draft.category])].map(c => `<option ${c === draft.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
     <label class="field-l"><span>Headline</span><input type="text" name="headline" value="${esc(draft.headline)}" placeholder="What the play does, in one line"></label>
     <label class="field-l"><span>When to use it</span><input type="text" name="when" value="${esc(draft.when)}" placeholder="e.g. Tag 5 inside their 14 m"></label>
     <label class="field-l"><span>Steps, one per line</span><textarea name="steps" rows="5" placeholder="Use LW, LL, LR, LM, RM, RR, RL, RW so the left version swaps them automatically.">${esc(draft.steps)}</textarea></label>
