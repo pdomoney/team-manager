@@ -39,3 +39,17 @@ test('builds an empty site before the team is set up', () => {
   assert.deepEqual(build({ dataDir: path.join(tmp(), 'missing'), outDir, log: quiet }), []);
   assert.ok(fs.existsSync(path.join(outDir, 'data', 'manifest.json')));
 });
+
+test('stamps a version on the app files and the manifest', () => {
+  const outDir = path.join(tmp(), 'dist');
+  build({ dataDir: path.join(tmp(), 'missing'), outDir, log: quiet, version: 'abc1234' });
+  const html = fs.readFileSync(path.join(outDir, 'index.html'), 'utf8');
+  assert.match(html, /src="app\.js\?v=abc1234"/);
+  assert.match(html, /href="styles\.css\?v=abc1234"/);
+  assert.match(html, /<meta name="app-version" content="abc1234">/);
+  const js = fs.readFileSync(path.join(outDir, 'app.js'), 'utf8');
+  assert.match(js, /from '\.\/vault\.js\?v=abc1234'/);
+  assert.match(js, /from '\.\/github\.js\?v=abc1234'/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(outDir, 'data', 'manifest.json'), 'utf8')).version, 'abc1234');
+  assert.match(fs.readFileSync('site/index.html', 'utf8'), /src="app\.js"/, 'the source files are left unstamped');
+});

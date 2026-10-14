@@ -1866,6 +1866,24 @@ window.addEventListener('hashchange', () => {
 });
 window.addEventListener('pagehide', () => { if (S.role === 'coach') persistDraft(); });
 
+/* ---------- updates ---------- */
+// GitHub Pages lets browsers keep files for a while. When a newer release is out, reload into it
+// (with a fresh address so no cached page is used), but never while a form is open.
+const APP_VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || '';
+let updating = false;
+async function checkForUpdate() {
+  if (!APP_VERSION || updating || state.busy || !$('#sheet').hidden) return;
+  let m;
+  try { const r = await fetch(`data/manifest.json?t=${Date.now()}`, { cache: 'no-store' }); if (!r.ok) return; m = await r.json(); } catch (e) { return; }
+  if (!m.version || m.version === APP_VERSION) return;
+  try { if (sessionStorage.getItem('tm-reloaded-for') === m.version) return; sessionStorage.setItem('tm-reloaded-for', m.version); } catch (e) { /* storage blocked: still reload once */ }
+  updating = true;
+  if (S.role === 'coach') { persistDraft(); await draftChain; }
+  location.replace(`${location.pathname}?v=${m.version}${location.hash}`);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+setInterval(checkForUpdate, 10 * 60 * 1000);
+
 /* =========================================================
    BOOT
    ========================================================= */
@@ -1914,4 +1932,4 @@ function startTrial() {
 // Exposed for automated tests only.
 window.__team = { get data() { return data; }, get teamData() { return teamData; }, S, state };
 
-boot();
+boot().finally(() => checkForUpdate());

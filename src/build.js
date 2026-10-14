@@ -19,9 +19,20 @@ export function isEncryptedFile(text) {
       ['format', 'version', 'role', 'kdf', 'salt', 'iv', 'data'].includes(k));
 }
 
-export function build({ dataDir = 'data', outDir = 'dist', siteDir = 'site', log = console.log } = {}) {
+// Each release gets its own version, stamped onto the app's file names so phones never mix a cached
+// old file with a new one, and written to data/manifest.json so a running app can spot a newer release.
+export function stampVersion(outDir, version) {
+  const edit = (file, fn) => { const p = path.join(outDir, file); if (fs.existsSync(p)) fs.writeFileSync(p, fn(fs.readFileSync(p, 'utf8'))); };
+  edit('index.html', t => t
+    .replace(/(src|href)="(app\.js|styles\.css|favicon\.svg)"/g, `$1="$2?v=${version}"`)
+    .replace('<meta charset="utf-8">', `<meta charset="utf-8">\n  <meta name="app-version" content="${version}">`));
+  edit('app.js', t => t.replace(/from '\.\/(vault|github)\.js'/g, `from './$1.js?v=${version}'`));
+}
+
+export function build({ dataDir = 'data', outDir = 'dist', siteDir = 'site', log = console.log, version = (process.env.GITHUB_SHA || '').slice(0, 7) || Date.now().toString(36) } = {}) {
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.cpSync(siteDir, outDir, { recursive: true });
+  stampVersion(outDir, version);
   fs.mkdirSync(path.join(outDir, 'data'), { recursive: true });
   const published = [];
   for (const name of DATA_FILES) {
@@ -32,7 +43,7 @@ export function build({ dataDir = 'data', outDir = 'dist', siteDir = 'site', log
     fs.writeFileSync(path.join(outDir, 'data', name), text);
     published.push(name);
   }
-  fs.writeFileSync(path.join(outDir, 'data', 'manifest.json'), JSON.stringify({ builtAt: new Date().toISOString(), files: published }, null, 2) + '\n');
+  fs.writeFileSync(path.join(outDir, 'data', 'manifest.json'), JSON.stringify({ version, builtAt: new Date().toISOString(), files: published }, null, 2) + '\n');
   fs.writeFileSync(path.join(outDir, '.nojekyll'), '');
   log(published.length ? `Published ${published.join(' and ')}.` : 'No team data yet. The site opens in test mode.');
   return published;
