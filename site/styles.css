@@ -192,6 +192,7 @@ main{max-width:720px;margin:0 auto;padding:16px}
 .field .zz{fill:none;stroke:#fff;stroke-width:.45;stroke-dasharray:1.2 .7;stroke-linejoin:round}
 .layer-chips{margin-bottom:10px}
 .ratio{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:10px 0 2px}
+.zigzag-hint{text-align:center}
 .ratio .pill{font-size:13px;padding:4px 10px}
 .field-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .field-tools .btn{flex:1 1 auto}
@@ -430,7 +431,21 @@ body.wide .sec-h h2{font-size:26px}
 
 body.wide .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 32px;align-items:start}
 body.wide .cols.play-cols{grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr)}
-body.wide .cols.lineup-cols{grid-template-columns:minmax(0,1.3fr) minmax(280px,1fr)}
+/* Lineup: the pitch takes the full height on the left; the lineup picker, modes, layers, counts,
+   tools and interchange sit in a compact column on the right. */
+body.wide .cols.lineup-cols{grid-template-columns:minmax(0,1fr) 320px;grid-template-rows:auto 1fr;grid-template-areas:"pitch ctrl" "pitch side";gap:0 24px}
+body.wide .lineup-ctrl{grid-area:ctrl}
+body.wide .lineup-pitch{grid-area:pitch}
+body.wide .lineup-side{grid-area:side}
+body.wide .lineup-pitch .field-wrap{width:fit-content;max-width:100%;margin:0 auto;padding:10px}
+body.wide .lineup-ctrl .seg{margin-bottom:10px}
+body.wide .lineup-side .ratio{justify-content:flex-start;margin-top:0}
+body.wide .lineup-side .hint{text-align:left}
+body.wide .lineup-side .zigzag-hint{margin:0 0 10px}
+body.wide .lineup-side .field-tools{display:grid;grid-template-columns:1fr 1fr;margin-top:10px}
+body.wide .lineup-side .field-tools .btn.wa{grid-column:1 / -1}
+body.wide .lineup-side .sec{margin-top:20px!important}
+body.wide .lineup-side .sec-h h2{font-size:22px}
 body.wide .col > .sec:last-child{margin-bottom:0}
 
 /* lists become cards */
@@ -448,7 +463,7 @@ body.wide .plays-grid .pf.thumb .df,body.wide .plays-grid .pf.thumb .pl{stroke-w
 body.wide .plays-grid .play-row > .pill{align-self:flex-start}
 
 /* bigger pictures */
-body.wide .field{max-width:620px;max-height:max(420px,calc(100vh - var(--top-h,64px) - 230px))}
+body.wide .lineup-pitch .field{width:auto;max-width:100%;height:max(480px,calc(100vh - var(--top-h,64px) - 86px));max-height:none}
 body.wide .play-cols .pf{max-width:none}
 body.wide .play-cols .play-card{position:sticky;top:calc(var(--top-h,64px) + 16px)}
 body.wide .play-when-sec{margin-top:0}

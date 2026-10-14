@@ -822,7 +822,8 @@ function viewField() {
   const max = Number(V.team.maxMales) || 4;
   const bench = sortedPlayers().filter(p => !onField.includes(p));
   const coach = isCoach();
-  return `<div class="lineup-bar">
+  return `<div class="cols lineup-cols"><div class="lineup-ctrl">
+    <div class="lineup-bar">
       <select aria-label="Choose lineup" data-change="lineup">${V.lineups.map(l => `<option value="${l.id}" ${l.id === lu.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>
       ${coach ? `<button class="btn sm" data-act="lineup-menu" aria-label="Lineup options">${icon('dots', 20)}</button>` : ''}
     </div>
@@ -835,10 +836,10 @@ function viewField() {
       <button class="chip" data-act="layer" data-k="channels" aria-pressed="${!!state.layers.channels}">Channels</button>
       <button class="chip" data-act="layer" data-k="zigzag" aria-pressed="${!!state.layers.zigzag}">Zig-zag</button>
     </div>
-    <div class="cols lineup-cols"><div class="col">
+    </div><div class="col lineup-pitch">
     <div class="field-wrap">${fieldSVG(lu, coach)}</div>
-    ${state.layers.zigzag ? '<p class="hint" style="text-align:center">Zig-zag: work the ball into one side to pull their defence across, then switch to the other side.</p>' : ''}
-    </div><div class="col">
+    </div><div class="col lineup-side">
+    ${state.layers.zigzag ? '<p class="hint zigzag-hint">Zig-zag: work the ball into one side to pull their defence across, then switch to the other side.</p>' : ''}
     ${coach ? `<div class="ratio">
       <span class="pill ${males > max ? 'bad' : 'ok'}">${males} of ${max} males max</span>
       <span class="pill neutral">${females} female</span>
