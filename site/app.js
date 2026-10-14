@@ -1467,10 +1467,27 @@ function fitView(play) {
   return { x0: round1(Math.max(0, x0)), x1: round1(x1), y0: round1(Math.max(0, y0)), y1: round1(Math.min(80, y1)) };
 }
 
-function pedSnap() {
+// Each undo step keeps the drawing as it was. A swap of two players also changed the words on the
+// Words tab, which the coach may have typed in since, so undoing it swaps the codes back there.
+function pedSnap(swap = null) {
   const E = state.ped; if (!E) return;
-  E.undo.push(JSON.stringify(E.draft)); if (E.undo.length > 60) E.undo.shift();
+  E.undo.push({ draft: JSON.stringify(E.draft), swap }); if (E.undo.length > 60) E.undo.shift();
   E.dirty = true;
+}
+const swapCodes = (text, a, b) => String(text ?? '').replace(new RegExp(`\\b(${a}|${b})\\b`, 'g'), m => m === a ? b : a);
+// Swap two positions over: each spot keeps its lines, words and highlight, and the codes in the
+// play's words change to match.
+function pedSwapPlayers(d, a, b) {
+  [d.players[a], d.players[b]] = [d.players[b], d.players[a]];
+  const swapKeys = o => { const A = o[a], B = o[b]; delete o[a]; delete o[b]; if (B !== undefined) o[a] = B; if (A !== undefined) o[b] = A; };
+  swapKeys(d.notes); swapKeys(d.tags);
+  const swapList = l => l.map(x => x === a ? b : x === b ? a : x);
+  d.focus = swapList(d.focus); d.ghost = swapList(d.ghost);
+  Object.values(d.notes).forEach(n => { if (n && n.text) n.text = swapCodes(n.text, a, b); });
+  d.labels.forEach(l => { l.text = swapCodes(l.text, a, b); });
+}
+function pedSwapWords(a, b) {
+  ['headline', 'when', 'steps'].forEach(k => { const f = $(`#sheet [name=${k}]`); if (f) f.value = swapCodes(f.value, a, b); });
 }
 function pedSelect(sel) { const E = state.ped; E.sel = sel; E.selH = null; E.textSnap = false; }
 function pedNearest(E, p, kind, r) {
@@ -1527,7 +1544,12 @@ function pedPanel(E) {
     const text = n ? n.text : sel.k === 'mk' ? 'Marker' : '';
     const who = sel.k === 'pl' ? sel.id : sel.k === 'mk' ? 'The marker' : 'Defender';
     let s = `<div class="ped-h3">${esc(who)}</div>`;
-    if (sel.k === 'pl') s += `<div class="btn-row" style="margin-bottom:10px">${btn('ped-pl', 'Highlight', d.focus.includes(sel.id), 'data-f="focus"')}${btn('ped-pl', 'Female (F)', d.tags[sel.id] === 'F', 'data-f="tag"')}${btn('ped-pl', 'Dashed: leaves this spot', d.ghost.includes(sel.id), 'data-f="ghost"')}</div>`;
+    if (sel.k === 'pl') {
+      s += `<div class="ped-sub">Who plays here</div>
+        <div class="seg ped-codes" role="group" aria-label="Who plays here">${SLOT_DEFS.map(p => `<button type="button" data-act="ped-swap" data-to="${p.id}" aria-pressed="${p.id === sel.id}">${p.id}</button>`).join('')}</div>
+        <p class="hint" style="margin:-4px 0 12px">Tap another position to swap them over. The lines and words stay on this spot, and the play's words change to the new codes.</p>`;
+      s += `<div class="btn-row" style="margin-bottom:10px">${btn('ped-pl', 'Highlight', d.focus.includes(sel.id), 'data-f="focus"')}${btn('ped-pl', 'Female (F)', d.tags[sel.id] === 'F', 'data-f="tag"')}${btn('ped-pl', 'Dashed: leaves this spot', d.ghost.includes(sel.id), 'data-f="ghost"')}</div>`;
+    }
     s += `<label class="field-l"><span>Words beside ${sel.k === 'pl' ? esc(sel.id) : 'them'}</span><textarea id="ped-text" data-input="ped-text" rows="2" placeholder="${sel.k === 'pl' ? 'e.g. Dummy half' : 'e.g. A defender'}">${esc(text)}</textarea></label>`;
     s += sides((n && n.side) || (sel.k === 'mk' ? 'l' : 'r'));
     if (sel.k !== 'pl') s += `<label class="field-l"><span>Words above their line</span><input type="text" data-input="ped-line" value="${esc(d.notes.line ? d.notes.line.text : 'Their line, 7 m back')}"></label>`;
@@ -1570,7 +1592,9 @@ function refreshPlayEditor() {
 }
 function pedUndo() {
   const E = state.ped; if (!E || !E.undo.length) return;
-  E.draft = JSON.parse(E.undo.pop()); E.selH = null; E.drawing = null; E.textSnap = false;
+  const step = E.undo.pop();
+  E.draft = JSON.parse(step.draft); E.selH = null; E.drawing = null; E.textSnap = false;
+  if (step.swap) { pedSwapWords(...step.swap); if (E.sel && E.sel.k === 'pl' && step.swap.includes(E.sel.id)) E.sel = { k: 'pl', id: step.swap.find(c => c !== E.sel.id) }; }
   const d = E.draft, s = E.sel;   // keep the selection if it is still there
   if (s && !((s.k === 'mv' && d.moves[s.i]) || (s.k === 'lb' && d.labels[s.i]) || (s.k === 'pl' && d.players[s.id]) || (s.k === 'df' && d.defence.line[s.i]) || (s.k === 'mk' && d.defence.marker))) E.sel = null;
   refreshPlayEditor();
@@ -2056,6 +2080,13 @@ const actions = {
     if (f === 'tag') { if (d.tags[id] === 'F') delete d.tags[id]; else d.tags[id] = 'F'; }
     else { const set = new Set(d[f]); set.has(id) ? set.delete(id) : set.add(id); d[f] = [...set]; }
     refreshPlayEditor();
+  }),
+  'ped-swap': coachOnly(el => {
+    const E = state.ped, a = E.sel && E.sel.k === 'pl' && E.sel.id, b = el.dataset.to;
+    if (!a || !b || a === b) return;
+    pedSnap([a, b]); pedSwapPlayers(E.draft, a, b); pedSwapWords(a, b);
+    E.sel = { k: 'pl', id: b };   // the same spot, now played by b
+    refreshPlayEditor(); toast(`${a} and ${b} swapped`);
   }),
   'ped-lb-dot': coachOnly(() => {
     const E = state.ped, l = E.sel && E.draft.labels[E.sel.i]; if (!l) return;

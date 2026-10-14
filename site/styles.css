@@ -334,6 +334,9 @@ details.more[open] summary{margin-bottom:8px}
 .ped-panel .field-l{margin-bottom:10px}
 .ped-panel .hint{margin:8px 0 0}
 .ped-h3{font-weight:700;font-size:16px;margin-bottom:8px}
+.ped-sub{font-size:14px;font-weight:600;margin-bottom:6px}
+.ped-codes{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;margin-bottom:10px}
+.ped-codes button{padding:6px 0;font:700 14px/1 var(--font-d);min-height:36px}
 .btn.on{background:var(--sky-soft);border-color:var(--sky);color:var(--sky-ink)}
 .ped-save{position:sticky;bottom:calc(-24px - env(safe-area-inset-bottom));margin:16px -16px 0;padding:10px 16px calc(12px + env(safe-area-inset-bottom));background:var(--chalk);border-top:1px solid var(--line);z-index:2}
 .pf.editor .mv-hit{fill:none;stroke:transparent;stroke-width:18;stroke-linecap:round;pointer-events:stroke;cursor:pointer}
