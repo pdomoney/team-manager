@@ -590,13 +590,15 @@ function viewHome() {
 
   const P = V.players;
   const f = P.filter(p => p.gender === 'F').length, m = P.filter(p => p.gender === 'M').length;
-  let h = hero;
-  if (!isCoach()) h += noticeHtml;
+  let h = hero;   // first column on a wide screen
   h += `<section class="sec"><div class="sec-h"><h2>Next training</h2><button class="btn sm" data-act="tab" data-tab="training">All sessions</button></div>${nextHtml}</section>`;
+  let h2 = '';    // second column
+  if (!isCoach()) h2 += noticeHtml;
   if (isCoach()) {
     const out = P.filter(p => p.status !== 'available').length;
     const rs = rollSessions().slice(-8);
-    h += noticeHtml + `<section class="sec"><div class="sec-h"><h2>Squad</h2><button class="btn sm" data-act="tab" data-tab="squad">Manage</button></div>
+    h += noticeHtml;
+    h2 += `<section class="sec"><div class="sec-h"><h2>Squad</h2><button class="btn sm" data-act="tab" data-tab="squad">Manage</button></div>
       <div class="stats">
         <div class="stat"><b>${P.length}</b><span>Players</span></div>
         <div class="stat"><b>${f}</b><span>Female</span></div>
@@ -607,7 +609,7 @@ function viewHome() {
       ${rs.length ? `<div class="chart">${turnoutChart(rs)}</div>` : `<p class="muted small">Take a roll call at training and turnout will chart here.</p>`}
     </section>`;
   }
-  return h;
+  return `<div class="cols"><div class="col">${h}</div><div class="col">${h2}</div></div>`;
 }
 function calBlock(date) {
   const d = parseDate(date);
@@ -657,7 +659,7 @@ function squadList() {
     return true;
   });
   if (!list.length) return `<p class="muted" style="padding:12px 0">No players match.</p>`;
-  return `<div class="list">${list.map(p => {
+  return `<div class="list grid">${list.map(p => {
     const main = `${jersey(p)}
       <span class="grow"><span class="name" style="display:block">${esc(p.name)} ${gBadge(p)}${statusPill(p)}</span><span class="sub" style="display:block">${esc(p.positions.join(', ') || 'No positions set')}</span></span>`;
     if (!isCoach()) return `<div class="row"><div class="row-main">${main}</div></div>`;
@@ -737,11 +739,11 @@ function sessionRow(s) {
 function viewSchedule() {
   const up = upcomingSessions(), past = pastSessions();
   let h = `<div class="sec-h"><h2>Upcoming</h2>${isCoach() ? `<button class="btn primary sm" data-act="add-session">${icon('plus', 18)}Add training</button>` : ''}</div>`;
-  h += up.length ? `<div class="list">${up.map(sessionRow).join('')}</div>`
+  h += up.length ? `<div class="list grid sess-grid">${up.map(sessionRow).join('')}</div>`
     : `<div class="empty"><p>${isCoach() ? 'Nothing scheduled. Add a session — you can repeat it weekly right up to the tournament.' : 'No training scheduled yet.'}</p></div>`;
   if (past.length) {
     h += `<button class="toggle-past" data-act="toggle-past">${state.showPast ? 'Hide' : 'Show'} past sessions (${past.length})</button>`;
-    if (state.showPast) h += `<div class="list">${past.map(sessionRow).join('')}</div>`;
+    if (state.showPast) h += `<div class="list grid sess-grid">${past.map(sessionRow).join('')}</div>`;
   }
   return h;
 }
@@ -833,8 +835,10 @@ function viewField() {
       <button class="chip" data-act="layer" data-k="channels" aria-pressed="${!!state.layers.channels}">Channels</button>
       <button class="chip" data-act="layer" data-k="zigzag" aria-pressed="${!!state.layers.zigzag}">Zig-zag</button>
     </div>
+    <div class="cols lineup-cols"><div class="col">
     <div class="field-wrap">${fieldSVG(lu, coach)}</div>
     ${state.layers.zigzag ? '<p class="hint" style="text-align:center">Zig-zag: work the ball into one side to pull their defence across, then switch to the other side.</p>' : ''}
+    </div><div class="col">
     ${coach ? `<div class="ratio">
       <span class="pill ${males > max ? 'bad' : 'ok'}">${males} of ${max} males max</span>
       <span class="pill neutral">${females} female</span>
@@ -849,7 +853,8 @@ function viewField() {
     </div>` : ''}
     <section class="sec" style="margin-top:22px"><div class="sec-h"><h2>Interchange (${bench.length})</h2></div>
       ${bench.length ? `<div class="bench">${bench.map(p => `<span class="chip ${isOut(p) ? 'out' : ''}">${gBadge(p)}${esc(shortName(p))}${statusPill(p)}</span>`).join('')}</div>` : `<p class="muted small">${V.players.length ? 'Everyone is on the field.' : coach ? 'Add players in Squad first.' : 'No lineup yet.'}</p>`}
-    </section>`;
+    </section>
+    </div></div>`;
 }
 function fieldSVG(lu, interactive) {
   let s = `<svg id="field" class="field ${state.moveMode && interactive ? 'moving' : ''} ${interactive ? 'interactive' : ''}" viewBox="-3 -1 56 82" role="group" aria-label="Field positions for ${esc(lu.name)}">`;
@@ -1427,7 +1432,7 @@ function viewPlays() {
   const missing = STARTER_IDS.filter(id => !V.plays.some(p => p.id === id)).length;
   return `<div class="sec-h"><h2>Plays</h2>${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div>
     <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.${coach ? ` <button class="link-btn inline" data-act="psets">Player lists</button>` : ''}</p>
-    ${V.plays.length ? `<div class="list">${V.plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
+    ${V.plays.length ? `<div class="list grid plays-grid">${V.plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
       <span class="grow"><span class="name" style="display:block">${esc(p.name)}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
       <span class="pill neutral">${esc(p.category || 'Other')}</span>
@@ -1443,11 +1448,14 @@ function viewPlay(p) {
       <button data-act="play-side" data-side="left" aria-pressed="${side === 'left'}">Attacking left</button>
       <button data-act="play-side" data-side="right" aria-pressed="${side === 'right'}">Attacking right</button>
     </div>
+    <div class="cols play-cols"><div class="col">
     <figure class="play-card" id="play-fig">${playFigure(p, side, state.playPhase)}</figure>
-    ${when ? `<section class="sec" style="margin-top:16px"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
+    </div><div class="col">
+    ${when ? `<section class="sec play-when-sec"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
     ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}
     ${coach ? `<div class="btn-row"><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
-      <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}`;
+      <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
+    </div></div>`;
 }
 function playFigure(p, side, i) {
   const view = phaseView(p, i), n = phaseCount(p), head = playHeadline(p, side), title = phaseTitle(p, i, side);
@@ -1718,8 +1726,10 @@ function openPlayEditor(play) {
     </div>
     <div id="ped-diagram" class="ped-diagram">
       <div class="ped-phases" id="ped-phases"></div>
+      <div class="ped-meta">
       <label class="field-l ped-list"><span>Player labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select></label>
       <label class="field-l ped-ptitle"><span id="ped-ptitle-l">Phase 1</span><input type="text" id="ped-ptitle" data-input="ped-ptitle" value="${esc(draft.title || '')}" placeholder="What happens in this phase, e.g. Tag 2: hands right"></label>
+      </div>
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
       <div class="ped-main">
         <div class="play-card ped-card"><div id="ped-field"></div></div>
@@ -2085,7 +2095,7 @@ function viewMessages() {
   const sessions = upcomingSessions().filter(s => !s.cancelled || state.msgTpl === 'cancelled');
   if (needsSession && !state.msgSession && sessions[0]) state.msgSession = sessions[0].id;
   const canPost = state.msgTpl !== 'invite';
-  return `<section class="sec"><div class="sec-h"><h2>New message</h2></div>
+  return `<div class="cols"><div class="col"><section class="sec"><div class="sec-h"><h2>New message</h2></div>
     <div class="chips">${Object.entries(TEMPLATES).filter(([k]) => !(S.trial && k === 'invite')).map(([k, l]) => `<button class="chip" data-act="tpl" data-t="${k}" aria-pressed="${state.msgTpl === k}">${l}</button>`).join('')}</div>
     ${needsSession && sessions.length ? `<label class="field-l"><span>Session</span><select data-change="msg-session">${sessions.map(s => `<option value="${s.id}" ${s.id === state.msgSession ? 'selected' : ''}>${esc(fmtDay(s.date))}, ${esc(fmtRange(s))}</option>`).join('')}</select></label>` : ''}
     <textarea id="msg" data-input="msg" aria-label="Message">${esc(state.msgDraft)}</textarea>
@@ -2096,7 +2106,7 @@ function viewMessages() {
       <button class="btn" data-act="copy-msg">${icon('copy', 18)}Copy</button>
     </div>
     <p class="hint">WhatsApp opens with the message ready. Choose your team group, check it and send. *Stars* make text bold in WhatsApp.</p>
-  </section>
+  </section></div><div class="col">
   <section class="sec"><div class="sec-h"><h2>Noticeboard</h2><button class="btn sm" data-act="add-notice">${icon('plus', 18)}Post</button></div>
     ${data.notices.length ? `<div class="list">${data.notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p>
       <button class="btn sm danger" data-act="del-notice" data-id="${n.id}">Take down</button></div>`).join('')}</div>` : `<p class="muted small">Players see notices on their home screen.</p>`}
@@ -2107,7 +2117,7 @@ function viewMessages() {
       <p class="preview">${esc(m.text)}</p>
       <div class="btn-row" style="justify-content:flex-start"><button class="btn sm" style="flex:0" data-act="reuse" data-id="${m.id}">Use again</button><button class="btn sm danger" style="flex:0" data-act="del-msg" data-id="${m.id}">Remove</button></div>
     </div>`).join('')}</div>` : `<p class="muted small">Messages you send from here are kept for reference. Only coaches see this list.</p>`}
-  </section>`;
+  </section></div></div>`;
 }
 function logMessage(text, to) {
   data.messages.unshift({ id: uid(), at: new Date().toISOString(), text, to });
@@ -2126,15 +2136,32 @@ function openWhatsApp(text, phone) {
 }
 
 /* ---------- Settings ---------- */
+// Screen layout, kept on this device: Auto (wide on a computer or tablet), Phone, or Wide; and on a
+// wide screen, a comfortable width or the full width of the window.
+const layoutPref = () => ['auto', 'phone', 'wide'].includes(store.get('tm-layout')) ? store.get('tm-layout') : 'auto';
+const widthPref = () => store.get('tm-width') === 'full' ? 'full' : 'comfy';
+function applyLayout() {
+  const pref = layoutPref(), wide = pref === 'wide' || (pref === 'auto' && window.innerWidth >= 1000);
+  document.body.classList.toggle('wide', wide);
+  document.body.classList.toggle('full', wide && widthPref() === 'full');
+  const top = $('.top'); if (top) document.body.style.setProperty('--top-h', `${top.offsetHeight}px`);
+}
+function layoutSettings() {
+  const pref = layoutPref(), w = widthPref();
+  return `<h3 class="form-sec" style="margin-top:0">Screen layout</h3>
+    <div class="seg" role="group" aria-label="Screen layout">${[['auto', 'Auto'], ['phone', 'Phone'], ['wide', 'Wide']].map(([v, l]) => `<button type="button" data-act="layout" data-v="${v}" aria-pressed="${pref === v}">${l}</button>`).join('')}</div>
+    <div class="seg" role="group" aria-label="Width on a wide screen">${[['comfy', 'Comfortable width'], ['full', 'Full width']].map(([v, l]) => `<button type="button" data-act="layout-width" data-v="${v}" aria-pressed="${w === v}">${l}</button>`).join('')}</div>
+    <p class="hint" style="margin:-4px 0 18px">Wide puts the sections down the side and uses the extra space on a computer: two columns, bigger diagrams and a bigger play editor. Auto uses it on any screen wider than a tablet. Saved on this device only.</p>`;
+}
 function settingsBody() {
   if (S.role === 'player') {
-    return `<p class="muted" style="margin-bottom:14px">You're signed in as a player. Your coach updates everything here; pull fresh changes any time.</p>
+    return layoutSettings() + `<p class="muted" style="margin-bottom:14px">You're signed in as a player. Your coach updates everything here; pull fresh changes any time.</p>
       <div class="btn-row"><button class="btn dark" data-act="refresh">Check for updates</button></div>
       <h3 class="form-sec">This phone</h3>
       <button class="btn danger block" data-act="sign-out">Sign out</button>`;
   }
   const T = data.team;
-  return `<form data-form="settings">
+  return layoutSettings() + `<form data-form="settings">
     <h3 class="form-sec">Team and tournament</h3>
     <label class="field-l"><span>Team name</span><input type="text" name="name" value="${esc(T.name)}"></label>
     <label class="field-l"><span>Tournament</span><input type="text" name="event" value="${esc(T.event)}"></label>
@@ -2318,6 +2345,8 @@ const actions = {
   'tab': el => { if (el.dataset.tab === 'plays') state.playId = null; state.tab = el.dataset.tab; history.replaceState(null, '', '#' + state.tab); closeSheet(); render(); window.scrollTo(0, 0); },
   'close-sheet': () => requestCloseSheet(),
   'settings': () => openSheet('Settings', settingsBody(), 'settings'),
+  'layout': el => { store.set('tm-layout', el.dataset.v); applyLayout(); document.querySelectorAll('[data-act="layout"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
+  'layout-width': el => { store.set('tm-width', el.dataset.v); applyLayout(); document.querySelectorAll('[data-act="layout-width"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
   'lock-mode': el => { state.lockMode = el.dataset.mode; state.lockMsg = ''; renderLock(); },
   'refresh': async () => {
     try { await openPlayer(S.teamLock, false); closeSheet(); render(); toast('Up to date'); }
@@ -2847,4 +2876,7 @@ function startTrial() {
 // Exposed for automated tests only.
 window.__team = { get data() { return data; }, get teamData() { return teamData; }, S, state, anim, planPhase: (p, i, side) => planPhase(playGeom(phaseView(p, i), side || 'right')) };
 
+applyLayout();
+window.addEventListener('resize', () => applyLayout());
+if (window.ResizeObserver) new ResizeObserver(() => applyLayout()).observe($('.top'));
 boot().finally(() => checkForUpdate());

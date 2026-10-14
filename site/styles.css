@@ -409,3 +409,61 @@ details.more[open] summary{margin-bottom:8px}
 .steps{margin:0;padding-left:22px}
 .steps li{margin-bottom:6px}
 .ped-tools button{font-size:14px;padding:8px 4px}
+
+/* ---------- Wide layout (Settings -> Screen layout) ----------
+   The same screens, laid out for a computer: the sections down the side, two columns where they help,
+   lists as cards, bigger diagrams and a bigger play editor. */
+.cols{display:block}
+body.wide{display:grid;grid-template-columns:212px minmax(0,1fr);grid-template-rows:auto 1fr;min-height:100vh;padding-bottom:0}
+body.wide:has(> .tabs[hidden]){grid-template-columns:minmax(0,1fr)}
+body.wide .top{grid-column:1 / -1;padding-left:24px;padding-right:20px}
+body.wide main{grid-column:2;grid-row:2;width:100%;max-width:1120px;margin:0 auto;padding:24px 28px 40px}
+body.wide:has(> .tabs[hidden]) main{grid-column:1}
+body.wide.full main{max-width:none}
+body.wide .tabs{grid-column:1;grid-row:2;position:sticky;top:var(--top-h,64px);align-self:start;height:calc(100vh - var(--top-h,64px));display:flex;flex-direction:column;gap:2px;padding:16px 10px;border-top:0;border-right:1px solid var(--line);background:var(--paper)}
+body.wide .tabs button{flex:none;flex-direction:row;justify-content:flex-start;gap:12px;height:46px;padding:0 14px;font-size:15px;border-radius:10px}
+body.wide .tabs button:hover{background:var(--chalk)}
+body.wide .tabs button[aria-current="page"]{background:var(--chalk)}
+body.wide .tabs button[aria-current="page"]::before{top:10px;bottom:10px;left:0;right:auto;width:3px;height:auto;border-radius:0 3px 3px 0}
+body.wide .toast{bottom:24px}
+body.wide .sec-h h2{font-size:26px}
+
+body.wide .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 32px;align-items:start}
+body.wide .cols.play-cols{grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr)}
+body.wide .cols.lineup-cols{grid-template-columns:minmax(0,1.3fr) minmax(280px,1fr)}
+body.wide .col > .sec:last-child{margin-bottom:0}
+
+/* lists become cards */
+body.wide .list.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;background:none;border:0;border-radius:0;overflow:visible}
+body.wide .list.grid > *{background:var(--paper);border:1px solid var(--line);border-radius:12px}
+body.wide .list.grid > .row,body.wide .list.grid > .sess{border-top:1px solid var(--line)}
+body.wide .list.sess-grid{grid-template-columns:repeat(auto-fill,minmax(400px,1fr))}
+body.wide .plays-grid{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+body.wide .plays-grid .play-row{flex-direction:column;align-items:stretch;gap:10px;padding:12px;border-top:1px solid var(--line)}
+body.wide .plays-grid .play-row:hover{border-color:#B9C3BB;background:var(--paper);box-shadow:0 2px 10px rgba(0,0,0,.06)}
+body.wide .plays-grid .play-thumb{width:100%;border-radius:8px}
+body.wide .plays-grid .pf.thumb .mv{stroke-width:3.2}
+body.wide .plays-grid .pf.thumb .mv.key{stroke-width:4.2}
+body.wide .plays-grid .pf.thumb .df,body.wide .plays-grid .pf.thumb .pl{stroke-width:2.2}
+body.wide .plays-grid .play-row > .pill{align-self:flex-start}
+
+/* bigger pictures */
+body.wide .field{max-width:620px;max-height:max(420px,calc(100vh - var(--top-h,64px) - 230px))}
+body.wide .play-cols .pf{max-width:none}
+body.wide .play-cols .play-card{position:sticky;top:calc(var(--top-h,64px) + 16px)}
+body.wide .play-when-sec{margin-top:0}
+body.wide .stats{grid-template-columns:repeat(4,1fr)}
+body.wide .chart svg{max-height:260px}
+
+/* the play editor fills the window */
+body.wide .panel.wide{max-width:min(1500px,96vw);max-height:96vh;max-height:96dvh;border-radius:18px;bottom:2vh}
+body.wide.full .panel.wide{max-width:98vw}
+body.wide .ped-diagram{display:grid;grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:auto auto 1fr;grid-template-areas:"tools phases" "main meta" "main panel";gap:0 18px;align-items:start}
+body.wide .ped-diagram > .ped-phases{grid-area:phases}
+body.wide .ped-diagram > .ped-meta{grid-area:meta}
+body.wide .ped-diagram > .ped-tools{grid-area:tools;grid-template-columns:repeat(8,1fr);margin-bottom:10px}
+body.wide .ped-diagram > .ped-main{grid-area:main}
+body.wide .ped-diagram > .ped-panel{grid-area:panel;margin-top:4px}
+body.wide .ped-meta .field-l{margin-bottom:8px}
+body.wide .ped-card .pf{max-width:none;max-height:max(320px,calc(96vh - 420px))}
+body.wide .ped > .two{grid-template-columns:2fr 1fr}
