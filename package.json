@@ -1,0 +1,14 @@
+{
+  "name": "team-manager",
+  "version": "1.0.0",
+  "description": "Coach and player app for an Oztag representative team, hosted on GitHub Pages with encrypted team data.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node src/build.js",
+    "serve": "node src/serve.js",
+    "test": "node --test test/*.test.js"
+  }
+}

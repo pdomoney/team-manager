@@ -1,0 +1,114 @@
+// Encryption for the team data files.
+//
+// Everything on GitHub Pages (and in a public repo) can be read by anyone, so the squad data is
+// encrypted in the coach's browser before it is published. There are two files, one per role:
+//
+//   team.enc.json   what players see (names, numbers, positions, schedule, lineups, notices),
+//                   locked with the team password
+//   coach.enc.json  everything, including phone numbers, injuries, notes and attendance,
+//                   locked with the coach password
+//
+// AES-256-GCM, with the key derived from the password by PBKDF2-SHA256. The role name is bound
+// into each file as additional authenticated data, so one file can't be passed off as the other.
+// Works in browsers and in Node 20+ (both provide globalThis.crypto.subtle).
+
+export const ITERATIONS = 600000;
+export const FORMAT = 'team-manager';
+
+const te = new TextEncoder();
+const td = new TextDecoder();
+const subtle = () => globalThis.crypto.subtle;
+
+export function toB64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+export function fromB64(str) {
+  const bin = atob(String(str).replace(/\s/g, ''));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+// URL-safe base64 of a text string, for invite links.
+export const toB64Url = text => toB64(te.encode(text)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+export const fromB64Url = s => td.decode(fromB64(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)));
+
+export const newSalt = () => globalThis.crypto.getRandomValues(new Uint8Array(16));
+
+const wrong = () => Object.assign(new Error('Wrong password'), { code: 'WRONG' });
+
+export async function deriveKey(password, salt, iterations = ITERATIONS) {
+  const base = await subtle().importKey('raw', te.encode(String(password).normalize('NFC')), 'PBKDF2', false, ['deriveKey']);
+  return subtle().deriveKey(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
+    base, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+}
+
+export async function exportKey(key) {
+  return toB64(new Uint8Array(await subtle().exportKey('raw', key)));
+}
+export function importKey(b64) {
+  return subtle().importKey('raw', fromB64(b64), { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+}
+
+// A "lock" is { key, salt: Uint8Array, iterations }.
+export async function makeLock(password, salt = newSalt(), iterations = ITERATIONS) {
+  return { key: await deriveKey(password, salt, iterations), salt, iterations };
+}
+
+export async function seal(value, lock, role) {
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  const ct = await subtle().encrypt(
+    { name: 'AES-GCM', iv, additionalData: te.encode(`${FORMAT}/${role}`) },
+    lock.key, te.encode(JSON.stringify(value)));
+  return {
+    format: FORMAT, version: 1, role,
+    kdf: { name: 'PBKDF2-SHA256', iterations: lock.iterations },
+    salt: toB64(lock.salt), iv: toB64(iv), data: toB64(new Uint8Array(ct))
+  };
+}
+
+export function isSealed(file) {
+  return !!file && file.format === FORMAT && typeof file.data === 'string' && typeof file.iv === 'string' && typeof file.salt === 'string';
+}
+
+export async function unseal(file, key) {
+  if (!isSealed(file)) throw Object.assign(new Error('Not a team data file'), { code: 'FORMAT' });
+  let pt;
+  try {
+    pt = await subtle().decrypt(
+      { name: 'AES-GCM', iv: fromB64(file.iv), additionalData: te.encode(`${FORMAT}/${file.role}`) },
+      key, fromB64(file.data));
+  } catch (e) { throw wrong(); }
+  return JSON.parse(td.decode(pt));
+}
+
+// Open a file with a password (derives the key) or with a lock remembered from earlier.
+export async function openFile(file, cred, role) {
+  if (!isSealed(file)) throw Object.assign(new Error('Not a team data file'), { code: 'FORMAT' });
+  if (role && file.role !== role) throw wrong();
+  if (typeof cred === 'string') {
+    const lock = await makeLock(cred, fromB64(file.salt), file.kdf?.iterations || ITERATIONS);
+    return { value: await unseal(file, lock.key), lock };
+  }
+  if (toB64(cred.salt) !== file.salt) throw wrong();
+  return { value: await unseal(file, cred.key), lock: cred };
+}
+
+const pick = (o, keys) => Object.fromEntries(keys.filter(k => o && o[k] !== undefined).map(k => [k, o[k]]));
+
+// The players' copy. Anything not listed here stays in the coach's file only.
+export function teamView(d) {
+  return {
+    team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions']),
+    players: (d.players || []).map(p => pick(p, ['id', 'name', 'gender', 'number', 'positions'])),
+    sessions: (d.sessions || []).map(s => pick(s, ['id', 'date', 'start', 'end', 'venue', 'focus', 'notes', 'cancelled'])),
+    lineups: (d.lineups || []).map(l => ({
+      id: l.id, name: l.name,
+      slots: (l.slots || []).map(s => pick(s, ['id', 'label', 'name', 'group', 'x', 'y', 'playerId']))
+    })),
+    notices: (d.notices || []).slice(0, 30).map(n => pick(n, ['id', 'at', 'text'])),
+    updatedAt: d.updatedAt || null
+  };
+}

@@ -1,0 +1,66 @@
+name: Publish
+
+# Builds the site from site/ plus the encrypted files on the data branch and deploys it to
+# GitHub Pages. Runs when the app code changes, and when the coach's app starts it after saving
+# new team data (the data branch has no workflows of its own, so pushes there don't trigger runs).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy-retry.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check out the data branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          remote="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
+            git clone --quiet --depth 1 --branch data --single-branch "$remote" data
+          else
+            echo "No data branch yet. The coach creates it when they set up the team in the app."
+            mkdir data
+          fi
+
+      - name: Build the site
+        env:
+          DATA_DIR: data
+          OUT_DIR: dist
+        run: node src/build.js
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v4
+        # GitHub occasionally can't find the artifact uploaded a moment earlier; wait and try once more.
+        continue-on-error: true
+      - name: Wait before retrying the deploy
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 30
+      - id: deploy-retry
+        if: steps.deploy.outcome == 'failure'
+        uses: actions/deploy-pages@v4
