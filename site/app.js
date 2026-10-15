@@ -57,6 +57,7 @@ const TABS = [
   { id: 'training', label: 'Training', icon: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>' },
   { id: 'field', label: 'Lineup', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14M5 5.5h14M5 18.5h14"/>' },
   { id: 'plays', label: 'Plays', icon: '<circle cx="6.5" cy="6.5" r="2.5"/><path d="M15 4.5l4 4M19 4.5l-4 4"/><path d="M7 11c0 5 4 8 10 8"/><path d="M14 16.5l3 2.5-3 2.5"/>' },
+  { id: 'tasks', label: 'Tasks', icon: '<path d="M4 6.5l1.6 1.6L8.5 5.2M4 12.5l1.6 1.6 2.9-2.9M4 18.5l1.6 1.6 2.9-2.9M11.5 7h8.5M11.5 13h8.5M11.5 19h8.5"/>' },
   { id: 'messages', label: 'Messages', coach: true, icon: '<path d="M20.5 11.5a8 8 0 0 1-11.6 7.2L3.5 20l1.4-4.8a8 8 0 1 1 15.6-3.7z"/>' }
 ];
 
@@ -110,9 +111,9 @@ function defaultData() {
       venue: 'C.ex Coffs International Stadium, Coffs Harbour',
       trainingVenue: '', trainingStart: '18:00', trainingEnd: '19:30',
       maxMales: 4, positions: ['Wing', 'Link', 'Rover', 'Middle'],
-      field: { ...FIELD_DEFAULTS }
+      field: { ...FIELD_DEFAULTS }, tasksContact: { name: '', phone: '' }
     },
-    players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [], plays: starterPlays(), playerSets: [], systems: {},
+    players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [], plays: starterPlays(), playerSets: [], systems: {}, tasks: [], helpers: [],
     teamPass: '', teamSalt: '', updatedAt: null
   };
 }
@@ -159,8 +160,10 @@ function normalize(d) {
   if (!d || typeof d !== 'object') return base;
   const out = { ...base, ...d, team: { ...base.team, ...(d.team || {}) } };
   out.team.field = { ...FIELD_DEFAULTS, ...((d.team && d.team.field) || {}) };
-  ['players', 'sessions', 'lineups', 'messages', 'notices', 'plays', 'playerSets'].forEach(k => { out[k] = arr(out[k]); });
+  ['players', 'sessions', 'lineups', 'messages', 'notices', 'plays', 'playerSets', 'tasks', 'helpers'].forEach(k => { out[k] = arr(out[k]); });
   out.systems = obj(out.systems);
+  out.team.tasksContact = { name: '', phone: '', ...obj(out.team.tasksContact) };
+  out.tasks.forEach(t => { t.people = arr(t.people); });
   renameHalfToRover(out);
   toPairedLayout(out);
   upgradePlays(out);
@@ -173,8 +176,9 @@ function normalizeTeam(t) {
   const base = teamView(defaultData());
   const out = { ...base, ...(t || {}), team: { ...base.team, ...((t && t.team) || {}) } };
   out.team.field = { ...FIELD_DEFAULTS, ...((t && t.team && t.team.field) || {}) };
-  ['players', 'sessions', 'lineups', 'notices', 'plays', 'playerSets'].forEach(k => { out[k] = arr(out[k]); });
+  ['players', 'sessions', 'lineups', 'notices', 'plays', 'playerSets', 'tasks'].forEach(k => { out[k] = arr(out[k]); });
   out.systems = obj(out.systems);
+  out.team.tasksContact = { name: '', phone: '', ...obj(out.team.tasksContact) };
   if (!out.lineups.length) out.lineups = base.lineups;
   renameHalfToRover(out);
   toPairedLayout(out);
@@ -204,6 +208,7 @@ const state = {
   layers: { zones: true, channels: true, ...(readJson('tm-field-layers') || {}) },
   system: null, sysFlip: false,
   playId: null, playSide: 'right', ped: null,
+  taskView: 'tasks', taskFilter: 'up', taskPick: null,
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false
 };
 const isCoach = () => S.role === 'coach' && !state.preview;
@@ -472,6 +477,7 @@ function render() {
   if (state.tab === 'training') v.innerHTML = viewTraining();
   if (state.tab === 'field') { v.innerHTML = viewField(); bindField(); }
   if (state.tab === 'plays') v.innerHTML = viewPlays();
+  if (state.tab === 'tasks') v.innerHTML = viewTasks();
   if (state.tab === 'messages') v.innerHTML = viewMessages();
 }
 
@@ -480,6 +486,7 @@ function renderNav() {
   const tabs = TABS.filter(t => !t.coach || isCoach());
   nav.hidden = false;
   nav.style.gridTemplateColumns = `repeat(${tabs.length},1fr)`;
+  nav.classList.toggle('many', tabs.length > 6);
   nav.innerHTML = tabs.map(t => `<button data-act="tab" data-tab="${t.id}" ${t.id === state.tab ? 'aria-current="page"' : ''}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${t.icon}</svg>${t.label}</button>`).join('');
 }
 
@@ -597,7 +604,7 @@ function viewHome() {
   let h = hero;   // first column on a wide screen
   h += `<section class="sec"><div class="sec-h"><h2>Next training</h2><button class="btn sm" data-act="tab" data-tab="training">All sessions</button></div>${nextHtml}</section>`;
   let h2 = '';    // second column
-  if (!isCoach()) h2 += noticeHtml;
+  if (!isCoach()) h2 += noticeHtml + homeTasks();
   if (isCoach()) {
     const out = P.filter(p => p.status !== 'available').length;
     const rs = rollSessions().slice(-8);
@@ -612,6 +619,7 @@ function viewHome() {
     <section class="sec"><div class="sec-h"><h2>Training turnout</h2>${rs.length ? `<button class="btn sm" data-act="attendance">Details</button>` : ''}</div>
       ${rs.length ? `<div class="chart">${turnoutChart(rs)}</div>` : `<p class="muted small">Take a roll call at training and turnout will chart here.</p>`}
     </section>`;
+    h2 += homeTasks();
   }
   return `<div class="cols"><div class="col">${h}</div><div class="col">${h2}</div></div>`;
 }
@@ -2467,8 +2475,366 @@ function playShareText(p, side) {
   return `🏉 *${p.name}* (attacking ${side})${head ? `\n${head}` : ''}${when ? `\n\n_When:_ ${when}` : ''}${phases}\n\n${steps.map((l, i) => `${i + 1}. ${l}`).join('\n')}`;
 }
 
+/* ---------- Tasks ---------- */
+// Volunteer jobs (the BBQ, the gear bag, lifts) given to players and to helpers: family, friends and
+// people from the community who aren't on the squad. Everyone sees every task and whether each spot
+// is taken, open or done; only the coach sees who is on it, so the players' copy carries no names
+// (see teamView in vault.js). Each person on a task is asked, yes, can't (no) or done, and someone
+// who can't frees their spot. A lift task has drivers, each offering seats, and riders put in a car.
+// A person is 'p:<player id>' or 'h:<helper id>'.
+const TASK_KINDS = { bbq: 'BBQ and food', gear: 'Gear', lift: 'Lifts', firstaid: 'First aid', kit: 'Uniforms', setup: 'Set up and pack up', other: 'Other' };
+const TASK_STATUS = { asked: 'Asked', yes: 'Yes', no: 'Can’t', done: 'Done' };
+const TASK_IDEAS = ['Run the BBQ', 'Bring the gear bag', 'Bring the first aid kit', 'Bring ice and water', 'Wash the playing tops', 'Set up the field', 'Pack up', 'Take photos', 'Lifts'];
+const CHECKLISTS = {
+  gameday: { name: 'Game day', items: [['Run the BBQ', 'bbq', 3], ['Bring the gear bag', 'gear', 1], ['Bring the first aid kit', 'firstaid', 1], ['Bring ice and water', 'bbq', 1], ['Wash the playing tops', 'kit', 1], ['Lifts', 'lift', 0]] },
+  trip: { name: 'Tournament trip', items: [['Lifts to the tournament', 'lift', 0], ['Book the accommodation', 'other', 1], ['Team dinner', 'bbq', 2], ['Bring the gear bag', 'gear', 1], ['Bring the first aid kit', 'firstaid', 1], ['Wash the playing tops each night', 'kit', 2]] }
+};
+const taskById = id => arr(V.tasks).find(t => t.id === id);
+const byWhen = (a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || '')) || String(a.title).localeCompare(String(b.title));
+const helperById = id => arr(V.helpers).find(h => h.id === id);
+function personOf(who) {
+  const [k, id] = String(who || '').split(':');
+  const x = k === 'p' ? playerById(id) : k === 'h' ? helperById(id) : null;
+  return x ? { who, helper: k === 'h', name: x.name || '?', phone: x.phone || '', x } : null;
+}
+const sortedHelpers = () => arr(V.helpers).slice().sort((a, b) => a.name.localeCompare(b.name));
+const everyone = () => [...sortedPlayers().map(p => 'p:' + p.id), ...sortedHelpers().map(h => 'h:' + h.id)];
+const whoName = who => { const p = personOf(who); return p ? p.name : 'Someone removed'; };
+const whoShort = who => { const p = personOf(who); return p ? shortName(p) : 'Removed'; };
+// A helper's tie to the squad, for the coach: "Mia's mum", or the player they're linked to.
+const helperTie = h => h.relation || (h.playerId && playerById(h.playerId) ? `${firstName(playerById(h.playerId))}’s family` : '');
+
+// The cars on a lift. The coach's copy works it out from the people on it; the players' copy has it ready.
+function liftOf(t) {
+  if (!t.people) {
+    const L = t.lift || {}, cars = arr(L.cars);
+    return { cars, seats: cars.reduce((n, c) => n + (c.seats || 0), 0), riders: L.riders || 0, waiting: L.waiting || 0, list: [] };
+  }
+  const live = t.people.filter(p => p.status !== 'no');
+  const drivers = live.filter(p => p.role === 'driver'), riders = live.filter(p => p.role !== 'driver');
+  const cars = drivers.map(d => {
+    const inCar = riders.filter(r => r.car === d.who);
+    return { who: d.who, status: d.status, seats: Number(d.seats) || 0, taken: inCar.length, done: d.status === 'done', riders: inCar.map(r => r.who) };
+  });
+  const seated = riders.filter(r => cars.some(c => c.who === r.car)).length;
+  return { cars, seats: cars.reduce((n, c) => n + c.seats, 0), riders: riders.length, waiting: riders.length - seated, list: riders };
+}
+// Each spot on a task: done, taken (someone is asked or has said yes) or open.
+function taskSpots(t) {
+  const taken = (t.people ? t.people.filter(p => p.status !== 'no').map(p => p.status === 'done' ? 'done' : 'taken') : arr(t.spots).slice())
+    .sort((a, b) => (a === 'done' ? 0 : 1) - (b === 'done' ? 0 : 1));
+  const n = Math.max(Number(t.need) || 1, taken.length);
+  return [...taken, ...Array(n - taken.length).fill('open')];
+}
+const taskOpen = t => t.kind === 'lift' ? (() => { const L = liftOf(t); return L.waiting > 0 || !L.cars.length; })() : taskSpots(t).includes('open');
+const taskAsked = t => arr(t.people).some(p => p.status === 'asked');
+const taskDone = t => t.kind === 'lift' ? (() => { const L = liftOf(t); return L.cars.length > 0 && L.cars.every(c => c.done) && !L.waiting; })() : taskSpots(t).every(s => s === 'done');
+const taskWhen = t => [t.start ? fmtTime(t.start) + (t.end ? '–' + fmtTime(t.end) : '') : '', t.place].filter(Boolean).join(' · ');
+// How much each person has helped: done, coming up (yes or asked) and can't. Riders aren't helping.
+function taskLoad() {
+  const load = {}, today = todayISO();
+  arr(V.tasks).forEach(t => arr(t.people).forEach(p => {
+    if (p.role === 'rider') return;
+    const L = load[p.who] || (load[p.who] = { done: 0, coming: 0, no: 0, asked: 0 });
+    if (p.status === 'done') L.done++;
+    else if (p.status === 'no') L.no++;
+    else if (t.date >= today) { L.coming++; if (p.status === 'asked') L.asked++; }
+  }));
+  return load;
+}
+const loadOf = (load, who) => load[who] || { done: 0, coming: 0, no: 0, asked: 0 };
+const loadText = L => [L.done ? `helped ${L.done}×` : 'not helped yet', L.coming ? `${L.coming} coming up` : ''].filter(Boolean).join(' · ');
+
+function viewTasks() {
+  const coach = isCoach();
+  if (!coach) state.taskView = 'tasks';
+  const seg = coach ? `<div class="seg" role="group" aria-label="Tasks view">${[['tasks', 'Tasks'], ['helpers', 'Helpers'], ['people', 'Tally']].map(([k, l]) => `<button data-act="task-view" data-v="${k}" aria-pressed="${state.taskView === k}">${l}</button>`).join('')}</div>` : '';
+  return seg + (state.taskView === 'helpers' ? viewHelpers() : state.taskView === 'people' ? viewHelped() : viewTaskList());
+}
+function viewTaskList() {
+  const coach = isCoach(), today = todayISO();
+  const all = arr(V.tasks).slice().sort(byWhen);
+  const up = all.filter(t => t.date >= today), past = all.filter(t => t.date < today).reverse();
+  const sets = { up, need: up.filter(taskOpen), waiting: up.filter(taskAsked), past };
+  if (!coach && state.taskFilter === 'waiting') state.taskFilter = 'up';
+  const f = sets[state.taskFilter] ? state.taskFilter : 'up', list = sets[f];
+  const chip = (k, l) => `<button class="chip" data-act="task-filter" data-f="${k}" aria-pressed="${f === k}">${l} (${sets[k].length})</button>`;
+  const contact = V.team.tasksContact || {};
+  return `<div class="sec-h"><h2>Tasks</h2>${coach ? `<div class="btn-row"><button class="btn sm" data-act="task-checklist">Checklist</button><button class="btn primary sm" data-act="task-new">${icon('plus', 18)}New task</button></div>` : ''}</div>
+    <div class="chips">${chip('up', 'Upcoming')}${chip('need', 'Need people')}${coach ? chip('waiting', 'Waiting on replies') : ''}${chip('past', 'Past')}</div>
+    ${list.length ? `<div class="list grid sess-grid task-grid">${list.map(taskRow).join('')}</div>`
+      : `<div class="empty"><p>${f === 'need' ? 'Every upcoming task has its people.' : f === 'waiting' ? 'Nobody is waiting to reply.' : f === 'past' ? 'No past tasks.'
+        : coach ? 'No tasks yet. Add one, or start from a game-day checklist.' : 'No jobs need a hand right now.'}</p>
+        ${coach && f === 'up' ? `<div class="btn-row" style="justify-content:center"><button class="btn primary" style="flex:0" data-act="task-new">${icon('plus')}New task</button><button class="btn" style="flex:0" data-act="task-checklist">Checklist</button></div>` : ''}</div>`}
+    ${coach ? `<div class="btn-row" style="margin-top:14px"><button class="btn wa" data-act="task-ask">${icon('chat', 18)}Ask the team for help</button></div>
+      <p class="hint">Players and helpers see every task and whether its spots are taken, but not who is on it. ${contact.phone ? `When they tap “I can help” it messages ${esc(contact.name || 'you')}.` : 'Add a tasks contact in Settings so “I can help” goes straight to you.'}</p>`
+      : `<p class="hint">Tap “I can help” to tell ${esc(contact.name || 'the team manager')} you can take a spot.</p>`}`;
+}
+function spotsHtml(t) {
+  const spots = taskSpots(t), taken = spots.filter(s => s !== 'open').length, open = spots.length - taken, done = spots.every(s => s === 'done');
+  const label = done ? 'Done' : `${taken} of ${spots.length} taken${open ? ` · <b class="open-t">${open} open</b>` : ''}`;
+  return `<span class="spot-line"><span class="spots" role="img" aria-label="${taken} of ${spots.length} spots taken${open ? `, ${open} open` : ''}">${spots.map(s => `<i class="spot ${s}"></i>`).join('')}</span><span class="small">${label}</span></span>`;
+}
+function liftHtml(t) {
+  const L = liftOf(t);
+  const cars = L.cars.length ? `${L.cars.length} car${L.cars.length === 1 ? '' : 's'}, ${L.seats} seat${L.seats === 1 ? '' : 's'}` : '<b class="open-t">Drivers needed</b>';
+  return `<span class="spot-line"><span class="small">${cars} · ${L.riders} need${L.riders === 1 ? 's' : ''} a lift${L.waiting ? ` · <b class="open-t">${L.waiting} without a seat</b>` : ''}</span></span>`;
+}
+function taskNames(t) {
+  const ppl = arr(t.people).filter(p => p.role !== 'rider');
+  if (!ppl.length) return '';
+  return `<span class="who">${ppl.map(p => `<span class="wn s-${p.status}">${esc(whoShort(p.who))}${p.role === 'driver' ? ` (${Number(p.seats) || 0})` : ''}<em>${TASK_STATUS[p.status] || ''}</em></span>`).join('')}</span>`;
+}
+function taskRow(t) {
+  const coach = isCoach(), lift = t.kind === 'lift', when = taskWhen(t);
+  const info = `<span class="task-top"><span class="t">${esc(t.title)}</span><span class="pill kind k-${esc(t.kind)}">${esc(TASK_KINDS[t.kind] || 'Other')}</span></span>
+    ${when ? `<span class="sub" style="display:block">${esc(when)}</span>` : ''}
+    ${lift ? liftHtml(t) : spotsHtml(t)}
+    ${coach ? taskNames(t) : t.notes ? `<span class="sub task-notes" style="display:block">${esc(t.notes)}</span>` : ''}`;
+  if (coach) return `<div class="sess task">${calBlock(t.date)}<button class="sess-main" data-act="task-open" data-id="${t.id}">${info}</button></div>`;
+  const canHelp = taskOpen(t) && t.date >= todayISO();
+  return `<div class="sess task">${calBlock(t.date)}<div class="sess-main">${info}
+    ${canHelp ? `<button class="btn wa sm task-help" data-act="task-help" data-id="${t.id}">${icon('chat', 18)}${lift ? 'I can drive' : 'I can help'}</button>` : ''}</div></div>`;
+}
+// The Home card: the next jobs that still need people.
+function homeTasks() {
+  const soon = toISODate(new Date(Date.now() + 28 * 86400000)), today = todayISO();
+  const up = arr(V.tasks).filter(t => t.date >= today);
+  const need = up.filter(t => t.date <= soon && taskOpen(t)).sort(byWhen);
+  const waiting = isCoach() ? up.filter(taskAsked).length : 0;
+  if (!need.length && !waiting) return '';
+  return `<section class="sec"><div class="sec-h"><h2>Help needed</h2><button class="btn sm" data-act="tab" data-tab="tasks">All tasks</button></div>
+    ${need.length ? `<div class="list">${need.slice(0, 3).map(taskRow).join('')}</div>` : ''}
+    ${need.length > 3 ? `<p class="hint">And ${need.length - 3} more in the next four weeks.</p>` : ''}
+    ${waiting ? `<p class="hint"><button class="link-btn inline" data-act="task-waiting">${waiting} task${waiting === 1 ? ' is' : 's are'} waiting on replies</button></p>` : ''}
+  </section>`;
+}
+
+// Someone leaves the squad or the helpers list: take them off every task (and out of anyone's car).
+function forgetPerson(who) {
+  data.tasks.forEach(t => {
+    t.people = arr(t.people).filter(p => p.who !== who);
+    t.people.forEach(p => { if (p.car === who) p.car = ''; });
+  });
+}
+const taskPerson = (t, who) => arr(t && t.people).find(p => p.who === who);
+
+/* The task sheet (coach): details, the people on it and their replies, or the cars on a lift */
+function openTask(id) { const t = taskById(id); if (!t) return; state.taskPick = null; openSheet(t.title, taskBody(t), 'task:' + t.id); }
+function refreshTask(id) {
+  render();
+  const t = taskById(id), body = $('#sheet .panel-body');
+  if (!t || !body || state.sheet !== 'task:' + id) return;
+  const top = body.scrollTop; body.innerHTML = taskBody(t); body.scrollTop = top;
+  const h = $('#sheet .panel-head h2'); if (h) h.textContent = t.title;
+}
+function taskBody(t) {
+  const lift = t.kind === 'lift', sess = t.sessionId ? sessionById(t.sessionId) : null;
+  return `<p class="task-when"><b>${esc(fmtLong(t.date))}</b>${taskWhen(t) ? `<br>${esc(taskWhen(t))}` : ''}${sess ? `<br><span class="muted small">At training</span>` : ''}</p>
+    <p><span class="pill kind k-${esc(t.kind)}">${esc(TASK_KINDS[t.kind] || 'Other')}</span></p>
+    ${t.notes ? `<p class="task-notes-full">${esc(t.notes)}</p>` : ''}
+    ${lift ? liftEditor(t) : peopleEditor(t)}
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" data-act="task-edit" data-id="${t.id}">Edit</button>
+      <button class="btn" data-act="task-dup" data-id="${t.id}">${icon('copy', 18)}Duplicate</button>
+      ${taskOpen(t) ? `<button class="btn wa" data-act="task-share" data-id="${t.id}">${icon('chat', 18)}Ask for help</button>` : ''}
+    </div>
+    <button class="btn danger block" style="margin-top:10px" data-act="task-del" data-id="${t.id}">Delete this task</button>
+    <p class="hint">Only coaches see names. Players and helpers see each spot as taken, open or done.</p>`;
+}
+const stBtns = (t, p) => `<div class="seg mini tp-st" role="group" aria-label="${esc(whoName(p.who))}'s reply">${Object.entries(TASK_STATUS).map(([k, l]) => `<button data-act="tp-status" data-id="${t.id}" data-who="${esc(p.who)}" data-s="${k}" aria-pressed="${p.status === k}">${l}</button>`).join('')}</div>`;
+const waBtn = (t, who, label) => personOf(who) && personOf(who).phone ? `<button class="icon-btn wa-i" data-act="tp-wa" data-id="${t.id}" data-who="${esc(who)}" aria-label="WhatsApp ${esc(label || whoName(who))}">${icon('chat', 20)}</button>` : '';
+const rmBtn = (t, who) => `<button class="icon-btn" data-act="tp-remove" data-id="${t.id}" data-who="${esc(who)}" aria-label="Take ${esc(whoName(who))} off this task">${icon('close', 18)}</button>`;
+function personLine(who) {
+  const p = personOf(who);
+  return `<span class="grow"><span class="name" style="display:block">${esc(p ? p.name : 'Someone removed')}</span>${p && p.helper ? `<span class="tagline">Helper${helperTie(p.x) ? ` · ${esc(helperTie(p.x))}` : ''}</span>` : ''}</span>`;
+}
+function peopleEditor(t) {
+  const ppl = arr(t.people);
+  return `<h3 class="form-sec">People ${spotsHtml(t)}</h3>
+    ${ppl.length ? `<div class="list tp-list">${ppl.map(p => `<div class="tp-row s-${p.status}"><div class="tp-head">${personLine(p.who)}${waBtn(t, p.who)}${rmBtn(t, p.who)}</div>${stBtns(t, p)}</div>`).join('')}</div>`
+      : `<p class="muted small">Nobody on this yet.</p>`}
+    ${pickerHtml(t, 'people', 'Add people')}`;
+}
+function liftEditor(t) {
+  const L = liftOf(t), drivers = arr(t.people).filter(p => p.role === 'driver'), riders = arr(t.people).filter(p => p.role !== 'driver');
+  const carName = who => `${firstName({ name: whoName(who) })}’s car`;
+  const live = L.cars;
+  return `<h3 class="form-sec">Drivers <span class="small muted">${L.seats} seat${L.seats === 1 ? '' : 's'}</span></h3>
+    ${drivers.length ? `<div class="list tp-list">${drivers.map(d => {
+      const car = live.find(c => c.who === d.who), n = car ? car.taken : 0, seats = Number(d.seats) || 0;
+      return `<div class="tp-row s-${d.status}"><div class="tp-head">${personLine(d.who)}${waBtn(t, d.who)}${rmBtn(t, d.who)}</div>
+        <div class="tp-seats"><span class="small">Seats</span><button class="btn sm" data-act="tp-seats" data-id="${t.id}" data-who="${esc(d.who)}" data-d="-1" aria-label="One seat fewer">−</button><b>${seats}</b><button class="btn sm" data-act="tp-seats" data-id="${t.id}" data-who="${esc(d.who)}" data-d="1" aria-label="One seat more">+</button>
+          <span class="small ${n > seats ? 'open-t' : 'muted'}">${d.status === 'no' ? 'Can’t drive' : `${n} in the car${n > seats ? `, ${n - seats} too many` : ''}`}</span></div>
+        ${stBtns(t, d)}</div>`;
+    }).join('')}</div>` : `<p class="muted small">No drivers yet.</p>`}
+    ${pickerHtml(t, 'driver', 'Add a driver')}
+    <h3 class="form-sec">Need a lift <span class="small muted">${L.riders}${L.waiting ? `, <b class="open-t">${L.waiting} without a seat</b>` : ''}</span></h3>
+    ${riders.length ? `<div class="list tp-list">${riders.map(r => `<div class="tp-row"><div class="tp-head">${personLine(r.who)}${waBtn(t, r.who)}${rmBtn(t, r.who)}</div>
+      <label class="tp-car"><span class="small">Car</span><select data-change="tp-car" data-id="${t.id}" data-who="${esc(r.who)}"><option value="">No seat yet</option>
+        ${live.map(c => `<option value="${esc(c.who)}" ${r.car === c.who ? 'selected' : ''}>${esc(carName(c.who))} (${Math.max(0, c.seats - c.taken)} free)</option>`).join('')}</select></label></div>`).join('')}</div>` : `<p class="muted small">Nobody on the list yet.</p>`}
+    ${L.waiting && L.cars.some(c => c.taken < c.seats) ? `<button class="btn block" style="margin-top:8px" data-act="lift-fill" data-id="${t.id}">Fill the free seats</button>` : ''}
+    ${pickerHtml(t, 'rider', 'Add people who need a lift')}`;
+}
+// Who can be added, the least busy first so the load is shared around.
+function pickerHtml(t, mode, label) {
+  if (state.taskPick !== mode) return `<button class="btn block" style="margin-top:8px" data-act="tp-pick" data-id="${t.id}" data-m="${mode}">${icon('plus', 18)}${label}</button>`;
+  const on = new Set(arr(t.people).map(p => p.who)), load = taskLoad();
+  const cands = everyone().filter(w => !on.has(w));
+  if (mode !== 'rider') cands.sort((a, b) => { const A = loadOf(load, a), B = loadOf(load, b); return (A.done + A.coming) - (B.done + B.coming); });
+  return `<div class="tp-pick"><div class="sec-h" style="margin:12px 0 6px"><h3 class="form-sec" style="margin:0">${label}</h3><button class="btn sm" data-act="tp-pick" data-id="${t.id}" data-m="">Done</button></div>
+    ${cands.length ? `<div class="list">${cands.map(w => { const p = personOf(w), L = loadOf(load, w);
+      return `<button class="pick" data-act="tp-add" data-id="${t.id}" data-who="${esc(w)}" data-m="${mode}">${icon('plus', 18)}<span class="grow"><span class="name" style="display:block">${esc(p.name)}${p.helper ? ' <span class="pill neutral">Helper</span>' : ''}</span>${mode === 'rider' ? '' : `<span class="tagline">${esc(loadText(L))}</span>`}</span></button>`; }).join('')}</div>`
+      : `<p class="muted small">Everyone is on it already. Add helpers in the Helpers tab.</p>`}
+    ${mode === 'people' ? '<p class="hint">They’re added as Asked. Tap their reply when you hear back.</p>' : mode === 'driver' ? '<p class="hint">Drivers start with 4 seats. Change it once you know.</p>' : ''}</div>`;
+}
+
+/* New and edited tasks */
+function taskForm(t, opts = {}) {
+  const isNew = !t || !t.id, d = t || { title: '', kind: 'other', date: todayISO(), start: '', end: '', place: '', notes: '', need: 1 };
+  const sessions = upcomingSessions().filter(s => !s.cancelled);
+  const until = V.team.eventStart || '';
+  return `<form class="task-form" data-form="task">
+    <input type="hidden" name="id" value="${esc(isNew ? '' : d.id)}">
+    <label class="field-l"><span>What needs doing</span><input type="text" name="title" required list="task-ideas" value="${esc(d.title)}" placeholder="e.g. Run the BBQ"></label>
+    <datalist id="task-ideas">${TASK_IDEAS.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <div class="two">
+      <label class="field-l"><span>Type</span><select name="kind" data-change="task-kind">${Object.entries(TASK_KINDS).map(([k, l]) => `<option value="${k}" ${d.kind === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="field-l need-f" ${d.kind === 'lift' ? 'hidden' : ''}><span>People needed</span><input type="number" name="need" min="1" max="30" value="${esc(d.kind === 'lift' ? 1 : d.need || 1)}"></label>
+    </div>
+    ${sessions.length ? `<label class="field-l"><span>At a training session</span><select name="sessionId" data-change="task-session"><option value="">No, another day</option>
+      ${sessions.map(s => `<option value="${s.id}" data-date="${s.date}" data-start="${esc(s.start || '')}" data-end="${esc(s.end || '')}" data-place="${esc(s.venue || V.team.trainingVenue || '')}" ${d.sessionId === s.id ? 'selected' : ''}>${esc(fmtDay(s.date))}, ${esc(fmtRange(s))}</option>`).join('')}</select></label>` : ''}
+    <label class="field-l"><span>Date</span><input type="date" name="date" required value="${esc(d.date)}"></label>
+    <div class="two">
+      <label class="field-l"><span>From</span><input type="time" name="start" value="${esc(d.start || '')}"></label>
+      <label class="field-l"><span>To</span><input type="time" name="end" value="${esc(d.end || '')}"></label>
+    </div>
+    <label class="field-l"><span>Where</span><input type="text" name="place" value="${esc(d.place || '')}" placeholder="e.g. Clubhouse BBQ, field 2"></label>
+    <label class="field-l"><span>Instructions</span><textarea name="notes" rows="3" placeholder="What to bring, who to see, where to park">${esc(d.notes || '')}</textarea><small>Everyone in the team can see these.</small></label>
+    ${isNew && !opts.copy ? `<label class="check"><input type="checkbox" name="rotate" data-change="task-rotate"> Take turns at every training</label>
+      <div class="rotate-box" hidden>
+        <label class="field-l"><span>Until</span><input type="date" name="until" value="${esc(until)}"><small>One task per training session from the date above, each given to the next person in turn.</small></label>
+        <div class="field-l"><span>Who takes turns</span><div class="rot-people">${everyone().map(w => `<label class="check rot-p"><input type="checkbox" name="rot" value="${esc(w)}"> ${esc(whoName(w))}${w[0] === 'h' ? ' <span class="pill neutral">Helper</span>' : ''}</label>`).join('')}</div></div>
+      </div>` : ''}
+    <button class="btn primary block" type="submit">${isNew ? 'Add task' : 'Save changes'}</button>
+  </form>`;
+}
+function saveTask(f) {
+  const id = f.id, kind = TASK_KINDS[f.kind] ? f.kind : 'other';
+  const fields = { title: f.title || 'Task', kind, date: f.date || todayISO(), start: f.start, end: f.end, place: f.place, notes: f.notes, need: kind === 'lift' ? 0 : clamp(Number(f.need) || 1, 1, 30), sessionId: f.sessionId || '' };
+  if (id) { const t = data.tasks.find(x => x.id === id); if (!t) return null; Object.assign(t, fields); return [t]; }
+  if (f.rotate) {
+    const who = f.rot; if (!who.length) { toast('Pick who takes turns'); return null; }
+    const ss = data.sessions.filter(s => !s.cancelled && s.date >= fields.date && (!f.until || s.date <= f.until)).sort(bySession);
+    if (!ss.length) { toast('No training sessions in those dates'); return null; }
+    const series = uid();
+    const made = ss.map((s, i) => ({ id: uid(), ...fields, date: s.date, start: s.start || fields.start, end: s.end || fields.end, place: s.venue || data.team.trainingVenue || fields.place, sessionId: s.id, need: 1, series,
+      people: [{ who: who[i % who.length], status: 'asked' }] }));
+    data.tasks.push(...made);
+    return made;
+  }
+  const t = { id: uid(), ...fields, people: [] };
+  data.tasks.push(t);
+  return [t];
+}
+function checklistBody() {
+  const dates = [...new Set(data.tasks.map(t => t.date))].sort().reverse();
+  return `<form data-form="task-checklist">
+    <p class="muted small" style="margin-bottom:10px">Adds a set of tasks for one day, with nobody on them yet.</p>
+    <div class="field-l"><span>Checklist</span><div class="opts">${Object.entries(CHECKLISTS).map(([k, c], i) => `<label class="opt"><input type="radio" name="list" value="${k}" ${i ? '' : 'checked'}><span>${esc(c.name)}</span></label>`).join('')}</div>
+      <small>${Object.values(CHECKLISTS).map(c => `${esc(c.name)}: ${c.items.map(x => esc(x[0].toLowerCase())).join(', ')}.`).join('<br>')}</small></div>
+    <label class="field-l"><span>Date</span><input type="date" name="date" required value="${esc(V.team.eventStart && V.team.eventStart > todayISO() ? V.team.eventStart : todayISO())}"></label>
+    <label class="field-l"><span>Where</span><input type="text" name="place" value="${esc(V.team.venue || '')}"></label>
+    <button class="btn primary block" type="submit">Add these tasks</button>
+  </form>
+  ${dates.length ? `<h3 class="form-sec">Or copy another day’s tasks</h3>
+  <form data-form="task-copyday">
+    <div class="two">
+      <label class="field-l"><span>From</span><select name="from">${dates.map(d => `<option value="${d}">${esc(fmtDay(d))} (${data.tasks.filter(t => t.date === d).length})</option>`).join('')}</select></label>
+      <label class="field-l"><span>To</span><input type="date" name="to" required></label>
+    </div>
+    <button class="btn block" type="submit">Copy the tasks</button>
+    <p class="hint">Copies what, when and where, without the people.</p>
+  </form>` : ''}`;
+}
+
+/* Helpers: family, friends and people from the community who aren't on the squad */
+function viewHelpers() {
+  const H = sortedHelpers(), load = taskLoad();
+  return `<div class="sec-h"><h2>Helpers</h2><button class="btn primary sm" data-act="helper-new">${icon('plus', 18)}Add</button></div>
+    ${H.length ? `<div class="list grid">${H.map(h => `<div class="row">
+      <button class="row-main" data-act="helper-edit" data-id="${h.id}"><span class="grow"><span class="name" style="display:block">${esc(h.name)}</span>
+        <span class="sub" style="display:block">${esc([helperTie(h), loadText(loadOf(load, 'h:' + h.id))].filter(Boolean).join(' · '))}</span></span></button>
+      ${h.phone ? `<button class="icon-btn" style="color:var(--wa)" data-act="wa-helper" data-id="${h.id}" aria-label="WhatsApp ${esc(h.name)}">${icon('chat', 22)}</button>` : '<span style="width:44px"></span>'}
+    </div>`).join('')}</div>` : `<div class="empty"><p>Family, friends and anyone from the community who pitches in. Add them here to give them tasks.</p><button class="btn primary" data-act="helper-new">${icon('plus')}Add a helper</button></div>`}
+    <p class="hint">Only coaches can see helpers and their numbers.</p>`;
+}
+function helperForm(h) {
+  const isNew = !h; h = h || { name: '', phone: '', relation: '', playerId: '', notes: '' };
+  return `<form data-form="helper" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(h.id || '')}">
+    <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(h.name)}" autocapitalize="words"></label>
+    <label class="field-l"><span>Mobile</span><input type="tel" name="phone" placeholder="04xx xxx xxx" value="${esc(h.phone)}"><small>Coach only. For asking them on WhatsApp.</small></label>
+    <div class="two">
+      <label class="field-l"><span>Who they are</span><input type="text" name="relation" value="${esc(h.relation)}" placeholder="e.g. Mia’s mum"></label>
+      <label class="field-l"><span>Linked player</span><select name="playerId"><option value="">None</option>${sortedPlayers().map(p => `<option value="${p.id}" ${h.playerId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+    </div>
+    <label class="field-l"><span>Notes</span><input type="text" name="notes" value="${esc(h.notes)}" placeholder="e.g. has a ute, first aid trained"></label>
+    <button class="btn primary block" type="submit">${isNew ? 'Add helper' : 'Save changes'}</button>
+    ${isNew ? '' : `<button type="button" class="btn danger block" style="margin-top:10px" data-act="helper-del" data-id="${h.id}">Remove helper</button>`}
+  </form>`;
+}
+// Everyone's helping, most first, so the load can be shared around.
+function viewHelped() {
+  const load = taskLoad();
+  const rows = everyone().map(w => ({ w, L: loadOf(load, w) })).sort((a, b) => b.L.done - a.L.done || b.L.coming - a.L.coming || whoName(a.w).localeCompare(whoName(b.w)));
+  if (!rows.length) return `<p class="muted">Add players or helpers first.</p>`;
+  const none = rows.filter(r => !r.L.done && !r.L.coming);
+  return `<div class="sec-h"><h2>Who’s helped</h2></div>
+    <div class="list helped"><div class="helped-row helped-h"><span>Name</span><span>Done</span><span>Coming up</span><span>Can’t</span></div>
+    ${rows.map(({ w, L }) => `<div class="helped-row"><span class="hn"><span class="name" style="display:block">${esc(whoName(w))}</span>${w[0] === 'h' ? '<span class="tagline">Helper</span>' : ''}</span><b>${L.done || '–'}</b><span>${L.coming || '–'}${L.asked ? ` <small class="muted">(${L.asked} asked)</small>` : ''}</span><span>${L.no || '–'}</span></div>`).join('')}</div>
+    ${none.length ? `<p class="hint">${none.length} ${none.length === 1 ? 'person hasn’t' : 'people haven’t'} helped yet. When you add people to a task, they’re listed least busy first.</p>` : ''}`;
+}
+
+/* WhatsApp words for tasks */
+function taskLine(t) { return `*${t.title}*, ${fmtLong(t.date)}${t.start ? `, ${fmtTime(t.start)}${t.end ? '–' + fmtTime(t.end) : ''}` : ''}${t.place ? `, ${t.place}` : ''}`; }
+function taskPersonText(t, who) {
+  const p = personOf(who), first = p ? firstName(p) : '', me = arr(t.people).find(x => x.who === who) || {};
+  const notes = t.notes ? `\n📝 ${t.notes}` : '';
+  if (t.kind === 'lift') {
+    const L = liftOf(t);
+    if (me.role === 'driver') {
+      const car = L.cars.find(c => c.who === who), names = car ? car.riders.map(whoName) : [];
+      const inCar = names.length ? `\n🚗 In your car: ${names.join(', ')}` : '';
+      if (me.status === 'asked') return `Hi ${first}, could you drive for ${taskLine(t)}?${inCar}${notes}\n\nLet me know yes or no, and how many seats you have.`;
+      if (me.status === 'no') return `Hi ${first}, no worries about driving for ${t.title}. Thanks for letting me know.`;
+      if (me.status === 'done') return `Thanks ${first} for driving for ${t.title}! 🙌`;
+      return `Hi ${first}, thanks for driving for ${taskLine(t)}.${inCar}${notes}`;
+    }
+    const driver = me.car ? whoName(me.car) : '';
+    return `Hi ${first}, your lift for ${taskLine(t)}: ${driver ? `you’re in ${driver}’s car.` : 'we’re still finding you a seat.'}${notes}`;
+  }
+  if (me.status === 'done') return `Thanks ${first} for helping with ${t.title} on ${fmtDay(t.date)}! 🙌`;
+  if (me.status === 'no') return `Hi ${first}, no worries about ${t.title}. Thanks for letting me know.`;
+  if (me.status === 'yes') return `Hi ${first}, a reminder you’re on ${taskLine(t)}.${notes}\n\nThanks for helping! 🙌`;
+  return `Hi ${first}, could you help with ${taskLine(t)}?${notes}\n\nLet me know yes or no. Thanks!`;
+}
+function taskAskText(t) {
+  const L = t.kind === 'lift' ? liftOf(t) : null, open = L ? 0 : taskSpots(t).filter(s => s === 'open').length;
+  return `🙋 *Can anyone help?*\n${taskLine(t)}${t.notes ? `\n📝 ${t.notes}` : ''}\n${L ? `🚗 ${L.waiting ? `${L.waiting} still need${L.waiting === 1 ? 's' : ''} a seat. ` : ''}We need drivers.` : `${open} more ${open === 1 ? 'person' : 'people'} needed.`}\n\nReply here, or tap “I can help” in the team app (Tasks).`;
+}
+function helpNeededText() {
+  const soon = toISODate(new Date(Date.now() + 28 * 86400000)), today = todayISO();
+  const need = data.tasks.filter(t => t.date >= today && t.date <= soon && taskOpen(t)).sort(byWhen);
+  if (!need.length) return `🙋 *Help needed — ${data.team.name}*\n\nNothing at the moment. Thanks everyone! 🙌`;
+  return `🙋 *Help needed — ${data.team.name}*\n\n${need.map(t => {
+    const L = t.kind === 'lift' ? liftOf(t) : null, open = L ? 0 : taskSpots(t).filter(s => s === 'open').length;
+    return `• ${fmtDay(t.date)}${t.start ? ` ${fmtTime(t.start)}` : ''}: ${t.title}${L ? ` (drivers needed${L.waiting ? `, ${L.waiting} without a seat` : ''})` : ` (${open} more needed)`}`;
+  }).join('\n')}\n\nReply here, or tap “I can help” in the team app (Tasks). Thanks! 🙌`;
+}
+
 /* ---------- Messages (coach) ---------- */
-const TEMPLATES = { reminder: 'Training reminder', cancelled: 'Training cancelled', lineup: 'Lineup', countdown: 'Countdown', invite: 'App invite', blank: 'Blank' };
+const TEMPLATES = { reminder: 'Training reminder', cancelled: 'Training cancelled', lineup: 'Lineup', help: 'Help needed', countdown: 'Countdown', invite: 'App invite', blank: 'Blank' };
 function buildTemplate(t) {
   const T = data.team, s = sessionById(state.msgSession) || nextSession();
   if (t === 'reminder') {
@@ -2477,6 +2843,7 @@ function buildTemplate(t) {
   }
   if (t === 'cancelled') return s ? `⚠️ *Training cancelled*\nTraining on ${fmtLong(s.date)} (${fmtRange(s)}) is off.\n\nReason: \n\nSee you at the next one.` : `⚠️ *Training cancelled*\n\n`;
   if (t === 'lineup') return lineupText(curLineup());
+  if (t === 'help') return helpNeededText();
   if (t === 'countdown') { const cd = countdown(); const d = cd && cd.state === 'before' ? cd.days : 0; return `⏳ *${d} days* until ${T.event} in Coffs Harbour (${fmtEventDates()}).\n\nEvery session counts from here. Let's keep turning up. 💪`; }
   if (t === 'invite') return `👋 Here's the ${T.name} team app: training times, lineups and notices.\n\n${inviteLink()}\n\nOpen it on your phone, then use "Add to Home Screen". Please keep this link within the team.`;
   return '';
@@ -2564,6 +2931,12 @@ function settingsBody() {
     <p class="note">The 2027 dates are a placeholder. Check them against the official draw and update them here.</p>
     <label class="field-l"><span>Tournament venue</span><input type="text" name="venue" value="${esc(T.venue)}"></label>
     <label class="field-l"><span>Max males on field</span><input type="number" name="maxMales" min="0" max="8" value="${esc(T.maxMales)}"><small>Mixed Oztag allows up to 4 of the 8 on field.</small></label>
+    <h3 class="form-sec">Tasks contact</h3>
+    <p class="muted small" style="margin-bottom:10px">Who runs the volunteer tasks. When a player taps “I can help”, WhatsApp opens a message to this person. Everyone in the team can see this name and number.</p>
+    <div class="two">
+      <label class="field-l"><span>Name</span><input type="text" name="tasksName" value="${esc(T.tasksContact.name)}" placeholder="e.g. Sarah (team manager)"></label>
+      <label class="field-l"><span>Mobile</span><input type="tel" name="tasksPhone" value="${esc(T.tasksContact.phone)}" placeholder="04xx xxx xxx"></label>
+    </div>
     <h3 class="form-sec">Training defaults</h3>
     <label class="field-l"><span>Usual venue</span><input type="text" name="trainingVenue" value="${esc(T.trainingVenue)}"></label>
     <div class="two">
@@ -2726,6 +3099,27 @@ function loadSample() {
   const pick = { LW: 'Chloe', LL: 'Ava', LR: 'Jade', LM: 'Mia', RM: 'Josh', RR: 'Kai', RL: 'Isaac', RW: 'Jayden' };
   data.lineups[0].slots.forEach(s => { s.playerId = byName(pick[s.id]); });
   if (!data.team.trainingVenue) data.team.trainingVenue = 'Home ground, field 2';
+  // Helpers and volunteer tasks: the gear bag taking turns at training, a BBQ, and lifts to a trial game.
+  const H = (name, relation, player) => ({ id: uid(), name, phone: '', relation, playerId: player ? byName(player) : '', notes: '' });
+  data.helpers = [H('Rachel Tuala', 'Mia’s mum', 'Mia'), H('Dave Nguyen', 'Jade’s dad', 'Jade'), H('Sue Kelleher', 'Ava’s mum', 'Ava'), H('Pete Morgan', 'Tayla’s dad', 'Tayla'), H('Lou Brennan', 'Club volunteer', '')];
+  const hp = n => 'h:' + data.helpers.find(h => h.name.startsWith(n)).id, pp = n => 'p:' + byName(n);
+  const sat = k => { const x = new Date(t.getFullYear(), t.getMonth(), t.getDate()); while (x.getDay() !== 6) x.setDate(x.getDate() + 1); x.setDate(x.getDate() + 7 * k); return toISODate(x); };
+  const turns = [pp('Mia'), pp('Kai'), pp('Jade'), pp('Josh')], series = uid(), today = todayISO();
+  const T = (title, kind, date, extra) => ({ id: uid(), title, kind, date, start: '', end: '', place: '', notes: '', need: 1, sessionId: '', people: [], ...extra });
+  let nextUp = 0;
+  data.tasks = data.sessions.map((s, i) => T('Bring the gear bag', 'gear', s.date, { start: s.start, end: s.end, place: s.venue, sessionId: s.id, series,
+    notes: 'Balls, cones, tags and bibs. The bag lives in the clubhouse.',
+    people: [{ who: turns[i % 4], status: s.date < today ? 'done' : nextUp++ === 0 ? 'yes' : 'asked' }] }));
+  data.tasks.push(
+    T('Set up the field', 'setup', toISODate(new Date(t.getFullYear(), t.getMonth(), t.getDate() - ((t.getDay() + 1) % 7 || 7))), { start: '07:30', place: 'Home ground', need: 2, people: [{ who: hp('Rachel'), status: 'done' }, { who: pp('Mia'), status: 'done' }] }),
+    T('Run the BBQ', 'bbq', sat(1), { start: '08:00', end: '12:00', place: 'Clubhouse BBQ', need: 3, notes: 'Fundraiser for the Coffs trip. Sausages and bread are in the club fridge.', people: [{ who: hp('Rachel'), status: 'yes' }, { who: hp('Dave'), status: 'asked' }, { who: hp('Lou'), status: 'no' }] }),
+    T('Lifts to the trial game', 'lift', sat(2), { start: '07:00', place: 'Meet at the clubhouse car park', need: 0, notes: 'Leaving at 7am sharp.', people: [
+      { who: hp('Pete'), role: 'driver', seats: 4, status: 'yes' }, { who: hp('Sue'), role: 'driver', seats: 3, status: 'asked' },
+      { who: pp('Liam'), role: 'rider', status: 'yes', car: hp('Pete') }, { who: pp('Ethan'), role: 'rider', status: 'yes', car: hp('Pete') },
+      { who: pp('Isaac'), role: 'rider', status: 'yes', car: hp('Sue') }, { who: pp('Tom'), role: 'rider', status: 'yes', car: '' }, { who: pp('Grace'), role: 'rider', status: 'yes', car: '' }] }),
+    T('Bring the first aid kit', 'firstaid', sat(2), { start: '08:00', place: 'Trial game', people: [{ who: hp('Sue'), status: 'yes' }] }),
+    T('Wash the playing tops', 'kit', sat(2), { place: 'Take them home after the game', notes: 'Cold wash, hang to dry. Back by Tuesday training.' })
+  );
   save(); state.msgDraft = null; render(); toast('Sample squad loaded');
 }
 
@@ -2757,6 +3151,8 @@ const actions = {
     const p = playerById(el.dataset.id); if (!p || !confirm(`Remove ${p.name} from the squad?`)) return;
     data.players = data.players.filter(x => x.id !== p.id);
     data.lineups.forEach(l => l.slots.forEach(s => { if (s.playerId === p.id) s.playerId = null; }));
+    forgetPerson('p:' + p.id);
+    data.helpers.forEach(h => { if (h.playerId === p.id) h.playerId = ''; });
     save(); closeSheet(); render(); toast(`${p.name} removed`);
   }),
   'squad-filter': el => { state.squadFilter = el.dataset.f; render(); },
@@ -2813,6 +3209,60 @@ const actions = {
     if (!confirm(`Put “${b.name}” back to the playbook version? Your changes to its words and positions will go.`)) return;
     delete data.systems[b.id]; save(); render(); toast('Back to the playbook version');
   }),
+  'task-view': el => { state.taskView = el.dataset.v; render(); },
+  'task-filter': el => { state.taskFilter = el.dataset.f; render(); },
+  'task-waiting': () => { state.tab = 'tasks'; state.taskView = 'tasks'; state.taskFilter = 'waiting'; history.replaceState(null, '', '#tasks'); render(); window.scrollTo(0, 0); },
+  'task-new': coachOnly(() => openSheet('New task', taskForm(null))),
+  'task-checklist': coachOnly(() => openSheet('Add a checklist', checklistBody())),
+  'task-open': coachOnly(el => openTask(el.dataset.id)),
+  'task-edit': coachOnly(el => { const t = taskById(el.dataset.id); if (t) openSheet('Edit task', taskForm(t)); }),
+  'task-dup': coachOnly(el => { const t = taskById(el.dataset.id); if (!t) return; const { id, people, series, ...rest } = t; openSheet('Copy of task', taskForm(rest, { copy: true })); }),
+  'task-del': coachOnly(el => {
+    const t = taskById(el.dataset.id); if (!t) return;
+    const later = t.series ? data.tasks.filter(x => x.series === t.series && x.id !== t.id && x.date >= t.date) : [];
+    if (!confirm(`Delete “${t.title}” on ${fmtDay(t.date)}?`)) return;
+    const also = later.length && confirm(`It's part of a rotation. Also delete the ${later.length} later one${later.length === 1 ? '' : 's'}?`);
+    const gone = new Set([t.id, ...(also ? later.map(x => x.id) : [])]);
+    data.tasks = data.tasks.filter(x => !gone.has(x.id));
+    save(); closeSheet(); render(); toast(gone.size > 1 ? `${gone.size} tasks deleted` : 'Task deleted');
+  }),
+  'task-share': coachOnly(el => { const t = taskById(el.dataset.id); if (!t) return; const text = taskAskText(t); logMessage(text, 'WhatsApp'); openWhatsApp(text); }),
+  'task-ask': coachOnly(() => { state.tab = 'messages'; state.msgTpl = 'help'; state.msgDraft = buildTemplate('help'); history.replaceState(null, '', '#messages'); render(); window.scrollTo(0, 0); }),
+  'task-help': el => {
+    const t = taskById(el.dataset.id); if (!t) return;
+    const c = V.team.tasksContact || {}, hi = c.name ? `Hi ${String(c.name).trim().split(/\s+/)[0]}, ` : 'Hi, ';
+    openWhatsApp(`${hi}I can ${t.kind === 'lift' ? 'drive for' : 'help with'} ${t.title} on ${fmtDay(t.date)}${t.start ? ` at ${fmtTime(t.start)}` : ''}. `, c.phone || '');
+  },
+  'tp-pick': coachOnly(el => { state.taskPick = el.dataset.m || null; refreshTask(el.dataset.id); }),
+  'tp-add': coachOnly(el => {
+    const t = data.tasks.find(x => x.id === el.dataset.id), who = el.dataset.who, m = el.dataset.m; if (!t || taskPerson(t, who)) return;
+    t.people.push(m === 'driver' ? { who, role: 'driver', seats: 4, status: 'asked' } : m === 'rider' ? { who, role: 'rider', status: 'yes', car: '' } : { who, status: 'asked' });
+    save(); refreshTask(t.id);
+  }),
+  'tp-status': coachOnly(el => { const t = data.tasks.find(x => x.id === el.dataset.id), p = taskPerson(t, el.dataset.who); if (!p) return; p.status = el.dataset.s; save(); refreshTask(t.id); }),
+  'tp-remove': coachOnly(el => {
+    const t = data.tasks.find(x => x.id === el.dataset.id); if (!t) return;
+    t.people = t.people.filter(p => p.who !== el.dataset.who);
+    t.people.forEach(p => { if (p.car === el.dataset.who) p.car = ''; });
+    save(); refreshTask(t.id);
+  }),
+  'tp-seats': coachOnly(el => { const t = data.tasks.find(x => x.id === el.dataset.id), p = taskPerson(t, el.dataset.who); if (!p) return; p.seats = clamp((Number(p.seats) || 0) + Number(el.dataset.d), 0, 12); save(); refreshTask(t.id); }),
+  'tp-wa': coachOnly(el => { const t = taskById(el.dataset.id), per = personOf(el.dataset.who); if (!t || !per || !per.phone) return; const text = taskPersonText(t, el.dataset.who); logMessage(text, per.name); openWhatsApp(text, per.phone); }),
+  'lift-fill': coachOnly(el => {
+    const t = data.tasks.find(x => x.id === el.dataset.id); if (!t) return;
+    const L = liftOf(t), free = L.cars.map(c => ({ who: c.who, n: c.seats - c.taken }));
+    let moved = 0;
+    L.list.filter(r => !L.cars.some(c => c.who === r.car)).forEach(r => { const c = free.find(x => x.n > 0); if (c) { r.car = c.who; c.n--; moved++; } });
+    save(); refreshTask(t.id); toast(moved ? `${moved} ${moved === 1 ? 'person' : 'people'} given a seat` : 'No free seats');
+  }),
+  'helper-new': coachOnly(() => openSheet('Add helper', helperForm(null))),
+  'helper-edit': coachOnly(el => { const h = data.helpers.find(x => x.id === el.dataset.id); if (h) openSheet(h.name, helperForm(h)); }),
+  'helper-del': coachOnly(el => {
+    const h = data.helpers.find(x => x.id === el.dataset.id); if (!h || !confirm(`Remove ${h.name}? They'll come off any tasks too.`)) return;
+    data.helpers = data.helpers.filter(x => x.id !== h.id); forgetPerson('h:' + h.id);
+    save(); closeSheet(); render(); toast(`${h.name} removed`);
+  }),
+  'wa-helper': coachOnly(el => { const h = data.helpers.find(x => x.id === el.dataset.id); if (!h || !h.phone) return; const text = `Hi ${firstName(h)}, `; logMessage(text, h.name); openWhatsApp(text, h.phone); }),
   'sys-share': coachOnly(() => { const sys = curSystem(); if (!sys) return; const t = systemShareText(sys, curLineup()); logMessage(t, 'WhatsApp'); openWhatsApp(t); }),
   'play-open': el => { state.playId = el.dataset.id; state.playPhase = 0; render(); window.scrollTo(0, 0); },
   'play-phase': el => { const p = playById(state.playId); if (!p) return; animStop(); animShowPhase(p, Number(el.dataset.i)); anim.planFor = null; },
@@ -3002,6 +3452,16 @@ document.addEventListener('change', e => {
     refreshPedField();
   }
   if (k === 'repeat') { const u = e.target.closest('form').querySelector('.repeat-until'); if (u) u.hidden = !e.target.checked; }
+  if (k === 'task-rotate') { const b = e.target.closest('form').querySelector('.rotate-box'); if (b) b.hidden = !e.target.checked; }
+  if (k === 'task-kind') { const n = e.target.closest('form').querySelector('.need-f'); if (n) n.hidden = e.target.value === 'lift'; }
+  if (k === 'task-session') {
+    const o = e.target.selectedOptions[0], form = e.target.closest('form');
+    if (o && o.value) ['date', 'start', 'end', 'place'].forEach(f => { const inp = form.querySelector(`[name="${f}"]`); if (inp) inp.value = o.dataset[f] || ''; });
+  }
+  if (k === 'tp-car' && isCoach()) {
+    const t = data.tasks.find(x => x.id === e.target.dataset.id), p = taskPerson(t, e.target.dataset.who);
+    if (p) { p.car = e.target.value; save(); refreshTask(t.id); }
+  }
   if (k === 'import-file') {
     const file = e.target.files && e.target.files[0]; if (!file || !isCoach()) return;
     const r = new FileReader();
@@ -3092,6 +3552,37 @@ document.addEventListener('submit', async e => {
   }
   if (!isCoach()) return;
 
+  if (kind === 'task') {
+    const made = saveTask({ id: str('id'), title: str('title'), kind: str('kind'), need: str('need'), sessionId: str('sessionId'), date: str('date'), start: str('start'), end: str('end'),
+      place: str('place'), notes: str('notes'), rotate: !!f.get('rotate'), until: str('until'), rot: f.getAll('rot').map(String) });
+    if (!made) return;
+    save();
+    if (made.length > 1) { closeSheet(); render(); toast(`${made.length} tasks added, one for each training`); }
+    else { render(); openTask(made[0].id); if (!str('id')) toast('Task added. Now add the people.'); }
+    return;
+  }
+  if (kind === 'task-checklist') {
+    const c = CHECKLISTS[str('list')] || CHECKLISTS.gameday, date = str('date') || todayISO(), place = str('place');
+    c.items.forEach(([title, k, need]) => data.tasks.push({ id: uid(), title, kind: k, date, start: '', end: '', place, notes: '', need: k === 'lift' ? 0 : need, sessionId: '', people: [] }));
+    state.taskView = 'tasks'; state.taskFilter = 'up';
+    save(); closeSheet(); render(); toast(`${c.items.length} tasks added for ${fmtDay(date)}`);
+    return;
+  }
+  if (kind === 'task-copyday') {
+    const from = str('from'), to = str('to'); if (!to) return;
+    const src = data.tasks.filter(t => t.date === from);
+    src.forEach(t => { const { id, people, series, sessionId, ...rest } = t; data.tasks.push({ ...rest, id: uid(), date: to, sessionId: '', people: [] }); });
+    save(); closeSheet(); render(); toast(`${src.length} task${src.length === 1 ? '' : 's'} copied to ${fmtDay(to)}`);
+    return;
+  }
+  if (kind === 'helper') {
+    const id = str('id'); if (!str('name')) { toast('Add a name'); return; }
+    const h = id ? data.helpers.find(x => x.id === id) : { id: uid() }; if (!h) return;
+    Object.assign(h, { name: str('name'), phone: str('phone'), relation: str('relation'), playerId: str('playerId'), notes: str('notes') });
+    if (!id) data.helpers.push(h);
+    save(); closeSheet(); render(); toast(id ? 'Saved' : `${h.name} added`);
+    return;
+  }
   if (kind === 'system') {
     saveSystemWords(str('id'), { when: raw('when'), points: raw('points'), jobs: Object.fromEntries(JOB_GROUPS.map(g => [g, raw('job-' + g)])) });
     save(); closeSheet(); render(); toast('Saved');
@@ -3143,6 +3634,7 @@ document.addEventListener('submit', async e => {
     const T = data.team;
     T.name = str('name') || T.name; T.event = str('event'); T.eventStart = str('eventStart'); T.eventEnd = str('eventEnd');
     T.venue = str('venue'); T.maxMales = Number(str('maxMales')) || 4;
+    T.tasksContact = { name: str('tasksName'), phone: str('tasksPhone') };
     T.trainingVenue = str('trainingVenue'); T.trainingStart = str('trainingStart'); T.trainingEnd = str('trainingEnd');
     const pos = str('positions').split(',').map(x => x.trim()).filter(Boolean); if (pos.length) T.positions = pos;
     const zone = Number(str('fieldZone')), touch = Number(str('fieldTouch')), middle = Number(str('fieldMiddle'));

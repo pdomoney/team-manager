@@ -98,10 +98,22 @@ export async function openFile(file, cred, role) {
 
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => o && o[k] !== undefined).map(k => [k, o[k]]));
 
+function taskForTeam(t) {
+  const base = pick(t, ['id', 'title', 'kind', 'date', 'start', 'end', 'place', 'sessionId', 'notes', 'need']);
+  const live = (Array.isArray(t.people) ? t.people : []).filter(p => p && p.status !== 'no');
+  if (t.kind === 'lift') {
+    const drivers = live.filter(p => p.role === 'driver'), riders = live.filter(p => p.role !== 'driver');
+    const cars = drivers.map(dr => ({ seats: Number(dr.seats) || 0, taken: riders.filter(r => r.car === dr.who).length, done: dr.status === 'done' }));
+    const seated = riders.filter(r => drivers.some(dr => dr.who === r.car)).length;
+    return { ...base, lift: { cars, riders: riders.length, waiting: riders.length - seated } };
+  }
+  return { ...base, spots: live.map(p => p.status === 'done' ? 'done' : 'taken') };
+}
+
 // The players' copy. Anything not listed here stays in the coach's file only.
 export function teamView(d) {
   return {
-    team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field']),
+    team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field', 'tasksContact']),
     players: (d.players || []).map(p => pick(p, ['id', 'name', 'gender', 'number', 'positions'])),
     sessions: (d.sessions || []).map(s => pick(s, ['id', 'date', 'start', 'end', 'venue', 'focus', 'notes', 'cancelled'])),
     lineups: (d.lineups || []).map(l => ({
@@ -111,6 +123,9 @@ export function teamView(d) {
     notices: (d.notices || []).slice(0, 30).map(n => pick(n, ['id', 'at', 'text'])),
     plays: (d.plays || []).map(p => pick(p, ['id', 'name', 'category', 'headline', 'when', 'steps', 'side', 'builtin', 'rev', 'edited', 'players', 'defence', 'moves', 'focus', 'ghost', 'view', 'tags', 'notes', 'labels', 'title', 'phases', 'set', 'who'])),
     playerSets: (d.playerSets || []).map(x => pick(x, ['id', 'name', 'labels', 'slots'])),
+    // Volunteer tasks without names: each spot is only taken or done (open spots are left to the app),
+    // and a lift only says how many cars, seats and riders. Helpers never leave the coach's file.
+    tasks: (d.tasks || []).filter(t => t && typeof t === 'object').map(taskForTeam),
     // The coach's changes to the game systems on the Lineup page (where players stand, the words).
     systems: Object.fromEntries(Object.entries(d.systems || {}).filter(([, v]) => v && typeof v === 'object').map(([k, v]) => [k, pick(v, ['pos', 'when', 'points', 'jobs'])])),
     updatedAt: d.updatedAt || null
