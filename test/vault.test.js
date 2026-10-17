@@ -100,6 +100,23 @@ test('players see every task and its spots, but never who is on it or the helper
   assert.deepEqual(v.team.tasksContact, { name: 'Sarah', phone: '0499 000 000' });
 });
 
+test('players see matches and scores, but not availability or the coach’s notes', () => {
+  const matches = [{ id: 'm1', date: '2027-03-19', start: '09:00', opponent: 'Coffs Coast', venue: 'Coffs', field: '3', round: 'Pool A', tournament: true, status: 'played',
+    notes: 'White tops', coachNotes: 'Mia hamstring tight', lineupId: 'l1', rsvp: { p1: { v: 'no', via: 'coach' } }, result: { us: 5, them: 3, notes: 'Kick chase poor' } }];
+  const v = teamView({ ...sample, matches });
+  const text = JSON.stringify(v);
+  for (const secret of ['hamstring', 'Kick chase poor', 'rsvp', 'coachNotes', '"via"']) assert.ok(!text.includes(secret), `team view leaked "${secret}"`);
+  assert.deepEqual(v.matches[0], { id: 'm1', date: '2027-03-19', start: '09:00', opponent: 'Coffs Coast', venue: 'Coffs', field: '3', round: 'Pool A', tournament: true, status: 'played', notes: 'White tops', lineupId: 'l1', result: { us: 5, them: 3 } });
+});
+
+test('a workspace’s team view is that team only', () => {
+  const ws = { ...sample, schema: 3, teams: [{ id: 'u16abc', team: { name: 'Under 16s' }, players: [{ id: 'q1', name: 'Ava Young', phone: '0499' }] }], library: { plays: [{ id: 'lib1', name: 'Secret lib play' }] } };
+  const text = JSON.stringify(teamView(ws));
+  for (const secret of ['Ava Young', 'Under 16s', 'Secret lib play', 'teams', 'library', 'schema']) assert.ok(!text.includes(secret), `team view leaked "${secret}"`);
+  assert.equal(teamView(ws.teams[0]).players[0].name, 'Ava Young');
+  assert.ok(!JSON.stringify(teamView(ws.teams[0])).includes('0499'));
+});
+
 test('invite links survive any password characters', () => {
   for (const pw of ['plain', 'with spaces & symbols/+=?', 'Grace O’Brien 🏉']) {
     const enc = toB64Url(pw);

@@ -682,7 +682,7 @@ function viewHome() {
 
   const P = V.players;
   const f = P.filter(p => p.gender === 'F').length, m = P.filter(p => p.gender === 'M').length;
-  let h = hero;   // first column on a wide screen
+  let h = hero + homeMatchDay();   // first column on a wide screen
   h += `<section class="sec"><div class="sec-h"><h2>Next training</h2><button class="btn sm" data-act="tab" data-tab="training">All sessions</button></div>${nextHtml}</section>`;
   let h2 = '';    // second column
   if (!isCoach()) h2 += noticeHtml + homeTasks();
@@ -803,9 +803,9 @@ function bulkForm() {
 /* ---------- Training ---------- */
 function viewTraining() {
   if (!isCoach() && state.trainingView === 'attendance') state.trainingView = 'schedule';
-  const views = [['agenda', 'Upcoming'], ['schedule', 'Training'], ...(isCoach() ? [['attendance', 'Attendance']] : [])];
+  const views = [['agenda', 'Upcoming'], ['schedule', 'Training'], ['matches', 'Matches'], ...(isCoach() ? [['attendance', 'Attendance']] : [])];
   const seg = `<div class="seg" role="group" aria-label="Schedule view">${views.map(([k, l]) => `<button data-act="train-view" data-v="${k}" aria-pressed="${state.trainingView === k}">${l}</button>`).join('')}</div>`;
-  return seg + (state.trainingView === 'agenda' ? viewAgenda() : state.trainingView === 'attendance' ? viewAttendance() : viewSchedule());
+  return seg + (state.trainingView === 'agenda' ? viewAgenda() : state.trainingView === 'attendance' ? viewAttendance() : state.trainingView === 'matches' ? viewMatches() : viewSchedule());
 }
 /* ----- RSVPs: what players said they'd do, kept apart from the roll call ----- */
 const RSVP_SHORT = { yes: 'Yes', maybe: 'Unsure', no: 'No' };
@@ -987,7 +987,8 @@ function viewField() {
   const coach = isCoach(), sys = curSystem(), ownSpots = sys && sys.pos;
   return `<div class="cols lineup-cols"><div class="lineup-ctrl">
     <div class="lineup-bar">
-      <select aria-label="Choose lineup" data-change="lineup">${V.lineups.map(l => `<option value="${l.id}" ${l.id === lu.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>
+      <select aria-label="Choose lineup" data-change="lineup">${(() => { const opt = l => `<option value="${l.id}" ${l.id === lu.id ? 'selected' : ''}>${esc(l.name)}</option>`, ml = V.lineups.filter(matchOfLineup), saved = V.lineups.filter(l => !matchOfLineup(l));
+        return ml.length ? `<optgroup label="Saved lineups">${saved.map(opt).join('')}</optgroup><optgroup label="Match lineups">${ml.map(opt).join('')}</optgroup>` : saved.map(opt).join(''); })()}</select>
       ${coach ? `<button class="btn sm" data-act="lineup-menu" aria-label="Lineup options">${icon('dots', 20)}</button>` : ''}
     </div>
     ${coach ? `<div class="seg" role="group" aria-label="Field mode">
@@ -1004,6 +1005,7 @@ function viewField() {
     </div><div class="col lineup-pitch">
     <div class="field-wrap">${fieldSVG(lu, coach)}</div>
     </div><div class="col lineup-side">
+    ${matchBanner(lu)}
     ${sys ? systemCard(sys, lu) : `<p class="hint sys-hint">Tap a system to see where everyone stands and what to do at that stage of the game.</p>`}
     ${coach ? `<div class="ratio">
       <span class="pill ${males > max ? 'bad' : 'ok'}">${males} of ${max} males max</span>
@@ -1023,6 +1025,13 @@ function viewField() {
       ${bench.length ? `<div class="bench">${bench.map(p => `<span class="chip ${isOut(p) ? 'out' : ''}">${gBadge(p)}${esc(shortName(p))}${statusPill(p)}</span>`).join('')}</div>` : `<p class="muted small">${V.players.length ? 'Everyone is on the field.' : coach ? 'Add players in Squad first.' : 'No lineup yet.'}</p>`}
     </section>
     </div></div>`;
+}
+// A match lineup says which match, and (for the coach) whether it's ready to send.
+function matchBanner(lu) {
+  const m = matchOfLineup(lu); if (!m) return '';
+  const chk = isCoach() ? M.lineupCheck(data, lu, m) : null;
+  return `<div class="match-banner"><b>Match lineup: vs ${esc(m.opponent || 'TBC')}</b>, ${esc(fmtDay(m.date))}${m.start ? ` ${esc(fmtTime(m.start))}` : ''}
+    ${chk ? (chk.ready ? '<span class="pill ok">Ready</span>' : `<ul class="diff-list issues">${chk.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`) + (chk.checks.length ? `<p class="small muted">To check: ${esc(chk.checks.join('; '))}</p>` : '') + `<button class="link-btn inline" data-act="match-open" data-id="${m.id}">Match details</button>` : ''}</div>`;
 }
 function fieldSVG(lu, interactive) {
   let s = `<svg id="field" class="field ${state.moveMode && interactive ? 'moving' : ''} ${interactive ? 'interactive' : ''}${state.system ? ' has-sys' : ''}" viewBox="-3 -1 56 82" role="group" aria-label="Field positions for ${esc(lu.name)}">`;
@@ -1506,13 +1515,15 @@ function bindField() {
 function openAssign(slotId) {
   const lu = curLineup(), sl = lu.slots.find(s => s.id === slotId); if (!sl) return;
   const where = {}; lu.slots.forEach(s => { if (s.playerId) where[s.playerId] = s; });
-  const rank = p => (p.status === 'available' ? 0 : 10) + (p.positions.includes(sl.group) ? 0 : 1) + (where[p.id] ? 2 : 0);
+  const mt = matchOfLineup(lu), said = p => mt ? M.rsvpOf(mt, p.id) : '';
+  const rank = p => (p.status === 'available' ? 0 : 10) + (said(p) === 'no' ? 8 : said(p) === 'maybe' ? 3 : mt && !said(p) ? 2 : 0) + (p.positions.includes(sl.group) ? 0 : 1) + (where[p.id] ? 2 : 0);
   const players = data.players.slice().sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   const cur = playerById(sl.playerId);
   openSheet(`${sl.name} (${sl.label})`, `${cur ? `<button class="btn block" style="margin-bottom:12px" data-act="assign" data-slot="${sl.id}" data-pid="">Leave ${esc(sl.label)} empty</button>` : ''}
     ${players.length ? `<div class="list">${players.map(p => {
       const match = p.positions.includes(sl.group);
-      const note = p.id === sl.playerId ? 'In this position now' : where[p.id] ? `Playing ${where[p.id].label}, will swap` : match ? `Plays ${sl.group.toLowerCase()}` : (p.positions.join(', ') || '');
+      const avail = said(p) === 'no' ? 'Said they can’t play · ' : said(p) === 'maybe' ? 'Unsure · ' : mt && !said(p) ? 'No reply · ' : '';
+      const note = avail + (p.id === sl.playerId ? 'In this position now' : where[p.id] ? `Playing ${where[p.id].label}, will swap` : match ? `Plays ${sl.group.toLowerCase()}` : (p.positions.join(', ') || ''));
       return `<button class="pick ${match ? 'match' : ''}" data-act="assign" data-slot="${sl.id}" data-pid="${p.id}">
         ${jersey(p)}<span class="grow"><span class="name" style="display:block">${esc(p.name)} ${gBadge(p)}</span><span class="tagline">${esc(note)}</span></span>
         ${p.status !== 'available' ? `<span class="pill ${p.status}">${STATUS[p.status]}</span>` : ''}
@@ -2857,6 +2868,8 @@ function taskForm(t, opts = {}) {
       <label class="field-l"><span>Type</span><select name="kind" data-change="task-kind">${Object.entries(TASK_KINDS).map(([k, l]) => `<option value="${k}" ${d.kind === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="field-l need-f" ${d.kind === 'lift' ? 'hidden' : ''}><span>People needed</span><input type="number" name="need" min="1" max="30" value="${esc(d.kind === 'lift' ? 1 : d.need || 1)}"></label>
     </div>
+    ${(() => { const ms = arr(V.matches).filter(m => m.status === 'scheduled' && m.date >= todayISO()).sort(byWhen); return ms.length || d.matchId ? `<label class="field-l"><span>For a match</span><select name="matchId" data-change="task-session"><option value="">No</option>
+      ${ms.map(m => `<option value="${m.id}" data-date="${m.date}" data-start="${esc(m.start || '')}" data-end="" data-place="${esc(matchWhere(m))}" ${d.matchId === m.id ? 'selected' : ''}>vs ${esc(m.opponent || 'TBC')}, ${esc(fmtDay(m.date))}</option>`).join('')}</select><small>A task for a match moves with it if the match moves.</small></label>` : ''; })()}
     ${sessions.length ? `<label class="field-l"><span>At a training session</span><select name="sessionId" data-change="task-session"><option value="">No, another day</option>
       ${sessions.map(s => `<option value="${s.id}" data-date="${s.date}" data-start="${esc(s.start || '')}" data-end="${esc(s.end || '')}" data-place="${esc(s.venue || V.team.trainingVenue || '')}" ${d.sessionId === s.id ? 'selected' : ''}>${esc(fmtDay(s.date))}, ${esc(fmtRange(s))}</option>`).join('')}</select></label>` : ''}
     <label class="field-l"><span>Date</span><input type="date" name="date" required value="${esc(d.date)}"></label>
@@ -2876,7 +2889,7 @@ function taskForm(t, opts = {}) {
 }
 function saveTask(f) {
   const id = f.id, kind = TASK_KINDS[f.kind] ? f.kind : 'other';
-  const fields = { title: f.title || 'Task', kind, date: f.date || todayISO(), start: f.start, end: f.end, place: f.place, notes: f.notes, need: kind === 'lift' ? 0 : clamp(Number(f.need) || 1, 1, 30), sessionId: f.sessionId || '' };
+  const fields = { title: f.title || 'Task', kind, date: f.date || todayISO(), start: f.start, end: f.end, place: f.place, notes: f.notes, need: kind === 'lift' ? 0 : clamp(Number(f.need) || 1, 1, 30), sessionId: f.sessionId || '', matchId: f.matchId || '' };
   if (id) { const t = data.tasks.find(x => x.id === id); if (!t) return null; Object.assign(t, fields); return [t]; }
   if (f.rotate) {
     const who = f.rot; if (!who.length) { toast('Pick who takes turns'); return null; }
@@ -2990,6 +3003,199 @@ function helpNeededText() {
   }).join('\n')}\n\nReply here, or tap “I can help” in the team app (Team › Tasks). Thanks! 🙌`;
 }
 
+/* ---------- Matches and the tournament ---------- */
+// Matches: opponent, when, where (venue and field), round, status and result, plus each player's
+// availability (an RSVP, kept apart from training) and a match lineup. Players see everything but
+// the availability, the coach's notes and the result notes.
+const OUTCOME = { win: 'Won', loss: 'Lost', draw: 'Drew' };
+const sortedMatches = () => arr(V.matches).slice().sort(byWhen);
+const matchLineup = m => m && m.lineupId ? V.lineups.find(l => l.id === m.lineupId) : null;
+const matchOfLineup = lu => lu && arr(V.matches).find(m => m.lineupId === lu.id);
+const matchWhere = m => [m.venue, m.field ? `Field ${m.field}` : ''].filter(Boolean).join(' · ');
+function resultText(m) {
+  const o = M.matchOutcome(m); if (!o) return '';
+  if (m.status === 'forfeit') return `${OUTCOME[o]} on forfeit`;
+  return `${OUTCOME[o]} ${m.result.us}–${m.result.them}`;
+}
+function matchPills(m) {
+  const coach = isCoach(), o = M.matchOutcome(m), today = todayISO();
+  const out = [];
+  if (o) out.push(`<span class="pill ${o === 'win' ? 'ok' : o === 'loss' ? 'bad' : 'neutral'}">${esc(resultText(m))}</span>`);
+  else if (m.status !== 'scheduled') out.push(`<span class="pill ${m.status === 'cancelled' ? 'bad' : 'neutral'}">${esc(M.MATCH_STATUS[m.status])}${m.status === 'played' ? ', result not entered' : ''}</span>`);
+  else if (m.date < today) out.push(coach ? '<span class="pill neutral">Result not entered</span>' : '');
+  if (coach && m.status === 'scheduled' && m.date >= today) {
+    const c = M.rsvpCounts(m, data.players), lu = matchLineup(m), chk = lu ? M.lineupCheck(data, lu, m) : null;
+    out.push(`<span class="pill ${c.none ? 'neutral' : 'ok'}">${c.yes} available${c.none ? `, ${c.none} no reply` : ''}</span>`);
+    out.push(lu ? `<span class="pill ${chk.ready ? 'ok' : 'bad'}">${chk.ready ? 'Lineup ready' : `Lineup: ${chk.issues.length} to fix`}</span>` : '<span class="pill neutral">No lineup yet</span>');
+  }
+  return out.filter(Boolean).join(' ');
+}
+function matchRow(m) {
+  const info = `<span class="t" style="display:block">vs ${esc(m.opponent || 'TBC')}${m.start ? ` <span class="muted">· ${esc(fmtTime(m.start))}</span>` : ''}</span>
+    <span class="sub" style="display:block">${esc([matchWhere(m), m.round].filter(Boolean).join(' · ') || 'Venue TBC')}</span>
+    ${m.notes && !isCoach() ? `<span class="sub" style="display:block;white-space:normal">${esc(m.notes)}</span>` : ''}
+    <span class="ag-meta">${matchPills(m)}</span>`;
+  const cls = `sess match ${m.status === 'cancelled' || m.status === 'postponed' ? 'cancelled' : ''} ${m.date === todayISO() ? 'today' : ''}`;
+  if (isCoach()) return `<div class="${cls}">${calBlock(m.date)}<button class="sess-main" data-act="match-open" data-id="${m.id}">${info}</button></div>`;
+  return `<div class="${cls}">${calBlock(m.date)}<div class="sess-main">${info}${replyBtns('match', m)}</div></div>`;
+}
+function viewMatches() {
+  const coach = isCoach(), today = todayISO(), all = sortedMatches();
+  const days = M.tournamentDays(V), inT = new Set(days.flatMap(d => d.matches.map(m => m.id)));
+  const up = all.filter(m => m.date >= today && !inT.has(m.id)), past = all.filter(m => m.date < today && !inT.has(m.id)).reverse();
+  const rec = M.teamRecord(all, today);
+  const head = `<div class="sec-h"><h2>Matches</h2>${coach ? `<div class="btn-row"><button class="btn sm" data-act="match-day-new">Tournament day</button><button class="btn primary sm" data-act="match-new">${icon('plus', 18)}Add match</button></div>` : ''}</div>`;
+  const record = rec.withResult || rec.awaiting ? `<div class="stats record" role="group" aria-label="Results so far">
+      <div class="stat"><b>${rec.won}</b><span>Won</span></div><div class="stat"><b>${rec.drawn}</b><span>Drawn</span></div><div class="stat"><b>${rec.lost}</b><span>Lost</span></div>
+      <div class="stat"><b>${rec.scoredGames ? `${rec.scored}–${rec.conceded}` : '–'}</b><span>Tries for–against</span></div></div>
+      ${rec.awaiting && coach ? `<p class="hint">${rec.awaiting} match${rec.awaiting === 1 ? ' has' : 'es have'} no result entered yet, so ${rec.awaiting === 1 ? 'it isn’t' : 'they aren’t'} counted.</p>` : ''}` : '';
+  if (!all.length) return head + `<div class="empty"><p>${coach ? 'No matches yet. Add trial games and the tournament draw here: opponent, time, venue and field.' : 'No matches yet.'}</p>${coach ? `<div class="btn-row" style="justify-content:center"><button class="btn primary" style="flex:0" data-act="match-new">${icon('plus')}Add match</button><button class="btn" style="flex:0" data-act="match-day-new">Tournament day</button></div>` : ''}</div>`;
+  return head + record
+    + (days.length ? `<section class="sec"><div class="sec-h"><h2>${esc(V.team.event || 'Tournament')}</h2>${coach ? `<button class="btn wa sm" data-act="t-share">${icon('chat', 18)}Send draw</button>` : ''}</div>
+        ${days.map(d => `<h3 class="ag-date">${esc(fmtLong(d.date))}${coach ? ` <button class="link-btn inline" data-act="day-share" data-date="${d.date}">Send this day</button>` : ''}</h3><div class="list grid sess-grid">${d.matches.map(matchRow).join('')}</div>`).join('')}</section>` : '')
+    + `<section class="sec"><div class="sec-h"><h2>${days.length ? 'Other matches' : 'Coming up'}</h2></div>${up.length ? `<div class="list grid sess-grid">${up.map(matchRow).join('')}</div>` : '<p class="muted small">Nothing else coming up.</p>'}</section>`
+    + (past.length ? `<section class="sec"><div class="sec-h"><h2>Played</h2>${coach ? `<button class="btn sm" data-act="results-share">${icon('chat', 18)}Send results</button>` : ''}</div><div class="list grid sess-grid">${past.map(matchRow).join('')}</div></section>` : '');
+}
+function matchForm(m) {
+  const isNew = !m || !m.id, T = data.team;
+  m = m || { date: T.eventStart && T.eventStart >= todayISO() ? T.eventStart : todayISO(), start: '', opponent: '', venue: T.venue || '', field: '', round: '', notes: '', coachNotes: '', status: 'scheduled' };
+  return `<form data-form="match" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(isNew ? '' : m.id)}">
+    <label class="field-l"><span>Opponent</span><input type="text" name="opponent" value="${esc(m.opponent)}" placeholder="e.g. Coffs Coast Mixed 20s"><small>Leave blank if the draw isn’t out yet.</small></label>
+    <div class="two">
+      <label class="field-l"><span>Date</span><input type="date" name="date" required value="${esc(m.date)}"></label>
+      <label class="field-l"><span>Start</span><input type="time" name="start" value="${esc(m.start || '')}"></label>
+    </div>
+    <div class="two">
+      <label class="field-l"><span>Venue</span><input type="text" name="venue" value="${esc(m.venue || '')}"></label>
+      <label class="field-l"><span>Field</span><input type="text" name="field" value="${esc(m.field || '')}" placeholder="e.g. 3"></label>
+    </div>
+    <div class="two">
+      <label class="field-l"><span>Round</span><input type="text" name="round" value="${esc(m.round || '')}" placeholder="e.g. Pool A, round 2"></label>
+      ${isNew ? '' : `<label class="field-l"><span>Status</span><select name="status">${Object.entries(M.MATCH_STATUS).map(([k, l]) => `<option value="${k}" ${m.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`}
+    </div>
+    <label class="check"><input type="checkbox" name="tournament" ${m.tournament || (T.eventStart && m.date >= T.eventStart && m.date <= (T.eventEnd || T.eventStart)) ? 'checked' : ''}><span>Part of ${esc(T.event || 'the tournament')}</span></label>
+    <label class="field-l"><span>Notes for players</span><input type="text" name="notes" value="${esc(m.notes || '')}" placeholder="e.g. Meet 45 minutes early, white tops"></label>
+    <label class="field-l"><span>Coach notes</span><input type="text" name="coachNotes" value="${esc(m.coachNotes || '')}" placeholder="Only coaches see these"></label>
+    <button class="btn primary block" type="submit">${isNew ? 'Add match' : 'Save changes'}</button>
+  </form>`;
+}
+function matchDayForm() {
+  const T = data.team;
+  return `<form data-form="match-day" autocomplete="off">
+    <p class="muted small" style="margin-bottom:10px">Add a day’s draw in one go: one match per line with the time, opponent, field and round, separated by commas.</p>
+    <div class="two">
+      <label class="field-l"><span>Date</span><input type="date" name="date" required value="${esc(T.eventStart && T.eventStart >= todayISO() ? T.eventStart : todayISO())}"></label>
+      <label class="field-l"><span>Venue</span><input type="text" name="venue" value="${esc(T.venue || '')}"></label>
+    </div>
+    <label class="field-l"><span>Matches</span><textarea name="lines" rows="6" placeholder="9:00, Coffs Coast, 3, Pool A R1&#10;12:30, Sydney Sharks, 5, Pool A R2&#10;15:40, Hills Hornets, 2, Pool A R3"></textarea></label>
+    <label class="check"><input type="checkbox" name="tournament" checked><span>Part of ${esc(T.event || 'the tournament')}</span></label>
+    <button class="btn primary block" type="submit">Add these matches</button>
+  </form>`;
+}
+// Read "9:00, Coffs Coast, 3, Pool A R1" (or "9am", "12.30pm"). Anything that isn't a time is the opponent,
+// then the field, then the round.
+function parseMatchLine(line) {
+  const parts = line.split(/[,\t;]+/).map(x => x.trim()).filter(Boolean);
+  const m = { start: '', opponent: '', field: '', round: '' };
+  const time = x => { const r = /^(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?$/i.exec(x); if (!r) return ''; let h = +r[1]; const mi = r[2] || '00'; if (r[3]) { if (/pm/i.test(r[3]) && h < 12) h += 12; if (/am/i.test(r[3]) && h === 12) h = 0; } return h < 24 && +mi < 60 ? `${pad(h)}:${mi}` : ''; };
+  const rest = [];
+  parts.forEach(x => { if (!m.start && time(x)) m.start = time(x); else rest.push(x); });
+  [m.opponent = '', m.field = '', ...m.roundParts] = rest;
+  m.field = String(m.field || '').replace(/^field\s*/i, '');
+  m.round = (m.roundParts || []).join(', '); delete m.roundParts;
+  return m;
+}
+function matchBody(m) {
+  const lu = matchLineup(m), chk = lu ? M.lineupCheck(data, lu, m) : null, c = M.rsvpCounts(m, data.players);
+  const tasks = M.linkedTasks(data, 'match', m.id), live = m.status === 'scheduled';
+  const r = m.result || {};
+  return `<p class="task-when"><b>${esc(fmtLong(m.date))}${m.start ? `, ${esc(fmtTime(m.start))}` : ''}</b>${matchWhere(m) ? `<br>${esc(matchWhere(m))}` : ''}${m.round ? `<br>${esc(m.round)}` : ''}</p>
+    <p>${matchPills(m)}</p>
+    ${m.notes ? `<p class="task-notes-full">${esc(m.notes)}</p>` : ''}${m.coachNotes ? `<p class="task-notes-full coach-only"><span class="tagline">Coach notes</span><br>${esc(m.coachNotes)}</p>` : ''}
+    <h3 class="form-sec">Availability</h3>
+    <div class="roll-sum">${rsvpPills(m)}</div>
+    <div class="btn-row"><button class="btn" data-act="rsvp-open" data-k="match" data-id="${m.id}">${icon('rsvp', 18)}Record replies</button><button class="btn wa" data-act="rsvp-ask" data-k="match" data-id="${m.id}">${icon('chat', 18)}Ask for replies</button></div>
+    ${c.none && live ? `<p class="hint">${c.none} player${c.none === 1 ? ' hasn’t' : 's haven’t'} replied.</p>` : ''}
+    <h3 class="form-sec">Lineup</h3>
+    ${lu ? `<p><b>${esc(lu.name)}</b></p>
+      ${chk.issues.length ? `<ul class="diff-list issues">${chk.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="small" style="color:var(--ok);font-weight:600">Ready: eight on, mixed rule met, nobody unavailable.</p>'}
+      ${chk.checks.length ? `<p class="hint">To check: ${esc(chk.checks.join('; '))}.</p>` : ''}
+      <div class="btn-row" style="margin-top:8px"><button class="btn" data-act="match-lineup-open" data-id="${m.id}">Open in Lineup</button><button class="btn" data-act="match-lineup-unlink" data-id="${m.id}">Use a different lineup</button></div>`
+      : `<form data-form="match-lineup" class="inline-form"><input type="hidden" name="id" value="${m.id}">
+        <label class="field-l"><span>Start from</span><select name="from">${data.lineups.filter(l => !matchOfLineup(l)).map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('')}<option value="">An empty lineup</option></select><small>Makes a copy for this match with the same shape and players, so your saved lineup stays as it is.</small></label>
+        <button class="btn primary block" type="submit">Make the match lineup</button></form>`}
+    <h3 class="form-sec">Result</h3>
+    <form data-form="match-result" autocomplete="off"><input type="hidden" name="id" value="${m.id}">
+      <div class="seg" role="radiogroup" aria-label="How it finished">${[['played', 'Played'], ['forfeit', 'Forfeit'], ['scheduled', 'Not played yet']].map(([k, l]) => `<label class="seg-opt"><input type="radio" name="status" value="${k}" ${(m.status === k || (k === 'scheduled' && !['played', 'forfeit'].includes(m.status))) ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
+      <div class="two"><label class="field-l"><span>Our tries</span><input type="number" name="us" min="0" max="99" inputmode="numeric" value="${esc(r.us ?? '')}"></label>
+      <label class="field-l"><span>Their tries</span><input type="number" name="them" min="0" max="99" inputmode="numeric" value="${esc(r.them ?? '')}"></label></div>
+      <label class="field-l"><span>If a forfeit, who forfeited?</span><select name="forfeit"><option value="">–</option><option value="them" ${r.forfeit === 'them' ? 'selected' : ''}>They did (we win)</option><option value="us" ${r.forfeit === 'us' ? 'selected' : ''}>We did</option></select></label>
+      <label class="field-l"><span>Match notes</span><input type="text" name="rnotes" value="${esc(r.notes || '')}" placeholder="Coach only: what worked, injuries"></label>
+      <button class="btn primary block" type="submit">Save result</button>
+    </form>
+    ${tasks.length ? `<h3 class="form-sec">Tasks for this match</h3><div class="list">${tasks.map(t => `<button class="pick" data-act="task-open" data-id="${t.id}"><span class="grow"><span class="name" style="display:block">${esc(t.title)}</span>${t.kind === 'lift' ? liftHtml(t) : spotsHtml(t)}</span></button>`).join('')}</div>` : ''}
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" data-act="match-edit" data-id="${m.id}">Edit details</button>
+      <button class="btn" data-act="match-task" data-id="${m.id}">${icon('plus', 18)}Task</button>
+      <button class="btn wa" data-act="match-share" data-id="${m.id}">${icon('chat', 18)}Send</button>
+    </div>
+    <button class="btn danger block" style="margin-top:10px" data-act="match-del" data-id="${m.id}">Delete this match</button>`;
+}
+function openMatch(id) { const m = matchById(id); if (m) openSheet(`vs ${m.opponent || 'TBC'}`, matchBody(m), 'match:' + id); }
+function refreshMatch(id) {
+  render();
+  const m = matchById(id), body = $('#sheet .panel-body');
+  if (!m || !body || state.sheet !== 'match:' + id) return;
+  const top = body.scrollTop; body.innerHTML = matchBody(m); body.scrollTop = top;
+}
+// The match day on Home: the next day with a match in the coming week, and what's still to sort.
+function homeMatchDay() {
+  const today = todayISO(), soon = M.addDays(today, 7);
+  const next = sortedMatches().find(m => m.date >= today && m.date <= soon && m.status === 'scheduled');
+  if (!next) return '';
+  const day = sortedMatches().filter(m => m.date === next.date && m.status === 'scheduled');
+  const tasks = arr(V.tasks).filter(t => t.date === next.date && !t.cancelled);
+  const coach = isCoach();
+  let todo = [];
+  if (coach) {
+    const none = day.reduce((n, m) => n + M.rsvpCounts(m, data.players.filter(p => p.status === 'available')).none, 0);
+    if (none) todo.push(`<button class="link-btn inline" data-act="match-open" data-id="${day[0].id}">${none} availability repl${none === 1 ? 'y' : 'ies'} missing</button>`);
+    day.forEach(m => { const lu = matchLineup(m), chk = lu && M.lineupCheck(data, lu, m); if (!lu) todo.push(`No lineup for vs ${esc(m.opponent || 'TBC')}`); else if (!chk.ready) todo.push(`Lineup vs ${esc(m.opponent || 'TBC')}: ${esc(chk.issues[0])}`); });
+  }
+  tasks.forEach(t => { if (t.kind === 'lift') { const L = liftOf(t); if (L.waiting || L.tentative) todo.push(`${esc(t.title)}: ${L.waiting} without a seat${L.tentative ? `, ${L.tentative} waiting on a driver` : ''}`); } else { const c = covOf(t); if (c.short) todo.push(`${esc(t.title)}: ${c.short} more needed`); } });
+  return `<section class="sec match-day"><div class="sec-h"><h2>${next.date === today ? 'Match day' : `Match day: ${esc(fmtDay(next.date))}`}</h2>${coach ? `<button class="btn wa sm" data-act="day-share" data-date="${next.date}">${icon('chat', 18)}Send</button>` : ''}</div>
+    <div class="list">${day.map(matchRow).join('')}</div>
+    ${todo.length ? `<ul class="todo">${todo.map(x => `<li>${x}</li>`).join('')}</ul>` : coach ? '<p class="hint">Availability in, lineups ready, and every task covered.</p>' : ''}
+  </section>`;
+}
+/* WhatsApp words for matches */
+function matchLines(m) {
+  const lu = matchLineup(m);
+  if (!lu) return '';
+  const lines = lu.slots.slice().sort((a, b) => a.y - b.y || a.x - b.x).map(s => { const p = playerById(s.playerId); return `${s.label} – ${p ? p.name : '(TBC)'}`; });
+  const on = lu.slots.map(s => s.playerId).filter(Boolean);
+  const bench = sortedPlayers().filter(p => !on.includes(p.id) && p.status === 'available' && M.rsvpOf(m, p.id) !== 'no').map(p => p.name);
+  return `\n\n*Team*\n${lines.join('\n')}${bench.length ? `\n🔁 Interchange: ${bench.join(', ')}` : ''}`;
+}
+function matchText(m) {
+  return `🏉 *${data.team.name} vs ${m.opponent || 'TBC'}*\n📅 ${fmtLong(m.date)}${m.start ? `, ${fmtTime(m.start)}` : ''}\n📍 ${matchWhere(m) || 'Venue TBC'}${m.round ? `\n🏆 ${m.round}` : ''}${m.notes ? `\n📝 ${m.notes}` : ''}${matchLines(m)}\n\nReply *YES*, *NO* or *MAYBE* if you haven’t yet.`;
+}
+function dayText(date) {
+  const ms = sortedMatches().filter(m => m.date === date && m.status !== 'cancelled');
+  const tasks = arr(data.tasks).filter(t => t.date === date && !t.cancelled);
+  return `🏉 *Match day — ${fmtLong(date)}*\n${data.team.name}\n\n${ms.map(m => `• ${m.start ? fmtTime(m.start) : 'Time TBC'} vs ${m.opponent || 'TBC'}${m.field ? `, field ${m.field}` : ''}${m.round ? ` (${m.round})` : ''}`).join('\n')}${ms[0] && ms[0].venue ? `\n📍 ${ms[0].venue}` : ''}${ms.some(m => m.notes) ? `\n📝 ${[...new Set(ms.map(m => m.notes).filter(Boolean))].join(' ')}` : ''}${tasks.length ? `\n\n*Jobs*\n${tasks.map(t => `• ${t.title}${t.start ? ` ${fmtTime(t.start)}` : ''}`).join('\n')}` : ''}\n\nGood luck! 💪`;
+}
+function drawText() {
+  const days = M.tournamentDays(data);
+  return `🏆 *${data.team.event || 'Tournament'} draw — ${data.team.name}*\n${days.map(d => `\n*${fmtLong(d.date)}*\n${d.matches.map(m => `• ${m.start ? fmtTime(m.start) : 'TBC'} vs ${m.opponent || 'TBC'}${m.field ? `, field ${m.field}` : ''}${m.status !== 'scheduled' ? ` (${resultText(m) || M.MATCH_STATUS[m.status].toLowerCase()})` : ''}`).join('\n')}`).join('\n')}${data.team.venue ? `\n\n📍 ${data.team.venue}` : ''}`;
+}
+function resultsText() {
+  const ms = sortedMatches().filter(m => M.matchOutcome(m)), rec = M.teamRecord(data.matches, todayISO());
+  if (!ms.length) return `🏉 *Results — ${data.team.name}*\n\nNo results entered yet.`;
+  return `🏉 *Results — ${data.team.name}*\n\n${ms.map(m => `• ${fmtDay(m.date)} vs ${m.opponent || 'TBC'}: ${resultText(m)}`).join('\n')}\n\nWon ${rec.won}, drew ${rec.drawn}, lost ${rec.lost}.`;
+}
+
 /* ---------- Tasks linked to a session or a match ---------- */
 // When a session or match with tasks moves, is cancelled or is deleted, the coach chooses what
 // happens to the tasks. Nothing changes until they choose; closing the sheet leaves everything as it was.
@@ -3021,7 +3227,7 @@ function applyLinkChoice(c) {
     msg = c === 'move' ? `Saved. ${s(M.followEvent(data, p.kind, p.id, p.before, p.after))} moved with it` : `Saved. ${s(M.detachTasks(data, p.kind, p.id))} left on the old day, unlinked`;
   }
   if (p.op === 'cancel') {
-    if (p.kind === 'session') ev.cancelled = true; else ev.status = 'cancelled';
+    if (p.kind === 'session') ev.cancelled = true; else Object.assign(ev, p.fields || {}, { status: p.status || 'cancelled' });
     msg = c === 'cancel' ? `Cancelled, with ${s(M.cancelTasks(data, p.kind, p.id))}` : c === 'remove' ? `Cancelled, and ${s(M.removeTasks(data, p.kind, p.id))} deleted` : 'Cancelled. The tasks are still on';
   }
   if (p.op === 'delete') {
@@ -3038,7 +3244,7 @@ function offerCancelMessage(s) {
 }
 
 /* ---------- Messages (coach) ---------- */
-const TEMPLATES = { reminder: 'Training reminder', availability: 'Availability check', cancelled: 'Training cancelled', lineup: 'Lineup', help: 'Help needed', countdown: 'Countdown', invite: 'App invite', blank: 'Blank' };
+const TEMPLATES = { reminder: 'Training reminder', availability: 'Availability check', match: 'Next match', results: 'Results', cancelled: 'Training cancelled', lineup: 'Lineup', help: 'Help needed', countdown: 'Countdown', invite: 'App invite', blank: 'Blank' };
 function buildTemplate(t) {
   const T = data.team, s = sessionById(state.msgSession) || nextSession();
   if (t === 'reminder') {
@@ -3049,6 +3255,8 @@ function buildTemplate(t) {
   if (t === 'lineup') return lineupText(curLineup());
   if (t === 'help') return helpNeededText();
   if (t === 'availability') return availabilityText(state.msgEvent);
+  if (t === 'match') { const m = sortedMatches().find(x => x.date >= todayISO() && x.status === 'scheduled'); return m ? matchText(m) : `🏉 *Next match — ${T.name}*\n\n(Add a match and it will fill in here.)`; }
+  if (t === 'results') return resultsText();
   if (t === 'countdown') { const cd = countdown(); const d = cd && cd.state === 'before' ? cd.days : 0; return `⏳ *${d} days* until ${T.event} in Coffs Harbour (${fmtEventDates()}).\n\nEvery session counts from here. Let's keep turning up. 💪`; }
   if (t === 'invite') return `👋 Here's the ${T.name} team app: training times, lineups and notices.\n\n${inviteLink()}\n\nOpen it on your phone, then use "Add to Home Screen". Please keep this link within the team.`;
   return '';
@@ -3564,6 +3772,21 @@ function loadSample() {
     T('Bring the first aid kit', 'firstaid', sat(2), { start: '08:00', place: 'Trial game', people: [{ who: hp('Sue'), status: 'yes' }] }),
     T('Wash the playing tops', 'kit', sat(2), { place: 'Take them home after the game', notes: 'Cold wash, hang to dry. Back by Tuesday training.' })
   );
+  // Matches: a trial game played (with a result and its lineup), one coming up, and the pool games.
+  const trialLu = { ...clone(data.lineups[0]), id: uid(), name: 'vs Northern Beaches (trial)' };
+  data.lineups.push(trialLu);
+  const past = sat(-1), Mt = (opponent, date, start, extra) => ({ id: uid(), date, start, opponent, venue: 'Home ground', field: '', round: '', notes: '', coachNotes: '', status: 'scheduled', rsvp: {}, result: {}, lineupId: '', ...extra });
+  const ev = data.team.eventStart || sat(20), ev2 = M.addDays(ev, 1);
+  data.matches = [
+    Mt('Northern Beaches', past, '09:00', { status: 'played', result: { us: 6, them: 4, notes: 'Defence line held well. Kick chase too slow.' }, lineupId: trialLu.id, round: 'Trial game' }),
+    Mt('Hills Hornets', sat(1), '09:30', { venue: 'Hills Sports Park', field: '4', round: 'Trial game', notes: 'Meet 45 minutes before. White tops.', rsvp: Object.fromEntries(data.players.slice(0, 11).map((pl, j) => [pl.id, { v: j === 3 ? 'no' : j === 7 ? 'maybe' : 'yes', via: 'coach' }])) }),
+    Mt('Coffs Coast', ev, '09:00', { venue: data.team.venue, field: '3', round: 'Pool A, round 1', tournament: true }),
+    Mt('Sydney Sharks', ev, '12:40', { venue: data.team.venue, field: '5', round: 'Pool A, round 2', tournament: true }),
+    Mt('Central Coast Waves', ev2, '10:20', { venue: data.team.venue, field: '2', round: 'Pool A, round 3', tournament: true })
+  ];
+  const liftTask = data.tasks.find(x => x.kind === 'lift');
+  if (liftTask) { liftTask.title = 'Lifts to the Hills game'; liftTask.date = sat(1); liftTask.matchId = data.matches[1].id; }
+  data.tasks.filter(x => x.kind === 'firstaid').forEach(x => { x.date = sat(1); x.matchId = data.matches[1].id; x.place = 'Hills Sports Park'; });
   save(); state.msgDraft = null; render(); toast('Sample squad loaded');
 }
 
@@ -3603,6 +3826,28 @@ const actions = {
   'wa-player': coachOnly(el => { const p = playerById(el.dataset.id); if (!p || !p.phone) return; sendWa(`Hi ${firstName(p)}, `, { to: p.name, phone: p.phone, ref: 'player:' + p.id }); }),
 
   'train-view': el => { state.tab = 'training'; state.trainingView = el.dataset.v; render(); },
+  'match-new': coachOnly(() => openSheet('Add match', matchForm(null), 'match-new')),
+  'match-day-new': coachOnly(() => openSheet('Tournament day', matchDayForm(), 'match-day')),
+  'match-open': coachOnly(el => openMatch(el.dataset.id)),
+  'match-edit': coachOnly(el => { const m = matchById(el.dataset.id); if (m) openSheet('Edit match', matchForm(m), 'match-edit'); }),
+  'match-del': coachOnly(el => {
+    const m = matchById(el.dataset.id); if (!m) return;
+    if (M.linkedTasks(data, 'match', m.id).length) { askLinked({ kind: 'match', id: m.id, op: 'delete' }); return; }
+    if (!confirm(`Delete the match against ${m.opponent || 'TBC'} on ${fmtLong(m.date)}?${M.matchOutcome(m) ? ' Its result goes too.' : ''}`)) return;
+    data.matches = data.matches.filter(x => x.id !== m.id); save(); closeSheet(); render(); toast('Match deleted');
+  }),
+  'match-task': coachOnly(el => { const m = matchById(el.dataset.id); if (!m) return; openSheet('New task', taskForm({ title: '', kind: 'other', date: m.date, start: '', end: '', place: matchWhere(m), notes: '', need: 1, matchId: m.id }, { copy: true })); }),
+  'match-share': coachOnly(el => { const m = matchById(el.dataset.id); if (m) sendWa(matchText(m), { ref: 'match:' + m.id }); }),
+  'day-share': coachOnly(el => sendWa(dayText(el.dataset.date), { ref: 'day:' + el.dataset.date })),
+  't-share': coachOnly(() => sendWa(drawText(), { ref: 'draw' })),
+  'results-share': coachOnly(() => sendWa(resultsText(), { ref: 'results' })),
+  'match-lineup-open': coachOnly(el => { const m = matchById(el.dataset.id), lu = matchLineup(m); if (!lu) return; state.lineupId = lu.id; state.tab = 'field'; state.system = null; history.replaceState(null, '', '#field'); closeSheet(); render(); window.scrollTo(0, 0); }),
+  'match-lineup-unlink': coachOnly(el => {
+    const m = matchById(el.dataset.id), lu = matchLineup(m); if (!m || !lu) return;
+    const del = confirm(`Delete “${lu.name}” as well? Cancel keeps it as a saved lineup.`);
+    m.lineupId = ''; if (del && data.lineups.length > 1) data.lineups = data.lineups.filter(l => l.id !== lu.id);
+    save(); refreshMatch(m.id);
+  }),
   'rsvp-open': coachOnly(el => { const rec = rsvpTarget(el.dataset.k, el.dataset.id); if (!rec) return; if (!data.players.length) { toast('Add players to your squad first'); return; } openSheet('Availability', rsvpBody(el.dataset.k, rec.id), 'rsvp'); }),
   'rsvp': coachOnly(el => {
     const rec = rsvpTarget(el.dataset.k, el.dataset.id); if (!rec) return;
@@ -4087,7 +4332,7 @@ document.addEventListener('submit', async e => {
   if (!isCoach()) return;
 
   if (kind === 'task') {
-    const made = saveTask({ id: str('id'), title: str('title'), kind: str('kind'), need: str('need'), sessionId: str('sessionId'), date: str('date'), start: str('start'), end: str('end'),
+    const made = saveTask({ id: str('id'), title: str('title'), kind: str('kind'), need: str('need'), sessionId: str('sessionId'), matchId: str('matchId'), date: str('date'), start: str('start'), end: str('end'),
       place: str('place'), notes: str('notes'), rotate: !!f.get('rotate'), until: str('until'), rot: f.getAll('rot').map(String) });
     if (!made) return;
     save();
@@ -4107,6 +4352,55 @@ document.addEventListener('submit', async e => {
     const src = data.tasks.filter(t => t.date === from);
     src.forEach(t => { const { id, people, series, sessionId, ...rest } = t; data.tasks.push({ ...rest, id: uid(), date: to, sessionId: '', people: [] }); });
     save(); closeSheet(); render(); toast(`${src.length} task${src.length === 1 ? '' : 's'} copied to ${fmtDay(to)}`);
+    return;
+  }
+  if (kind === 'match') {
+    const id = str('id'), date = str('date'); if (!date) { fieldError(form, 'date', 'Pick a date'); return; }
+    const fields = { date, start: str('start'), opponent: str('opponent'), venue: str('venue'), field: str('field'), round: str('round'), notes: str('notes'), coachNotes: str('coachNotes') };
+    if (f.get('tournament')) fields.tournament = true;
+    if (!id) {
+      const m = { id: uid(), ...fields, status: 'scheduled', rsvp: {}, result: {}, lineupId: '' };
+      data.matches.push(m); save(); closeSheet(); render(); openMatch(m.id); toast('Match added');
+      return;
+    }
+    const m = matchById(id); if (!m) return;
+    const status = M.MATCH_STATUS[str('status')] ? str('status') : m.status;
+    const before = { date: m.date, start: m.start, end: '', place: matchWhere(m) }, after = { date, start: fields.start, end: '', place: matchWhere(fields) };
+    const linked = M.linkedTasks(data, 'match', id), off = s => s === 'cancelled' || s === 'postponed';
+    if (!('tournament' in fields)) delete m.tournament;
+    if (off(status) && !off(m.status) && linked.some(t => !t.cancelled)) { askLinked({ kind: 'match', id, op: 'cancel', status, fields }); return; }
+    if (linked.length && M.whenChanged(before, after)) { askLinked({ kind: 'match', id, op: 'edit', fields: { ...fields, status }, before, after }); return; }
+    const back = off(m.status) && !off(status) ? M.reinstateTasks(data, 'match', id) : 0;
+    Object.assign(m, fields, { status }); save(); closeSheet(); render(); openMatch(id);
+    toast(back ? `Saved, and ${back} task${back === 1 ? '' : 's'} back on` : 'Saved');
+    return;
+  }
+  if (kind === 'match-day') {
+    const date = str('date'); if (!date) { fieldError(form, 'date', 'Pick a date'); return; }
+    const lines = str('lines').split(/\n+/).map(l => l.trim()).filter(Boolean);
+    if (!lines.length) { fieldError(form, 'lines', 'Add at least one match, one per line'); return; }
+    const made = lines.map(l => ({ id: uid(), date, venue: str('venue'), ...parseMatchLine(l), status: 'scheduled', rsvp: {}, result: {}, lineupId: '', notes: '', coachNotes: '', ...(f.get('tournament') ? { tournament: true } : {}) }));
+    data.matches.push(...made); state.trainingView = 'matches'; save(); closeSheet(); render();
+    toast(`${made.length} match${made.length === 1 ? '' : 'es'} added for ${fmtDay(date)}`);
+    return;
+  }
+  if (kind === 'match-lineup') {
+    const m = matchById(str('id')); if (!m) return;
+    const from = data.lineups.find(l => l.id === str('from'));
+    const lu = from ? { ...clone(from), id: uid() } : makeLineup('');
+    lu.name = `vs ${m.opponent || 'TBC'} (${fmtShort(m.date)})`;
+    data.lineups.push(lu); m.lineupId = lu.id; state.lineupId = lu.id;
+    save(); refreshMatch(m.id); toast('Match lineup made. Open it in Lineup to pick the eight.');
+    return;
+  }
+  if (kind === 'match-result') {
+    const m = matchById(str('id')); if (!m) return;
+    const status = str('status') || 'scheduled', us = str('us'), them = str('them'), forfeit = str('forfeit');
+    if (status === 'played' && (us === '' || them === '')) { fieldError(form, us === '' ? 'us' : 'them', 'Enter both scores, or choose Not played yet'); return; }
+    if (status === 'forfeit' && !forfeit) { fieldError(form, 'forfeit', 'Say who forfeited'); return; }
+    m.status = status;
+    m.result = status === 'played' ? { us: Number(us), them: Number(them), notes: str('rnotes') } : status === 'forfeit' ? { forfeit, notes: str('rnotes') } : { notes: str('rnotes') };
+    save(); refreshMatch(m.id); toast(M.matchOutcome(m) ? `Saved: ${resultText(m)}` : 'Saved');
     return;
   }
   if (kind === 'team-new') {

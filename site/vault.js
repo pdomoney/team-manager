@@ -131,6 +131,12 @@ export function teamView(d) {
     // Volunteer tasks without names: each spot is only taken or done (open spots are left to the app),
     // and a lift only says how many cars, seats and riders. Helpers never leave the coach's file.
     tasks: (d.tasks || []).filter(t => t && typeof t === 'object').map(taskForTeam),
+    // Matches: when, where, who against, the status and the score. Availability, the coach's notes
+    // and the result notes stay in the coach's file.
+    matches: (d.matches || []).filter(m => m && typeof m === 'object').map(m => ({
+      ...pick(m, ['id', 'date', 'start', 'opponent', 'venue', 'field', 'round', 'tournament', 'status', 'notes', 'lineupId']),
+      result: pick(m.result || {}, ['us', 'them', 'forfeit'])
+    })),
     // The coach's changes to the game systems on the Lineup page (where players stand, the words).
     systems: Object.fromEntries(Object.entries(d.systems || {}).filter(([, v]) => v && typeof v === 'object').map(([k, v]) => [k, pick(v, ['pos', 'when', 'points', 'jobs'])])),
     updatedAt: d.updatedAt || null
