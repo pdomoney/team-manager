@@ -57,15 +57,21 @@ function fieldDims(f) {
 const STATUS = { available: 'Available', injured: 'Injured', unavailable: 'Unavailable' };
 const ROLL = { present: 'Here', late: 'Late', apology: 'Apol', absent: 'Absent' };
 const FOCUS_IDEAS = ['Defence line speed', 'Attack shape', 'Ball skills', 'Fitness', 'Set plays', 'Kick chase', 'Match simulation', 'Tagging technique'];
-const TABS = [
-  { id: 'home', label: 'Home', icon: '<path d="M3.5 11 12 4l8.5 7v9h-5.5v-6h-6v6H3.5z"/>' },
-  { id: 'squad', label: 'Squad', icon: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.5c2.5.1 4.2 1.8 5 5"/>' },
-  { id: 'training', label: 'Training', icon: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>' },
-  { id: 'field', label: 'Lineup', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14M5 5.5h14M5 18.5h14"/>' },
-  { id: 'plays', label: 'Plays', icon: '<circle cx="6.5" cy="6.5" r="2.5"/><path d="M15 4.5l4 4M19 4.5l-4 4"/><path d="M7 11c0 5 4 8 10 8"/><path d="M14 16.5l3 2.5-3 2.5"/>' },
-  { id: 'tasks', label: 'Tasks', icon: '<path d="M4 6.5l1.6 1.6L8.5 5.2M4 12.5l1.6 1.6 2.9-2.9M4 18.5l1.6 1.6 2.9-2.9M11.5 7h8.5M11.5 13h8.5M11.5 19h8.5"/>' },
-  { id: 'messages', label: 'Messages', coach: true, icon: '<path d="M20.5 11.5a8 8 0 0 1-11.6 7.2L3.5 20l1.4-4.8a8 8 0 1 1 15.6-3.7z"/>' }
+// Five sections, each with one or more views (state.tab is the view on screen). Views marked coach
+// are left out for players.
+const NAV = [
+  { id: 'home', label: 'Home', icon: '<path d="M3.5 11 12 4l8.5 7v9h-5.5v-6h-6v6H3.5z"/>', views: [['home', 'Home']] },
+  { id: 'schedule', label: 'Schedule', icon: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+    views: [['agenda', 'Upcoming'], ['training', 'Training'], ['matches', 'Matches'], ['attendance', 'Attendance', true]] },
+  { id: 'team', label: 'Team', icon: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.5c2.5.1 4.2 1.8 5 5"/>',
+    views: [['squad', 'Squad'], ['tasks', 'Tasks'], ['helpers', 'Helpers', true], ['tally', 'Tally', true]] },
+  { id: 'tactics', label: 'Tactics', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14M5 5.5h14M5 18.5h14"/>',
+    views: [['field', 'Lineup'], ['plays', 'Plays'], ['library', 'Library', true]] },
+  { id: 'more', label: 'More', icon: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
+    views: [['more', 'More'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['teams', 'Teams', true], ['notices', 'Notices']] }
 ];
+const VIEW_IDS = NAV.flatMap(g => g.views.map(v => v[0]));
+
 
 /* ---------- storage ---------- */
 const mem = {};
@@ -246,13 +252,13 @@ let V = null;         // what the current screen shows (set in render)
 let gh = { autoPublish: true, ...repoFromLocation(), ...(readJson(KEYS.github) || {}) };
 
 const state = {
-  tab: 'home', squadFilter: 'all', squadSearch: '', trainingView: 'agenda', showPast: false,
-  msgEvent: null, msgRef: '', askSent: null, pending: null, conflict: null,
+  tab: 'home', squadFilter: 'all', squadSearch: '', showPast: false,
+  msgEvent: null, msgRef: '', askSent: null, pending: null, conflict: null, lastView: {}, reportRange: 'season',
   lineupId: null, moveMode: false, msgTpl: 'reminder', msgSession: null, msgDraft: null, postNotice: true,
   layers: { zones: true, channels: true, ...(readJson('tm-field-layers') || {}) },
   system: null, sysFlip: false,
   playId: null, playSide: 'right', ped: null,
-  taskView: 'tasks', taskFilter: 'up', taskPick: null,
+  taskFilter: 'up', taskPick: null,
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false
 };
 const isCoach = () => S.role === 'coach' && !state.preview;
@@ -421,8 +427,10 @@ function save() {
 let publishTimer = null;
 function schedulePublish() {
   clearTimeout(publishTimer);
-  if (!S.trial && ghReady() && gh.autoPublish) publishTimer = setTimeout(() => publish(true), 5000);
+  if (!S.trial && ghReady() && gh.autoPublish && online()) publishTimer = setTimeout(() => publish(true), 5000);
 }
+window.addEventListener('online', () => { renderStatus(); if (S.role === 'coach' && S.dirty) schedulePublish(); });
+window.addEventListener('offline', () => renderStatus());
 
 async function teamLockFor(d) {
   if (!d.teamSalt) d.teamSalt = toB64(newSalt());
@@ -528,6 +536,9 @@ const ICON = {
   clip: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11l2 2 4-4M9 17h6"/>',
   lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  cog: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  team: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.5c2.5.1 4.2 1.8 5 5"/>',
   rsvp: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5 1.6 0 3 .5 4.1 1.3"/><path d="M15 17.5l2 2 4.5-4.5"/>'
 };
 const icon = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
@@ -540,7 +551,7 @@ function render() {
   animStop();
   if (!S.role) return renderLock();
   V = curView();
-  if (!isCoach() && ['messages', 'teams', 'reports'].includes(state.tab)) state.tab = 'home';
+  if (!VIEW_IDS.includes(state.tab) || !viewsOf(navOf(state.tab)).some(v => v[0] === state.tab)) state.tab = 'home';
   renderNav();
   renderStatus();
   $('#team-title').innerHTML = multiTeam() && !state.preview ? `<button class="team-btn" data-act="team-switch" aria-haspopup="dialog" aria-label="${esc(V.team.name)}. Switch team">${esc(V.team.name || 'Team')}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : esc(V.team.name || 'Team Manager');
@@ -551,41 +562,65 @@ function render() {
   else if (cd && cd.state === 'during') { chip.hidden = false; chip.innerHTML = '<b>Game day</b>'; }
   else chip.hidden = true;
 
-  const v = $('#view');
-  if (state.tab === 'home') v.innerHTML = viewHome();
-  if (state.tab === 'squad') v.innerHTML = viewSquad();
-  if (state.tab === 'training') v.innerHTML = viewTraining();
-  if (state.tab === 'field') { v.innerHTML = viewField(); bindField(); }
-  if (state.tab === 'plays') v.innerHTML = viewPlays();
-  if (state.tab === 'tasks') v.innerHTML = viewTasks();
-  if (state.tab === 'messages') v.innerHTML = viewMessages();
-  if (state.tab === 'teams') v.innerHTML = isCoach() ? viewTeams() : '';
-  if (state.tab === 'reports') v.innerHTML = isCoach() ? viewReports() : '';
+  const v = $('#view'), g = navOf(state.tab);
+  state.lastView[g.id] = state.tab;
+  document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
+  v.innerHTML = subNav(g) + VIEWS[state.tab]();
+  if (state.tab === 'field') bindField();
+  renderAsk();
+}
+const VIEWS = {
+  home: () => viewHome(), agenda: () => viewAgenda(), training: () => viewSchedule(), matches: () => viewMatches(), attendance: () => viewAttendance(),
+  squad: () => viewSquad(), tasks: () => viewTaskList(), helpers: () => viewHelpers(), tally: () => viewHelped(),
+  field: () => viewField(), plays: () => viewPlays(), library: () => viewLibrary(),
+  more: () => viewMore(), messages: () => viewMessages(), reports: () => viewReports(), teams: () => viewTeams(), notices: () => viewNotices()
+};
+const navOf = tab => NAV.find(g => g.views.some(v => v[0] === tab)) || NAV[0];
+const viewsOf = g => g.views.filter(v => !v[2] || isCoach());
+const viewLabel = tab => (navOf(tab).views.find(v => v[0] === tab) || [, 'Home'])[1];
+// The views in a section, across the top of the page (on a wide screen they're in the side bar).
+function subNav(g) {
+  const vs = viewsOf(g); if (vs.length < 2 || g.id === 'more') return '';
+  return `<nav class="subnav" aria-label="${esc(g.label)}">${vs.map(([id, l]) => `<button data-act="tab" data-tab="${id}" ${id === state.tab ? 'aria-current="page"' : ''}>${esc(l)}</button>`).join('')}</nav>`;
+}
+function goTo(tab, focus = true) {
+  if (tab === 'plays') state.playId = null;
+  state.tab = tab; history.replaceState(null, '', '#' + tab);
+  closeSheet(); render(); window.scrollTo(0, 0);
+  if (focus) { const v = $('#view'); try { v.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
 }
 
 function renderNav() {
-  const nav = $('#tabs');
-  const tabs = TABS.filter(t => !t.coach || isCoach());
+  const nav = $('#tabs'), cur = navOf(state.tab);
   nav.hidden = false;
-  nav.style.gridTemplateColumns = `repeat(${tabs.length},1fr)`;
-  nav.classList.toggle('many', tabs.length > 6);
-  nav.innerHTML = tabs.map(t => `<button data-act="tab" data-tab="${t.id}" ${t.id === state.tab ? 'aria-current="page"' : ''}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${t.icon}</svg>${t.label}</button>`).join('');
+  nav.style.gridTemplateColumns = `repeat(${NAV.length},1fr)`;
+  nav.innerHTML = NAV.map(g => { const vs = viewsOf(g), on = g === cur;
+    return `<div class="nav-group${on ? ' on' : ''}"><button class="nav-main" data-act="nav" data-g="${g.id}" ${on ? 'aria-current="page"' : ''}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${g.icon}</svg>${g.label}</button>
+      ${vs.length > 1 && g.id !== 'more' ? `<div class="nav-sub">${vs.map(([id, l]) => `<button data-act="tab" data-tab="${id}" ${id === state.tab ? 'aria-current="page"' : ''}>${esc(l)}</button>`).join('')}</div>` : ''}</div>`; }).join('');
 }
 
+const online = () => navigator.onLine !== false;
 function renderStatus() {
   const el = $('#status');
-  if (S.role !== 'coach') { el.hidden = true; return; }
+  if (S.role !== 'coach') {
+    el.hidden = !(S.role === 'player' && (!online() || S.fromCache));
+    if (!el.hidden) { el.className = 'status warn'; el.innerHTML = `<span class="dot" aria-hidden="true"></span><span class="grow">No connection. You’re seeing the copy saved on this phone.</span>`; }
+    return;
+  }
   el.hidden = false;
   let cls = 'ok', text = '', btn = '';
   if (state.preview) { cls = 'info'; text = 'You are seeing what players see.'; btn = `<button data-act="preview-off">Back to coach view</button>`; }
+  else if (S.storageFull) { cls = 'bad'; text = 'This phone’s storage for the app is full, so the latest changes may not be kept. Export a backup now.'; btn = `<button data-act="settings">Settings</button>`; }
   else if (S.trial) { cls = 'warn'; text = 'Test mode. Saved on this phone only; nothing is shared.'; btn = `<button data-act="go-live">Go live</button>`; }
+  else if (!online() && S.dirty) { cls = 'warn'; text = 'Offline. Changes are saved on this phone and will publish when you’re back online.'; }
+  else if (!online()) { cls = 'warn'; text = 'Offline. Everything here is saved on this phone.'; }
   else if (!ghReady()) { cls = 'warn'; text = 'Saved on this phone only.'; btn = `<button data-act="github">Connect GitHub to publish</button>`; }
   else if (S.publishing) { cls = 'busy'; text = 'Publishing…'; }
   else if (S.pub === 'conflict') { cls = 'bad'; text = 'Changed on another device.'; btn = `<button data-act="conflict">Sort it out</button>`; }
   else if (S.pub === 'error') { cls = 'bad'; text = S.pubMsg; btn = `<button data-act="publish">Try again</button>`; }
   else if (S.dirty) { cls = 'warn'; text = gh.autoPublish ? 'Publishing shortly…' : 'Changes not published yet.'; btn = `<button data-act="publish">Publish now</button>`; }
   else if (S.lastPublished && Date.now() - S.lastPublished < 180000) { text = 'Published. Players see it in about a minute.'; }
-  else { text = 'All changes published.'; }
+  else { text = S.lastPublished ? `All changes published (${new Date(S.lastPublished).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}).` : 'All changes published.'; }
   el.className = `status ${cls}`;
   el.innerHTML = `<span class="dot" aria-hidden="true"></span><span class="grow">${esc(text)}</span>${btn}`;
 }
@@ -673,17 +708,19 @@ function viewHome() {
         <p class="sub">${esc(n.venue || T.trainingVenue || 'Venue TBC')}</p>
         ${n.focus ? `<p class="small" style="margin-top:2px">Focus: ${esc(n.focus)}</p>` : ''}
         ${n.notes ? `<p class="small muted" style="margin-top:2px">${esc(n.notes)}</p>` : ''}
+        ${isCoach() && asking(n) ? `<span class="ag-meta">${rsvpPills(n)}</span>` : ''}
         ${isCoach() ? `<div class="btn-row" style="margin-top:10px">
           <button class="btn wa sm" data-act="remind" data-id="${n.id}">${icon('chat', 18)}Send reminder</button>
+          <button class="btn sm" data-act="rsvp-open" data-k="session" data-id="${n.id}">${icon('rsvp', 18)}Availability</button>
           <button class="btn sm" data-act="roll" data-id="${n.id}">${icon('clip', 18)}Roll call</button>
-        </div>` : ''}
+        </div>` : replyBtns('session', n)}
       </div></div>`
     : isCoach() ? `<div class="empty"><p>No training booked yet.</p><button class="btn primary" data-act="add-session">${icon('plus')}Add training</button></div>`
       : `<p class="muted">No training scheduled yet.</p>`;
 
   const P = V.players;
   const f = P.filter(p => p.gender === 'F').length, m = P.filter(p => p.gender === 'M').length;
-  let h = hero + homeMatchDay();   // first column on a wide screen
+  let h = hero + (isCoach() ? homeAttention() : '') + homeMatchDay();   // first column on a wide screen
   h += `<section class="sec"><div class="sec-h"><h2>Next training</h2><button class="btn sm" data-act="tab" data-tab="training">All sessions</button></div>${nextHtml}</section>`;
   let h2 = '';    // second column
   if (!isCoach()) h2 += noticeHtml + homeTasks();
@@ -704,6 +741,23 @@ function viewHome() {
     h2 += homeTasks();
   }
   return `<div class="cols"><div class="col">${h}</div><div class="col">${h2}</div></div>`;
+}
+// What needs the coach's attention in the next four weeks, most urgent first, each a tap away.
+function homeAttention() {
+  const today = todayISO(), o = M.outstanding(data, today), items = [];
+  const ev = x => x.kind === 'match' ? matchById(x.id) : sessionById(x.id);
+  o.rsvp.slice(0, 3).forEach(x => { const e = ev(x); items.push([`rsvp-open" data-k="${x.kind}" data-id="${x.id}`, `${x.missing} availability repl${x.missing === 1 ? 'y' : 'ies'} missing`, `${x.kind === 'match' ? `vs ${e.opponent || 'TBC'}` : 'Training'}, ${fmtDay(x.date)}`]); });
+  o.noLineup.slice(0, 2).forEach(id => { const m = matchById(id); items.push([`match-open" data-id="${id}`, 'Match lineup not made', `vs ${m.opponent || 'TBC'}, ${fmtDay(m.date)}`]); });
+  const awaiting = o.awaiting.reduce((n, x) => n + x.n, 0), toFind = o.toFind.reduce((n, x) => n + x.n, 0);
+  if (awaiting) items.push([`task-waiting`, `${awaiting} volunteer invitation${awaiting === 1 ? '' : 's'} awaiting a reply`, `${o.awaiting.length} task${o.awaiting.length === 1 ? '' : 's'}`]);
+  if (toFind) items.push([`tab" data-tab="tasks`, `${toFind} volunteer spot${toFind === 1 ? '' : 's'} still to find`, `${o.toFind.length} task${o.toFind.length === 1 ? '' : 's'}`]);
+  o.riders.slice(0, 2).forEach(x => { const t = taskById(x.id); items.push([`task-open" data-id="${x.id}`, x.waiting ? `${x.waiting} without a seat` : `${x.tentative} waiting on a driver’s reply`, t.title]); });
+  o.noResult.slice(0, 2).forEach(id => { const m = matchById(id); items.push([`match-open" data-id="${id}`, 'Result not entered', `vs ${m.opponent || 'TBC'}, ${fmtDay(m.date)}`]); });
+  if (o.unconfirmed) items.push([`tab" data-tab="messages`, `${o.unconfirmed} WhatsApp message${o.unconfirmed === 1 ? '' : 's'} not confirmed as sent`, 'Message log']);
+  if (!items.length) return V.players.length ? `<section class="sec"><div class="sec-h"><h2>Needs attention</h2></div><p class="muted small all-clear">${icon('check', 18)} Nothing outstanding for the next four weeks.</p></section>` : '';
+  return `<section class="sec attention"><div class="sec-h"><h2>Needs attention</h2><button class="btn sm" data-act="tab" data-tab="reports">All loose ends</button></div>
+    <div class="list">${items.slice(0, 6).map(([a, t, sub]) => `<button class="pick" data-act="${a}"><span class="grow"><span class="name" style="display:block">${esc(t)}</span><span class="tagline">${esc(sub)}</span></span><span aria-hidden="true" class="chev">›</span></button>`).join('')}</div>
+    ${items.length > 6 ? `<p class="hint">And ${items.length - 6} more in Reports.</p>` : ''}</section>`;
 }
 function calBlock(date) {
   const d = parseDate(date);
@@ -802,12 +856,6 @@ function bulkForm() {
 }
 
 /* ---------- Training ---------- */
-function viewTraining() {
-  if (!isCoach() && state.trainingView === 'attendance') state.trainingView = 'schedule';
-  const views = [['agenda', 'Upcoming'], ['schedule', 'Training'], ['matches', 'Matches'], ...(isCoach() ? [['attendance', 'Attendance']] : [])];
-  const seg = `<div class="seg" role="group" aria-label="Schedule view">${views.map(([k, l]) => `<button data-act="train-view" data-v="${k}" aria-pressed="${state.trainingView === k}">${l}</button>`).join('')}</div>`;
-  return seg + (state.trainingView === 'agenda' ? viewAgenda() : state.trainingView === 'attendance' ? viewAttendance() : state.trainingView === 'matches' ? viewMatches() : viewSchedule());
-}
 /* ----- RSVPs: what players said they'd do, kept apart from the roll call ----- */
 const RSVP_SHORT = { yes: 'Yes', maybe: 'Unsure', no: 'No' };
 const rsvpTarget = (kind, id) => kind === 'match' ? matchById(id) : sessionById(id);
@@ -1995,11 +2043,8 @@ function viewPlays() {
   const coach = isCoach();
   if (state.playId && playById(state.playId)) return viewPlay(playById(state.playId));
   state.playId = null;
-  const lib = coach && state.playsView === 'library';
-  const seg = coach ? `<div class="seg" role="group" aria-label="Which plays"><button data-act="plays-view" data-v="team" aria-pressed="${!lib}">${esc(V.team.name)}</button><button data-act="plays-view" data-v="library" aria-pressed="${lib}">Library (${M.libItems(ws, 'plays').length + M.libItems(ws, 'systems').length + M.libItems(ws, 'playerSets').length})</button></div>` : '';
-  if (lib) return seg + viewLibrary();
   const missing = STARTER_IDS.filter(id => !V.plays.some(p => p.id === id)).length;
-  return seg + `<div class="sec-h"><h2>Plays</h2>${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div>
+  return `<div class="sec-h"><h2>Plays</h2>${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div>
     <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.${coach ? ` <button class="link-btn inline" data-act="psets">Player lists</button>` : ''}</p>
     ${V.plays.length ? `<div class="list grid plays-grid">${V.plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
@@ -2693,12 +2738,6 @@ const loadOf = M.loadOf;
 const loadBusy = L => L.done + L.accepted + L.invited;
 const loadText = L => [L.done ? `helped ${L.done}×` : 'not helped yet', L.accepted ? `${L.accepted} accepted` : '', L.invited ? `${L.invited} invited` : ''].filter(Boolean).join(' · ');
 
-function viewTasks() {
-  const coach = isCoach();
-  if (!coach) state.taskView = 'tasks';
-  const seg = coach ? `<div class="seg" role="group" aria-label="Tasks view">${[['tasks', 'Tasks'], ['helpers', 'Helpers'], ['people', 'Tally']].map(([k, l]) => `<button data-act="task-view" data-v="${k}" aria-pressed="${state.taskView === k}">${l}</button>`).join('')}</div>` : '';
-  return seg + (state.taskView === 'helpers' ? viewHelpers() : state.taskView === 'people' ? viewHelped() : viewTaskList());
-}
 function viewTaskList() {
   const coach = isCoach(), today = todayISO();
   const all = arr(V.tasks).slice().sort(byWhen);
@@ -3034,6 +3073,7 @@ function trendChart(trend) {
   return s + `</svg><p class="legend" style="justify-content:center"><span><i style="background:#123D2B"></i>Attended (incl. late)</span><span>? Roll call not taken</span><span>✕ Cancelled</span></p>`;
 }
 function viewReports() {
+  if (!isCoach()) return '';
   const r = reportRange(), T = inRangeTeam(r), today = todayISO();
   const sum = M.summary(data, r.from, r.to, today), trend = M.attendanceTrend(T.sessions, today);
   const pva = M.plannedVsActual(T.sessions, today), part = M.participation(T, today), pos = M.positionUsage(T, today);
@@ -3447,6 +3487,7 @@ function openWhatsApp(text, phone) {
 // team's players' file off the site (its data stays in the coach's copy) until it's restored.
 const multiTeam = () => S.role === 'coach' && M.activeTeams(ws).length > 1;
 function viewTeams() {
+  if (!isCoach()) return '';
   const all = M.teamsOf(ws), act = all.filter(t => !t.archived), arch = all.filter(t => t.archived);
   const row = t => `<div class="row team-row ${t === data ? 'current' : ''}">
       <span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}${t === data ? ' <span class="pill ok">On screen</span>' : ''}${t.archived ? ' <span class="pill neutral">Archived</span>' : ''}</span>
@@ -3520,8 +3561,9 @@ function libRow(kind, li) {
       <button class="icon-btn" data-act="lib-remove" data-k="${kind}" data-id="${esc(li.id)}" aria-label="Take ${esc(name)} out of the library">${icon('close', 18)}</button></div>`;
 }
 function viewLibrary() {
+  if (!isCoach()) return '';
   const sec = (kind, title, empty) => { const items = M.libItems(ws, kind); return `<h3 class="form-sec">${title} (${items.length})</h3>${items.length ? `<div class="list">${items.map(li => libRow(kind, li)).join('')}</div>` : `<p class="muted small">${empty}</p>`}`; };
-  return `<p class="hint" style="margin:-4px 0 6px">Shared by all your teams. Save a play, a game system or a player list to the library from where you edit it, then add it to any team. Teams that haven’t changed their copy get each new library version; a team that has keeps its own.</p>
+  return `<div class="sec-h"><h2>Library</h2></div><p class="hint" style="margin:-4px 0 6px">Shared by all your teams. Save a play, a game system or a player list to the library from where you edit it, then add it to any team. Teams that haven’t changed their copy get each new library version; a team that has keeps its own.</p>
     ${sec('plays', 'Plays', 'No plays yet. Open a play and choose Save to library.')}
     ${sec('systems', 'Game systems', 'None yet. Show a game system on the Lineup page and choose Save to library.')}
     ${sec('playerSets', 'Player lists', 'None yet. Open Plays › Player lists and save a list to the library.')}
@@ -3599,6 +3641,23 @@ function backupSection() {
     <p class="muted small" style="margin-bottom:10px">The previous version only knew one team. It still opens the first team (${esc(M.teamName(ws))}) as it is. To take another team back to it, export that team on its own.</p>
     <div class="btn-row"><button class="btn" data-act="export-legacy">Export ${esc(data.team.name)} on its own</button>${pre ? `<button class="btn" data-act="export-pre">Copy from before the upgrade (${esc(fmtStamp(pre.at))})</button>` : ''}</div>
   </details>`;
+}
+
+/* ---------- More ---------- */
+function viewMore() {
+  const coach = isCoach();
+  const item = (act, attrs, title, sub, ic) => `<button class="pick more-item" data-act="${act}" ${attrs}><span class="more-ic">${icon(ic, 22)}</span><span class="grow"><span class="name" style="display:block">${title}</span><span class="tagline">${sub}</span></span></button>`;
+  return `<div class="sec-h"><h2>More</h2></div><div class="list">
+    ${coach ? item('tab', 'data-tab="messages"', 'Messages and noticeboard', 'WhatsApp messages, the message log and notices', 'chat') : item('tab', 'data-tab="notices"', 'Notices', 'Everything the coach has posted', 'clip')}
+    ${coach ? item('tab', 'data-tab="reports"', 'Reports', 'Attendance, results, volunteering and loose ends', 'chart') : ''}
+    ${coach ? item('tab', 'data-tab="teams"', 'Teams', `${M.activeTeams(ws).length} active${M.teamsOf(ws).length > M.activeTeams(ws).length ? `, ${M.teamsOf(ws).length - M.activeTeams(ws).length} archived` : ''}`, 'team') : ''}
+    ${item('settings', '', 'Settings', coach ? 'Team, field, team contact, publishing, backups, screen layout' : 'Screen layout, updates, sign out', 'cog')}
+  </div>
+  ${coach ? '' : `<p class="hint">${S.fromCache ? 'No connection: you’re seeing the copy saved on this phone. ' : ''}The coach keeps everything up to date. Use Settings › Check for updates to get the latest.</p>`}`;
+}
+function viewNotices() {
+  return `<div class="sec-h"><h2>Notices</h2>${isCoach() ? `<button class="btn sm" data-act="tab" data-tab="messages">Manage</button>` : ''}</div>
+    ${V.notices.length ? `<div class="list">${V.notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p></div>`).join('')}</div>` : '<div class="empty"><p>No notices yet.</p></div>'}`;
 }
 
 /* ---------- Settings ---------- */
@@ -3798,22 +3857,35 @@ async function openConflictSheet() {
 
 /* ---------- sheet + toast ---------- */
 let lastFocus = null;
+// Sheets are modal: the page behind is inert (not reachable by keyboard or screen reader), Tab stays
+// inside, Escape closes, and the focus goes back where it was.
+const BEHIND = ['.top', '#view', '#tabs'];
 function openSheet(title, body, key = null) {
-  lastFocus = document.activeElement;
+  if ($('#sheet').hidden) lastFocus = document.activeElement;
   const sh = $('#sheet');
   sh.innerHTML = `<div class="backdrop" data-act="close-sheet"></div>
-    <div class="panel" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-      <div class="panel-head"><h2>${esc(title)}</h2><button class="icon-btn" data-act="close-sheet" aria-label="Close">${icon('close', 22)}</button></div>
+    <div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="panel-head"><h2 id="sheet-title">${esc(title)}</h2><button class="icon-btn" data-act="close-sheet" aria-label="Close">${icon('close', 22)}</button></div>
       <div class="panel-body">${body}</div></div>`;
   sh.hidden = false; document.body.classList.add('locked'); state.sheet = key;
+  BEHIND.forEach(q => { const el = $(q); if (el) el.inert = true; });
   setTimeout(() => { const b = sh.querySelector('.panel-head .icon-btn'); if (b) b.focus(); }, 30);
 }
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Tab' || $('#sheet').hidden) return;
+  const f = [...$('#sheet .panel').querySelectorAll('button,[href],input,select,textarea,summary,[tabindex]:not([tabindex="-1"])')].filter(x => !x.disabled && x.offsetParent !== null);
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 function requestCloseSheet() {
   if (state.sheet === 'play-editor' && state.ped && state.ped.dirty && !confirm('Close without saving the changes to this play?')) return;
   closeSheet();
 }
 function closeSheet() {
   const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; document.body.classList.remove('locked'); state.sheet = null;
+  BEHIND.forEach(q => { const el = $(q); if (el) el.inert = false; });
   if (lastFocus && document.contains(lastFocus)) try { lastFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
 }
 let toastTimer = null;
@@ -3895,7 +3967,8 @@ function loadSample() {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
-  'tab': el => { if (el.dataset.tab === 'plays') state.playId = null; state.tab = el.dataset.tab; history.replaceState(null, '', '#' + state.tab); closeSheet(); render(); window.scrollTo(0, 0); },
+  'tab': el => goTo(el.dataset.tab),
+  'nav': el => { const g = NAV.find(x => x.id === el.dataset.g); if (!g) return; const last = state.lastView[g.id]; goTo(last && viewsOf(g).some(v => v[0] === last) && navOf(state.tab) !== g ? last : viewsOf(g)[0][0]); },
   'close-sheet': () => requestCloseSheet(),
   'settings': () => openSheet('Settings', settingsBody(), 'settings'),
   'layout': el => { store.set('tm-layout', el.dataset.v); applyLayout(); document.querySelectorAll('[data-act="layout"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
@@ -3925,7 +3998,7 @@ const actions = {
   'squad-filter': el => { state.squadFilter = el.dataset.f; render(); },
   'wa-player': coachOnly(el => { const p = playerById(el.dataset.id); if (!p || !p.phone) return; sendWa(`Hi ${firstName(p)}, `, { to: p.name, phone: p.phone, ref: 'player:' + p.id }); }),
 
-  'train-view': el => { state.tab = 'training'; state.trainingView = el.dataset.v; render(); },
+  'train-view': el => goTo({ agenda: 'agenda', schedule: 'training', matches: 'matches', attendance: 'attendance' }[el.dataset.v] || 'agenda', false),
   'report-range': coachOnly(el => { state.reportRange = el.dataset.v; render(); }),
   'report-share': coachOnly(() => copyText(reportText(), 'Summary copied')),
   'match-new': coachOnly(() => openSheet('Add match', matchForm(null), 'match-new')),
@@ -3966,7 +4039,7 @@ const actions = {
     openWhatsApp(replyText(el.dataset.k, rec, el.dataset.v), c.phone || '');
     toast('WhatsApp is open with your reply. Send it there; the coach records it.');
   },
-  'attendance': coachOnly(() => { state.tab = 'training'; state.trainingView = 'attendance'; history.replaceState(null, '', '#training'); render(); window.scrollTo(0, 0); }),
+  'attendance': coachOnly(() => goTo('attendance')),
   'toggle-past': () => { state.showPast = !state.showPast; render(); },
   'add-session': coachOnly(() => openSheet('Add training', sessionForm(null))),
   'edit-session': coachOnly(el => { const s = sessionById(el.dataset.id); if (s) openSheet(fmtLong(s.date), sessionForm(s)); }),
@@ -4021,9 +4094,9 @@ const actions = {
     if (!confirm(`Put “${b.name}” back to the playbook version? Your changes to its words and positions will go.`)) return;
     delete data.systems[b.id]; save(); render(); toast('Back to the playbook version');
   }),
-  'task-view': el => { state.taskView = el.dataset.v; render(); },
+  'task-view': el => goTo({ tasks: 'tasks', helpers: 'helpers', people: 'tally' }[el.dataset.v] || 'tasks', false),
   'task-filter': el => { state.taskFilter = el.dataset.f; render(); },
-  'task-waiting': () => { state.tab = 'tasks'; state.taskView = 'tasks'; state.taskFilter = 'waiting'; history.replaceState(null, '', '#tasks'); render(); window.scrollTo(0, 0); },
+  'task-waiting': () => { state.taskFilter = 'waiting'; goTo('tasks'); },
   'task-new': coachOnly(() => openSheet('New task', taskForm(null))),
   'task-checklist': coachOnly(() => openSheet('Add a checklist', checklistBody())),
   'task-open': coachOnly(el => openTask(el.dataset.id)),
@@ -4239,7 +4312,7 @@ const actions = {
     toast('Copy from before the upgrade downloaded');
   }),
   'import-do': coachOnly(el => doImport(el.dataset.m)),
-  'teams': coachOnly(() => { state.tab = 'teams'; history.replaceState(null, '', '#teams'); closeSheet(); render(); window.scrollTo(0, 0); }),
+  'teams': coachOnly(() => goTo('teams')),
   'team-switch': coachOnly(() => teamSwitcher()),
   'team-pick': coachOnly(el => switchTeam(el.dataset.id)),
   'team-new': coachOnly(() => openSheet('New team', teamForm(), 'team-new')),
@@ -4281,7 +4354,7 @@ const actions = {
   }),
   'lib-export': coachOnly(() => { download(M.libExport(ws), `team-library-${todayISO()}.json`); toast('Library exported'); }),
   'lib-import': coachOnly(() => { state.importKind = 'library'; $('#import-file').click(); }),
-  'plays-view': coachOnly(el => { state.playsView = el.dataset.v; state.playId = null; render(); }),
+  'plays-view': coachOnly(el => goTo(el.dataset.v === 'library' ? 'library' : 'plays', false)),
   'import': coachOnly(() => { state.importKind = 'backup'; $('#import-file').click(); }),
   'start-over': coachOnly(() => openSheet('Clear team data', resetBody(), 'reset')),
   'reset-preset': coachOnly(el => {
@@ -4445,7 +4518,7 @@ document.addEventListener('submit', async e => {
   if (kind === 'task-checklist') {
     const c = CHECKLISTS[str('list')] || CHECKLISTS.gameday, date = str('date') || todayISO(), place = str('place');
     c.items.forEach(([title, k, need]) => data.tasks.push({ id: uid(), title, kind: k, date, start: '', end: '', place, notes: '', need: k === 'lift' ? 0 : need, sessionId: '', people: [] }));
-    state.taskView = 'tasks'; state.taskFilter = 'up';
+    state.tab = 'tasks'; state.taskFilter = 'up';
     save(); closeSheet(); render(); toast(`${c.items.length} tasks added for ${fmtDay(date)}`);
     return;
   }
@@ -4482,7 +4555,7 @@ document.addEventListener('submit', async e => {
     const lines = str('lines').split(/\n+/).map(l => l.trim()).filter(Boolean);
     if (!lines.length) { fieldError(form, 'lines', 'Add at least one match, one per line'); return; }
     const made = lines.map(l => ({ id: uid(), date, venue: str('venue'), ...parseMatchLine(l), status: 'scheduled', rsvp: {}, result: {}, lineupId: '', notes: '', coachNotes: '', ...(f.get('tournament') ? { tournament: true } : {}) }));
-    data.matches.push(...made); state.trainingView = 'matches'; save(); closeSheet(); render();
+    data.matches.push(...made); state.tab = 'matches'; history.replaceState(null, '', '#matches'); save(); closeSheet(); render();
     toast(`${made.length} match${made.length === 1 ? '' : 'es'} added for ${fmtDay(date)}`);
     return;
   }
@@ -4546,7 +4619,7 @@ document.addEventListener('submit', async e => {
     return;
   }
   if (kind === 'helper') {
-    const id = str('id'); if (!str('name')) { toast('Add a name'); return; }
+    const id = str('id'); if (!str('name')) { fieldError(form, 'name', 'Add a name'); return; }
     const h = id ? data.helpers.find(x => x.id === id) : { id: uid() }; if (!h) return;
     Object.assign(h, { name: str('name'), phone: str('phone'), relation: str('relation'), playerId: str('playerId'), notes: str('notes') });
     if (!id) data.helpers.push(h);
@@ -4560,7 +4633,7 @@ document.addEventListener('submit', async e => {
   }
   if (kind === 'player') {
     const id = str('id'); const p = id ? playerById(id) : { id: uid() };
-    if (!str('name')) { toast('Add a name'); return; }
+    if (!str('name')) { fieldError(form, 'name', 'Add a name'); return; }
     Object.assign(p, { name: str('name'), gender: str('gender'), number: str('number'), phone: str('phone'), positions: f.getAll('positions'), status: str('status') || 'available', notes: str('notes') });
     if (!id) data.players.push(p);
     save(); render();
@@ -4685,7 +4758,7 @@ document.addEventListener('submit', async e => {
 });
 window.addEventListener('hashchange', () => {
   const t = location.hash.slice(1);
-  if (S.role && t && t !== state.tab && (TABS.some(x => x.id === t) || t === 'teams')) { state.tab = t; render(); }
+  if (S.role && t && t !== state.tab && VIEW_IDS.includes(t)) { state.tab = t; render(); }
 });
 window.addEventListener('pagehide', () => { if (S.role === 'coach') persistDraft(); });
 
@@ -4721,7 +4794,7 @@ function readJoinLink() {
 async function boot() {
   const join = readJoinLink();
   const hashTab = location.hash.slice(1);
-  if (TABS.some(t => t.id === hashTab) || hashTab === 'teams') state.tab = hashTab;
+  if (VIEW_IDS.includes(hashTab)) state.tab = hashTab;
   const auth = readJson(KEYS.auth);
   if (auth && auth.key) {
     try {
