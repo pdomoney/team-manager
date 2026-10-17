@@ -3,19 +3,23 @@
 //
 //   DATA_DIR=data OUT_DIR=dist node src/build.js
 //
-// Only the two known file names are published, and only if they are encrypted. A plain-text file
-// on the data branch stops the build rather than ending up on the public site.
+// Only the known file names are published (the coach's file and one players' file per team), and
+// only if they are encrypted for the right role. A plain-text file on the data branch stops the
+// build rather than ending up on the public site.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const DATA_FILES = ['team.enc.json', 'coach.enc.json'];
+// The first team's players' file is team.enc.json; each other team's is team-<team id>.enc.json.
+export const TEAM_FILE = /^team(?:-[a-z0-9]{3,32})?\.enc\.json$/;
+export const roleOf = name => name === 'coach.enc.json' ? 'coach' : TEAM_FILE.test(name) ? 'team' : null;
 
-export function isEncryptedFile(text) {
+export function isEncryptedFile(text, role = null) {
   let j;
   try { j = JSON.parse(text); } catch (e) { return false; }
   return !!j && j.format === 'team-manager' && typeof j.data === 'string' && typeof j.iv === 'string'
-    && typeof j.salt === 'string' && (j.role === 'team' || j.role === 'coach') && Object.keys(j).every(k =>
+    && typeof j.salt === 'string' && (j.role === 'team' || j.role === 'coach') && (!role || j.role === role) && Object.keys(j).every(k =>
       ['format', 'version', 'role', 'kdf', 'salt', 'iv', 'data'].includes(k));
 }
 
@@ -35,17 +39,18 @@ export function build({ dataDir = 'data', outDir = 'dist', siteDir = 'site', log
   stampVersion(outDir, version);
   fs.mkdirSync(path.join(outDir, 'data'), { recursive: true });
   const published = [];
-  for (const name of DATA_FILES) {
+  const rank = n => DATA_FILES.includes(n) ? DATA_FILES.indexOf(n) : DATA_FILES.length;
+  const names = fs.existsSync(dataDir) ? fs.readdirSync(dataDir).filter(roleOf).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b)) : [];
+  for (const name of names) {
     const src = path.join(dataDir, name);
-    if (!fs.existsSync(src)) continue;
     const text = fs.readFileSync(src, 'utf8');
-    if (!isEncryptedFile(text)) throw new Error(`${name} on the data branch is not an encrypted team file. Refusing to publish it.`);
+    if (!isEncryptedFile(text, roleOf(name))) throw new Error(`${name} on the data branch is not an encrypted ${roleOf(name) === 'coach' ? 'coach' : 'team'} file. Refusing to publish it.`);
     fs.writeFileSync(path.join(outDir, 'data', name), text);
     published.push(name);
   }
   fs.writeFileSync(path.join(outDir, 'data', 'manifest.json'), JSON.stringify({ version, builtAt: new Date().toISOString(), files: published }, null, 2) + '\n');
   fs.writeFileSync(path.join(outDir, '.nojekyll'), '');
-  log(published.length ? `Published ${published.join(' and ')}.` : 'No team data yet. The site opens in test mode.');
+  log(published.length ? `Published ${published.join(', ')}.` : 'No team data yet. The site opens in test mode.');
   return published;
 }
 

@@ -13,13 +13,18 @@
 // Data
 //   The coach's working copy is kept encrypted on their phone and published (encrypted) to the
 //   `data` branch on GitHub. A GitHub Actions workflow copies the encrypted files into the
-//   GitHub Pages site, where players' phones download and decrypt the team file.
+//   GitHub Pages site, where players' phones download and decrypt their team's file.
+//
+// Teams
+//   The coach's copy is a workspace (see model.js): one or more teams plus a shared library of plays,
+//   game systems and player lists. `ws` is the workspace and `data` the team on screen. Each team has
+//   its own players' file and its own team password, so one team's players can't open another's.
 
 import { ITERATIONS, makeLock, newSalt, seal, openFile, teamView, toB64, fromB64, toB64Url, fromB64Url, exportKey, importKey, isSealed } from './vault.js';
 import { GitHub, repoFromLocation } from './github.js';
 import * as M from './model.js';
 
-const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade' };
+const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', team: 'tm-team' };
 
 // Eight on field, symmetrical: from the centre out to each touch line, Middle, Rover, Link, Wing.
 const SLOT_DEFS = [
@@ -201,6 +206,9 @@ function normalizeTeam(t) {
   return out;
 }
 
+// The coach's whole copy: every team, the library, and the upgrade from a single-team copy.
+const normalizeWs = raw => M.migrateWorkspace(raw, normalize);
+
 /* ---------- session ---------- */
 const S = {
   role: null,            // 'coach' | 'player'
@@ -210,10 +218,30 @@ const S = {
   remoteStamp: null,     // updatedAt of the copy this device started from
   base: null,            // that copy itself, to show what changed on each side if publishing clashes
   dirty: false, publishing: false, again: false,
-  pub: 'idle', pubMsg: '', lastPublished: null
+  pub: 'idle', pubMsg: '', lastPublished: null,
+  teamLocks: {},         // each team's players' lock, by team id
+  teamFile: null         // player: which team file this phone opened
 };
-let data = null;      // coach: everything
+let ws = null;        // coach: every team and the library
+let data = null;      // coach: the team on screen (inside ws)
 let teamData = null;  // player: the team view
+// Show a team (this device remembers which). Archived teams are only shown when asked for directly.
+function pickTeam(id) {
+  const want = M.findTeam(ws, id || store.get(KEYS.team));
+  data = want && (!want.archived || id) ? want : M.activeTeams(ws)[0] || ws;
+  store.set(KEYS.team, data.id);
+  return data;
+}
+// Load a coach copy. An older single-team copy is kept as it was (encrypted when live) before it is
+// upgraded, so it can be downloaded again from Settings.
+async function loadWs(raw, lock) {
+  if (raw && typeof raw === 'object' && raw.schema !== M.SCHEMA && Array.isArray(raw.players) && !store.get(KEYS.backup)) {
+    const at = new Date().toISOString();
+    store.set(KEYS.backup, JSON.stringify(lock ? { at, file: await seal(raw, lock, 'coach') } : { at, data: raw }));
+  }
+  ws = normalizeWs(raw);
+  return pickTeam();
+}
 let V = null;         // what the current screen shows (set in render)
 let gh = { autoPublish: true, ...repoFromLocation(), ...(readJson(KEYS.github) || {}) };
 
@@ -264,7 +292,8 @@ function fmtEventDates() {
   return `${a.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} – ${b.toLocaleDateString('en-AU', o)}`;
 }
 const curLineup = () => V.lineups.find(l => l.id === state.lineupId) || V.lineups[0];
-const inviteLink = () => `${location.origin}${location.pathname}#join=${toB64Url(data.teamPass)}`;
+// The invite link carries the team password, and which team (the first team's link is unchanged).
+const inviteLink = () => `${location.origin}${location.pathname}#join=${toB64Url(data.teamPass)}${data === ws ? '' : '.' + data.id}`;
 
 /* =========================================================
    LOADING, SIGN-IN AND PUBLISHING
@@ -282,16 +311,22 @@ async function fetchSite(name) {
   if (!r.ok) throw fail('NETWORK', `The site returned an error (${r.status}).`);
   try { return await r.json(); } catch (e) { return null; }
 }
-async function fetchTeamFile() {
+const cacheKey = name => name === 'team.enc.json' ? KEYS.teamCache : `${KEYS.teamCache}:${name}`;
+async function fetchTeamFile(name = 'team.enc.json') {
   try {
-    const f = await fetchSite('team.enc.json');
-    if (f) store.set(KEYS.teamCache, JSON.stringify(f));
+    const f = await fetchSite(name);
+    if (f) store.set(cacheKey(name), JSON.stringify(f));
+    S.fromCache = false;
     return f;
   } catch (e) {
-    const cached = readJson(KEYS.teamCache); // keeps the app usable with no reception at the ground
-    if (cached) return cached;
+    const cached = readJson(cacheKey(name)); // keeps the app usable with no reception at the ground
+    if (cached) { S.fromCache = true; return cached; }
     throw e;
   }
+}
+// The published files, from the site's manifest (null if it can't be read).
+async function siteFiles() {
+  try { const m = await fetchSite('manifest.json'); return m && Array.isArray(m.files) ? m.files : null; } catch (e) { return null; }
 }
 // The freshest published copy of the coach file: from GitHub if connected, otherwise the website.
 async function fetchCoachRemote() {
@@ -305,20 +340,31 @@ async function fetchCoachRemote() {
   return file ? { file, sha: null } : null;
 }
 
-async function rememberAuth(role, lock) {
-  store.set(KEYS.auth, JSON.stringify({ role, key: await exportKey(lock.key), salt: toB64(lock.salt), iterations: lock.iterations }));
+async function rememberAuth(role, lock, file) {
+  store.set(KEYS.auth, JSON.stringify({ role, key: await exportKey(lock.key), salt: toB64(lock.salt), iterations: lock.iterations, ...(file ? { file } : {}) }));
 }
 async function lockFromAuth(a) {
   return { key: await importKey(a.key), salt: fromB64(a.salt), iterations: a.iterations || ITERATIONS };
 }
 
-async function openPlayer(cred, remember) {
-  const file = await fetchTeamFile();
-  if (!file) throw fail('NO_TEAM');
-  const { value, lock } = await openFile(file, cred, 'team');
-  teamData = normalizeTeam(value);
-  S.role = 'player'; S.teamLock = lock;
-  if (remember) await rememberAuth('player', lock);
+// A player opens their team's file. With an invite link or a remembered sign-in the file is known;
+// with a typed password each published team file is tried in turn (the first team's first).
+async function openPlayer(cred, remember, name) {
+  let names = name ? [name] : null;
+  if (!names) { const listed = await siteFiles(); names = ['team.enc.json', ...(listed || []).filter(n => M.TEAM_FILE.test(n) && n !== 'team.enc.json')]; }
+  let lastErr = null, found = false;
+  for (const n of names) {
+    const file = await fetchTeamFile(n); if (!file) continue;
+    found = true;
+    try {
+      const { value, lock } = await openFile(file, cred, 'team');
+      teamData = normalizeTeam(value);
+      S.role = 'player'; S.teamLock = lock; S.teamFile = n;
+      if (remember) await rememberAuth('player', lock, n);
+      return;
+    } catch (e) { if (e.code !== 'WRONG') throw e; lastErr = e; }
+  }
+  throw found ? lastErr : fail('NO_TEAM');
 }
 
 async function openCoach(cred, remember) {
@@ -332,13 +378,13 @@ async function openCoach(cred, remember) {
   else if (draft) chosen = { file: draft.file, sha: draft.baseSha, stamp: draft.remoteStamp, dirty: false };
   if (!chosen) throw remoteErr || fail('NO_TEAM');
   const { value, lock } = await openFile(chosen.file, cred, 'coach');
-  data = normalize(value);
+  await loadWs(value, lock);
   S.base = null;
-  if (!chosen.dirty) S.base = clone(data);
-  else if (draft && draft.baseFile) { try { S.base = normalize((await openFile(draft.baseFile, lock, 'coach')).value); } catch (e) { S.base = null; } }
+  if (!chosen.dirty) S.base = clone(ws);
+  else if (draft && draft.baseFile) { try { S.base = normalizeWs((await openFile(draft.baseFile, lock, 'coach')).value); } catch (e) { S.base = null; } }
   S.role = 'coach'; S.coachLock = lock; S.dirty = chosen.dirty;
   S.baseSha = chosen.sha || null;
-  S.remoteStamp = chosen.stamp !== undefined ? chosen.stamp : data.updatedAt;
+  S.remoteStamp = chosen.stamp !== undefined ? chosen.stamp : ws.updatedAt;
   if (remember) await rememberAuth('coach', lock);
   persistDraft();
   if (S.dirty) schedulePublish();
@@ -351,7 +397,7 @@ let draftChain = Promise.resolve();
 let sealedBase = { of: null, file: null };
 function persistDraft() {
   if (S.role !== 'coach' || !S.coachLock) return;
-  const snapshot = JSON.parse(JSON.stringify(data)), base = S.base;
+  const snapshot = JSON.parse(JSON.stringify(ws)), base = S.base;
   const meta = { baseSha: S.baseSha, remoteStamp: S.remoteStamp, dirty: S.dirty };
   draftChain = draftChain.then(async () => {
     const file = await seal(snapshot, S.coachLock, 'coach');
@@ -364,8 +410,8 @@ function persistDraft() {
 
 // Every change: keep it (encrypted) on this phone, then publish shortly after.
 function save() {
-  data.updatedAt = new Date().toISOString();
-  if (S.trial) { store.set(KEYS.trial, JSON.stringify(data)); renderStatus(); return; }
+  data.updatedAt = ws.updatedAt = new Date().toISOString();
+  if (S.trial) { if (!store.set(KEYS.trial, JSON.stringify(ws))) S.storageFull = true; renderStatus(); return; }
   S.dirty = true;
   persistDraft();
   schedulePublish();
@@ -380,11 +426,17 @@ function schedulePublish() {
 
 async function teamLockFor(d) {
   if (!d.teamSalt) d.teamSalt = toB64(newSalt());
-  const L = S.teamLock;
+  const L = S.teamLocks[d.id];
   if (L && L.pass === d.teamPass && toB64(L.salt) === d.teamSalt) return L;
   const lock = await makeLock(d.teamPass, fromB64(d.teamSalt));
-  S.teamLock = { ...lock, pass: d.teamPass };
-  return S.teamLock;
+  S.teamLocks[d.id] = { ...lock, pass: d.teamPass };
+  return S.teamLocks[d.id];
+}
+// A strong random team password, for teams made without one. The coach can see and change it in
+// Settings, and the invite link carries it.
+function newTeamPass() {
+  const abc = 'abcdefghjkmnpqrstuvwxyz23456789', r = crypto.getRandomValues(new Uint8Array(15));
+  return [0, 5, 10].map(i => Array.from(r.slice(i, i + 5), b => abc[b % abc.length]).join('')).join('-');
 }
 
 async function remoteMovedOn(g, head) {
@@ -414,19 +466,19 @@ async function publish(auto = false, force = false) {
       return;
     }
     if (!gh.defaultBranch) { try { gh.defaultBranch = (await g.repoInfo()).default_branch; saveGh(); } catch (e) { /* fall back to main */ } }
-    const snapshot = JSON.parse(JSON.stringify(data));
-    const teamLock = await teamLockFor(snapshot);
-    data.teamSalt = snapshot.teamSalt;
-    const [teamFile, coachFile] = await Promise.all([
-      seal(teamView(snapshot), teamLock, 'team'),
-      seal(snapshot, S.coachLock, 'coach')
-    ]);
-    const sha = await g.commitFiles({
-      'team.enc.json': JSON.stringify(teamFile, null, 1),
-      'coach.enc.json': JSON.stringify(coachFile, null, 1)
-    }, head, `Update team data (${new Date().toISOString().slice(0, 16)}Z)`);
+    // Every team that's in use gets a password before anything is encrypted.
+    M.activeTeams(ws).forEach(t => { if (!t.teamPass) t.teamPass = newTeamPass(); });
+    const snapshot = JSON.parse(JSON.stringify(ws)), files = {};
+    for (const t of M.teamsOf(snapshot)) {
+      const name = M.teamFile(snapshot, t);
+      if (t.archived) { files[name] = null; continue; }   // an archived team's file comes off the site
+      files[name] = JSON.stringify(await seal(teamView(t), await teamLockFor(t), 'team'), null, 1);
+      const live = M.findTeam(ws, t.id); if (live) live.teamSalt = t.teamSalt;
+    }
+    files['coach.enc.json'] = JSON.stringify(await seal(snapshot, S.coachLock, 'coach'), null, 1);
+    const sha = await g.commitFiles(files, head, `Update team data (${new Date().toISOString().slice(0, 16)}Z)`);
     S.baseSha = sha; S.remoteStamp = snapshot.updatedAt; S.base = snapshot;
-    if (JSON.stringify(data) === JSON.stringify(snapshot)) S.dirty = false;
+    if (JSON.stringify(ws) === JSON.stringify(snapshot)) S.dirty = false;
     persistDraft();
     try {
       await g.startPublish(gh.defaultBranch || 'main');
@@ -450,8 +502,8 @@ async function loadLatest() {
     const remote = await fetchCoachRemote();
     if (!remote) { toast('Nothing has been published yet.'); return; }
     const { value } = await openFile(remote.file, S.coachLock, 'coach');
-    data = normalize(value);
-    S.baseSha = remote.sha; S.remoteStamp = data.updatedAt; S.dirty = false; S.pub = 'idle'; S.base = clone(data);
+    await loadWs(value, S.coachLock);
+    S.baseSha = remote.sha; S.remoteStamp = ws.updatedAt; S.dirty = false; S.pub = 'idle'; S.base = clone(ws);
     state.lineupId = null; state.msgDraft = null;
     persistDraft(); closeSheet(); render(); toast('Loaded the latest version');
   } catch (e) {
@@ -488,10 +540,10 @@ function render() {
   animStop();
   if (!S.role) return renderLock();
   V = curView();
-  if (!isCoach() && state.tab === 'messages') state.tab = 'home';
+  if (!isCoach() && (state.tab === 'messages' || state.tab === 'teams')) state.tab = 'home';
   renderNav();
   renderStatus();
-  $('#team-title').textContent = V.team.name || 'Team Manager';
+  $('#team-title').innerHTML = multiTeam() && !state.preview ? `<button class="team-btn" data-act="team-switch" aria-haspopup="dialog" aria-label="${esc(V.team.name)}. Switch team">${esc(V.team.name || 'Team')}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : esc(V.team.name || 'Team Manager');
   document.title = V.team.name || 'Team Manager';
   $('#menu-btn').hidden = false;
   const cd = countdown(), chip = $('#days-chip');
@@ -507,6 +559,7 @@ function render() {
   if (state.tab === 'plays') v.innerHTML = viewPlays();
   if (state.tab === 'tasks') v.innerHTML = viewTasks();
   if (state.tab === 'messages') v.innerHTML = viewMessages();
+  if (state.tab === 'teams') v.innerHTML = isCoach() ? viewTeams() : '';
 }
 
 function renderNav() {
@@ -1361,7 +1414,8 @@ function systemCard(sys, lu) {
     ${plays.length ? `<h4 class="sys-h">Plays for this</h4><div class="sys-plays">${plays.map(p => `<button class="chip" data-act="sys-play" data-id="${esc(p.id)}">${esc(p.name)}</button>`).join('')}</div>` : ''}
     </div>` : ''}</div>
     ${coach ? `<div class="btn-row sys-tools"><button class="btn sm" data-act="sys-edit" data-id="${sys.id}">Edit words</button><button class="btn wa sm" data-act="sys-share">${icon('chat', 18)}Send</button></div>
-      ${sys.edited ? `<p class="hint">You’ve changed this from the playbook. <button class="link-btn inline" data-act="sys-reset" data-id="${sys.id}">Put it back</button></p>` : ''}` : ''}
+      ${sys.edited ? `<p class="hint">You’ve changed this from the playbook. <button class="link-btn inline" data-act="sys-reset" data-id="${sys.id}">Put it back</button></p>` : ''}
+      ${libBar('systems', sys.id, (V.systems || {})[sys.id])}` : ''}
   </section>`;
 }
 function openSystemEditor(id) {
@@ -1384,6 +1438,7 @@ function saveSystemWords(id, f) {
   const jobs = {};
   JOB_GROUPS.forEach(g => { const v = (f.jobs[g] || '').trim(); if (v !== w((base.jobs || {})[g] || '')) jobs[g] = v; });
   if (Object.keys(jobs).length) o.jobs = jobs; else delete o.jobs;
+  M.libMarkEdited(o);
   if (Object.keys(o).length) data.systems[id] = o; else delete data.systems[id];
 }
 // Where a player stands in the system on show: the coach's own spot, kept the playbook way round.
@@ -1392,6 +1447,7 @@ function moveSystemSpot(slotId, x, y) {
   const flip = state.sysFlip && base.flip, id = flip ? swapSlot(slotId) : slotId;
   const o = data.systems[base.id] || (data.systems[base.id] = {});
   o.pos = { ...(o.pos || {}), [id]: [round1(flip ? 50 - x : x), round1(y)] };
+  M.libMarkEdited(o);
 }
 function systemShareText(sys, lu) {
   const F = fieldDims(V.team.field), w = t => sysWords(t, F, slotLabels(lu));
@@ -1927,12 +1983,15 @@ function viewPlays() {
   const coach = isCoach();
   if (state.playId && playById(state.playId)) return viewPlay(playById(state.playId));
   state.playId = null;
+  const lib = coach && state.playsView === 'library';
+  const seg = coach ? `<div class="seg" role="group" aria-label="Which plays"><button data-act="plays-view" data-v="team" aria-pressed="${!lib}">${esc(V.team.name)}</button><button data-act="plays-view" data-v="library" aria-pressed="${lib}">Library (${M.libItems(ws, 'plays').length + M.libItems(ws, 'systems').length + M.libItems(ws, 'playerSets').length})</button></div>` : '';
+  if (lib) return seg + viewLibrary();
   const missing = STARTER_IDS.filter(id => !V.plays.some(p => p.id === id)).length;
-  return `<div class="sec-h"><h2>Plays</h2>${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div>
+  return seg + `<div class="sec-h"><h2>Plays</h2>${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div>
     <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.${coach ? ` <button class="link-btn inline" data-act="psets">Player lists</button>` : ''}</p>
     ${V.plays.length ? `<div class="list grid plays-grid">${V.plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
-      <span class="grow"><span class="name" style="display:block">${esc(p.name)}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
+      <span class="grow"><span class="name" style="display:block">${esc(p.name)}${coach && p.lib ? ' <span class="pill neutral">Library</span>' : ''}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
       <span class="pill neutral">${esc(p.category || 'Other')}</span>
     </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add one, or restore the starter plays.' : 'No plays yet.'}</p></div>`}
     ${coach && missing ? `<button class="link-btn" data-act="plays-restore">Restore the ${missing} missing starter play${missing === 1 ? '' : 's'}</button>` : ''}`;
@@ -1951,6 +2010,7 @@ function viewPlay(p) {
     </div><div class="col">
     ${when ? `<section class="sec play-when-sec"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
     ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}
+    ${libBar('plays', p.id, p)}
     ${coach ? `<div class="btn-row"><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
     </div></div>`;
@@ -1985,7 +2045,7 @@ function openPlayerLists() {
     <div class="list">${allSets().map(x => `<div class="row" style="padding:10px 8px 10px 14px">
       <span class="grow"><span class="name" style="display:block">${esc(x.name)}</span><span class="sub">${x.labels.length} players · ${x.labels.map(l => esc(l.code)).join(' ')}${used(x.id) ? ` · used by ${used(x.id)} play${used(x.id) === 1 ? '' : 's'}` : ''}</span></span>
       ${x.builtin ? `<button class="btn sm" data-act="pset-copy" data-id="${esc(x.id)}">Copy</button>` : `<button class="btn sm" data-act="pset-edit" data-id="${esc(x.id)}">Edit</button>`}
-    </div>`).join('')}</div>
+    </div>${x.builtin ? '' : `<div class="pset-lib">${libBar('playerSets', x.id, x)}</div>`}`).join('')}</div>
     <button class="btn primary block" style="margin-top:14px" data-act="pset-new">New list</button>
     <p class="hint" style="margin-top:12px">League tag, for example, is played with up to 11 a side from 13 years up.</p>`, 'psets');
 }
@@ -3073,6 +3133,166 @@ function openWhatsApp(text, phone) {
   document.body.appendChild(a); a.click(); a.remove();
 }
 
+/* ---------- Teams ---------- */
+// The coach can run several teams. Each has its own squad, schedule, matches, tasks, lineups, plays,
+// messages and players' password; switching only changes which one is on screen. Archiving takes a
+// team's players' file off the site (its data stays in the coach's copy) until it's restored.
+const multiTeam = () => S.role === 'coach' && M.activeTeams(ws).length > 1;
+function viewTeams() {
+  const all = M.teamsOf(ws), act = all.filter(t => !t.archived), arch = all.filter(t => t.archived);
+  const row = t => `<div class="row team-row ${t === data ? 'current' : ''}">
+      <span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}${t === data ? ' <span class="pill ok">On screen</span>' : ''}${t.archived ? ' <span class="pill neutral">Archived</span>' : ''}</span>
+      <span class="sub" style="display:block">${esc([t.team.event, `${arr(t.players).length} players`, `${arr(t.sessions).length} sessions`, `${arr(t.matches).length} matches`].filter(Boolean).join(' · '))}</span></span>
+      ${t.archived ? `<button class="btn sm" data-act="team-restore" data-id="${t.id}">Restore</button>` : t === data ? '' : `<button class="btn sm" data-act="team-pick" data-id="${t.id}">Switch</button>`}
+      ${t.archived ? '' : `<button class="btn sm" data-act="team-archive" data-id="${t.id}" ${act.length < 2 ? 'disabled title="At least one team stays active"' : ''}>Archive</button>`}
+    </div>`;
+  return `<div class="sec-h"><h2>Teams</h2><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button></div>
+    <div class="list">${act.map(row).join('')}</div>
+    ${arch.length ? `<h3 class="form-sec">Archived</h3><div class="list">${arch.map(row).join('')}</div>` : ''}
+    <p class="hint">Each team has its own players’ file and team password, so players only ever see their own team. Archiving takes a team’s file off the site until you restore it. Plays, game systems and player lists can be shared through the library (Plays › Library).</p>`;
+}
+function teamForm() {
+  const T = data.team;
+  return `<form data-form="team-new" autocomplete="off">
+    <label class="field-l"><span>Team name</span><input type="text" name="name" required placeholder="e.g. DragonTag Under 16s"></label>
+    <label class="field-l"><span>Tournament or season</span><input type="text" name="event" value="${esc(T.event)}"></label>
+    <div class="two">
+      <label class="field-l"><span>Starts</span><input type="date" name="eventStart" value="${esc(T.eventStart)}"></label>
+      <label class="field-l"><span>Ends</span><input type="date" name="eventEnd" value="${esc(T.eventEnd)}"></label>
+    </div>
+    <label class="check"><input type="checkbox" name="copySettings" checked><span>Copy ${esc(T.name)}’s training times, venue, field and mixed rules</span></label>
+    ${M.libItems(ws, 'plays').length || Object.keys(ws.library.systems).length ? `<label class="check"><input type="checkbox" name="withLibrary" checked><span>Add everything in the library</span></label>` : ''}
+    ${S.trial ? '' : `<h3 class="form-sec">Team password</h3>
+      <p class="muted small" style="margin-bottom:10px">For this team’s players only, different from every other password. Leave it blank and one is made for you; you can see it in Settings.</p>
+      <div class="two"><label class="field-l"><span>Team password</span><input type="password" name="p1" minlength="8" autocomplete="new-password"></label>
+      <label class="field-l"><span>Type it again</span><input type="password" name="p2" autocomplete="new-password"></label></div>`}
+    <button class="btn primary block" type="submit">Create team</button>
+    <p class="hint">The new team starts with the starter plays, one empty lineup and no players.</p>
+  </form>`;
+}
+// Is this team password safe to use: long enough, not another team's, not the coach's?
+async function teamPassProblem(p1, p2, team) {
+  if (p1.length < 8) return 'The team password needs at least 8 characters.';
+  if (p1 !== p2) return "The two team passwords don't match.";
+  if (M.teamsOf(ws).some(t => t !== team && t.teamPass && t.teamPass === p1)) return 'Another team already uses that password. Each team needs its own.';
+  if (S.coachLock) { const c = await makeLock(p1, S.coachLock.salt, S.coachLock.iterations); if (await exportKey(c.key) === await exportKey(S.coachLock.key)) return 'Use a different password from the coach one.'; }
+  return '';
+}
+function switchTeam(id) {
+  const t = M.findTeam(ws, id); if (!t) return;
+  pickTeam(id);
+  Object.assign(state, { lineupId: null, playId: null, msgDraft: null, msgSession: null, msgEvent: null, system: state.system, preview: false });
+  closeSheet(); render(); window.scrollTo(0, 0);
+  toast(`Now showing ${M.teamName(t)}`);
+}
+function teamSwitcher() {
+  openSheet('Switch team', `<div class="list">${M.activeTeams(ws).map(t => `<button class="pick" data-act="team-pick" data-id="${t.id}" ${t === data ? 'aria-current="true"' : ''}><span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}</span><span class="tagline">${esc([t.team.event, `${arr(t.players).length} players`].filter(Boolean).join(' · '))}</span></span>${t === data ? icon('check') : ''}</button>`).join('')}</div>
+    <button class="btn block" style="margin-top:12px" data-act="teams">Manage teams</button>`, 'switch');
+}
+
+/* ---------- The library ---------- */
+// Plays, game systems and player lists kept once for every team (see model.js). A team uses a linked
+// copy; changing the copy marks it as the team's own version, and saving to the library updates
+// every team still using the library version. Library files can be exported to another coach.
+const LIB_STATUS = { current: 'Up to date', behind: 'Newer library version', edited: 'Changed in this team', 'edited-behind': 'Changed in this team; newer library version', gone: 'No longer in the library' };
+const sysName = id => (systemBase(id) || {}).name || id;
+function libUseLine(kind, li) {
+  const use = M.libUsage(ws, kind, li.id);
+  return use.length ? `Used by ${use.map(u => `${esc(M.teamName(u.team))}${u.status !== 'current' ? ` (${esc(LIB_STATUS[u.status].toLowerCase())})` : ''}`).join(', ')}` : 'Not used by any team yet';
+}
+function libRow(kind, li) {
+  const name = kind === 'systems' ? sysName(li.id) : li.name || '?';
+  const mine = kind === 'systems' ? (data.systems[li.id] && data.systems[li.id].lib ? data.systems[li.id] : null) : arr(data[kind]).find(x => x.lib && x.lib.id === li.id);
+  const st = mine ? M.libStatus(ws, kind, mine) : null;
+  const act = !mine ? `<button class="btn sm primary" data-act="lib-add" data-k="${kind}" data-id="${esc(li.id)}">Add to this team</button>`
+    : st === 'current' ? `<span class="pill ok">In this team</span>`
+    : `<button class="btn sm" data-act="lib-take" data-k="${kind}" data-id="${esc(kind === 'systems' ? li.id : mine.id)}">Use library version</button>`;
+  return `<div class="row lib-row"><span class="grow"><span class="name" style="display:block">${esc(name)} <span class="muted small">v${li.rev || 1}</span></span>
+      <span class="sub lib-use">${libUseLine(kind, li)}</span></span>${act}
+      <button class="icon-btn" data-act="lib-remove" data-k="${kind}" data-id="${esc(li.id)}" aria-label="Take ${esc(name)} out of the library">${icon('close', 18)}</button></div>`;
+}
+function viewLibrary() {
+  const sec = (kind, title, empty) => { const items = M.libItems(ws, kind); return `<h3 class="form-sec">${title} (${items.length})</h3>${items.length ? `<div class="list">${items.map(li => libRow(kind, li)).join('')}</div>` : `<p class="muted small">${empty}</p>`}`; };
+  return `<p class="hint" style="margin:-4px 0 6px">Shared by all your teams. Save a play, a game system or a player list to the library from where you edit it, then add it to any team. Teams that haven’t changed their copy get each new library version; a team that has keeps its own.</p>
+    ${sec('plays', 'Plays', 'No plays yet. Open a play and choose Save to library.')}
+    ${sec('systems', 'Game systems', 'None yet. Show a game system on the Lineup page and choose Save to library.')}
+    ${sec('playerSets', 'Player lists', 'None yet. Open Plays › Player lists and save a list to the library.')}
+    <div class="btn-row" style="margin-top:16px"><button class="btn" data-act="lib-export">Export the library</button><button class="btn" data-act="lib-import">Import a library</button></div>
+    <p class="hint">A library file holds plays, systems and labels only: no players, phone numbers or results. Use it to share with another coach.</p>`;
+}
+// The library line on a play, game system or player list the coach is looking at.
+function libBar(kind, id, x) {
+  if (!isCoach()) return '';
+  const st = x && x.lib ? M.libStatus(ws, kind, x) : null;
+  if (!st) return `<p class="lib-bar"><button class="link-btn inline" data-act="lib-save" data-k="${kind}" data-id="${esc(id)}">Save to library</button> <span class="muted">so your other teams can use it</span></p>`;
+  const li = M.libGet(ws, kind, x.lib.id);
+  return `<p class="lib-bar"><span class="pill ${st === 'current' ? 'ok' : 'neutral'}">Library${li ? ` v${li.rev || 1}` : ''}: ${esc(LIB_STATUS[st])}</span>
+    ${st.startsWith('edited') ? `<button class="link-btn inline" data-act="lib-save" data-k="${kind}" data-id="${esc(id)}">Save changes to the library</button>` : ''}
+    ${st === 'behind' || st === 'edited-behind' ? `<button class="link-btn inline" data-act="lib-take" data-k="${kind}" data-id="${esc(id)}">Use library version</button>` : ''}
+    ${st !== 'current' ? `<button class="link-btn inline" data-act="lib-unlink" data-k="${kind}" data-id="${esc(id)}">Keep as this team’s own</button>` : ''}</p>`;
+}
+function libSaveReport(r) {
+  const names = ids => ids.map(id => M.teamName(M.findTeam(ws, id))).join(', ');
+  return `Saved to the library (v${r.rev})${r.updated.length ? `. Updated in ${names(r.updated)}` : ''}${r.kept.length ? `. Kept as changed in ${names(r.kept)}` : ''}`;
+}
+
+/* ---------- Backups and importing ---------- */
+function importBody(raw) {
+  const isWs = raw.schema === M.SCHEMA && Array.isArray(raw.teams) && raw.teams.length;
+  const teams = isWs ? [raw, ...raw.teams] : [raw];
+  const sum = t => `${esc((t.team && t.team.name) || 'Team')}: ${arr(t.players).length} players, ${arr(t.sessions).length} sessions, ${arr(t.matches).length} matches`;
+  return `<p style="margin-bottom:10px">This backup has ${teams.length === 1 ? 'one team' : `${teams.length} teams`}:</p>
+    <ul class="diff-list">${teams.map(t => `<li>${sum(t)}</li>`).join('')}</ul>
+    <div class="list" style="margin-top:12px">
+      ${isWs ? `<button class="pick" data-act="import-do" data-m="all"><span class="grow"><span class="name" style="display:block">Replace everything with it</span><span class="tagline">Every team and the library on this phone are replaced.</span></span></button>`
+        : `<button class="pick" data-act="import-do" data-m="team"><span class="grow"><span class="name" style="display:block">Replace ${esc(data.team.name)} with it</span><span class="tagline">${S.trial ? '' : 'Its team password stays the same, so invite links keep working.'}</span></span></button>
+      <button class="pick" data-act="import-do" data-m="add"><span class="grow"><span class="name" style="display:block">Add it as a new team</span><span class="tagline">Your teams stay as they are.</span></span></button>`}
+    </div>
+    <p class="hint">Not sure? Export a backup of what’s here first.</p>`;
+}
+function doImport(mode) {
+  const raw = state.importing && state.importing.raw; if (!raw) return;
+  const keepPass = t => ({ teamPass: t.teamPass, teamSalt: t.teamSalt });
+  if (mode === 'all') {
+    const old = Object.fromEntries(M.teamsOf(ws).map(t => [t.id, keepPass(t)]));
+    ws = normalizeWs(raw);
+    if (!S.trial) M.teamsOf(ws).forEach(t => { if (old[t.id] && old[t.id].teamPass) Object.assign(t, old[t.id]); else if (!t.teamPass) t.teamPass = newTeamPass(); });
+    pickTeam();
+  } else {
+    const t = normalize(M.stripWs(raw));
+    if (mode === 'team') {
+      const keep = { id: data.id, archived: data.archived, ...keepPass(data) };
+      Object.keys(data).filter(k => !['schema', 'teams', 'library'].includes(k)).forEach(k => delete data[k]);
+      Object.assign(data, t, keep);
+    } else {
+      t.id = M.uid(); t.archived = false;
+      if (S.trial) { t.teamPass = ''; t.teamSalt = ''; }
+      else if (!t.teamPass || M.teamsOf(ws).some(x => x.teamPass === t.teamPass)) { t.teamPass = newTeamPass(); t.teamSalt = ''; }
+      M.addTeam(ws, t); pickTeam(t.id);
+    }
+    M.repairTeam(data);
+  }
+  state.importing = null; state.lineupId = null; state.msgDraft = null; state.playId = null;
+  save(); closeSheet(); render(); toast(mode === 'add' ? `Added ${data.team.name}` : 'Backup imported');
+}
+async function download(obj, name) {
+  const blob = new Blob([JSON.stringify(obj, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+const fileSlug = t => String(t.team.name || 'team').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'team';
+function backupSection() {
+  const pre = readJson(KEYS.backup);
+  return `<h3 class="form-sec">Backup</h3>
+  <p class="muted small" style="margin-bottom:10px">${S.trial ? 'Test-mode backups aren’t encrypted, so keep the file private. It includes any phone numbers you’ve entered.' : 'Backups are encrypted and open with the coach password.'} A backup holds every team and the library.</p>
+  <div class="btn-row"><button class="btn" data-act="export">Export backup</button><button class="btn" data-act="import">Import backup</button></div>
+  <details class="more"><summary>Going back to the previous version of the app</summary>
+    <p class="muted small" style="margin-bottom:10px">The previous version only knew one team. It still opens the first team (${esc(M.teamName(ws))}) as it is. To take another team back to it, export that team on its own.</p>
+    <div class="btn-row"><button class="btn" data-act="export-legacy">Export ${esc(data.team.name)} on its own</button>${pre ? `<button class="btn" data-act="export-pre">Copy from before the upgrade (${esc(fmtStamp(pre.at))})</button>` : ''}</div>
+  </details>`;
+}
+
 /* ---------- Settings ---------- */
 // Screen layout, kept on this device: Auto (wide on a computer or tablet), Phone, or Wide; and on a
 // wide screen, a comfortable width or the full width of the window.
@@ -3099,7 +3319,10 @@ function settingsBody() {
       <button class="btn danger block" data-act="sign-out">Sign out</button>`;
   }
   const T = data.team;
-  return layoutSettings() + `<form data-form="settings">
+  return layoutSettings() + `<h3 class="form-sec">Teams</h3>
+    <p class="muted small" style="margin-bottom:10px">${multiTeam() ? `These settings are for ${esc(T.name)}. ` : ''}You can run more than one team, each with its own squad and players’ password.</p>
+    <button class="btn block" data-act="teams">Manage teams</button>
+    <form data-form="settings">
     <h3 class="form-sec">Team and tournament</h3>
     <label class="field-l"><span>Team name</span><input type="text" name="name" value="${esc(T.name)}"></label>
     <label class="field-l"><span>Tournament</span><input type="text" name="event" value="${esc(T.event)}"></label>
@@ -3140,17 +3363,15 @@ function trialSettings() {
   <button class="btn primary block" data-act="go-live">Go live</button>
   <button class="btn block" data-act="preview-on" style="margin-top:10px">${icon('eye', 18)}See what players will see</button>
 
-  <h3 class="form-sec">Backup</h3>
-  <p class="muted small" style="margin-bottom:10px">Test-mode backups aren't encrypted, so keep the file private. It includes any phone numbers you've entered.</p>
-  <div class="btn-row"><button class="btn" data-act="export">Export backup</button><button class="btn" data-act="import">Import backup</button></div>
+  ${backupSection()}
 
   <h3 class="form-sec">This phone</h3>
   <button class="btn danger block" data-act="start-over">Clear team data…</button>
   <p class="hint">Choose what to clear: the squad, training, matches, tasks, helpers, lineups, notices or the message log. Team settings and plays stay.</p>`;
 }
 function liveSettings() {
-  return `<h3 class="form-sec">Players' access</h3>
-  <p class="muted small" style="margin-bottom:10px">Players open the app with the team password or the invite link. They see names, numbers, positions, the schedule, lineups and notices. Phone numbers, injuries, notes and attendance stay coach only.</p>
+  return `<h3 class="form-sec">Players' access${multiTeam() ? `: ${esc(data.team.name)}` : ''}</h3>
+  <p class="muted small" style="margin-bottom:10px">Players open the app with the team password or the invite link.${multiTeam() ? ' Each team has its own.' : ''} They see names, numbers, positions, the schedule, lineups and notices. Phone numbers, injuries, notes and attendance stay coach only.</p>
   <div class="btn-row"><button class="btn wa" data-act="invite">${icon('chat', 18)}Send invite link</button><button class="btn" data-act="copy-invite">${icon('copy', 18)}Copy link</button></div>
   <div class="secret"><span class="small muted">Team password</span> <code id="team-pass" data-shown="0">••••••••</code> <button class="link-btn inline" data-act="show-pass">Show</button></div>
   <button class="btn" data-act="preview-on" style="margin-top:4px">${icon('eye', 18)}See what players see</button>
@@ -3172,9 +3393,7 @@ function liveSettings() {
   <h3 class="form-sec">Publishing</h3>
   ${githubSection()}
 
-  <h3 class="form-sec">Backup</h3>
-  <p class="muted small" style="margin-bottom:10px">Exports an encrypted copy that opens with the coach password.</p>
-  <div class="btn-row"><button class="btn" data-act="export">Export backup</button><button class="btn" data-act="import">Import backup</button></div>
+  ${backupSection()}
 
   <h3 class="form-sec">This phone</h3>
   <div class="btn-row"><button class="btn" data-act="sign-out">Sign out</button></div>
@@ -3221,7 +3440,7 @@ function openGoLive() {
       <label class="field-l"><span>Coach password</span><input type="password" name="coach" required minlength="10" autocomplete="new-password"></label>
       <label class="field-l"><span>Type it again</span><input type="password" name="coach2" required autocomplete="new-password"></label>
       <h3 class="form-sec">Team password</h3>
-      <p class="muted small" style="margin-bottom:10px">Shared with players. Shows the schedule, squad names, lineups and notices only. At least 8 characters.</p>
+      <p class="muted small" style="margin-bottom:10px">Shared with ${M.teamsOf(ws).length > 1 ? `${esc(M.teamName(ws))}’s` : ''} players. Shows the schedule, squad names, lineups and notices only. At least 8 characters.${M.teamsOf(ws).length > 1 ? ' Your other teams each get their own password, made for you; see it in Settings with that team on screen.' : ''}</p>
       <label class="field-l"><span>Team password</span><input type="password" name="team" required minlength="8" autocomplete="new-password"></label>
       <label class="field-l"><span>Type it again</span><input type="password" name="team2" required autocomplete="new-password"></label>
       <label class="check"><input type="checkbox" name="remember" checked> Keep me signed in on this phone</label>
@@ -3244,8 +3463,8 @@ async function openConflictSheet() {
   try {
     const g = ghClient(), head = await g.head(), file = head ? await g.readJson('coach.enc.json', head) : null;
     if (!file) throw fail('NONE', 'there is nothing online yet');
-    const remote = normalize((await openFile(file, S.coachLock, 'coach')).value);
-    state.conflict = { head, remote, result: M.merge3(S.base, data, remote) };
+    const remote = normalizeWs((await openFile(file, S.coachLock, 'coach')).value);
+    state.conflict = { head, remote, result: M.merge3(S.base, ws, remote) };
   } catch (e) {
     why = e.code === 'WRONG' ? 'The online copy was saved with a different coach password, so it can’t be compared here. Sign in again with the new password to see it.' : `Couldn’t fetch the online copy to compare (${e.message || 'no connection'}).`;
   }
@@ -3360,7 +3579,7 @@ const actions = {
   'layout-width': el => { store.set('tm-width', el.dataset.v); applyLayout(); document.querySelectorAll('[data-act="layout-width"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
   'lock-mode': el => { state.lockMode = el.dataset.mode; state.lockMsg = ''; renderLock(); },
   'refresh': async () => {
-    try { await openPlayer(S.teamLock, false); closeSheet(); render(); toast('Up to date'); }
+    try { await openPlayer(S.teamLock, false, S.teamFile); closeSheet(); render(); toast(S.fromCache ? 'No connection. Showing the copy saved on this phone.' : 'Up to date'); }
     catch (e) { if (e.code === 'WRONG') { toast('The team password has changed. Ask your coach for the new one.'); setTimeout(signOutNow, 1800); } else toast(e.message || "Couldn't check for updates"); }
   },
   'sign-out': () => {
@@ -3528,7 +3747,7 @@ const actions = {
   'play-edit': coachOnly(el => { const p = playById(el.dataset.id); if (p) openPlayEditor(p); }),
   'play-dup': coachOnly(el => {
     const p = playById(el.dataset.id); if (!p) return;
-    const copy = { ...JSON.parse(JSON.stringify(p)), id: uid(), name: `${p.name} (copy)`, builtin: false };
+    const copy = { ...JSON.parse(JSON.stringify(p)), id: uid(), name: `${p.name} (copy)`, builtin: false }; delete copy.lib;
     data.plays.splice(data.plays.indexOf(p) + 1, 0, copy); state.playId = copy.id; save(); render(); toast('Play duplicated');
   }),
   'play-del': coachOnly(el => {
@@ -3659,14 +3878,64 @@ const actions = {
     loadLatest();
   },
   'export': coachOnly(async () => {
-    const file = S.trial ? data : await seal(data, S.coachLock, 'coach');
-    const blob = new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `team-backup-${todayISO()}.json`; document.body.appendChild(a); a.click();
-    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    toast('Encrypted backup exported');
+    download(S.trial ? ws : await seal(ws, S.coachLock, 'coach'), `team-backup-${todayISO()}.json`);
+    toast(S.trial ? 'Backup exported (not encrypted in test mode)' : 'Encrypted backup exported');
   }),
-  'import': coachOnly(() => $('#import-file').click()),
+  'export-legacy': coachOnly(async () => {
+    const t = M.legacyTeam(ws, data.id);
+    download(S.trial ? t : await seal(t, S.coachLock, 'coach'), `${fileSlug(data)}-single-team-${todayISO()}.json`);
+    toast(`${data.team.name} exported on its own`);
+  }),
+  'export-pre': coachOnly(() => {
+    const pre = readJson(KEYS.backup); if (!pre) return;
+    download(pre.file || pre.data, `team-before-upgrade-${pre.at.slice(0, 10)}.json`);
+    toast('Copy from before the upgrade downloaded');
+  }),
+  'import-do': coachOnly(el => doImport(el.dataset.m)),
+  'teams': coachOnly(() => { state.tab = 'teams'; history.replaceState(null, '', '#teams'); closeSheet(); render(); window.scrollTo(0, 0); }),
+  'team-switch': coachOnly(() => teamSwitcher()),
+  'team-pick': coachOnly(el => switchTeam(el.dataset.id)),
+  'team-new': coachOnly(() => openSheet('New team', teamForm(), 'team-new')),
+  'team-archive': coachOnly(el => {
+    const t = M.findTeam(ws, el.dataset.id); if (!t) return;
+    if (!confirm(`Archive ${M.teamName(t)}? ${S.trial ? 'It’s hidden from the team list' : 'Its players can’t open it once this publishes'} until you restore it. Nothing is deleted.`)) return;
+    if (!M.setArchived(ws, t.id, true)) { toast('At least one team has to stay active'); return; }
+    if (t === data) pickTeam();
+    save(); render(); toast(`${M.teamName(t)} archived`);
+  }),
+  'team-restore': coachOnly(el => {
+    const t = M.findTeam(ws, el.dataset.id); if (!t) return;
+    M.setArchived(ws, t.id, false);
+    if (!S.trial && !t.teamPass) t.teamPass = newTeamPass();
+    save(); render(); toast(`${M.teamName(t)} restored${S.trial ? '' : '. Its players can open it again once this publishes'}`);
+  }),
+  'lib-save': coachOnly(el => {
+    const kind = el.dataset.k, id = el.dataset.id;
+    const play = kind === 'plays' ? arr(data.plays).find(p => p.id === id) : null;
+    const set = play && play.set && !BUILTIN_SETS.some(b => b.id === play.set) ? arr(data.playerSets).find(x => x.id === play.set) : null;
+    const r = M.libSave(ws, data, kind, id, { setDef: set ? { name: set.name, labels: set.labels, slots: set.slots } : null });
+    if (!r) return;
+    save(); render(); if (state.sheet === 'psets') openPlayerLists(); toast(libSaveReport(r));
+  }),
+  'lib-add': coachOnly(el => {
+    const kind = el.dataset.k, x = M.libAdd(ws, data, kind, el.dataset.id); if (!x) return;
+    save(); render(); toast(kind === 'plays' ? `${x.name} added to ${data.team.name}` : `Added to ${data.team.name}`);
+  }),
+  'lib-take': coachOnly(el => {
+    if (!confirm('Use the library version? This team’s own changes to it will go.')) return;
+    if (!M.libUpdate(ws, data, el.dataset.k, el.dataset.id)) return;
+    save(); render(); if (state.sheet === 'psets') openPlayerLists(); toast('Now using the library version');
+  }),
+  'lib-unlink': coachOnly(el => { if (!M.libUnlink(data, el.dataset.k, el.dataset.id)) return; save(); render(); if (state.sheet === 'psets') openPlayerLists(); toast('Kept as this team’s own'); }),
+  'lib-remove': coachOnly(el => {
+    const kind = el.dataset.k, li = M.libGet(ws, kind, el.dataset.id); if (!li) return;
+    if (!confirm(`Take ${kind === 'systems' ? sysName(li.id) : li.name} out of the library? Teams keep their copies as their own.`)) return;
+    M.libRemove(ws, kind, li.id); save(); render(); toast('Taken out of the library');
+  }),
+  'lib-export': coachOnly(() => { download(M.libExport(ws), `team-library-${todayISO()}.json`); toast('Library exported'); }),
+  'lib-import': coachOnly(() => { state.importKind = 'library'; $('#import-file').click(); }),
+  'plays-view': coachOnly(el => { state.playsView = el.dataset.v; state.playId = null; render(); }),
+  'import': coachOnly(() => { state.importKind = 'backup'; $('#import-file').click(); }),
   'start-over': coachOnly(() => openSheet('Clear team data', resetBody(), 'reset')),
   'reset-preset': coachOnly(el => {
     const pick = { season: ['training', 'matches', 'tasks', 'notices', 'messages'], all: Object.keys(M.RESET_PARTS), none: [] }[el.dataset.p] || [];
@@ -3730,26 +3999,25 @@ document.addEventListener('change', e => {
     r.onload = async () => {
       e.target.value = '';
       let parsed; try { parsed = JSON.parse(r.result); } catch (err) { toast("That file isn't a team backup"); return; }
-      if (S.trial) {
-        if (isSealed(parsed)) { toast('That backup is encrypted. Go live first, then import it.'); return; }
-        if (!parsed || !Array.isArray(parsed.players)) { toast("That file isn't a team backup"); return; }
-        const incoming = normalize(parsed);
-        if (!confirm(`Replace the team with this backup? It has ${incoming.players.length} players and ${incoming.sessions.length} sessions.`)) return;
-        data = incoming; state.lineupId = null; state.msgDraft = null; save(); closeSheet(); render(); toast('Backup imported');
+      if (state.importKind === 'library') {
+        const n = M.libImport(ws, parsed);
+        if (!n) { toast("That file isn't a library file"); return; }
+        save(); render(); toast(`Library: ${n.added} added, ${n.updated} updated${n.same ? `, ${n.same} already here` : ''}`);
         return;
       }
-      if (!isSealed(parsed)) { toast("That file isn't a team backup"); return; }
-      let result;
-      try { result = await openFile(parsed, S.coachLock, 'coach'); }
-      catch (err) {
-        const pw = prompt('This backup was made with a different coach password. Enter that password:');
-        if (!pw) return;
-        try { result = await openFile(parsed, pw, 'coach'); } catch (err2) { toast('Wrong password for that backup'); return; }
+      let raw = parsed;
+      if (isSealed(parsed)) {
+        if (S.trial) { toast('That backup is encrypted. Go live first, then import it.'); return; }
+        try { raw = (await openFile(parsed, S.coachLock, 'coach')).value; }
+        catch (err) {
+          const pw = prompt('This backup was made with a different coach password. Enter that password:');
+          if (!pw) return;
+          try { raw = (await openFile(parsed, pw, 'coach')).value; } catch (err2) { toast('Wrong password for that backup'); return; }
+        }
       }
-      const incoming = normalize(result.value);
-      if (!confirm(`Replace the team with this backup? It has ${incoming.players.length} players and ${incoming.sessions.length} sessions.`)) return;
-      const keepPass = { teamPass: data.teamPass, teamSalt: data.teamSalt };
-      data = { ...incoming, ...keepPass }; state.lineupId = null; state.msgDraft = null; save(); closeSheet(); render(); toast('Backup imported');
+      if (!raw || typeof raw !== 'object' || !Array.isArray(raw.players)) { toast("That file isn't a team backup"); return; }
+      state.importing = { raw };
+      openSheet('Import backup', importBody(raw), 'import');
     };
     r.readAsText(file);
   }
@@ -3783,7 +4051,7 @@ document.addEventListener('submit', async e => {
     const problem = passwordProblem(c1, c2, t1, t2);
     if (problem) { state.lockMsg = problem; renderLock(); return; }
     state.busy = true; state.lockMsg = ''; renderLock();
-    data = defaultData();
+    ws = normalizeWs(defaultData()); pickTeam();
     data.team.name = name || data.team.name;
     data.teamPass = t1; data.teamSalt = toB64(newSalt());
     S.coachLock = await makeLock(c1);
@@ -3800,7 +4068,11 @@ document.addEventListener('submit', async e => {
     const problem = passwordProblem(c1, c2, t1, t2), msg = $('#go-live-msg');
     if (problem) { msg.textContent = problem; msg.hidden = false; return; }
     const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Encrypting…';
-    data.teamPass = t1; data.teamSalt = toB64(newSalt());
+    ws.teamPass = t1; ws.teamSalt = toB64(newSalt());
+    // Other teams get their own password; the coach sees each in Settings once that team is on screen.
+    const others = M.teamsOf(ws).filter(t => t !== ws);
+    others.forEach(t => { t.teamPass = newTeamPass(); t.teamSalt = toB64(newSalt()); });
+    if (others.some(t => t.teamPass === c1)) others.forEach(t => { t.teamPass = newTeamPass(); });
     S.coachLock = await makeLock(c1);
     S.trial = false; S.baseSha = null; S.remoteStamp = null;
     if (f.get('remember')) await rememberAuth('coach', S.coachLock);
@@ -3837,10 +4109,29 @@ document.addEventListener('submit', async e => {
     save(); closeSheet(); render(); toast(`${src.length} task${src.length === 1 ? '' : 's'} copied to ${fmtDay(to)}`);
     return;
   }
+  if (kind === 'team-new') {
+    const name = str('name'); if (!name) { fieldError(form, 'name', 'Give the team a name'); return; }
+    let pass = '';
+    if (!S.trial) {
+      pass = raw('p1');
+      if (pass || raw('p2')) { const problem = await teamPassProblem(pass, raw('p2'), null); if (problem) { fieldError(form, 'p1', problem); return; } }
+      else pass = newTeamPass();
+    }
+    const t = normalize({ ...defaultData(), id: M.uid() });
+    t.team.name = name; t.team.event = str('event'); t.team.eventStart = str('eventStart'); t.team.eventEnd = str('eventEnd');
+    if (f.get('copySettings')) ['venue', 'trainingVenue', 'trainingStart', 'trainingEnd', 'maxMales', 'positions', 'field', 'tasksContact'].forEach(k => { t.team[k] = clone(data.team[k]); });
+    t.teamPass = pass; t.teamSalt = '';
+    M.addTeam(ws, t);
+    if (f.get('withLibrary')) ['plays', 'systems', 'playerSets'].forEach(k => M.libItems(ws, k).forEach(li => M.libAdd(ws, t, k, li.id)));
+    pickTeam(t.id); Object.assign(state, { lineupId: null, playId: null, msgDraft: null, tab: 'home' });
+    history.replaceState(null, '', '#home');
+    save(); closeSheet(); render(); toast(`${name} created and on screen`);
+    return;
+  }
   if (kind === 'merge') {
     const cf = state.conflict; if (!cf) return;
     const choices = {}; cf.result.changes.both.forEach((c, i) => { if (f.get('k' + i) === 'remote') choices[c.key] = 'remote'; });
-    data = normalize(M.resolve(cf.result, choices));
+    ws = normalizeWs(M.resolve(cf.result, choices)); pickTeam(data && data.id);
     S.baseSha = cf.head; S.base = cf.remote; S.remoteStamp = cf.remote.updatedAt; S.pub = 'idle'; state.conflict = null;
     state.lineupId = null; state.msgDraft = null;
     closeSheet(); save(); render(); publish(false);
@@ -3944,9 +4235,8 @@ document.addEventListener('submit', async e => {
   }
   if (kind === 'team-pass') {
     const p1 = raw('p1'), p2 = raw('p2');
-    if (p1.length < 8) { toast('At least 8 characters'); return; }
-    if (p1 !== p2) { toast("The passwords don't match"); return; }
-    data.teamPass = p1; data.teamSalt = toB64(newSalt()); S.teamLock = null;
+    const problem = await teamPassProblem(p1, p2, data); if (problem) { fieldError(form, 'p1', problem); return; }
+    data.teamPass = p1; data.teamSalt = toB64(newSalt()); delete S.teamLocks[data.id];
     save(); closeSheet(); render();
     toast('Team password changed. Send players the new invite link once it publishes.');
   }
@@ -3956,7 +4246,7 @@ document.addEventListener('submit', async e => {
     if (await exportKey(check.key) !== await exportKey(S.coachLock.key)) { toast("The current password isn't right"); return; }
     if (p1.length < 10) { toast('At least 10 characters'); return; }
     if (p1 !== p2) { toast("The passwords don't match"); return; }
-    if (p1 === data.teamPass) { toast('Use a different password from the team one'); return; }
+    if (M.teamsOf(ws).some(t => t.teamPass === p1)) { toast('Use a different password from the team ones'); return; }
     S.coachLock = await makeLock(p1);
     if (readJson(KEYS.auth)) await rememberAuth('coach', S.coachLock);
     save(); closeSheet();
@@ -3972,6 +4262,7 @@ document.addEventListener('submit', async e => {
     if (!str('name')) { toast('Give the play a name'); const n = form.querySelector('[name=name]'); if (n) n.focus(); return; }
     Object.assign(E.draft, { name: str('name'), category: str('category') || 'Other', headline: str('headline'), when: str('when'), steps: String(f.get('steps') || '').trim() });
     if (E.draft.builtin) E.draft.edited = true;   // keep the coach's version when the starter drawings are updated
+    M.libMarkEdited(E.draft);                      // and when the library version is updated
     const i = data.plays.findIndex(p => p.id === E.draft.id);
     if (i >= 0) data.plays[i] = E.draft; else data.plays.push(E.draft);
     state.playId = E.draft.id; state.ped = null;
@@ -3987,7 +4278,7 @@ document.addEventListener('submit', async e => {
     }
     if (!str('name') || !labels.length) { toast('Give the list a name and at least one player'); return; }
     const id = str('id'), old = data.playerSets.find(x => x.id === id);
-    if (old) Object.assign(old, { name: str('name'), labels }); else data.playerSets.push({ id: uid(), name: str('name'), labels });
+    if (old) { Object.assign(old, { name: str('name'), labels }); M.libMarkEdited(old); } else data.playerSets.push({ id: uid(), name: str('name'), labels });
     save(); openPlayerLists(); toast('List saved');
     return;
   }
@@ -3998,7 +4289,7 @@ document.addEventListener('submit', async e => {
 });
 window.addEventListener('hashchange', () => {
   const t = location.hash.slice(1);
-  if (S.role && t && t !== state.tab && TABS.some(x => x.id === t)) { state.tab = t; render(); }
+  if (S.role && t && t !== state.tab && (TABS.some(x => x.id === t) || t === 'teams')) { state.tab = t; render(); }
 });
 window.addEventListener('pagehide', () => { if (S.role === 'coach') persistDraft(); });
 
@@ -4023,22 +4314,23 @@ setInterval(checkForUpdate, 10 * 60 * 1000);
 /* =========================================================
    BOOT
    ========================================================= */
+// #join=<team password> for the first team, #join=<team password>.<team id> for the others.
 function readJoinLink() {
-  const m = /^#join=([A-Za-z0-9_-]+)/.exec(location.hash);
+  const m = /^#join=([A-Za-z0-9_-]+)(?:\.([a-z0-9]{3,32}))?/.exec(location.hash);
   if (!m) return null;
   history.replaceState(null, '', location.pathname + location.search + '#home');
-  try { return fromB64Url(m[1]); } catch (e) { return null; }
+  try { return { pass: fromB64Url(m[1]), file: m[2] ? `team-${m[2]}.enc.json` : 'team.enc.json' }; } catch (e) { return null; }
 }
 
 async function boot() {
   const join = readJoinLink();
   const hashTab = location.hash.slice(1);
-  if (TABS.some(t => t.id === hashTab)) state.tab = hashTab;
+  if (TABS.some(t => t.id === hashTab) || hashTab === 'teams') state.tab = hashTab;
   const auth = readJson(KEYS.auth);
   if (auth && auth.key) {
     try {
       const lock = await lockFromAuth(auth);
-      if (auth.role === 'coach') await openCoach(lock, false); else await openPlayer(lock, false);
+      if (auth.role === 'coach') await openCoach(lock, false); else await openPlayer(lock, false, auth.file);
       return render();
     } catch (e) {
       if (e.code === 'WRONG') { store.del(KEYS.auth); state.lockMsg = auth.role === 'coach' ? 'The coach password was changed. Sign in with the new one.' : 'The team password has changed. Ask your coach for the new one.'; }
@@ -4047,11 +4339,12 @@ async function boot() {
     }
   }
   if (join && !S.role) {
-    try { await openPlayer(join, true); state.tab = 'home'; return render(); }
+    try { await openPlayer(join.pass, true, join.file); state.tab = 'home'; return render(); }
     catch (e) { state.lockMsg = e.code === 'WRONG' ? "That invite link doesn't work any more. Ask your coach for a new one." : (e.message || ''); }
   }
+  // Live once the coach's file is published (the first team's file can be offline if it's archived).
   let published = true;
-  try { published = !!(await fetchSite('team.enc.json')); } catch (e) { published = true; }
+  try { const files = await siteFiles(); published = files ? files.includes('coach.enc.json') : !!(await fetchSite('team.enc.json')); } catch (e) { published = true; }
   if (!published && !readDraft() && !auth) return startTrial();
   state.noTeam = !published;
   if (state.noTeam && readDraft()) state.lockMode = 'coach';
@@ -4060,13 +4353,16 @@ async function boot() {
 
 // Nothing published yet: open straight into the coach view with no passwords.
 function startTrial() {
-  data = normalize(readJson(KEYS.trial));
-  S.role = 'coach'; S.trial = true; S.coachLock = null;
-  render();
+  const raw = readJson(KEYS.trial);
+  loadWs(raw, null).then(() => {
+    if (raw && raw.schema !== M.SCHEMA) store.set(KEYS.trial, JSON.stringify(ws));   // keep the upgraded copy
+    S.role = 'coach'; S.trial = true; S.coachLock = null;
+    render();
+  });
 }
 
 // Exposed for automated tests only.
-window.__team = { get data() { return data; }, get teamData() { return teamData; }, S, state, anim, planPhase: (p, i, side) => planPhase(playGeom(phaseView(p, i), side || 'right')) };
+window.__team = { get ws() { return ws; }, get data() { return data; }, get teamData() { return teamData; }, S, state, anim, M, planPhase: (p, i, side) => planPhase(playGeom(phaseView(p, i), side || 'right')) };
 
 applyLayout();
 window.addEventListener('resize', () => applyLayout());

@@ -79,15 +79,19 @@ export class GitHub {
     return JSON.parse(decodeText(j.content));
   }
 
-  // Write several files in one commit on top of `parent` (null creates the branch).
+  // Write several files in one commit on top of `parent` (null creates the branch). A file whose
+  // content is null is removed, if it's there (an archived team's players' file).
   async commitFiles(files, parent, message) {
-    let baseTree;
+    let baseTree, present = null;
     if (parent) baseTree = (await this.req('GET', `/git/commits/${parent}`)).tree.sha;
-    const tree = await this.req('POST', '/git/trees', {
-      base_tree: baseTree,
-      tree: Object.entries(files).map(([path, content]) => ({ path, mode: '100644', type: 'blob', content }))
-    });
-    const commit = await this.req('POST', '/git/commits', { message, tree: tree.sha, parents: parent ? [parent] : [] });
+    const entries = Object.entries(files);
+    if (entries.some(([, c]) => c === null)) {
+      present = baseTree ? new Set((await this.req('GET', `/git/trees/${baseTree}`)).tree.map(e => e.path)) : new Set();
+    }
+    const tree = entries.filter(([path, c]) => c !== null || present.has(path))
+      .map(([path, content]) => content === null ? { path, mode: '100644', type: 'blob', sha: null } : { path, mode: '100644', type: 'blob', content });
+    const t = await this.req('POST', '/git/trees', { base_tree: baseTree, tree });
+    const commit = await this.req('POST', '/git/commits', { message, tree: t.sha, parents: parent ? [parent] : [] });
     if (parent) await this.req('PATCH', `/git/refs/heads/${this.branch}`, { sha: commit.sha, force: false });
     else await this.req('POST', '/git/refs', { ref: `refs/heads/${this.branch}`, sha: commit.sha });
     return commit.sha;

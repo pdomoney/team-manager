@@ -24,6 +24,28 @@ test('publishes encrypted files alongside the app', async () => {
   assert.ok(!all.includes('Mia'));
 });
 
+test('publishes each team’s players’ file and nothing with an unknown name', async () => {
+  const dataDir = tmp(), outDir = path.join(tmp(), 'dist');
+  const lock = await makeLock('a long coach password', newSalt(), 1000);
+  fs.writeFileSync(path.join(dataDir, 'coach.enc.json'), JSON.stringify(await seal({ secret: 1 }, lock, 'coach')));
+  fs.writeFileSync(path.join(dataDir, 'team.enc.json'), JSON.stringify(await seal({ a: 1 }, lock, 'team')));
+  fs.writeFileSync(path.join(dataDir, 'team-u16abc123.enc.json'), JSON.stringify(await seal({ b: 1 }, lock, 'team')));
+  fs.writeFileSync(path.join(dataDir, 'team-../evil.enc.json'.replace('/', '_')), JSON.stringify(await seal({ c: 1 }, lock, 'team')));
+  fs.writeFileSync(path.join(dataDir, 'Team-UPPER.enc.json'), JSON.stringify(await seal({ c: 1 }, lock, 'team')));
+  assert.deepEqual(build({ dataDir, outDir, log: quiet }), ['team.enc.json', 'coach.enc.json', 'team-u16abc123.enc.json']);
+  const m = JSON.parse(fs.readFileSync(path.join(outDir, 'data', 'manifest.json'), 'utf8'));
+  assert.deepEqual(m.files, ['team.enc.json', 'coach.enc.json', 'team-u16abc123.enc.json']);
+});
+
+test('refuses a coach file in a team file’s place, and the other way round', async () => {
+  const lock = await makeLock('a long coach password', newSalt(), 1000);
+  for (const [name, role] of [['team-abc123.enc.json', 'coach'], ['coach.enc.json', 'team']]) {
+    const dataDir = tmp(), outDir = path.join(tmp(), 'dist');
+    fs.writeFileSync(path.join(dataDir, name), JSON.stringify(await seal({ x: 1 }, lock, role)));
+    assert.throws(() => build({ dataDir, outDir, log: quiet }), /not an encrypted/);
+  }
+});
+
 test('refuses to publish a plain-text data file', () => {
   const dataDir = tmp(), outDir = path.join(tmp(), 'dist');
   fs.writeFileSync(path.join(dataDir, 'team.enc.json'), JSON.stringify({ players: [{ name: 'Mia', phone: '0412' }] }));

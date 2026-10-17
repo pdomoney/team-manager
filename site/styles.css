@@ -31,6 +31,9 @@ p{margin:0}
 .days-chip{font:600 16px/1 var(--font-d);background:rgba(255,255,255,.12);padding:6px 10px;border-radius:999px;white-space:nowrap}
 .days-chip b{color:#FFD24D;font-weight:700}
 .top .icon-btn{color:#fff}
+.team-btn{appearance:none;background:none;border:0;color:inherit;font:inherit;display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:4px 6px 4px 0;cursor:pointer;min-height:40px}
+.team-btn svg{flex:none;opacity:.8}
+#team-title{min-width:0}
 
 main{max-width:720px;margin:0 auto;padding:16px}
 .sec{margin:0 0 24px}
@@ -366,6 +369,14 @@ fieldset.plain{border:0;margin:0;padding:0;min-width:0}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .err{display:block;color:var(--bad)!important;font-weight:600;margin-top:4px}
 [aria-invalid="true"]{border-color:var(--bad)!important;box-shadow:0 0 0 2px var(--bad-soft)}
+
+/* Teams and the library */
+.team-row.current{background:#F7FAF5}
+.team-row .btn[disabled]{opacity:.45}
+.lib-row .lib-use{white-space:normal;display:block}
+.lib-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:10px 0;font-size:14px}
+.pset-lib{padding:0 14px 6px;border-top:0}
+.pset-lib .lib-bar{margin:0 0 6px}
 
 /* Messages */
 textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--paper);font-size:16px;line-height:1.45;resize:vertical;min-height:200px}
