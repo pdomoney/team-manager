@@ -66,6 +66,17 @@ Until logins arrive, players can't reply for themselves: they see the tasks and 
 - Coach / team manager split: proposed as above (coaches see phone numbers, managers don't edit lineups).
 - Proposed defaults: game systems go in the library too; only the coach's own teams for now, no club level; helpers see the noticeboard and the days they're helping.
 
+## Prepared for logins (October 2026 upgrade, no logins yet)
+
+The upgrade on branch `upgrade/milestones-0-5` added what works without individual logins, and left room for them:
+
+- Teams already have stable ids and their own data, so a person's role can later be held per team.
+- RSVPs, match availability and task replies are stored with `via: 'coach'` and a time. A signed-in player's own reply would carry `via: 'self'`; nothing else needs to change.
+- Players' replies today go to the team contact on WhatsApp and change nothing until the coach records them. No name, player id or link is treated as proof of who someone is.
+- The library is the admin library described above, currently owned by the one coach workspace.
+
+Still to come with logins: people replying and signing up for themselves, people on the same task seeing each other's names, and per-role views (coach, team manager, player, helper).
+
 ## Build order
 
 1. Volunteer tasks in the current app (coach runs them, players see tasks without names).
