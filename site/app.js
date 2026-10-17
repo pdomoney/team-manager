@@ -540,7 +540,7 @@ function render() {
   animStop();
   if (!S.role) return renderLock();
   V = curView();
-  if (!isCoach() && (state.tab === 'messages' || state.tab === 'teams')) state.tab = 'home';
+  if (!isCoach() && ['messages', 'teams', 'reports'].includes(state.tab)) state.tab = 'home';
   renderNav();
   renderStatus();
   $('#team-title').innerHTML = multiTeam() && !state.preview ? `<button class="team-btn" data-act="team-switch" aria-haspopup="dialog" aria-label="${esc(V.team.name)}. Switch team">${esc(V.team.name || 'Team')}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : esc(V.team.name || 'Team Manager');
@@ -560,6 +560,7 @@ function render() {
   if (state.tab === 'tasks') v.innerHTML = viewTasks();
   if (state.tab === 'messages') v.innerHTML = viewMessages();
   if (state.tab === 'teams') v.innerHTML = isCoach() ? viewTeams() : '';
+  if (state.tab === 'reports') v.innerHTML = isCoach() ? viewReports() : '';
 }
 
 function renderNav() {
@@ -697,7 +698,7 @@ function viewHome() {
         <div class="stat"><b>${m}</b><span>Male</span></div>
         <div class="stat"><b style="color:${out ? 'var(--bad)' : 'inherit'}">${out}</b><span>Out</span></div>
       </div></section>
-    <section class="sec"><div class="sec-h"><h2>Training turnout</h2>${rs.length ? `<button class="btn sm" data-act="attendance">Details</button>` : ''}</div>
+    <section class="sec"><div class="sec-h"><h2>Training turnout</h2><button class="btn sm" data-act="tab" data-tab="reports">Reports</button></div>
       ${rs.length ? `<div class="chart">${turnoutChart(rs)}</div>` : `<p class="muted small">Take a roll call at training and turnout will chart here.</p>`}
     </section>`;
     h2 += homeTasks();
@@ -3003,6 +3004,105 @@ function helpNeededText() {
   }).join('\n')}\n\nReply here, or tap “I can help” in the team app (Team › Tasks). Thanks! 🙌`;
 }
 
+/* ---------- Reports (coach) ---------- */
+// Every figure is worked out from what was recorded (see model.js). Where nothing was recorded the
+// report says "not recorded" rather than showing 0, and says which records were left out and why.
+const NR = '<span class="nr" title="Not recorded">not recorded</span>';
+function reportRange() {
+  const T = data.team, today = todayISO();
+  if (state.reportRange === 'event' && T.eventStart) return { from: T.eventStart, to: T.eventEnd || T.eventStart, label: T.event || 'Tournament' };
+  if (state.reportRange === 'recent') return { from: M.addDays(today, -56), to: today, label: 'Last 8 weeks' };
+  return { from: '', to: '', label: 'Whole season' };
+}
+function inRangeTeam(r) {
+  const ok = x => (!r.from || x.date >= r.from) && (!r.to || x.date <= r.to);
+  return { ...data, sessions: data.sessions.filter(ok), matches: arr(data.matches).filter(ok), tasks: data.tasks.filter(ok) };
+}
+function trendChart(trend) {
+  const squad = Math.max(1, data.players.length), last = trend.slice(-16), n = last.length;
+  const W = 340, H = 150, top = 20, base = 112, gap = 6, bw = Math.min(26, (W - 20 - gap * (n - 1)) / n), x0 = (W - (n * bw + (n - 1) * gap)) / 2;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Training attendance, last ${n} sessions: ${last.map(x => `${fmtShort(x.date)} ${x.status === 'recorded' ? x.attended : x.status === 'cancelled' ? 'cancelled' : 'not recorded'}`).join(', ')}">`;
+  s += `<line x1="8" x2="${W - 8}" y1="${base}" y2="${base}" stroke="#DCE1D9"/><line x1="8" x2="${W - 8}" y1="${top}" y2="${top}" stroke="#DCE1D9" stroke-dasharray="3 3"/><text x="${W - 8}" y="${top - 6}" text-anchor="end" font-size="10" fill="#5B6861" font-family="Barlow, sans-serif">Squad (${squad})</text>`;
+  last.forEach((x, i) => {
+    const cx = x0 + i * (bw + gap);
+    if (x.status === 'recorded') {
+      const h = (base - top) * Math.min(1, x.attended / squad);
+      s += `<rect x="${cx}" y="${base - h}" width="${bw}" height="${h}" rx="3" fill="#123D2B"/><text x="${cx + bw / 2}" y="${base - h - 4}" text-anchor="middle" font-size="11" font-weight="700" fill="#16201B" font-family="Barlow Condensed, sans-serif">${x.attended}</text>`;
+    } else s += `<rect x="${cx}" y="${base - 22}" width="${bw}" height="22" rx="3" fill="none" stroke="#AEB8B0" stroke-dasharray="3 2"/><text x="${cx + bw / 2}" y="${base - 7}" text-anchor="middle" font-size="10" fill="#5B6861" font-family="Barlow, sans-serif">${x.status === 'cancelled' ? '✕' : '?'}</text>`;
+    s += `<text x="${cx + bw / 2}" y="${base + 14}" text-anchor="middle" font-size="9.5" fill="#5B6861" font-family="Barlow, sans-serif">${fmtShort(x.date)}</text>`;
+  });
+  return s + `</svg><p class="legend" style="justify-content:center"><span><i style="background:#123D2B"></i>Attended (incl. late)</span><span>? Roll call not taken</span><span>✕ Cancelled</span></p>`;
+}
+function viewReports() {
+  const r = reportRange(), T = inRangeTeam(r), today = todayISO();
+  const sum = M.summary(data, r.from, r.to, today), trend = M.attendanceTrend(T.sessions, today);
+  const pva = M.plannedVsActual(T.sessions, today), part = M.participation(T, today), pos = M.positionUsage(T, today);
+  const load = M.volunteerLoad(T, today), out = M.outstanding(data, today), rec = sum.matches;
+  const ranges = [['season', 'Whole season'], ...(data.team.eventStart ? [['event', data.team.event || 'Tournament']] : []), ['recent', 'Last 8 weeks']];
+  const pct = (a, b) => b ? `${Math.round(a / b * 100)}%` : NR;
+  const outItems = [
+    ...out.rsvp.map(x => { const ev = x.kind === 'match' ? matchById(x.id) : sessionById(x.id); return `<li><button class="link-btn inline" data-act="rsvp-open" data-k="${x.kind}" data-id="${x.id}">${x.missing} availability repl${x.missing === 1 ? 'y' : 'ies'} missing</button> for ${esc(x.kind === 'match' ? `vs ${ev.opponent || 'TBC'}` : 'training')}, ${esc(fmtDay(x.date))}</li>`; }),
+    ...out.noLineup.map(id => { const m = matchById(id); return `<li><button class="link-btn inline" data-act="match-open" data-id="${id}">No lineup</button> for vs ${esc(m.opponent || 'TBC')}, ${esc(fmtDay(m.date))}</li>`; }),
+    ...out.noResult.map(id => { const m = matchById(id); return `<li><button class="link-btn inline" data-act="match-open" data-id="${id}">No result entered</button> for vs ${esc(m.opponent || 'TBC')}, ${esc(fmtDay(m.date))}</li>`; }),
+    ...out.toFind.map(x => { const t = taskById(x.id); return `<li><button class="link-btn inline" data-act="task-open" data-id="${x.id}">${x.n} still to find</button> for ${esc(t.title)}, ${esc(fmtDay(t.date))}</li>`; }),
+    ...out.awaiting.map(x => { const t = taskById(x.id); return `<li><button class="link-btn inline" data-act="task-open" data-id="${x.id}">${x.n} invitation${x.n === 1 ? '' : 's'} awaiting a reply</button> for ${esc(t.title)}, ${esc(fmtDay(t.date))}</li>`; }),
+    ...out.riders.map(x => { const t = taskById(x.id); return `<li><button class="link-btn inline" data-act="task-open" data-id="${x.id}">${x.waiting ? `${x.waiting} without a seat` : ''}${x.waiting && x.tentative ? ', ' : ''}${x.tentative ? `${x.tentative} waiting on a driver` : ''}</button> for ${esc(t.title)}</li>`; }),
+    ...(out.unconfirmed ? [`<li><button class="link-btn inline" data-act="tab" data-tab="messages">${out.unconfirmed} WhatsApp message${out.unconfirmed === 1 ? '' : 's'}</button> opened but not confirmed as sent</li>`] : [])
+  ];
+  const helpers = Object.entries(load).filter(([w]) => personOf(w)).sort((a, b) => b[1].done - a[1].done || loadBusy(b[1]) - loadBusy(a[1]));
+  const notHelped = everyone().filter(w => !loadBusy(loadOf(load, w))).length;
+  const posRows = Object.entries(pos.use).sort((a, b) => SLOT_IDS.indexOf(a[0]) - SLOT_IDS.indexOf(b[0]));
+  return `<div class="sec-h"><h2>Reports</h2><button class="btn sm" data-act="report-share">${icon('copy', 18)}Copy summary</button></div>
+    <div class="chips" role="group" aria-label="Period">${ranges.map(([k, l]) => `<button class="chip" data-act="report-range" data-v="${k}" aria-pressed="${(state.reportRange || 'season') === k}">${esc(l)}</button>`).join('')}</div>
+    <p class="hint" style="margin:-4px 0 14px">${esc(r.label)}${r.from ? `: ${esc(fmtDay(r.from))} to ${esc(fmtDay(r.to))}` : ''}. Worked out from what was recorded. “Not recorded” means there’s nothing to go on, which isn’t the same as zero.</p>
+    <div class="cols"><div class="col">
+    <section class="sec"><div class="sec-h"><h2>At a glance</h2></div>
+      <div class="stats report-stats">
+        <div class="stat"><b>${sum.sessions.held}</b><span>Sessions held${sum.sessions.cancelled ? `, ${sum.sessions.cancelled} cancelled` : ''}</span></div>
+        <div class="stat"><b>${sum.sessions.avgPct === null ? '–' : sum.sessions.avgPct + '%'}</b><span>${sum.sessions.avgPct === null ? 'Attendance not recorded' : `Average attendance (${sum.sessions.recorded} roll call${sum.sessions.recorded === 1 ? '' : 's'})`}</span></div>
+        <div class="stat"><b>${rec.withResult ? `${rec.won}–${rec.drawn}–${rec.lost}` : '–'}</b><span>${rec.withResult ? 'Won–drawn–lost' : 'No results entered'}</span></div>
+        <div class="stat"><b>${sum.volunteers.spotsNeeded ? `${sum.volunteers.spotsDone}/${sum.volunteers.spotsNeeded}` : '–'}</b><span>${sum.volunteers.spotsNeeded ? `Task spots done, by ${sum.volunteers.people} ${sum.volunteers.people === 1 ? 'person' : 'people'}` : 'No tasks'}</span></div>
+      </div>
+      ${sum.sessions.missing ? `<p class="hint">${sum.sessions.missing} past session${sum.sessions.missing === 1 ? ' has' : 's have'} no roll call, so ${sum.sessions.missing === 1 ? 'it’s' : 'they’re'} left out of the average.</p>` : ''}
+      ${rec.awaiting ? `<p class="hint">${rec.awaiting} match${rec.awaiting === 1 ? '' : 'es'} without a result entered ${rec.awaiting === 1 ? 'isn’t' : 'aren’t'} counted.</p>` : ''}
+      ${rec.scoredGames ? `<p class="hint">Tries: ${rec.scored} for, ${rec.conceded} against (${rec.diff >= 0 ? '+' : ''}${rec.diff}) over ${rec.scoredGames} match${rec.scoredGames === 1 ? '' : 'es'} with a score${rec.forfeits ? `; ${rec.forfeits} forfeit${rec.forfeits === 1 ? '' : 's'} not included` : ''}.</p>` : ''}
+    </section>
+    <section class="sec"><div class="sec-h"><h2>Training turnout</h2></div>
+      ${trend.length ? `<div class="chart">${trendChart(trend)}</div>` : '<p class="muted small">No past sessions in this period.</p>'}</section>
+    <section class="sec"><div class="sec-h"><h2>Said they’d come, and did</h2></div>
+      ${pva.used ? `<table class="rtable"><thead><tr><th scope="col">They said</th><th scope="col">Came</th><th scope="col">Didn’t</th><th scope="col">Came %</th></tr></thead><tbody>
+        ${[['yes', 'Attending'], ['maybe', 'Unsure'], ['no', 'Not attending'], ['none', 'No reply']].map(([k, l]) => { const x = pva.rows[k]; return `<tr><th scope="row">${l}</th><td>${x.came}</td><td>${x.missed}</td><td>${pct(x.came, x.came + x.missed)}</td></tr>`; }).join('')}</tbody></table>
+        <p class="hint">From ${pva.used} session${pva.used === 1 ? '' : 's'} with both RSVPs and a roll call.${pva.noRoll ? ` ${pva.noRoll} with RSVPs but no roll call left out.` : ''}${pva.noRsvp ? ` ${pva.noRsvp} with a roll call but no RSVPs left out.` : ''}${pva.cancelled ? ` ${pva.cancelled} cancelled left out.` : ''}</p>`
+        : `<p class="muted small">Not recorded: no session in this period has both RSVPs and a roll call yet.</p>`}
+    </section>
+    <section class="sec"><div class="sec-h"><h2>Loose ends</h2></div>
+      ${outItems.length ? `<ul class="todo">${outItems.join('')}</ul>` : '<p class="muted small">Nothing outstanding in the next four weeks.</p>'}</section>
+    </div><div class="col">
+    <section class="sec"><div class="sec-h"><h2>Players</h2></div>
+      ${part.length ? `<div class="rtable-wrap"><table class="rtable players"><thead><tr><th scope="col">Player</th><th scope="col">Training</th><th scope="col">RSVPs</th><th scope="col">Matches</th></tr></thead><tbody>
+        ${part.slice().sort((a, b) => a.name.localeCompare(b.name)).map(x => `<tr><th scope="row">${esc(x.name)}</th>
+          <td>${x.training.recorded ? `${x.training.attended}/${x.training.recorded} <small class="muted">${x.training.pct}%</small>` : NR}</td>
+          <td>${x.rsvp.asked ? `${x.rsvp.yes} yes${x.rsvp.no ? `, ${x.rsvp.no} no` : ''}${x.rsvp.maybe ? `, ${x.rsvp.maybe} unsure` : ''}${x.rsvp.none ? ` <small class="muted">(${x.rsvp.none} no reply)</small>` : ''}` : NR}</td>
+          <td>${x.matches.withLineup ? `${x.matches.named}/${x.matches.withLineup}` : NR}</td></tr>`).join('')}</tbody></table></div>
+        <p class="hint">Training: sessions attended (late counts) out of roll calls they were marked on. RSVPs: only sessions where you recorded any. Matches: named in the match lineup, out of past matches with a lineup.</p>` : '<p class="muted small">No players yet.</p>'}
+    </section>
+    <section class="sec"><div class="sec-h"><h2>Positions in match lineups</h2></div>
+      ${pos.matches ? `<table class="rtable"><thead><tr><th scope="col">Position</th><th scope="col">Filled</th><th scope="col">Most often</th></tr></thead><tbody>
+        ${posRows.map(([id, u]) => { const top = Object.entries(u.players).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([pid, n]) => `${esc(shortName(playerById(pid) || { name: 'Removed player' }))} (${n})`).join(', '); return `<tr><th scope="row">${esc(u.label)}</th><td>${u.filled}/${pos.matches}</td><td>${top || NR}</td></tr>`; }).join('')}</tbody></table>
+        <p class="hint">From ${pos.matches} past match${pos.matches === 1 ? '' : 'es'} with a lineup.</p>` : '<p class="muted small">Not recorded: no past match in this period has a lineup.</p>'}
+    </section>
+    <section class="sec"><div class="sec-h"><h2>Volunteering</h2><button class="btn sm" data-act="tab" data-tab="tasks">Tasks</button></div>
+      ${helpers.length ? `<table class="rtable"><thead><tr><th scope="col">Person</th><th scope="col">Done</th><th scope="col">Coming up</th><th scope="col">Declined</th></tr></thead><tbody>
+        ${helpers.slice(0, 12).map(([w, L]) => `<tr><th scope="row">${esc(whoName(w))}</th><td>${L.done}</td><td>${L.accepted + L.invited}${L.invited ? ` <small class="muted">(${L.invited} invited)</small>` : ''}</td><td>${L.declined}</td></tr>`).join('')}</tbody></table>
+        <p class="hint">${helpers.length > 12 ? `Top 12 of ${helpers.length}. ` : ''}${notHelped} ${notHelped === 1 ? 'person hasn’t' : 'people haven’t'} helped or been asked. Accepted spots on past tasks that were never marked done aren’t counted as done.</p>` : '<p class="muted small">Not recorded: nobody has been put on a task in this period.</p>'}
+    </section>
+    </div></div>`;
+}
+function reportText() {
+  const r = reportRange(), today = todayISO(), s = M.summary(data, r.from, r.to, today), rec = s.matches;
+  return `📊 *${data.team.name} — ${r.label}*\nTraining: ${s.sessions.held} sessions held${s.sessions.cancelled ? `, ${s.sessions.cancelled} cancelled` : ''}. ${s.sessions.avgPct === null ? 'Attendance not recorded.' : `Average attendance ${s.sessions.avgPct}% over ${s.sessions.recorded} roll calls.`}\nMatches: ${rec.withResult ? `won ${rec.won}, drew ${rec.drawn}, lost ${rec.lost}` : 'no results entered'}${rec.awaiting ? ` (${rec.awaiting} without a result)` : ''}.\nVolunteers: ${s.volunteers.spotsNeeded ? `${s.volunteers.spotsDone} of ${s.volunteers.spotsNeeded} task spots done by ${s.volunteers.people} people.` : 'no tasks.'}`;
+}
+
 /* ---------- Matches and the tournament ---------- */
 // Matches: opponent, when, where (venue and field), round, status and result, plus each player's
 // availability (an RSVP, kept apart from training) and a match lineup. Players see everything but
@@ -3826,6 +3926,8 @@ const actions = {
   'wa-player': coachOnly(el => { const p = playerById(el.dataset.id); if (!p || !p.phone) return; sendWa(`Hi ${firstName(p)}, `, { to: p.name, phone: p.phone, ref: 'player:' + p.id }); }),
 
   'train-view': el => { state.tab = 'training'; state.trainingView = el.dataset.v; render(); },
+  'report-range': coachOnly(el => { state.reportRange = el.dataset.v; render(); }),
+  'report-share': coachOnly(() => copyText(reportText(), 'Summary copied')),
   'match-new': coachOnly(() => openSheet('Add match', matchForm(null), 'match-new')),
   'match-day-new': coachOnly(() => openSheet('Tournament day', matchDayForm(), 'match-day')),
   'match-open': coachOnly(el => openMatch(el.dataset.id)),

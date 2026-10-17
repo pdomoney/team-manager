@@ -388,6 +388,19 @@ fieldset.plain{border:0;margin:0;padding:0;min-width:0}
 .seg-opt input:focus-visible + span{outline:3px solid var(--gold);outline-offset:1px}
 .inline-form{margin-top:4px}
 
+/* Reports */
+.nr{font-size:12px;font-style:italic;color:var(--muted)}
+body:not(.wide) .report-stats{grid-template-columns:repeat(2,1fr)}
+body:not(.wide) .report-stats .stat:nth-child(3){border-left:0}
+body:not(.wide) .report-stats .stat:nth-child(n+3){border-top:1px solid var(--line)}
+.report-stats .stat span{display:block;line-height:1.25;margin-top:3px}
+.rtable{width:100%;border-collapse:collapse;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:14px}
+.rtable th,.rtable td{text-align:left;padding:8px 10px;border-top:1px solid var(--line);vertical-align:top}
+.rtable thead th{border-top:0;font-size:13px;color:var(--muted);background:#F7F8F4}
+.rtable tbody th{font-weight:600}
+.rtable-wrap{overflow-x:auto}
+.rtable.players th[scope=row]{white-space:nowrap}
+
 /* Teams and the library */
 .team-row.current{background:#F7FAF5}
 .team-row .btn[disabled]{opacity:.45}
