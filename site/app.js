@@ -218,7 +218,8 @@ let V = null;         // what the current screen shows (set in render)
 let gh = { autoPublish: true, ...repoFromLocation(), ...(readJson(KEYS.github) || {}) };
 
 const state = {
-  tab: 'home', squadFilter: 'all', squadSearch: '', trainingView: 'schedule', showPast: false,
+  tab: 'home', squadFilter: 'all', squadSearch: '', trainingView: 'agenda', showPast: false,
+  msgEvent: null, msgRef: '', askSent: null, pending: null, conflict: null,
   lineupId: null, moveMode: false, msgTpl: 'reminder', msgSession: null, msgDraft: null, postNotice: true,
   layers: { zones: true, channels: true, ...(readJson('tm-field-layers') || {}) },
   system: null, sysFlip: false,
@@ -474,7 +475,8 @@ const ICON = {
   dots: '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
   clip: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11l2 2 4-4M9 17h6"/>',
   lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
-  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  rsvp: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5 1.6 0 3 .5 4.1 1.3"/><path d="M15 17.5l2 2 4.5-4.5"/>'
 };
 const icon = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
 const gBadge = p => { const g = p.gender === 'F' ? 'F' : p.gender === 'M' ? 'M' : 'U'; return `<span class="g ${g}" title="${g === 'F' ? 'Female' : g === 'M' ? 'Male' : 'Gender not set'}">${g === 'U' ? '?' : g}</span>`; };
@@ -747,11 +749,79 @@ function bulkForm() {
 
 /* ---------- Training ---------- */
 function viewTraining() {
-  if (!isCoach()) return viewSchedule();
-  const seg = `<div class="seg" role="group" aria-label="Training view">
-    <button data-act="train-view" data-v="schedule" aria-pressed="${state.trainingView === 'schedule'}">Schedule</button>
-    <button data-act="train-view" data-v="attendance" aria-pressed="${state.trainingView === 'attendance'}">Attendance</button></div>`;
-  return seg + (state.trainingView === 'schedule' ? viewSchedule() : viewAttendance());
+  if (!isCoach() && state.trainingView === 'attendance') state.trainingView = 'schedule';
+  const views = [['agenda', 'Upcoming'], ['schedule', 'Training'], ...(isCoach() ? [['attendance', 'Attendance']] : [])];
+  const seg = `<div class="seg" role="group" aria-label="Schedule view">${views.map(([k, l]) => `<button data-act="train-view" data-v="${k}" aria-pressed="${state.trainingView === k}">${l}</button>`).join('')}</div>`;
+  return seg + (state.trainingView === 'agenda' ? viewAgenda() : state.trainingView === 'attendance' ? viewAttendance() : viewSchedule());
+}
+/* ----- RSVPs: what players said they'd do, kept apart from the roll call ----- */
+const RSVP_SHORT = { yes: 'Yes', maybe: 'Unsure', no: 'No' };
+const rsvpTarget = (kind, id) => kind === 'match' ? matchById(id) : sessionById(id);
+const asking = rec => Object.keys(obj(rec && rec.rsvp)).length > 0;
+function rsvpPills(rec) {
+  const c = M.rsvpCounts(rec, data.players);
+  return `<span class="pill ok">${c.yes} attending</span>${c.maybe ? ` <span class="pill neutral">${c.maybe} unsure</span>` : ''}${c.no ? ` <span class="pill bad">${c.no} not attending</span>` : ''} <span class="pill neutral">${c.none} no reply</span>`;
+}
+function rsvpBody(kind, id) {
+  const rec = rsvpTarget(kind, id); if (!rec) return '';
+  const players = data.players.slice().sort((a, b) => (a.status === 'available' ? 0 : 1) - (b.status === 'available' ? 0 : 1) || a.name.localeCompare(b.name));
+  return `<p class="muted small" style="margin-bottom:8px">${esc(fmtLong(rec.date))}${rec.start ? ', ' + esc(fmtTime(rec.start)) : ''}. What each player said they’d do${kind === 'session' ? '. The roll call records who actually came' : ''}.</p>
+    <div class="roll-sum" id="rsvp-sum">${rsvpPills(rec)}</div>
+    ${players.length ? `<div class="list">${players.map(p => { const v = M.rsvpOf(rec, p.id); return `<div class="roll-row" data-row="${p.id}">
+      <span class="grow"><span class="name" style="display:block">${esc(p.name)} ${gBadge(p)}</span>${p.status !== 'available' ? `<span class="pill ${p.status}">${STATUS[p.status]}</span>` : ''}</span>
+      <span class="roll-btns" role="group" aria-label="${esc(p.name)}’s reply">${['yes', 'maybe', 'no'].map(k => `<button class="rb r-${k}" data-act="rsvp" data-k="${kind}" data-id="${rec.id}" data-pid="${p.id}" data-v="${k}" aria-pressed="${v === k}">${RSVP_SHORT[k]}</button>`).join('')}</span>
+    </div>`; }).join('')}</div>` : '<p class="muted">Add players in Squad first.</p>'}
+    <div class="btn-row" style="margin-top:14px"><button class="btn wa" data-act="rsvp-ask" data-k="${kind}" data-id="${rec.id}">${icon('chat', 18)}Ask for replies</button><button class="btn primary" data-act="close-sheet">Done</button></div>
+    <p class="hint">Tap a reply again to clear it. Players reply on WhatsApp and you record it here; nothing changes until you do.</p>`;
+}
+// Players: a reply goes to the team contact on WhatsApp. It changes nothing in the app.
+function replyBtns(kind, rec) {
+  if (isCoach() || rec.date < todayISO() || (kind === 'session' && rec.cancelled) || (kind === 'match' && rec.status !== 'scheduled')) return '';
+  const c = V.team.tasksContact || {};
+  return `<span class="reply-btns" role="group" aria-label="Reply about ${kind === 'match' ? 'this match' : 'this session'}"><span class="small muted">Tell ${esc(c.name ? String(c.name).trim().split(/\s+/)[0] : 'the coach')}:</span>
+    <button class="btn sm" data-act="reply" data-k="${kind}" data-id="${rec.id}" data-v="yes">Coming</button><button class="btn sm" data-act="reply" data-k="${kind}" data-id="${rec.id}" data-v="maybe">Not sure</button><button class="btn sm" data-act="reply" data-k="${kind}" data-id="${rec.id}" data-v="no">Can’t</button></span>`;
+}
+function replyText(kind, rec, v) {
+  const c = V.team.tasksContact || {}, hi = c.name ? `Hi ${String(c.name).trim().split(/\s+/)[0]}, ` : 'Hi, ';
+  const what = kind === 'match' ? `the match against ${rec.opponent || 'TBC'} on ${fmtDay(rec.date)}${rec.start ? ` (${fmtTime(rec.start)})` : ''}` : `training on ${fmtDay(rec.date)}${rec.start ? ` (${fmtTime(rec.start)})` : ''}`;
+  return hi + (v === 'yes' ? `I’m coming to ${what}.` : v === 'no' ? `I can’t make ${what}. ` : `I’m not sure yet about ${what}. `);
+}
+
+/* ----- Upcoming: training, matches and tasks together ----- */
+function viewAgenda() {
+  const items = M.agenda(V, todayISO(), 42), coach = isCoach();
+  const days = [];
+  items.forEach(it => { const d = days[days.length - 1]; if (d && d.date === it.date) d.items.push(it); else days.push({ date: it.date, items: [it] }); });
+  const notices = V.notices.slice(0, 2);
+  return `${notices.length ? `<section class="sec"><div class="sec-h"><h2>Latest notices</h2></div><div class="list">${notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p></div>`).join('')}</div></section>` : ''}
+    <div class="sec-h"><h2>Next six weeks</h2>${coach ? `<button class="btn sm" data-act="avail-ask">${icon('chat', 18)}Availability check</button>` : ''}</div>
+    ${days.length ? days.map(d => `<section class="ag-day" aria-label="${esc(fmtLong(d.date))}"><h3 class="ag-date">${d.date === todayISO() ? 'Today · ' : ''}${esc(fmtLong(d.date))}</h3>
+      <div class="list">${d.items.map(agendaItem).join('')}</div></section>`).join('')
+      : `<div class="empty"><p>${coach ? 'Nothing in the next six weeks. Add training, a match or a task.' : 'Nothing scheduled in the next six weeks.'}</p></div>`}
+    <p class="hint">${coach ? 'Players see this list too, without RSVPs or who is on each task.' : 'Training, matches and jobs that need a hand. Tap a reply to message the coach; it counts once they record it.'}</p>`;
+}
+function agendaItem(it) {
+  const coach = isCoach(), x = it.x;
+  if (it.kind === 'session') {
+    const info = `<span class="ag-kind k-train">Training</span><span class="t">${esc(fmtRange(x))}</span>${x.cancelled ? ' <span class="pill bad">Cancelled</span>' : ''}
+      <span class="sub" style="display:block">${esc(x.venue || V.team.trainingVenue || 'Venue TBC')}${x.focus ? ` · ${esc(x.focus)}` : ''}</span>
+      ${coach && !x.cancelled && asking(x) ? `<span class="ag-meta">${rsvpPills(x)}</span>` : ''}`;
+    return coach ? `<div class="ag-item"><button class="row-main ag-main" data-act="edit-session" data-id="${x.id}"><span class="grow">${info}</span></button>${x.cancelled ? '' : `<button class="icon-btn" data-act="rsvp-open" data-k="session" data-id="${x.id}" aria-label="Availability for training on ${esc(fmtDay(x.date))}">${icon('rsvp', 22)}</button>`}</div>`
+      : `<div class="ag-item"><div class="ag-main"><span class="grow">${info}</span>${replyBtns('session', x)}</div></div>`;
+  }
+  if (it.kind === 'match') {
+    const where = [x.venue, x.field ? `Field ${x.field}` : ''].filter(Boolean).join(' · ');
+    const info = `<span class="ag-kind k-match">Match</span><span class="t">vs ${esc(x.opponent || 'TBC')}</span>${x.start ? ` <span class="sub">${esc(fmtTime(x.start))}</span>` : ''}${x.status !== 'scheduled' ? ` <span class="pill ${x.status === 'cancelled' ? 'bad' : 'neutral'}">${esc(M.MATCH_STATUS[x.status])}</span>` : ''}
+      ${where ? `<span class="sub" style="display:block">${esc(where)}</span>` : ''}
+      ${coach && x.status === 'scheduled' ? `<span class="ag-meta">${rsvpPills(x)}</span>` : ''}`;
+    return coach ? `<div class="ag-item"><button class="row-main ag-main" data-act="match-open" data-id="${x.id}"><span class="grow">${info}</span></button></div>`
+      : `<div class="ag-item"><div class="ag-main"><span class="grow">${info}</span>${replyBtns('match', x)}</div></div>`;
+  }
+  const lift = x.kind === 'lift';
+  const info = `<span class="ag-kind k-task">${lift ? 'Lifts' : 'Help needed'}</span><span class="t">${esc(x.title)}</span>${x.cancelled ? ' <span class="pill bad">Cancelled</span>' : ''}
+    ${taskWhen(x) ? `<span class="sub" style="display:block">${esc(taskWhen(x))}</span>` : ''}${lift ? liftHtml(x) : spotsHtml(x)}`;
+  if (coach) return `<div class="ag-item"><button class="row-main ag-main" data-act="task-open" data-id="${x.id}"><span class="grow">${info}</span></button></div>`;
+  return `<div class="ag-item"><div class="ag-main"><span class="grow">${info}</span>${taskShort(x) ? `<button class="btn wa sm" data-act="task-help" data-id="${x.id}">${icon('chat', 18)}${lift ? 'I can drive' : 'I can help'}</button>` : ''}</div></div>`;
 }
 function sessionRow(s) {
   const isPast = s.date < todayISO(), taken = rollTaken(s);
@@ -760,16 +830,18 @@ function sessionRow(s) {
       ${s.focus ? `<span class="focus" style="display:block">${esc(s.focus)}</span>` : ''}
       ${s.notes && !isCoach() ? `<span class="sub" style="display:block">${esc(s.notes)}</span>` : ''}`;
   if (!isCoach()) return `<div class="sess ${s.cancelled ? 'cancelled' : ''} ${s.date === todayISO() ? 'today' : ''}">${calBlock(s.date)}
-    <div class="sess-main">${info}${s.cancelled ? '<span style="display:block;margin-top:4px"><span class="pill bad">Cancelled</span></span>' : ''}</div></div>`;
+    <div class="sess-main">${info}${s.cancelled ? '<span style="display:block;margin-top:4px"><span class="pill bad">Cancelled</span></span>' : ''}${replyBtns('session', s)}</div></div>`;
   const vals = Object.values(s.attendance || {});
   const attended = vals.filter(v => v === 'present' || v === 'late').length, apol = vals.filter(v => v === 'apology').length;
   return `<div class="sess ${s.cancelled ? 'cancelled' : ''} ${s.date === todayISO() ? 'today' : ''}">
     ${calBlock(s.date)}
     <button class="sess-main" data-act="edit-session" data-id="${s.id}">${info}
       <span style="display:block;margin-top:4px">${s.cancelled ? '<span class="pill bad">Cancelled</span>' : taken ? `<span class="pill ok">${attended} attended</span>${apol ? ` <span class="pill neutral">${apol} apolog${apol === 1 ? 'y' : 'ies'}</span>` : ''}` : isPast ? '<span class="pill neutral">No roll taken</span>' : ''}</span>
+      ${!s.cancelled && !isPast && asking(s) ? `<span class="ag-meta">${rsvpPills(s)}</span>` : ''}
     </button>
     ${s.cancelled ? '' : `<div class="acts">
-      ${!isPast ? `<button class="btn wa sm" data-act="remind" data-id="${s.id}" aria-label="Send reminder for ${esc(fmtDay(s.date))}">${icon('chat', 18)}</button>` : ''}
+      ${!isPast ? `<button class="btn wa sm" data-act="remind" data-id="${s.id}" aria-label="Send reminder for ${esc(fmtDay(s.date))}">${icon('chat', 18)}</button>
+      <button class="btn sm" data-act="rsvp-open" data-k="session" data-id="${s.id}" aria-label="Availability for ${esc(fmtDay(s.date))}">${icon('rsvp', 18)}</button>` : ''}
       <button class="btn sm" data-act="roll" data-id="${s.id}" aria-label="Roll call for ${esc(fmtDay(s.date))}">${icon('clip', 18)}</button>
     </div>`}
   </div>`;
@@ -815,11 +887,11 @@ function rollBody(sid) {
     <div class="roll-sum" id="roll-sum">${rollSummary(s)}</div>
     <div class="btn-row" style="margin-bottom:10px"><button class="btn sm" data-act="mark-all" data-sid="${s.id}">${icon('check', 18)}Everyone unmarked is here</button></div>
     <div class="list">${players.map(p => `<div class="roll-row" data-row="${p.id}" data-state="${s.attendance[p.id] || ''}">
-      <span class="grow"><span class="name" style="display:block">${esc(p.name)} ${gBadge(p)}</span>${p.status !== 'available' ? `<span class="pill ${p.status}">${STATUS[p.status]}</span>` : ''}</span>
+      <span class="grow"><span class="name" style="display:block">${esc(p.name)} ${gBadge(p)}</span>${p.status !== 'available' ? `<span class="pill ${p.status}">${STATUS[p.status]}</span>` : ''}${M.rsvpOf(s, p.id) ? `<span class="tagline said">Said: ${esc(M.RSVP[M.rsvpOf(s, p.id)].toLowerCase())}</span>` : ''}</span>
       <span class="roll-btns">${Object.entries(ROLL).map(([k, l]) => `<button class="rb b-${k}" data-act="mark" data-sid="${s.id}" data-pid="${p.id}" data-s="${k}" aria-label="${esc(p.name)}: ${k}">${l}</button>`).join('')}</span>
     </div>`).join('')}</div>
     <button class="btn primary block" style="margin-top:14px" data-act="roll-done" data-sid="${s.id}">Done</button>
-    <p class="hint">Anyone left unmarked is recorded as absent when you tap Done. Attendance is only visible to coaches.</p>`;
+    <p class="hint">Anyone left unmarked is recorded as absent when you tap Done. “Said” is their RSVP; the roll call is kept separately. Attendance is only visible to coaches.</p>`;
 }
 function rollSummary(s) {
   const v = Object.values(s.attendance);
@@ -2906,7 +2978,7 @@ function offerCancelMessage(s) {
 }
 
 /* ---------- Messages (coach) ---------- */
-const TEMPLATES = { reminder: 'Training reminder', cancelled: 'Training cancelled', lineup: 'Lineup', help: 'Help needed', countdown: 'Countdown', invite: 'App invite', blank: 'Blank' };
+const TEMPLATES = { reminder: 'Training reminder', availability: 'Availability check', cancelled: 'Training cancelled', lineup: 'Lineup', help: 'Help needed', countdown: 'Countdown', invite: 'App invite', blank: 'Blank' };
 function buildTemplate(t) {
   const T = data.team, s = sessionById(state.msgSession) || nextSession();
   if (t === 'reminder') {
@@ -2916,13 +2988,24 @@ function buildTemplate(t) {
   if (t === 'cancelled') return s ? `⚠️ *Training cancelled*\nTraining on ${fmtLong(s.date)} (${fmtRange(s)}) is off.\n\nReason: \n\nSee you at the next one.` : `⚠️ *Training cancelled*\n\n`;
   if (t === 'lineup') return lineupText(curLineup());
   if (t === 'help') return helpNeededText();
+  if (t === 'availability') return availabilityText(state.msgEvent);
   if (t === 'countdown') { const cd = countdown(); const d = cd && cd.state === 'before' ? cd.days : 0; return `⏳ *${d} days* until ${T.event} in Coffs Harbour (${fmtEventDates()}).\n\nEvery session counts from here. Let's keep turning up. 💪`; }
   if (t === 'invite') return `👋 Here's the ${T.name} team app: training times, lineups and notices.\n\n${inviteLink()}\n\nOpen it on your phone, then use "Add to Home Screen". Please keep this link within the team.`;
   return '';
 }
+// Ask for replies about one session or match, or everything in the next two weeks.
+function availabilityText(ev) {
+  const T = data.team, today = todayISO(), until = M.addDays(today, 14), c = T.tasksContact || {};
+  const one = ev && rsvpTarget(ev.kind, ev.id);
+  const list = one ? [{ kind: ev.kind, x: one }] : M.agenda(data, today, 14).filter(it => !it.cancelled && it.kind !== 'task' && it.date <= until && (it.kind === 'session' || it.x.status === 'scheduled'));
+  if (!list.length) return `📋 *Availability — ${T.name}*\n\n(Nothing in the next two weeks. Add training or a match and it will fill in here.)`;
+  const line = it => `• ${fmtDay(it.x.date)}${it.x.start ? ` ${fmtTime(it.x.start)}` : ''}: ${it.kind === 'match' ? `match vs ${it.x.opponent || 'TBC'}` : 'training'}`;
+  return `📋 *Availability — ${T.name}*\nPlease reply *YES*, *NO* or *MAYBE* for:\n${list.map(line).join('\n')}\n\nReply here${c.name ? ` or message ${c.name}` : ''}, or use the buttons in the team app (Schedule). Thanks!`;
+}
 function viewMessages() {
   if (state.msgDraft === null) state.msgDraft = buildTemplate(state.msgTpl);
   const needsSession = state.msgTpl === 'reminder' || state.msgTpl === 'cancelled';
+  if (state.msgTpl !== 'availability') state.msgEvent = null;
   const sessions = upcomingSessions().filter(s => !s.cancelled || state.msgTpl === 'cancelled');
   if (needsSession && !state.msgSession && sessions[0]) state.msgSession = sessions[0].id;
   const canPost = state.msgTpl !== 'invite';
@@ -2979,6 +3062,10 @@ function postNotice(text) {
   data.notices.unshift({ id: uid(), at: new Date().toISOString(), text });
   data.notices = data.notices.slice(0, 50);
 }
+function openTemplate(t) {
+  state.tab = 'messages'; state.msgTpl = t; state.msgDraft = buildTemplate(t);
+  history.replaceState(null, '', '#messages'); closeSheet(); render(); window.scrollTo(0, 0);
+}
 function openWhatsApp(text, phone) {
   const a = document.createElement('a');
   a.href = (phone ? `https://wa.me/${waNumber(phone)}` : 'https://wa.me/') + '?text=' + encodeURIComponent(text);
@@ -3023,8 +3110,8 @@ function settingsBody() {
     <p class="note">The 2027 dates are a placeholder. Check them against the official draw and update them here.</p>
     <label class="field-l"><span>Tournament venue</span><input type="text" name="venue" value="${esc(T.venue)}"></label>
     <label class="field-l"><span>Max males on field</span><input type="number" name="maxMales" min="0" max="8" value="${esc(T.maxMales)}"><small>Mixed Oztag allows up to 4 of the 8 on field.</small></label>
-    <h3 class="form-sec">Tasks contact</h3>
-    <p class="muted small" style="margin-bottom:10px">Who runs the volunteer tasks. When a player taps “I can help”, WhatsApp opens a message to this person. Everyone in the team can see this name and number.</p>
+    <h3 class="form-sec">Team contact</h3>
+    <p class="muted small" style="margin-bottom:10px">Who players and helpers reply to. “I can help” and replies about training and matches open WhatsApp with a message to this person. Everyone in the team can see this name and number.</p>
     <div class="two">
       <label class="field-l"><span>Name</span><input type="text" name="tasksName" value="${esc(T.tasksContact.name)}" placeholder="e.g. Sarah (team manager)"></label>
       <label class="field-l"><span>Mobile</span><input type="tel" name="tasksPhone" value="${esc(T.tasksContact.phone)}" placeholder="04xx xxx xxx"></label>
@@ -3231,6 +3318,9 @@ function loadSample() {
     data.sessions.push(s); d.setDate(d.getDate() + 7);
   }
   const byName = n => data.players.find(p => p.name.startsWith(n)).id;
+  // RSVPs for the next session: most have replied, a few haven't.
+  const nextS = data.sessions.find(s => s.date >= todayISO());
+  if (nextS) data.players.forEach((p, j) => { const v = p.status === 'injured' ? 'no' : ['yes', 'yes', 'yes', 'maybe', 'yes', '', 'yes', 'no', 'yes', ''][j % 10]; if (v) M.setRsvp(nextS, p.id, v); });
   const pick = { LW: 'Chloe', LL: 'Ava', LR: 'Jade', LM: 'Mia', RM: 'Josh', RR: 'Kai', RL: 'Isaac', RW: 'Jayden' };
   data.lineups[0].slots.forEach(s => { s.playerId = byName(pick[s.id]); });
   if (!data.team.trainingVenue) data.team.trainingVenue = 'Home ground, field 2';
@@ -3294,6 +3384,22 @@ const actions = {
   'wa-player': coachOnly(el => { const p = playerById(el.dataset.id); if (!p || !p.phone) return; sendWa(`Hi ${firstName(p)}, `, { to: p.name, phone: p.phone, ref: 'player:' + p.id }); }),
 
   'train-view': el => { state.tab = 'training'; state.trainingView = el.dataset.v; render(); },
+  'rsvp-open': coachOnly(el => { const rec = rsvpTarget(el.dataset.k, el.dataset.id); if (!rec) return; if (!data.players.length) { toast('Add players to your squad first'); return; } openSheet('Availability', rsvpBody(el.dataset.k, rec.id), 'rsvp'); }),
+  'rsvp': coachOnly(el => {
+    const rec = rsvpTarget(el.dataset.k, el.dataset.id); if (!rec) return;
+    const v = M.rsvpOf(rec, el.dataset.pid) === el.dataset.v ? '' : el.dataset.v;
+    M.setRsvp(rec, el.dataset.pid, v); save();
+    const row = el.closest('.roll-row'); if (row) row.querySelectorAll('[data-act="rsvp"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+    const sum = $('#rsvp-sum'); if (sum) sum.innerHTML = rsvpPills(rec);
+  }),
+  'rsvp-ask': coachOnly(el => { closeSheet(); state.msgEvent = { kind: el.dataset.k, id: el.dataset.id }; state.msgRef = `rsvp:${el.dataset.k}:${el.dataset.id}`; openTemplate('availability'); }),
+  'avail-ask': coachOnly(() => { state.msgEvent = null; state.msgRef = 'rsvp:all'; openTemplate('availability'); }),
+  'reply': el => {
+    const rec = rsvpTarget(el.dataset.k, el.dataset.id); if (!rec) return;
+    const c = V.team.tasksContact || {};
+    openWhatsApp(replyText(el.dataset.k, rec, el.dataset.v), c.phone || '');
+    toast('WhatsApp is open with your reply. Send it there; the coach records it.');
+  },
   'attendance': coachOnly(() => { state.tab = 'training'; state.trainingView = 'attendance'; history.replaceState(null, '', '#training'); render(); window.scrollTo(0, 0); }),
   'toggle-past': () => { state.showPast = !state.showPast; render(); },
   'add-session': coachOnly(() => openSheet('Add training', sessionForm(null))),
@@ -3514,7 +3620,7 @@ const actions = {
   'lineup-del': coachOnly(() => { const lu = curLineup(); if (!confirm(`Delete “${lu.name}”?`)) return; data.lineups = data.lineups.filter(l => l.id !== lu.id); state.lineupId = data.lineups[0].id; save(); closeSheet(); render(); }),
   'lineup-share': coachOnly(() => { state.tab = 'messages'; state.msgTpl = 'lineup'; state.msgDraft = buildTemplate('lineup'); history.replaceState(null, '', '#messages'); render(); window.scrollTo(0, 0); }),
 
-  'tpl': coachOnly(el => { state.msgTpl = el.dataset.t; state.msgDraft = buildTemplate(state.msgTpl); render(); }),
+  'tpl': coachOnly(el => { state.msgTpl = el.dataset.t; state.msgRef = ''; if (el.dataset.t === 'availability') state.msgEvent = null; state.msgDraft = buildTemplate(state.msgTpl); render(); }),
   'wa-send': coachOnly(() => {
     const t = state.msgDraft.trim(); if (!t) { toast('Write a message first'); return; }
     if (state.postNotice && state.msgTpl !== 'invite') postNotice(t);

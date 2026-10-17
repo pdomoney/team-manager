@@ -132,6 +132,26 @@ main{max-width:720px;margin:0 auto;padding:16px}
 .roll-row[data-state="late"] .b-late{background:var(--gold);border-color:var(--gold);color:#3A2A00}
 .roll-row[data-state="apology"] .b-apology{background:#6E7F94;border-color:#6E7F94;color:#fff}
 .roll-row[data-state="absent"] .b-absent{background:var(--bad);border-color:var(--bad);color:#fff}
+.rb.r-yes[aria-pressed="true"]{background:var(--ok);border-color:var(--ok);color:#fff}
+.rb.r-maybe[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:#3A2A00}
+.rb.r-no[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#fff}
+.rb[data-act="rsvp"]{min-width:56px}
+.tagline.said{display:block;font-size:12px;font-weight:600;color:var(--sky-ink)}
+
+/* Upcoming: training, matches and tasks by day */
+.ag-day{margin-bottom:16px}
+.ag-date{font-size:17px;margin:0 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.ag-item{display:flex;align-items:center;gap:6px;border-top:1px solid var(--line);padding:4px 6px 4px 0}
+.ag-item:first-child{border-top:0}
+.ag-main{padding:10px 0 10px 14px;display:flex;align-items:flex-start;gap:10px;flex:1;min-width:0;flex-wrap:wrap}
+.ag-main .t{font-weight:600}
+.ag-kind{display:inline-block;font:700 12px/1 var(--font-b);text-transform:uppercase;letter-spacing:.4px;margin-right:8px;padding:3px 7px;border-radius:5px;background:#E9ECE7;color:var(--muted);vertical-align:2px}
+.ag-kind.k-match{background:var(--tag);color:#fff}
+.ag-kind.k-train{background:var(--pitch);color:#fff}
+.ag-kind.k-task{background:#ECE5FA;color:#55399A}
+.ag-meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.reply-btns{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;width:100%}
+.reply-btns .btn{flex:0 0 auto}
 
 /* Attendance */
 .bar-row{display:grid;grid-template-columns:minmax(90px,38%) 1fr auto;gap:10px;align-items:center;padding:9px 12px;border-top:1px solid var(--line)}
