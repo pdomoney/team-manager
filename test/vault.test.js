@@ -86,17 +86,17 @@ test('players see every task and its spots, but never who is on it or the helper
   const helpers = [{ id: 'h1', name: 'Rachel Tuala', phone: '0400 111 222', relation: 'Mia’s mum', playerId: 'p1', notes: 'has a ute' }];
   const tasks = [
     { id: 't1', title: 'Run the BBQ', kind: 'bbq', date: '2027-03-20', start: '08:00', place: 'Coffs', notes: 'Bring tongs', need: 3,
-      people: [{ who: 'h:h1', status: 'yes' }, { who: 'p:p1', status: 'done' }, { who: 'p:p2', status: 'no' }] },
+      people: [{ who: 'h:h1', status: 'yes' }, { who: 'p:p1', status: 'done' }, { who: 'p:p2', status: 'no' }, { who: 'p:p3', status: 'asked' }] },
     { id: 't2', title: 'Lifts to Coffs', kind: 'lift', date: '2027-03-19', need: 0,
       people: [{ who: 'h:h1', role: 'driver', seats: 4, status: 'yes' }, { who: 'p:p1', role: 'rider', status: 'yes', car: 'h:h1' }, { who: 'p:p3', role: 'rider', status: 'yes', car: '' }] }
   ];
   const v = teamView({ ...sample, team: { ...sample.team, tasksContact: { name: 'Sarah', phone: '0499 000 000' } }, helpers, tasks });
   const text = JSON.stringify(v);
-  for (const secret of ['Rachel', '0400 111 222', 'Mia’s mum', 'has a ute', 'h:h1', 'p:p1', 'p:p2', '"who"', '"people"', 'helpers']) {
+  for (const secret of ['Rachel', '0400 111 222', 'Mia’s mum', 'has a ute', 'h:h1', 'p:p1', 'p:p2', 'p:p3', '"who"', '"people"', 'helpers', '"via"']) {
     assert.ok(!text.includes(secret), `team view leaked "${secret}"`);
   }
-  assert.deepEqual(v.tasks[0], { id: 't1', title: 'Run the BBQ', kind: 'bbq', date: '2027-03-20', start: '08:00', place: 'Coffs', notes: 'Bring tongs', need: 3, spots: ['taken', 'done'] });
-  assert.deepEqual(v.tasks[1].lift, { cars: [{ seats: 4, taken: 1, done: false }], riders: 2, waiting: 1 });
+  assert.deepEqual(v.tasks[0], { id: 't1', title: 'Run the BBQ', kind: 'bbq', date: '2027-03-20', start: '08:00', place: 'Coffs', notes: 'Bring tongs', need: 3, spots: ['confirmed', 'done', 'invited'] });
+  assert.deepEqual(v.tasks[1].lift, { cars: [{ seats: 4, taken: 1, done: false, confirmed: true }], riders: 2, waiting: 1, tentative: 0 });
   assert.deepEqual(v.team.tasksContact, { name: 'Sarah', phone: '0499 000 000' });
 });
 

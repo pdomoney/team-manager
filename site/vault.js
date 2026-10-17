@@ -98,16 +98,21 @@ export async function openFile(file, cred, role) {
 
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => o && o[k] !== undefined).map(k => [k, o[k]]));
 
+// A task as players see it: what, when and where, and how each spot stands (done, confirmed, or
+// invited and awaiting a reply), with no names. A lift only says how many cars and seats are
+// confirmed and how many riders have a seat, are waiting on a driver's reply, or have none.
 function taskForTeam(t) {
-  const base = pick(t, ['id', 'title', 'kind', 'date', 'start', 'end', 'place', 'sessionId', 'notes', 'need']);
-  const live = (Array.isArray(t.people) ? t.people : []).filter(p => p && p.status !== 'no');
+  const base = pick(t, ['id', 'title', 'kind', 'date', 'start', 'end', 'place', 'sessionId', 'matchId', 'notes', 'need', 'cancelled']);
+  const people = (Array.isArray(t.people) ? t.people : []).filter(p => p && typeof p === 'object');
   if (t.kind === 'lift') {
-    const drivers = live.filter(p => p.role === 'driver'), riders = live.filter(p => p.role !== 'driver');
-    const cars = drivers.map(dr => ({ seats: Number(dr.seats) || 0, taken: riders.filter(r => r.car === dr.who).length, done: dr.status === 'done' }));
-    const seated = riders.filter(r => drivers.some(dr => dr.who === r.car)).length;
-    return { ...base, lift: { cars, riders: riders.length, waiting: riders.length - seated } };
+    const ok = d => d.status === 'yes' || d.status === 'done';
+    const drivers = people.filter(p => p.role === 'driver' && p.status !== 'no'), riders = people.filter(p => p.role !== 'driver' && p.status !== 'no');
+    const cars = drivers.map(dr => ({ seats: Number(dr.seats) || 0, taken: riders.filter(r => r.car === dr.who).length, done: dr.status === 'done', confirmed: ok(dr) }));
+    const seated = riders.filter(r => drivers.some(dr => dr.who === r.car && ok(dr))).length;
+    const tentative = riders.filter(r => drivers.some(dr => dr.who === r.car && !ok(dr))).length;
+    return { ...base, lift: { cars, riders: riders.length, waiting: riders.length - seated - tentative, tentative } };
   }
-  return { ...base, spots: live.map(p => p.status === 'done' ? 'done' : 'taken') };
+  return { ...base, spots: people.filter(p => p.role !== 'rider' && p.status !== 'no').map(p => p.status === 'done' ? 'done' : p.status === 'yes' ? 'confirmed' : 'invited') };
 }
 
 // The players' copy. Anything not listed here stays in the coach's file only.

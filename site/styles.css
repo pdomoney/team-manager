@@ -281,7 +281,8 @@ form.sys-form textarea{min-height:0}
 .spot-line{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
 .spots{display:inline-flex;gap:4px;flex-wrap:wrap}
 .spot{width:14px;height:14px;border-radius:50%;display:inline-block}
-.spot.taken{background:var(--pitch)}
+.spot.taken,.spot.confirmed{background:var(--pitch)}
+.spot.invited{border:2px solid var(--warn);background:var(--paper);box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 7px var(--warn)}
 .spot.done{background:var(--ok);box-shadow:inset 0 0 0 3px var(--ok),inset 0 0 0 7px #fff}
 .spot.open{border:2px dashed #93A096;background:var(--paper)}
 .open-t{color:var(--tag);font-weight:700}
@@ -312,14 +313,39 @@ form.sys-form textarea{min-height:0}
 form.task-form textarea{min-height:0}
 .rot-people{max-height:260px;overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px 2px}
 .rot-p{margin-bottom:8px;font-weight:500}
-.helped-row{display:grid;grid-template-columns:minmax(0,1fr) 52px 96px 52px;gap:6px;padding:9px 12px;border-top:1px solid var(--line);align-items:center}
+.helped-row{display:grid;grid-template-columns:minmax(0,1fr) repeat(4,minmax(44px,62px));gap:6px;padding:9px 12px;border-top:1px solid var(--line);align-items:center}
 .helped-row:first-child{border-top:0}
 .helped-row > :not(:first-child){text-align:center}
 .helped-h{font-size:13px;color:var(--muted);font-weight:600}
 .hn{min-width:0}
 .hn .tagline{display:block;font-size:12px;font-weight:600;color:var(--muted)}
 .tabs.many button{font-size:11px}
+.sess.task.cancelled .t{text-decoration:line-through;color:var(--muted)}
+.task-stats{margin-bottom:12px}
+.task-stats .stat b small{font-size:16px;color:var(--muted)}
+.task-stats .stat span{display:block;line-height:1.2}
+.tagline.msg-prepared{display:block;color:var(--warn)}
+.tagline.msg-sent{display:block;color:var(--ok)}
 @media (max-width:340px){.tabs.many button{font-size:10px}}
+
+/* Did the WhatsApp message go? */
+.ask{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);z-index:55;width:min(560px,calc(100% - 24px));background:var(--ink);color:#fff;border-radius:14px;padding:12px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;box-shadow:0 8px 28px rgba(0,0,0,.3)}
+.ask-text{flex:1 1 220px;display:flex;flex-direction:column;gap:2px}
+.ask-text .small{color:rgba(255,255,255,.8)}
+.ask-btns{display:flex;gap:8px}
+.ask .btn:not(.primary){background:transparent;color:#fff;border-color:rgba(255,255,255,.5)}
+body.wide .ask{bottom:24px}
+
+/* Comparing copies, and linked tasks */
+.diff-list{margin:0 0 6px;padding-left:20px;font-size:15px}
+.diff-list li{margin:0 0 4px}
+.diff-pick{border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:8px 12px 0;margin:0 0 10px}
+.diff-pick legend{font-weight:600;padding:0 4px}
+.diff-pick .check{margin-bottom:8px;font-weight:500}
+fieldset.plain{border:0;margin:0;padding:0;min-width:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.err{display:block;color:var(--bad)!important;font-weight:600;margin-top:4px}
+[aria-invalid="true"]{border-color:var(--bad)!important;box-shadow:0 0 0 2px var(--bad-soft)}
 
 /* Messages */
 textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--paper);font-size:16px;line-height:1.45;resize:vertical;min-height:200px}
