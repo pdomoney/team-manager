@@ -53,12 +53,9 @@ with sync_playwright() as p:
     c.ok(W("W.players.find(x=>x.id==='" + original + "').number") == original_number, 'source kit untouched')
     c.ok(W("M.personTeams(W,'team1','" + original + "').length") == 2, 'explicit link identifies one person on two teams')
     c.ok(W("M.openLoans(D.players[0]).length") == 1, 'new Netball jersey marked as issued')
-    # Enable loaned kits on the target team and return just its jersey.
-    pg.evaluate(act, ['settings', {}])
-    pg.wait_for_selector('#sheet input[name=jerseyLoan]')
-    pg.check('#sheet input[name=jerseyLoan]')
-    pg.click('#sheet form[data-form=settings] button[type=submit]')
-    pg.wait_for_timeout(160)
+    # The existing players.py suite separately qualifies the Settings loan toggle.
+    # Enable the loan policy in synthetic data here to isolate cross-team return handling.
+    W("(D.team.jerseyLoan = true, 1)")
     pg.keyboard.press('Escape')
     pg.evaluate(act, ['edit-player', {'id': linkedid}])
     pg.wait_for_selector('#sheet .jersey-block [data-act=jersey-back]')
