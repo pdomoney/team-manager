@@ -66,7 +66,7 @@ const NAV = [
   { id: 'team', label: 'Team', icon: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.5c2.5.1 4.2 1.8 5 5"/>',
     views: [['squad', 'Squad'], ['tasks', 'Tasks'], ['helpers', 'Helpers', true], ['tally', 'Tally', true]] },
   { id: 'tactics', label: 'Tactics', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14M5 5.5h14M5 18.5h14"/>',
-    views: [['field', 'Lineup'], ['plays', 'Plays'], ['library', 'Library', true]] },
+    views: [['field', 'Lineup'], ['plays', 'Plays'], ['rules', 'Rules'], ['library', 'Library', true]] },
   { id: 'more', label: 'More', icon: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
     views: [['more', 'More'], ['club', 'Club'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['teams', 'Clubs and teams', true], ['notices', 'Notices']] }
 ];
@@ -133,8 +133,8 @@ function defaultData() {
       eventStart: '2027-03-19', eventEnd: '2027-03-21',
       venue: 'C.ex Coffs International Stadium, Coffs Harbour',
       trainingVenue: '', trainingStart: '18:00', trainingEnd: '19:30',
-      maxMales: 4, positions: ['Wing', 'Link', 'Rover', 'Middle'],
-      clubId: '', division: '', category: 'mixed', ageGroup: '', season: '', colours: '', staff: [],
+      maxMales: '', positions: ['Wing', 'Link', 'Rover', 'Middle'],
+      clubId: '', division: '', category: 'mixed', ageGroup: '', season: '', colours: '', staff: [], rules: '', bylaws: [],
       field: { ...FIELD_DEFAULTS }, tasksContact: { name: '', phone: '' }
     },
     players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [], plays: starterPlays(), playerSets: [], systems: {}, tasks: [], helpers: [], matches: [],
@@ -188,6 +188,7 @@ function normalize(d) {
   out.systems = obj(out.systems);
   out.team.tasksContact = { name: '', phone: '', ...obj(out.team.tasksContact) };
   out.team.staff = arr(out.team.staff).filter(x => x && typeof x === 'object');
+  out.team.bylaws = arr(out.team.bylaws).filter(x => x && typeof x === 'object').map(M.normBylaw);
   out.tasks.forEach(t => { t.people = arr(t.people); t.cancelled = !!t.cancelled; });
   out.matches.forEach(m => { m.rsvp = obj(m.rsvp); m.result = obj(m.result); if (!M.MATCH_STATUS[m.status]) m.status = 'scheduled'; });
   renameHalfToRover(out);
@@ -208,6 +209,7 @@ function normalizeTeam(t) {
   out.team.tasksContact = { name: '', phone: '', ...obj(out.team.tasksContact) };
   out.club = t && t.club && typeof t.club === 'object' ? t.club : null;
   out.staff = arr(out.staff);
+  out.team.bylaws = arr(out.team.bylaws).filter(x => x && typeof x === 'object').map(M.normBylaw);
   if (!out.lineups.length) out.lineups = base.lineups;
   renameHalfToRover(out);
   toPairedLayout(out);
@@ -230,7 +232,8 @@ const S = {
   dirty: false, publishing: false, again: false,
   pub: 'idle', pubMsg: '', lastPublished: null,
   teamLocks: {},         // each team's players' lock, by team id
-  teamFile: null         // player: which team file this phone opened
+  teamFile: null,        // player: which team file this phone opened
+  watch: undefined       // coach: the Rules watch results, loaded once per visit
 };
 let ws = null;        // coach: every team and the library
 let data = null;      // coach: the team on screen (inside ws)
@@ -564,6 +567,7 @@ function render() {
   $('#team-title').innerHTML = multiTeam() && !state.preview ? `<button class="team-btn" data-act="team-switch" aria-haspopup="dialog" aria-label="${esc(V.team.name)}. Switch team">${esc(V.team.name || 'Team')}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : esc(V.team.name || 'Team Manager');
   document.title = V.team.name || 'Team Manager';
   $('#menu-btn').hidden = false;
+  renderBell(); loadWatch();
   const cd = countdown(), chip = $('#days-chip');
   if (cd && cd.state === 'before') { chip.hidden = false; chip.innerHTML = `<b>${cd.days}</b> day${cd.days === 1 ? '' : 's'}`; chip.title = `Days until ${V.team.event}`; }
   else if (cd && cd.state === 'during') { chip.hidden = false; chip.innerHTML = '<b>Game day</b>'; }
@@ -579,7 +583,7 @@ function render() {
 const VIEWS = {
   home: () => viewHome(), agenda: () => viewAgenda(), training: () => viewSchedule(), matches: () => viewMatches(), attendance: () => viewAttendance(),
   squad: () => viewSquad(), tasks: () => viewTaskList(), helpers: () => viewHelpers(), tally: () => viewHelped(),
-  field: () => viewField(), plays: () => viewPlays(), library: () => viewLibrary(),
+  field: () => viewField(), plays: () => viewPlays(), rules: () => viewRules(), library: () => viewLibrary(),
   more: () => viewMore(), club: () => viewClub(), messages: () => viewMessages(), reports: () => viewReports(), teams: () => viewTeams(), notices: () => viewNotices()
 };
 const navOf = tab => NAV.find(g => g.views.some(v => v[0] === tab)) || NAV[0];
@@ -635,7 +639,7 @@ setInterval(() => { if (S.role === 'coach' && !S.publishing) renderStatus(); }, 
 
 /* ---------- Lock screen and setup ---------- */
 function renderLock() {
-  $('#tabs').hidden = true; $('#status').hidden = true; $('#days-chip').hidden = true; $('#menu-btn').hidden = true;
+  $('#tabs').hidden = true; $('#status').hidden = true; $('#days-chip').hidden = true; $('#menu-btn').hidden = true; $('#bell-btn').hidden = true;
   $('#team-title').textContent = 'Team Manager';
   const coach = state.lockMode === 'coach';
   const draft = readDraft();
@@ -753,6 +757,8 @@ function viewHome() {
 // What needs the coach's attention in the next four weeks, most urgent first, each a tap away.
 function homeAttention() {
   const today = todayISO(), o = M.outstanding(data, today), items = [];
+  const rn = rulesUnseen();
+  if (rn.length) items.push(['rules-review', 'Rules updated: check what it affects', `Rule set version ${rn[0].pack}, ${fmtDay(rn[0].date)}`]);
   const ev = x => x.kind === 'match' ? matchById(x.id) : sessionById(x.id);
   o.rsvp.slice(0, 3).forEach(x => { const e = ev(x); items.push([`rsvp-open" data-k="${x.kind}" data-id="${x.id}`, `${x.missing} availability repl${x.missing === 1 ? 'y' : 'ies'} missing`, `${x.kind === 'match' ? `vs ${e.opponent || 'TBC'}` : 'Training'}, ${fmtDay(x.date)}`]); });
   o.noLineup.slice(0, 2).forEach(id => { const m = matchById(id); items.push([`match-open" data-id="${id}`, 'Match lineup not made', `vs ${m.opponent || 'TBC'}, ${fmtDay(m.date)}`]); });
@@ -1039,7 +1045,7 @@ function viewField() {
   const lu = curLineup(); state.lineupId = lu.id;
   const onField = lu.slots.map(s => playerById(s.playerId)).filter(Boolean);
   const males = onField.filter(p => p.gender === 'M').length, females = onField.filter(p => p.gender === 'F').length;
-  const max = Number(V.team.maxMales) || 4;
+  const max = M.maxMalesOf(V.team, curClub());
   const bench = sortedPlayers().filter(p => !onField.includes(p));
   const coach = isCoach(), sys = curSystem(), ownSpots = sys && sys.pos;
   return `<div class="cols lineup-cols"><div class="lineup-ctrl">
@@ -1163,6 +1169,7 @@ function zigzagSVG(F) {
 const JOB_GROUPS = ['Middles', 'Rovers', 'Links', 'Wings'];
 const SYSTEMS = [
   { id: 'exit', group: 'Attack', name: 'Exit set', title: 'Exit set: out of our red zone', flip: true,
+    rules: ['oztag.set', 'oztag.kick.allowed', 'oztag.kick.height', 'oztag.kick.touch'],
     when: 'We have the ball inside our {z}. Get out safely, then kick long on tag 5 or 6.',
     pos: { RM: [25, 64], LM: [19.2, 67.2], RR: [31.6, 68.8], LR: [13.6, 70.6], LL: [6.2, 72.8], LW: [3, 64.4], RL: [38.8, 72.4], RW: [47, 64.4] },
     marks: [
@@ -1182,7 +1189,7 @@ const SYSTEMS = [
       'Aim to be out of our red zone by tag 3.',
       'Tag 5: exit kick if we’ve made under 20 m this set. Tag 6: exit kick, always, unless we’re clear.',
       'Kick long and low so it bounces and rolls. Out on the full gives them the ball where we kicked it.',
-      'Before the first tag (say, after scooping up a loose ball) a kick is allowed too. Use it if their back field is empty.'
+      'A kick is legal on any tag, with both tags on. Kick early only if their back field is empty: otherwise keep the ball until tag 5 or 6.'
     ],
     jobs: {
       Middles: 'Hard, straight carries on tags 1–3, then a fast play-the-ball. Nearest Middle plays dummy half.',
@@ -1191,6 +1198,7 @@ const SYSTEMS = [
       Wings: 'Stay wide. Chase the kick: onside behind the kicker, then up together.'
     } },
   { id: 'good', group: 'Attack', name: 'Good ball', title: 'Attack in good ball', flip: true,
+    rules: ['oztag.set', 'oztag.dummyhalf', 'oztag.kick.allowed'],
     when: 'Between halfway and their {z}. Tags 1–4 build the pressure; tags 5–6 cash it in.',
     pos: { RM: [26.2, 33], LM: [20.4, 36.4], LR: [14.2, 40.4], LL: [8, 45.6], LW: [2.8, 53.2], RR: [32.4, 39.4], RL: [39, 45], RW: [47, 51.8] },
     plays: ['quickie-out', 'quickie-in', 'ninja', 'out-the-back', 'hands-inside', 'hands-outside'],
@@ -1211,7 +1219,8 @@ const SYSTEMS = [
       'Fix a defender before every pass, and attack the inside shoulder.',
       'Hold width and depth: Wings on the touch line until the ball comes; receivers start deep and run onto it.',
       'Decoys must look like they’ll get the ball, every time.',
-      'Tags 5–6: run the play. Kick on 5 only if their back field is empty; on 6, a long, low kick into space or to bounce into touch near their {z}.'
+      'Tags 5–6: run the play. Kick on 5 only if their back field is empty; on 6, a long, low kick into space or to bounce into touch near their {z}.',
+      'A kick is legal on any tag. If their Wings come up flat early in the set, a grubber in behind is on.'
     ],
     jobs: {
       Middles: 'Hard, straight runs at the gaps beside the marker on tags 1–3. Nearest plays dummy half; after playing the ball, loop around as the extra runner.',
@@ -1232,7 +1241,8 @@ const SYSTEMS = [
     ],
     jobs: null },
   { id: 'strike', group: 'Attack', name: 'Their red zone', title: 'Attack their red zone', flip: true,
-    when: 'Inside their {z}. Build on tags 1–4; score on 5 or 6, or win a line drop-out.',
+    rules: ['oztag.kick.overline', 'oztag.mixed.try', 'oztag.scoring'],
+    when: 'Inside their {z}. Build on tags 1–4; score on 5 or 6.',
     pos: { RM: [25.6, 17.4], LM: [20, 20.8], RR: [31.6, 23], RL: [37.8, 19.4], RW: [47.6, 22.6], LR: [13.8, 24], LL: [8, 29.4], LW: [2.6, 23.4] },
     plays: ['out-the-back', 'wrap-block', 'back-inside-block'],
     marks: [
@@ -1243,15 +1253,16 @@ const SYSTEMS = [
       { t: 'run', who: 'LM', pts: [[0, 0], [2.6, 5.4], [8.6, 9.2], [15.6, 9.2], [20.4, 6.4], [22.6, 0.2], [23.4, -10.4]], curve: true, key: true },
       { t: 'run', who: 'RW', d: [0.2, -12.8] },
       { t: 'kick', who: 'RR', pts: [[0.2, -6], [-3, -20.4]] },
-      { t: 'text', at: [27.4, 9.6], text: 'Shut down? Grubber\nto die over the line', a: 'e' },
+      { t: 'text', at: [27.4, 9.6], text: 'Shut down? Grubber\nfor the chasers', a: 'e' },
       { t: 'text', at: [32, 34.2], text: 'Out the back:\ndummy half loops' }
     ],
     points: [
       'Tags 1–4: keep building. Hard Middles, fast play-the-ball, count the numbers.',
       'Tag 5: our strike play, or the early grubber while their sweeper is still in the line.',
-      'Tag 6: the best play for the spot. Shut down? Grubber to die over their line for a line drop-out.',
-      'Finish in a female player’s hands where we can, with the males as decoys (2 points, if the State Cup by-law holds).',
-      'Score standing up, or ground it after crossing. Diving short with a defender close counts as a tag.',
+      'Tag 6: the best play for the spot. Shut down? A grubber in behind for our chasers to ground: a try.',
+      'If the grubber goes dead untouched, it’s their tap 10 m out. If one of them touches it first and it goes dead, it’s their drop-out: our ball back.',
+      'Finish in a female player’s hands where we can, with the males as decoys: a female try is worth 2 points, a male try 1.',
+      'Score standing up when you can. Diving to score is allowed, but never over or under a defender.',
       'Once they cover our female finishers, the same play works with the ball staying in a decoy’s hands.'
     ],
     jobs: {
@@ -1261,41 +1272,44 @@ const SYSTEMS = [
       Wings: 'Stay wide until the ball comes and finish in the corner. Chase every grubber.'
     } },
   { id: 'kick', group: 'Kick', name: 'When to kick', title: 'When to kick',
-    when: 'Kicks come on tags 5–6. Where we are on the field decides which one.',
+    rules: ['oztag.kick.allowed', 'oztag.kick.height', 'oztag.kick.tags', 'oztag.kick.chase', 'oztag.kick.regather', 'oztag.kick.overline', 'oztag.kick.5010', 'oztag.kick.touch'],
+    when: 'A kick is legal on any tag, but we usually keep it for tag 5 or 6. Where we are on the field decides which one.',
     pos: 'none',
     table: [
-      ['Their red zone', 'Grubber behind a flat or rushing line', 'Run the play; grubber for the drop-out if it’s shut down'],
+      ['Their red zone', 'Grubber behind a flat or rushing line', 'Run the play; grubber for the chasers if it’s shut down'],
       ['Midfield', 'Only if their back field is empty', 'Long, low kick into space, or to bounce into touch near their {z}'],
-      ['Our half', 'Exit kick if we’ve made under 20 m this set', 'Exit kick, always, unless we’re clear']
+      ['Our half', 'Exit kick if we’ve made under 20 m this set', 'Exit kick, always, unless we’re clear. A 50/10 if their Wings are up']
     ],
     marks: [
       { t: 'band', zone: 'theirs' }, { t: 'band', zone: 'good', soft: true }, { t: 'band', zone: 'half' },
       { t: 'text', at: [2, 10.2], text: 'THEIR RED ZONE', a: 's', cls: 'h' },
-      { t: 'text', at: [2, 12.8], text: 'Tag 5: grubber behind a flat line\nTag 6: play, or grubber for the drop-out', a: 's' },
+      { t: 'text', at: [2, 12.8], text: 'Tag 5: grubber behind a flat line\nTag 6: play, or a grubber', a: 's' },
       { t: 'kick', pts: [[44.6, 23], [43.4, 2.6]] },
-      { t: 'text', at: [42.2, 10.2], text: 'Rolls over:\nline drop-out', a: 'e' },
+      { t: 'text', at: [42.2, 10.2], text: 'Ground it: try.\nDead, untouched:\ntheir tap 10 m out', a: 'e' },
       { t: 'text', at: [2, 24.4], text: 'MIDFIELD', a: 's', cls: 'h' },
       { t: 'text', at: [2, 27], text: 'Tag 5: only if their back field is empty\nTag 6: long and low, to space or touch', a: 's' },
       { t: 'kick', pts: [[33, 38], [44.4, 30.4]] }, { t: 'roll', pts: [[44.4, 30.4], [50.6, 27]] },
       { t: 'text', at: [2, 44.4], text: 'OUR HALF', a: 's', cls: 'h' },
       { t: 'text', at: [2, 47], text: 'Tag 5: exit kick if we’ve made under 20 m\nTag 6: exit kick, always, unless we’re clear', a: 's' },
       { t: 'kick', pts: [[38, 68], [41.6, 49.6]] }, { t: 'roll', pts: [[41.6, 49.6], [42.6, 42.4]] },
-      { t: 'text', at: [25, 71.6], text: 'Tags 1–4: no kicks (except before the first tag)' }
+      { t: 'text', at: [25, 71.6], text: 'Tags 1–4: legal, but only if their back field is empty' }
     ],
     points: [
-      'No kicks on tags 1–4, except before the first tag of a set.',
-      'Low only: no higher than the referee’s shoulder. Grubbers and long, low kicks.',
-      'A kick that rolls over their try line, touched or not, is a line drop-out: the ball back on their line.',
+      'Kicking is legal on any tag, but only with both tags on. The dummy half and a penalty tap can kick with one tag or none, with one step.',
+      'Low only: no higher than the referee’s shoulder off the boot. No drop kicks. Grubbers and long, low kicks.',
+      'Over their try line: ground it for a try. Dead and untouched: their tap 10 m out, centre field. Touched by them first: their drop-out, our ball back.',
       'Bounce it into touch: their ball 10 m in from where it went out. Out on the full: their ball where we kicked it.',
-      'Chase as a line, starting behind the kicker. We can’t dive on our own kick, but we can kick it on.',
+      '50/10: kicked from our half, it bounces in and goes out within 10 m of their try line: our tap 10 m in and 10 m out.',
+      'Chase as a line, starting behind the kicker: anyone in front is offside until they’ve gone 10 m or the kicker passes them. No diving on the ball. A regather is a zero tag, and the kicker can’t kick it again.',
       'Don’t kick with a clear overlap, or into their best runner’s hands. A kick with no chase is a turnover.'
     ],
     jobs: {
       Rovers: 'Our main kickers. Look for the space behind their line on tag 5.',
       Wings: 'Chase every kick, close to the touch line.'
     } },
-  { id: 'up', group: 'Defence', name: 'Defence up', title: 'Defence: Up (tags 2–4)', defence: true,
-    when: 'Tags 2–4: they can’t kick, so we rush up together.',
+  { id: 'up', group: 'Defence', name: 'Defence up', title: 'Defence: Up (early in their set)', defence: true,
+    rules: ['oztag.defence.distance', 'oztag.defence.moves', 'oztag.marker', 'oztag.kick.allowed'],
+    when: 'Early in their set: we rush up together. They can kick on any tag, so the Wings stay a step deep.',
     pos: { LM: [22, 26], LW: [3.2, 32.6], LL: [9.4, 31], LR: [15.6, 32.4], RM: [28.4, 31], RR: [34.6, 32.4], RL: [40.8, 31], RW: [47, 32.6] },
     marks: [
       { t: 'opp', pts: [[20.4, 18.8], [14.8, 16.2], [29, 16.2], [8.6, 13.6], [35.4, 13.6], [3, 11.2], [41.8, 11.2], [47, 9]] },
@@ -1310,16 +1324,18 @@ const SYSTEMS = [
       'Stay square, feet set before the carrier arrives. Inside shoulder first: never beaten on the inside.',
       'Marker: square, 1 m in front of the play-the-ball. Never chase the ball.',
       'Match their numbers: count attackers each side and push or pull a defender across before the ball is played.',
-      'Tag with intent: on the hip they’re running toward. Hold it up, drop it at the mark, get back 7 m.'
+      'Tag with intent: on the hip they’re running toward. Hold it up, drop it at the mark, get back 7 m.',
+      'A kick can come on any tag: Wings turn early when the kicker shapes, and the far Wing covers in behind.'
     ],
     jobs: {
       Middles: 'Nearest Middle is the marker: square, 1 m in front, a mini line with the other Middle. Never beaten inside.',
       Rovers: 'Lead the line speed. The open-side Rover calls “Up” and counts the numbers.',
       Links: 'Square, inside shoulder first. Track your runner; don’t bite on decoys.',
-      Wings: 'In the line, a step deep. Call the edge numbers. Come up and in only on a call.'
+      Wings: 'In the line, a step deep for the kick in behind. Call the edge numbers. Come up and in only on a call.'
     } },
   { id: 'slide', group: 'Defence', name: 'Defence slide', title: 'Defence: Slide (tags 5–6)', defence: true, flip: true,
-    when: 'Tags 5–6, and anywhere inside our {z}: the kick and the wide shift are the threats.',
+    rules: ['oztag.defence.moves', 'oztag.marker', 'oztag.kick.overline'],
+    when: 'Tags 5–6, and anywhere inside our {z}: the kick and the wide shift are the biggest threats.',
     pos: { LM: [17, 26], LW: [3.4, 32.6], LL: [10, 31], RM: [23.4, 31], RR: [29.6, 32.4], RL: [35.8, 31], RW: [43.2, 33.6], LR: [25.4, 46] },
     marks: [
       { t: 'opp', pts: [[15.4, 18.8], [9.4, 16.2], [3.4, 13.8], [23.4, 16.2], [30, 14.4], [36.6, 13.2], [43.2, 12.2], [48, 11.4]] },
@@ -1336,7 +1352,7 @@ const SYSTEMS = [
       'The open side slides toward the ball, staying on the inside of the carrier. The touch line is our 9th defender.',
       'Marker: same job. The second Middle covers the dummy half’s run.',
       'Wings a step deeper on tag 5; turn early for grubbers. Inside our 10 m, come up and in to shut the last pass.',
-      'Never let a grubber roll over our line: that’s their line drop-out. Pick it up clean; no diving.'
+      'Grubber into our in-goal: pick it up clean, or let it go dead untouched for our tap 10 m out. Touch it and let it go dead and it’s our drop-out: their ball back. No diving on it.'
     ],
     jobs: {
       Middles: 'Same marker job. The second Middle covers the dummy half’s run.',
@@ -2346,6 +2362,7 @@ function openPlayEditor(play) {
       <label class="field-l"><span>Headline</span><input type="text" name="headline" value="${esc(draft.headline)}" placeholder="What the play does, in one line"></label>
       <label class="field-l"><span>When to use it</span><input type="text" name="when" value="${esc(draft.when)}" placeholder="e.g. Tag 5 inside their 14 m"></label>
       <label class="field-l"><span>Steps, one per line</span><textarea name="steps" rows="6" placeholder="Use LW, LL, LR, LM, RM, RR, RL, RW so the left version swaps them automatically.">${esc(draft.steps)}</textarea></label>
+      ${playRulesField(draft)}
     </div>
     <div id="ped-diagram" class="ped-diagram">
       <div class="ped-phases" id="ped-phases"></div>
@@ -3584,6 +3601,7 @@ function teamDetailsFields(T) {
       <label class="field-l"><span>Division</span><input type="text" name="division" value="${esc(T.division)}" placeholder="e.g. Mixed 20s"></label></div>
     <div class="two"><label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${T.category === k ? 'selected' : ''}>${l}</option>`).join('')}</select><small>Mixed turns on the males-on-field check.</small></label>
       <label class="field-l"><span>Age group</span><input type="text" name="ageGroup" value="${esc(T.ageGroup)}" placeholder="e.g. 20 and over, Under 16"></label></div>
+    ${ruleSetField(T)}
     <div class="two"><label class="field-l"><span>Season</span><input type="text" name="season" value="${esc(T.season)}" placeholder="e.g. 2026–27"></label>
       <label class="field-l"><span>Team colours</span><input type="text" name="colours" value="${esc(T.colours)}" placeholder="Blank: the club’s"></label></div>
     <h3 class="form-sec">Team staff</h3>
@@ -3605,7 +3623,7 @@ function teamForm() {
       <label class="field-l"><span>Starts</span><input type="date" name="eventStart" value="${esc(T.eventStart)}"></label>
       <label class="field-l"><span>Ends</span><input type="date" name="eventEnd" value="${esc(T.eventEnd)}"></label>
     </div>
-    <label class="check"><input type="checkbox" name="copySettings" checked><span>Copy ${esc(T.name)}’s training times, venue, field and mixed rules</span></label>
+    <label class="check"><input type="checkbox" name="copySettings" checked><span>Copy ${esc(T.name)}’s training times, venue, field, rule set and by-laws</span></label>
     ${M.libItems(ws, 'plays').length || Object.keys(ws.library.systems).length ? `<label class="check"><input type="checkbox" name="withLibrary" checked><span>Add everything in the library</span></label>` : ''}
     ${S.trial ? '' : `<h3 class="form-sec">Team password</h3>
       <p class="muted small" style="margin-bottom:10px">For this team’s players only, different from every other password. Leave it blank and one is made for you; you can see it in Settings.</p>
@@ -3757,6 +3775,137 @@ function viewNotices() {
     ${V.notices.length ? `<div class="list">${V.notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p></div>`).join('')}</div>` : '<div class="empty"><p>No notices yet.</p></div>'}`;
 }
 
+/* ---------- Rules ---------- */
+// The official rule set the team plays to (the owner's, from rules.js), with the coach's own by-laws
+// on top. Updates to the official rules come with the app; the coach reviews what they affect.
+const RULE_VALUES = [['players', 'On the field'], ['minPlayers', 'Fewest to start'], ['maxMales', 'Most males on field'], ['interchange', 'Interchange'], ['set', 'Set'],
+  ['passes', 'Passes before the carrier may run'], ['defence', 'Defence back'], ['defenceMoves', 'Defence can move'], ['markers', 'Markers'], ['kicking', 'Kicking'],
+  ['tryPoints', 'Try'], ['field', 'Field'], ['game', 'Game'], ['sinBin', 'Sin bin']];
+function ruleValue(k, v, rs) {
+  if (k === 'set') return `${v} ${rs.values.setWord || 'tackles'}`;
+  if (k === 'defence' && typeof v === 'number') return `${v} m`;
+  if (k === 'tryPoints' && typeof v === 'number') return `${v} point${v === 1 ? '' : 's'}`;
+  return String(v);
+}
+// Which rules each starter play relies on (a coach can change this in the play's Words tab).
+const PLAY_RULES = {
+  'quickie-out': ['oztag.ptb', 'oztag.dummyhalf', 'oztag.defence.moves'], 'quickie-in': ['oztag.ptb', 'oztag.dummyhalf', 'oztag.defence.moves'],
+  'ninja': ['oztag.ptb', 'oztag.dummyhalf', 'oztag.marker'], 'out-the-back': ['oztag.dummyhalf', 'oztag.contact'],
+  'hands-inside': ['oztag.contact'], 'hands-outside': ['oztag.contact'], 'wrap-block': ['oztag.contact'], 'back-inside-block': ['oztag.contact']
+};
+const playRules = p => arr(p.rules).length ? p.rules : PLAY_RULES[p.id] || [];
+const curRules = () => M.teamRules(V.team, curClub());
+const rulesSeenKey = () => `tm-rules-seen:${S.teamFile || 'team'}`;
+// Rule updates not looked at yet: by the coach for this team (kept with the team), by a player on this phone.
+function rulesUnseen() {
+  const rs = V && curRules(); if (!rs) return [];
+  return M.rulesNew({ rulesSeen: isCoach() ? V.team.rulesSeen : Number(store.get(rulesSeenKey()) || 0) }, rs.sport);
+}
+const updatesList = () => [...rulesUnseen().map(c => ({ kind: 'pack', c })), ...(isCoach() ? M.sourceAlerts(S.watch).map(a => ({ kind: 'source', a })) : [])];
+function renderBell() {
+  const b = $('#bell-btn'); if (!b) return;
+  const n = updatesList().length;
+  b.hidden = false; b.classList.toggle('has', n > 0);
+  b.querySelector('.badge').textContent = n ? String(n) : '';
+  b.setAttribute('aria-label', n ? `Updates: ${n} new` : 'Updates');
+}
+// The Rules watch results, published with the site (coach only, once per visit).
+function loadWatch() {
+  if (S.role !== 'coach' || S.watch !== undefined) return;
+  S.watch = null;
+  fetchSite('rules-watch.json').then(w => {
+    if (!w || w.format !== 'rules-watch') return;
+    S.watch = w; renderBell(); if (state.tab === 'rules' && !state.sheet) render();
+  }).catch(() => { /* offline: try again next visit */ });
+}
+function viewRules() {
+  const rs = curRules(), coach = isCoach(), T = V.team;
+  if (!rs) return '<div class="empty"><p>No rule set chosen for this team.</p></div>';
+  const bylaws = arr(T.bylaws), replaced = new Map(bylaws.filter(b => b.replaces).map(b => [b.replaces, b]));
+  const unseen = rulesUnseen(), fresh = new Set(unseen.flatMap(c => arr(c.rules)));
+  const mm = M.maxMalesOf(T, curClub()), values = { ...rs.values };
+  if (values.maxMales != null) values.maxMales = mm;
+  const ruleOf = id => rs.rules.find(r => r.id === id);
+  const topics = [...new Set(rs.rules.map(r => r.topic))];
+  return `<div class="sec-h"><h2>Rules</h2>${coach ? '<button class="btn sm" data-act="settings">Change rule set</button>' : ''}</div>
+    <div class="card rules-head"><span class="sub">${esc(rs.sportName)}</span><h3>${esc(rs.name)}</h3>
+      ${rs.source ? `<p class="muted small">From the <a href="${esc(rs.source.url)}" target="_blank" rel="noopener">${esc(rs.source.title)}</a> (${esc(rs.source.edition)}). Each rule shows its number in the rule book.</p>` : ''}
+      ${rs.note ? `<p class="note">${esc(rs.note)}</p>` : ''}</div>
+    ${unseen.length ? `<div class="note rules-new" role="status"><b>Rules updated ${esc(fmtDay(unseen[0].date))}.</b> ${esc(unseen[0].notice || unseen[0].summary)}
+      <div class="btn-row">${coach ? '<button class="btn sm primary" data-act="rules-review">Review what it affects</button>' : '<button class="btn sm" data-act="rules-seen">Got it</button>'}</div></div>` : ''}
+    <section class="sec"><div class="sec-h"><h2>At a glance</h2></div>
+      <dl class="rule-values">${RULE_VALUES.filter(([k]) => values[k] != null && values[k] !== '').map(([k, l]) => `<div><dt>${esc(l)}</dt><dd>${esc(ruleValue(k, values[k], rs))}${k === 'maxMales' && mm !== Number(rs.values.maxMales) ? ' <span class="pill neutral">our by-law</span>' : ''}</dd></div>`).join('')}</dl></section>
+    ${bylaws.length || coach ? `<section class="sec"><div class="sec-h"><h2>Our by-laws</h2>${coach ? `<button class="btn sm" data-act="bylaw-add">${icon('plus', 18)}Add</button>` : ''}</div>
+      ${bylaws.length ? `<ul class="rule-list bylaws">${bylaws.map(b => { const r = b.replaces && ruleOf(b.replaces); return `<li><p>${esc(b.text)}</p><span class="ref">${esc(b.topic)}${r ? ` · in place of ${esc(r.ref)}` : ''}</span>${coach ? `<button class="btn sm" data-act="bylaw-edit" data-id="${esc(b.id)}" aria-label="Edit by-law: ${esc(b.text.slice(0, 40))}">Edit</button>` : ''}</li>`; }).join('')}</ul>`
+        : '<p class="muted small">Add your competition’s own rules: game length, kicking limits, points. They’re yours: rule updates never change them.</p>'}</section>` : ''}
+    ${topics.map(tp => `<section class="sec"><div class="sec-h"><h2>${esc(tp)}</h2></div><ul class="rule-list">${rs.rules.filter(r => r.topic === tp).map(r => { const b = replaced.get(r.id);
+      return `<li class="${b ? 'replaced' : ''}"><p>${esc(r.text)}</p><span class="ref">Rule ${esc(r.ref)}</span>${fresh.has(r.id) ? ' <span class="pill ok">Updated</span>' : ''}${b ? ' <span class="pill neutral">Our by-law applies instead</span>' : ''}</li>`; }).join('')}</ul></section>`).join('')}
+    ${coach ? rulesWatchPanel() : ''}
+    <p class="hint">Rule set version ${M.RULES.pack}, ${esc(fmtLong(M.RULES.updated))}. The app’s owner keeps the official rules up to date; check anything that matters on the day with your competition.</p>`;
+}
+function rulesWatchPanel() {
+  const w = S.watch, alerts = M.sourceAlerts(w), failed = w ? Object.entries(w.sources || {}).filter(([, x]) => x.error).map(([k]) => (M.RULES.sources[k] || {}).title || k) : [];
+  return `<section class="sec"><div class="sec-h"><h2>Rule book watch</h2></div>
+    <p class="muted small">${w ? `The rule books were last checked ${esc(fmtStamp(w.checkedAt))}.${alerts.length ? '' : ' No changes since the rules were checked against them.'}` : 'Once a week the app checks the official rule books for a new version. No results yet.'}</p>
+    ${alerts.map(a => `<p class="note">The ${esc(a.title)} changed (found ${esc(fmtDay(a.changedAt.slice(0, 10)))}). The owner is checking it; any rule change comes here as an update once approved.</p>`).join('')}
+    ${failed.length ? `<p class="muted small">Couldn’t check: ${esc(failed.join(', '))}.</p>` : ''}
+    ${ghReady() && !S.trial ? '<button class="btn sm" data-act="rules-check">Check the rule books now</button>' : ''}</section>`;
+}
+function ruleSetField(T) {
+  const club = M.clubOf(ws, data), auto = M.ruleSet(M.defaultRuleSet(T, club)), sets = M.ruleSetList();
+  const groups = [...new Set(sets.map(x => x.sportName))];
+  return `<label class="field-l"><span>Rule set</span><select name="rules"><option value="">Automatic: ${esc(auto.sportName)}, ${esc(auto.name)}</option>
+    ${groups.map(g => `<optgroup label="${esc(g)}">${sets.filter(x => x.sportName === g).map(x => `<option value="${esc(x.id)}" ${T.rules === x.id ? 'selected' : ''}>${esc(g)}, ${esc(x.name)}</option>`).join('')}</optgroup>`).join('')}</select>
+    <small>The official rules this team plays to. Automatic follows the club’s sport and the category. Add your competition’s by-laws in Tactics › Rules.</small></label>`;
+}
+function playRulesField(draft) {
+  const rs = M.teamRules(data.team, M.clubOf(ws, data)); if (!rs) return '';
+  const on = new Set(playRules(draft)), topics = [...new Set(rs.rules.map(r => r.topic))];
+  return `<details class="rule-pick"><summary>Rules this play relies on (${on.size})</summary><p class="hint">When one of these rules changes, you’ll be asked to check this play.</p>
+    ${topics.map(t => `<fieldset><legend>${esc(t)}</legend>${rs.rules.filter(r => r.topic === t).map(r => `<label class="check"><input type="checkbox" name="rules" value="${esc(r.id)}" ${on.has(r.id) ? 'checked' : ''}><span>${esc(r.text.length > 90 ? r.text.slice(0, 88) + '…' : r.text)} <span class="ref">${esc(r.ref)}</span></span></label>`).join('')}</fieldset>`).join('')}</details>`;
+}
+function openUpdates() {
+  const items = updatesList(), coach = isCoach();
+  openSheet('Updates', items.length ? `<div class="list">${items.map(it => it.kind === 'pack'
+    ? `<div class="notice"><span class="sub">Rules updated · ${esc(fmtDay(it.c.date))}</span><p>${esc(coach ? it.c.summary : it.c.notice || it.c.summary)}</p>
+        <div class="btn-row"><button class="btn sm primary" data-act="${coach ? 'rules-review' : 'rules-open'}">${coach ? 'Review what it affects' : 'See the rules'}</button></div></div>`
+    : `<div class="notice"><span class="sub">Rule book changed · ${esc(fmtDay(it.a.changedAt.slice(0, 10)))}</span><p>The ${esc(it.a.title)} has changed since the rules were last checked against it. The app’s owner is checking it; any rule change comes here once approved.</p>
+        <div class="btn-row"><button class="btn sm" data-act="tab" data-tab="rules">Rules</button></div></div>`).join('')}</div>`
+    : '<div class="empty"><p>You’re up to date. Rule updates and rule book changes show here.</p></div>', 'updates');
+}
+// Everything a rule update might affect: the game systems and the team's plays.
+const ruleItems = () => [...SYSTEMS.map(x => ({ kind: 'system', id: x.id, name: x.name, rules: x.rules || [] })),
+  ...data.plays.map(p => ({ kind: 'play', id: p.id, name: p.name, rules: playRules(p) }))];
+function openRulesReview() {
+  const rs = curRules(), changes = rulesUnseen();
+  if (!rs || !changes.length) { closeSheet(); toast('No rule updates to review'); return; }
+  const rv = M.ruleReview(changes, ruleItems(), data.team.bylaws), ruleOf = id => rs.rules.find(r => r.id === id);
+  const changed = rv.ids.map(ruleOf).filter(Boolean), many = rv.bylaws.length > 1;
+  openSheet('Rule update', `<form data-form="rules-review" novalidate>
+    ${changes.map(c => `<div class="notice"><span class="sub">Rule set version ${c.pack} · ${esc(fmtDay(c.date))}</span><p>${esc(c.summary)}</p></div>`).join('')}
+    <h3 class="form-sec">Rules that changed</h3>
+    ${changed.length ? `<ul class="rule-list">${changed.map(r => `<li><p>${esc(r.text)}</p><span class="ref">Rule ${esc(r.ref)}</span></li>`).join('')}</ul>` : '<p class="muted small">None in this team’s rule set.</p>'}
+    <h3 class="form-sec">Check these</h3>
+    ${rv.items.length ? `<div class="list">${rv.items.map(it => `<div class="row"><div class="row-main"><span class="grow"><span class="name" style="display:block">${esc(it.name)}</span><span class="sub" style="display:block;white-space:normal">${it.kind === 'system' ? 'Game system' : 'Play'} · relies on rule ${it.hit.map(id => esc((ruleOf(id) || {}).ref || id)).join(', ')}</span></span></div>
+      <button type="button" class="btn sm" data-act="review-${it.kind}" data-id="${esc(it.id)}" aria-label="Open ${esc(it.name)}">Open</button></div>`).join('')}</div>`
+      : '<p class="muted small">None of your plays or game systems rely on these rules.</p>'}
+    ${rv.bylaws.length ? `<p class="note">Your by-law${many ? 's' : ''} ${rv.bylaws.map(b => `“${esc(b.text)}”`).join(', ')} replace${many ? '' : 's'} a rule that changed. Check ${many ? 'they still apply' : 'it still applies'}.</p>` : ''}
+    <label class="check"><input type="checkbox" name="notice" checked><span>Post a notice to players</span></label>
+    <label class="field-l"><span>Notice</span><textarea name="noticeText" rows="3">${esc(`Rules update: ${changes[0].notice || changes[0].summary} See Tactics › Rules.`)}</textarea></label>
+    <div class="btn-row"><button class="btn primary" type="submit">Mark as reviewed</button></div></form>`, 'rules-review');
+}
+function bylawForm(b) {
+  const rs = curRules(); if (!rs) return;
+  const topics = [...new Set([...rs.rules.map(r => r.topic), 'Other'])];
+  openSheet(b ? 'Edit by-law' : 'New by-law', `<form data-form="bylaw" autocomplete="off" novalidate><input type="hidden" name="id" value="${esc(b ? b.id : '')}">
+    <p class="muted small" style="margin-bottom:12px">A rule from your competition that adds to or replaces the official ${esc(rs.sportName)} rules. Players see it on the Rules page.</p>
+    <label class="field-l"><span>Topic</span><select name="topic">${topics.map(t => `<option ${(b ? b.topic : 'Other') === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+    <label class="field-l"><span>The by-law</span><textarea name="text" rows="3" placeholder="e.g. Games are 2 × 15 minutes with a 2-minute break.">${esc(b ? b.text : '')}</textarea></label>
+    <label class="field-l"><span>Replaces an official rule</span><select name="replaces"><option value="">No, it adds to them</option>${rs.rules.map(r => `<option value="${esc(r.id)}" ${b && b.replaces === r.id ? 'selected' : ''}>${esc(r.ref)}: ${esc(r.text.length > 70 ? r.text.slice(0, 68) + '…' : r.text)}</option>`).join('')}</select>
+      <small>If that rule changes in an update, you’ll be asked to check this by-law.</small></label>
+    <div class="btn-row">${b ? `<button type="button" class="btn" data-act="bylaw-del" data-id="${esc(b.id)}">Remove</button>` : ''}<button class="btn primary" type="submit">Save</button></div></form>`, 'bylaw');
+}
+
 /* ---------- Settings ---------- */
 // Screen layout, kept on this device: Auto (wide on a computer or tablet), Phone, or Wide; and on a
 // wide screen, a comfortable width or the full width of the window.
@@ -3798,7 +3947,7 @@ function settingsBody() {
     </div>
     <p class="note">The 2027 dates are a placeholder. Check them against the official draw and update them here.</p>
     <label class="field-l"><span>Tournament venue</span><input type="text" name="venue" value="${esc(T.venue)}"></label>
-    <label class="field-l"><span>Max males on field</span><input type="number" name="maxMales" min="0" max="8" value="${esc(T.maxMales)}"><small>Mixed Oztag allows up to 4 of the 8 on field.</small></label>
+    <label class="field-l"><span>Max males on field</span><input type="number" name="maxMales" min="0" max="8" value="${esc(T.maxMales)}" placeholder="${M.maxMalesOf({ ...T, maxMales: '' }, M.clubOf(ws, data))}"><small>Leave blank to follow the rule set (${M.maxMalesOf({ ...T, maxMales: '' }, M.clubOf(ws, data))}). Change it only for a competition by-law.</small></label>
     <h3 class="form-sec">Team contact</h3>
     <p class="muted small" style="margin-bottom:10px">Who players and helpers reply to. “I can help” and replies about training and matches open WhatsApp with a message to this person. Everyone in the team can see this name and number.</p>
     <div class="two">
@@ -4348,7 +4497,7 @@ const actions = {
     const lu = curLineup(), sl = lu.slots.find(s => s.id === el.dataset.slot), pid = el.dataset.pid || null;
     if (pid) { const other = lu.slots.find(s => s.playerId === pid && s.id !== sl.id); if (other) other.playerId = sl.playerId; }
     sl.playerId = pid; save(); closeSheet(); render();
-    const max = Number(data.team.maxMales) || 4, males = lu.slots.filter(s => (playerById(s.playerId) || {}).gender === 'M').length;
+    const max = M.maxMalesOf(data.team, M.clubOf(ws, data)), males = lu.slots.filter(s => (playerById(s.playerId) || {}).gender === 'M').length;
     if (isMixed(data.team) && males > max) toast(`Heads up: ${males} males on field (max ${max})`);
   }),
   'lineup-new': coachOnly(() => { const name = prompt('Name for the new lineup', `Lineup ${data.lineups.length + 1}`); if (!name) return; const l = makeLineup(name.trim()); data.lineups.push(l); state.lineupId = l.id; save(); closeSheet(); render(); }),
@@ -4418,6 +4567,28 @@ const actions = {
   'club-new': coachOnly(() => { state.clubFor = state.sheet === 'settings' ? data.id : null; openSheet('New club', clubForm(null), 'club'); }),
   'club-edit': coachOnly(el => { const c = arr(ws.clubs).find(x => x.id === el.dataset.id); if (c) openSheet(`Edit ${c.name}`, clubForm(c), 'club'); }),
   'club-open': coachOnly(el => { state.clubId = el.dataset.id; goTo('club'); }),
+  'updates': () => openUpdates(),
+  'rules-review': coachOnly(() => openRulesReview()),
+  'rules-open': () => { store.set(rulesSeenKey(), String(M.RULES.pack)); goTo('rules'); },
+  'rules-seen': () => { store.set(rulesSeenKey(), String(M.RULES.pack)); render(); },
+  'review-system': el => { state.system = el.dataset.id; state.sysFlip = false; store.set('tm-field-system', state.system); goTo('field'); },
+  'review-play': el => { closeSheet(); state.tab = 'plays'; state.playId = el.dataset.id; state.playPhase = 0; history.replaceState(null, '', '#plays'); render(); window.scrollTo(0, 0); },
+  'bylaw-add': coachOnly(() => bylawForm(null)),
+  'bylaw-edit': coachOnly(el => bylawForm(arr(data.team.bylaws).find(b => b.id === el.dataset.id) || null)),
+  'bylaw-del': coachOnly(el => {
+    if (!confirm('Remove this by-law?')) return;
+    data.team.bylaws = arr(data.team.bylaws).filter(b => b.id !== el.dataset.id); save(); closeSheet(); render(); toast('By-law removed');
+  }),
+  'rules-check': coachOnly(async el => {
+    if (!ghReady() || S.trial) { toast('Connect GitHub in Settings first'); return; }
+    el.disabled = true;
+    try {
+      await new GitHub({ ...gh, workflow: 'rules-watch.yml' }).startPublish(gh.defaultBranch || 'main');
+      toast('Checking the rule books. The result shows here in about 5 minutes.');
+    } catch (e) {
+      toast(e.status === 403 || e.status === 404 ? 'Your GitHub token can’t start the Rules watch. Run it from the repository’s Actions tab, or give the token Actions: Read and write.' : (e.message || 'Couldn’t start the check'));
+    } finally { el.disabled = false; }
+  }),
   'club-del': coachOnly(el => {
     const c = arr(ws.clubs).find(x => x.id === el.dataset.id); if (!c) return;
     const n = M.clubTeams(ws, c.id).length;
@@ -4711,7 +4882,8 @@ document.addEventListener('submit', async e => {
     const t = normalize({ ...defaultData(), id: M.uid() });
     t.team.name = name; t.team.event = str('event'); t.team.eventStart = str('eventStart'); t.team.eventEnd = str('eventEnd');
     t.team.clubId = str('clubId'); t.team.division = str('division'); t.team.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
-    if (f.get('copySettings')) ['venue', 'trainingVenue', 'trainingStart', 'trainingEnd', 'maxMales', 'positions', 'field', 'tasksContact'].forEach(k => { t.team[k] = clone(data.team[k]); });
+    if (f.get('copySettings')) ['venue', 'trainingVenue', 'trainingStart', 'trainingEnd', 'maxMales', 'positions', 'field', 'tasksContact', 'rules', 'bylaws'].forEach(k => { t.team[k] = clone(data.team[k]); });
+    t.team.rulesSeen = M.RULES.pack;
     t.teamPass = pass; t.teamSalt = '';
     M.addTeam(ws, t);
     if (f.get('withLibrary')) ['plays', 'systems', 'playerSets'].forEach(k => M.libItems(ws, k).forEach(li => M.libAdd(ws, t, k, li.id)));
@@ -4803,10 +4975,26 @@ document.addEventListener('submit', async e => {
     dates.forEach(dt => data.sessions.push({ id: uid(), date: dt, ...fields, cancelled: false, attendance: {} }));
     save(); closeSheet(); render(); toast(dates.length > 1 ? `${dates.length} sessions added` : 'Training added');
   }
+  if (kind === 'rules-review') {
+    data.team.rulesSeen = M.RULES.pack;
+    const post = !!f.get('notice') && !!str('noticeText');
+    if (post) postNotice(str('noticeText'));
+    save(); closeSheet(); render(); toast(post ? 'Reviewed, and the notice is posted' : 'Marked as reviewed');
+    return;
+  }
+  if (kind === 'bylaw') {
+    if (!str('text')) { fieldError(form, 'text', 'Write the by-law first.'); return; }
+    const T = data.team, id = str('id'), b = M.normBylaw({ id: id || uid(), topic: str('topic'), text: str('text'), replaces: str('replaces') });
+    T.bylaws = arr(T.bylaws); const i = T.bylaws.findIndex(x => x.id === id);
+    if (i >= 0) T.bylaws[i] = b; else T.bylaws.push(b);
+    save(); closeSheet(); render(); toast('By-law saved');
+    return;
+  }
   if (kind === 'settings') {
     const T = data.team;
     T.name = str('name') || T.name; T.event = str('event'); T.eventStart = str('eventStart'); T.eventEnd = str('eventEnd');
-    T.venue = str('venue'); T.maxMales = Number(str('maxMales')) || 4;
+    T.venue = str('venue'); T.maxMales = str('maxMales') === '' ? '' : clamp(Math.round(Number(str('maxMales'))) || 0, 0, 8);
+    T.rules = M.ruleSet(str('rules')) ? str('rules') : '';
     T.clubId = arr(ws.clubs).some(c => c.id === str('clubId')) ? str('clubId') : '';
     T.division = str('division'); T.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
     T.ageGroup = str('ageGroup'); T.season = str('season'); T.colours = str('colours');
@@ -4857,6 +5045,7 @@ document.addEventListener('submit', async e => {
     const E = state.ped; if (!E) return;
     if (!str('name')) { toast('Give the play a name'); const n = form.querySelector('[name=name]'); if (n) n.focus(); return; }
     Object.assign(E.draft, { name: str('name'), category: str('category') || 'Other', headline: str('headline'), when: str('when'), steps: String(f.get('steps') || '').trim() });
+    if (form.querySelector('[name=rules]')) E.draft.rules = f.getAll('rules').map(String);
     if (E.draft.builtin) E.draft.edited = true;   // keep the coach's version when the starter drawings are updated
     M.libMarkEdited(E.draft);                      // and when the library version is updated
     const i = data.plays.findIndex(p => p.id === E.draft.id);

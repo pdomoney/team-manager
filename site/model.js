@@ -17,6 +17,9 @@
 // People on a task are 'p:<player id>' or 'h:<helper id>'. Replies a coach records (RSVPs, task
 // replies) carry `via: 'coach'`, so a future sign-in system can tell them apart from people's own.
 
+import { RULES } from './rules.js';
+export { RULES };
+
 export const SCHEMA = 3;
 export const PRIMARY_ID = 'team1';
 const WS_KEYS = ['schema', 'teams', 'library', 'clubs'];
@@ -116,6 +119,65 @@ export const clubForPlayers = c => c ? Object.fromEntries(CLUB_PUBLIC.filter(k =
 export function removeClub(ws, id) {
   clubTeams(ws, id).forEach(t => { t.team.clubId = ''; });
   ws.clubs = arr(ws.clubs).filter(c => c.id !== id);
+}
+
+/* ---------- rule sets ---------- */
+// The official rules (site/rules.js) are the owner's: a team picks a rule set ('oztag/mixed') and adds
+// its competition's by-laws (team.bylaws), which are the coach's own and never touched by an update.
+// team.rulesSeen is the last rule pack the coach reviewed for that team.
+const SPORT_OF = [[/league\s*tag/i, 'league-tag'], [/rugby|league/i, 'league'], [/oz\s*tag|touch|tag/i, 'oztag']];
+export const sportOf = name => (SPORT_OF.find(([re]) => re.test(name || '')) || [, ''])[1];
+export function ruleSetList(R = RULES) {
+  return Object.entries(R.sports).flatMap(([sid, s]) => s.grades.map(g => ({ id: `${sid}/${g.id}`, sport: sid, sportName: s.name, name: g.name })));
+}
+// A rule set: the sport's base rules with the grade's own in place of any with the same id.
+export function ruleSet(id, R = RULES) {
+  const [sid, gid] = String(id || '').split('/'), s = R.sports[sid], g = s && s.grades.find(x => x.id === gid);
+  if (!g) return null;
+  const own = new Map(arr(g.rules).map(r => [r.id, r]));
+  const rules = s.rules.map(r => own.get(r.id) || r);
+  arr(g.rules).forEach(r => { if (!s.rules.some(b => b.id === r.id)) rules.push(r); });
+  const topics = [...new Set(rules.map(r => r.topic))];
+  rules.sort((a, b) => topics.indexOf(a.topic) - topics.indexOf(b.topic));
+  const sourceId = g.source || s.source;
+  return { id: `${sid}/${gid}`, sport: sid, sportName: s.name, grade: gid, name: g.name, note: g.note || '',
+    values: { ...s.values, ...obj(g.values) }, rules, sourceId, source: R.sources[sourceId] || null };
+}
+// Which rule set a team uses: its choice, or one from its club's sport and its category.
+export function defaultRuleSet(team, club, R = RULES) {
+  const t = obj(team), sport = sportOf(club && club.sport) || 'oztag', grades = R.sports[sport].grades.map(g => g.id);
+  const cat = t.category || 'mixed', age = String(t.ageGroup || '').toLowerCase().replace(/\s|under/g, m => m === 'under' ? 'u' : '');
+  const want = sport === 'oztag' ? ({ boys: 'juniors', girls: 'juniors', open: 'men' }[cat] || cat)
+    : grades.find(g => age && (g === age || g.replace('-', '') === age.replace(/^u/, ''))) || ({ women: 'women', girls: 'women' }[cat] || 'men');
+  return `${sport}/${grades.includes(want) ? want : grades[0]}`;
+}
+export const ruleSetId = (team, club, R = RULES) => (team && team.rules && ruleSet(team.rules, R) ? team.rules : defaultRuleSet(team, club, R));
+export const teamRules = (team, club, R = RULES) => ruleSet(ruleSetId(team, club, R), R);
+// Most males on field: the team's own number (a by-law) if it has one, otherwise the rule set's.
+export function maxMalesOf(team, club, R = RULES) {
+  const own = team && team.maxMales;
+  if (own !== '' && own != null && Number.isFinite(Number(own))) return Number(own);
+  const v = (teamRules(team, club, R) || {}).values || {};
+  return Number.isFinite(Number(v.maxMales)) ? Number(v.maxMales) : 4;
+}
+export const normBylaw = b => ({ id: String(b.id || ''), topic: String(b.topic || 'Other'), text: String(b.text || '').trim(), replaces: String(b.replaces || '') });
+// Rule packs the team hasn't reviewed that touch its sport, newest first.
+export const rulesNew = (team, sport, R = RULES) => R.changes.filter(c => c.pack > (Number(team && team.rulesSeen) || 0) && (!c.sports || c.sports.includes(sport))).sort((a, b) => b.pack - a.pack);
+// What a rule update asks the coach to look at: anything (a play, a game system) that relies on a rule
+// that changed, and the team's by-laws that replace one.
+export function ruleReview(changes, items, bylaws = []) {
+  const ids = [...new Set(changes.flatMap(c => arr(c.rules)))];
+  return {
+    ids,
+    items: items.map(it => ({ ...it, hit: arr(it.rules).filter(r => ids.includes(r)) })).filter(it => it.hit.length),
+    bylaws: arr(bylaws).filter(b => b.replaces && ids.includes(b.replaces))
+  };
+}
+// Rule books the watch has seen change since the rules were last checked against them.
+export function sourceAlerts(watch, R = RULES) {
+  const w = obj(watch && watch.sources);
+  return Object.entries(R.sources).filter(([k, s]) => w[k] && w[k].changedAt && w[k].changedAt.slice(0, 10) > s.checked)
+    .map(([k, s]) => ({ id: k, title: s.title, changedAt: w[k].changedAt }));
 }
 
 // One team as a single-team copy in the earlier format, for rolling back to the previous app version.
@@ -371,7 +433,7 @@ export function lineupCheck(t, lu, rec) {
   const players = new Map(arr(t.players).map(p => [p.id, p]));
   const slots = arr(lu && lu.slots);
   const on = slots.map(s => players.get(s.playerId)).filter(Boolean);
-  const max = Number(t.team && t.team.maxMales) || 4;
+  const max = maxMalesOf(t.team);
   const males = on.filter(p => p.gender === 'M').length, females = on.filter(p => p.gender === 'F').length;
   const out = on.filter(p => p.status && p.status !== 'available');
   const said = v => rec ? on.filter(p => rsvpOf(rec, p.id) === v) : [];

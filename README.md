@@ -82,6 +82,14 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 - St George Oztag is set up with DragonTag Mixed 20s in it.
 - **More → Club** shows the club to players and coaches. Each team has its own squad, schedule, matches, tasks, lineups, plays and messages, and its own players' password and invite link. The **library** (Tactics → Library) shares plays, game systems and player lists between teams: a team uses a linked copy, which follows new library versions until the team changes it.
 
+### Rules
+
+**Tactics → Rules** shows the official rules the team plays to, for coaches and players: the numbers at a glance (players, tags, defence distance, kicking, scoring) and every rule with its number in the rule book.
+- **Rule sets** come from `site/rules.js`: Oztag (Australian Oztag rule book: mixed, men's, women's, juniors), rugby league (6–12 junior laws, 13–14, open men and women) and league tag (6–7 to 15 and over). Each sport has base rules; a grade lists only what differs. A team follows its club's sport and category automatically, or picks a rule set in Settings.
+- **By-laws** are the coach's own: their competition's rules, added on the Rules page, optionally in place of an official rule. Updates never change them. A team's own number for most males on field counts as a by-law (leave it blank to follow the rule set).
+- **Updates**: only the app's owner changes the official rules, through a pull request: raise `pack`, add a `changes` entry naming the rule ids, and set each source's `checked` date. When the release goes live, the bell in the header and Home's Needs attention show the update; **Review** lists the game systems and plays that rely on a changed rule (a play's rules are set in its Words tab) and any by-law that replaces one, and can post a notice to players.
+- **Rule book watch**: the `Rules watch` workflow fingerprints each rule book once a week (or from **Check the rule books now** on the Rules page) and keeps the results on the `rules-watch` branch. A change opens an issue for the owner and shows on the Rules page and the bell. A monthly scheduled check also looks for new editions and drafts any update as a pull request for the owner to approve.
+
 ### Backups and going back
 
 **Settings → Backup** exports every team and the library (encrypted once live). Importing a backup can replace everything, replace the team on screen, or add a new team. The data format before multiple teams kept one team at the top level; it still does, so the previous version of the app opens the first team unchanged. **Going back to the previous version** in Settings exports any team on its own in the old format, and downloads the copy saved just before the upgrade.
@@ -92,6 +100,8 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 | --- | --- |
 | `team.enc.json`, `team-<id>.enc.json` | A team's players' copy, encrypted with that team's password: team and tournament details, the club's public details, staff names, squad names, gender, numbers and preferred positions, training sessions, matches with scores, lineups, notices, plays, the coach's changes to the game systems, and the volunteer tasks without anyone's name (just whether each spot is confirmed, invited or open). |
 | `coach.enc.json` | Everything for every team, encrypted with the coach password: the above plus phone numbers, availability and injuries, player notes, roll calls, RSVPs and match availability, coach's notes, the message log, helpers and who is on each task, the library, and the team passwords (so the coach can re-encrypt the players' copies and make invite links). |
+
+The `rules-watch` branch holds `rules-watch.json`: the Rules watch's fingerprints of the public rule books (no team data). The site publishes it as `data/rules-watch.json` only if it's in exactly the expected shape.
 
 Each file is JSON with the fields `format`, `version`, `role`, `kdf`, `salt`, `iv` and `data` (the encrypted content, base64).
 
@@ -109,7 +119,7 @@ To build with real data, check out the data branch first: `git worktree add data
 Browser checks (optional, need Python with Playwright and Chromium) walk through the app at phone and desktop sizes, with GitHub simulated and WhatsApp stubbed, so nothing goes online:
 
 ```sh
-for t in test/browser/{m0_stability,m2_participation,m3_teams_library,m4_matches,m5_reports,regress,live_publishing}.py; do python3 "$t"; done
+for t in test/browser/{m0_stability,m2_participation,m3_teams_library,m4_matches,m5_reports,regress,live_publishing,clubs,rules}.py; do python3 "$t"; done
 ```
 
 ## Licence
