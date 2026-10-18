@@ -84,6 +84,7 @@ export function migrateWorkspace(raw, normTeam = t => t) {
   ws.competitions = src.competitions === undefined ? seedCompetitions(ws) : arr(src.competitions).filter(isObj).map(normComp);
   repairCompetitions(ws);
   syncEvents(ws);
+  fixDefaultPositions(ws);
   teamsOf(ws).forEach(t => repairTeam(t));
   return ws;
 }
@@ -140,6 +141,7 @@ export function ensureSeasons(t) {
   const a = activeSeason(t);
   if (a && t.team) t.team.season = a.name;   // the team's season setting is the active season's name
   claimRecords(t);
+  ensureJerseys(t);
   return t;
 }
 // Records without a season (new ones, or made by an earlier app) join the season being worked on, and
@@ -378,6 +380,53 @@ export function compsForPlayers(ws, t) {
     entryStatus: entry.status, bylaws: comp.bylaws.map(b => ({ topic: b.topic, text: b.text })) }));
 }
 
+/* ---------- Jerseys ---------- */
+// Giving a player a number means they have their jersey. Each jersey handed out is kept on the player
+// as a loan: its number, the season, the day it went out and the day it came back. Where jerseys are
+// lent (team.jerseyLoan) the coach marks them returned. Loans stay with the person, so a player who
+// leaves while still holding a jersey still shows up.
+export const normLoan = j => ({ id: String(j.id || uid()), number: String(j.number || ''), seasonId: String(j.seasonId || ''), out: String(j.out || ''), back: String(j.back || '') });
+export const openLoans = p => arr(p && p.jerseys).filter(j => !j.back);
+// Anyone in the active season with a number has that jersey, unless they still have it from before or
+// already handed this season's back.
+export function syncJerseys(t, today) {
+  const s = activeSeason(t); if (!s) return 0;
+  let n = 0;
+  seasonLens(t, s.id).players.forEach(p => {
+    const num = String(p.number || '').trim(); if (!num) return;
+    if (!Array.isArray(p.jerseys)) p.jerseys = [];
+    if (p.jerseys.some(j => j.number === num && (!j.back || j.seasonId === s.id))) return;   // has it, or handed this season's back
+    p.jerseys.push({ id: uid(), number: num, seasonId: s.id, out: today, back: '' }); n++;
+  });
+  return n;
+}
+// From before jerseys were tracked: a player in the active season with a number has their jersey (the
+// day isn't known). Always the same, so two phones upgrading agree.
+function ensureJerseys(t) {
+  const s = activeSeason(t), live = s ? new Set(seasonLens(t, s.id).players.map(p => p.id)) : new Set();
+  arr(t.players).forEach(p => {
+    if (!isObj(p)) return;
+    if (Array.isArray(p.jerseys)) { p.jerseys = p.jerseys.filter(isObj).map(normLoan); return; }
+    const num = String(p.number || '').trim();
+    p.jerseys = num && live.has(p.id) ? [{ id: `j-${p.id}`, number: num, seasonId: s.id, out: '', back: '' }] : [];
+  });
+}
+const loanOf = (p, id) => arr(p && p.jerseys).find(j => j.id === id);
+export function returnJersey(p, id, today) { const j = loanOf(p, id); if (!j || j.back) return false; j.back = today; return true; }
+export function undoReturn(p, id) { const j = loanOf(p, id); if (!j || !j.back) return false; j.back = ''; return true; }
+export function removeLoan(p, id) { const n = arr(p.jerseys).length; p.jerseys = arr(p.jerseys).filter(j => j.id !== id); return p.jerseys.length < n; }
+// Who has a jersey and who's given it back, for a season: its squad, plus anyone else still holding one.
+export function jerseyReport(t, sid) {
+  const L = seasonLens(t, sid), squad = new Map(L.players.map(p => [p.id, p]));
+  const rows = arr(t.players).filter(p => squad.has(p.id) || openLoans(p).length).map(p => {
+    const season = arr(p.jerseys).filter(j => j.seasonId === sid), open = openLoans(p), sp = squad.get(p.id);
+    return { id: p.id, name: p.name, inSquad: !!sp, number: sp ? sp.number : '', season, open,
+      status: open.length ? 'out' : season.some(j => j.back) ? 'returned' : 'none' };
+  }).sort((a, b) => ['out', 'returned', 'none'].indexOf(a.status) - ['out', 'returned', 'none'].indexOf(b.status) || a.name.localeCompare(b.name));
+  return { rows, out: rows.filter(r => r.status === 'out').length, returned: rows.filter(r => r.status === 'returned').length,
+    none: rows.filter(r => r.status === 'none').length, gone: rows.filter(r => !r.inSquad).length };
+}
+
 /* ---------- Clubs ---------- */
 // A club holds what's shared by its teams: who it is, how to reach it, where it plays, its links and
 // its officials. A team names its club (team.clubId) and keeps its own division, category, season and
@@ -387,7 +436,11 @@ export const CLUB_PUBLIC = ['id', 'name', 'shortName', 'sport', 'governingBody',
 // A club's logo is a small picture kept with the club (the app shrinks it to a 160 px badge): PNG, JPEG
 // or WebP as a data URL, nothing else, and nothing big.
 export const LOGO_MAX = 120000;
-export const validLogo = v => typeof v === 'string' && v.length <= LOGO_MAX && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(v);
+export const validImage = (v, max) => typeof v === 'string' && v.length <= max && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(v);
+export const validLogo = v => validImage(v, LOGO_MAX);
+// A player's photo, kept in the coach's copy only (never in the players' file).
+export const PHOTO_MAX = 80000;
+export const validPhoto = v => validImage(v, PHOTO_MAX);
 export const CLUB_ROLES = ['President', 'Vice-president', 'Secretary', 'Treasurer', 'Registrar', 'Representative coordinator', 'Member protection officer', 'Referee coordinator', 'Other'];
 export const TEAM_ROLES = ['Head coach', 'Assistant coach', 'Team manager', 'Trainer', 'First aid', 'Other'];
 export const TEAM_CATEGORIES = { mixed: 'Mixed', men: 'Men', women: 'Women', boys: 'Boys', girls: 'Girls', open: 'Open (any)' };
@@ -428,8 +481,32 @@ export function removeClub(ws, id) {
 // The official rules (site/rules.js) are the owner's: a team picks a rule set ('oztag/mixed') and adds
 // its competition's by-laws (team.bylaws), which are the coach's own and never touched by an update.
 // team.rulesSeen is the last rule pack the coach reviewed for that team.
-const SPORT_OF = [[/league\s*tag/i, 'league-tag'], [/rugby|league/i, 'league'], [/oz\s*tag|touch|tag/i, 'oztag']];
+// The sports the app knows. Rule sets exist for Oztag, rugby league and league tag; every sport has
+// positions for the player form (a team can keep its own list instead, in Settings).
+export const SPORTS = ['Oztag', 'Touch football', 'League tag', 'Rugby league', 'Rugby union', 'Rugby sevens', 'Tag rugby', 'AFL', 'Netball', 'Football (soccer)', 'Basketball', 'Hockey', 'Cricket', 'Other'];
+const LEAGUE_POS = ['Fullback', 'Wing', 'Centre', 'Five-eighth', 'Halfback', 'Hooker', 'Prop', 'Second row', 'Lock'];
+export const SPORT_POSITIONS = {
+  'Oztag': ['Wing', 'Link', 'Rover', 'Middle'], 'Touch football': ['Wing', 'Link', 'Middle'], 'League tag': LEAGUE_POS, 'Rugby league': LEAGUE_POS,
+  'Rugby union': ['Prop', 'Hooker', 'Lock', 'Flanker', 'Number 8', 'Scrum-half', 'Fly-half', 'Centre', 'Wing', 'Fullback'],
+  'Rugby sevens': ['Prop', 'Hooker', 'Scrum-half', 'Fly-half', 'Centre', 'Wing'], 'Tag rugby': ['Middle', 'Link', 'Wing'],
+  'AFL': ['Back', 'Half-back', 'Midfield', 'Ruck', 'Wing', 'Half-forward', 'Forward'], 'Netball': ['GS', 'GA', 'WA', 'C', 'WD', 'GD', 'GK'],
+  'Football (soccer)': ['Goalkeeper', 'Defender', 'Midfielder', 'Forward'], 'Basketball': ['Point guard', 'Shooting guard', 'Small forward', 'Power forward', 'Centre'],
+  'Hockey': ['Goalkeeper', 'Defender', 'Midfielder', 'Forward'], 'Cricket': ['Batter', 'Bowler', 'All-rounder', 'Wicketkeeper'], 'Other': []
+};
+// The rule sets' sports, from a sport's name ('' for sports without one).
+const SPORT_OF = [[/league\s*tag/i, 'league-tag'], [/rugby\s*league|^\s*league\s*$/i, 'league'], [/oz\s*tag/i, 'oztag']];
 export const sportOf = name => (SPORT_OF.find(([re]) => re.test(name || '')) || [, ''])[1];
+// A team plays its own sport if it has one set, otherwise its club's.
+export const teamSport = (team, club) => (team && team.sport) || (club && club.sport) || 'Oztag';
+export const positionsFor = (team, club) => arr(team && team.positions).length ? team.positions : (SPORT_POSITIONS[teamSport(team, club)] || []);
+const sameList = (a, b) => arr(a).join('|') === arr(b).join('|');
+// A team in a club of another sport that still has the Oztag positions it was made with gets its sport's.
+function fixDefaultPositions(ws) {
+  teamsOf(ws).forEach(t => {
+    const T = t.team || {}, c = clubOf(ws, t), sp = teamSport(T, c);
+    if (!T.sport && sp !== 'Oztag' && sameList(T.positions, SPORT_POSITIONS.Oztag) && arr(SPORT_POSITIONS[sp]).length) T.positions = SPORT_POSITIONS[sp].slice();
+  });
+}
 export function ruleSetList(R = RULES) {
   return Object.entries(R.sports).flatMap(([sid, s]) => s.grades.map(g => ({ id: `${sid}/${g.id}`, sport: sid, sportName: s.name, name: g.name })));
 }
@@ -448,7 +525,9 @@ export function ruleSet(id, R = RULES) {
 }
 // Which rule set a team uses: its choice, or one from its club's sport and its category.
 export function defaultRuleSet(team, club, R = RULES) {
-  const t = obj(team), sport = sportOf(club && club.sport) || 'oztag', grades = R.sports[sport].grades.map(g => g.id);
+  const t = obj(team), named = t.sport || (club && club.sport) || '', sport = named ? sportOf(named) : 'oztag';
+  if (!sport) return '';   // a sport without a rule set in the app
+  const grades = R.sports[sport].grades.map(g => g.id);
   const cat = t.category || 'mixed', age = String(t.ageGroup || '').toLowerCase().replace(/\s|under/g, m => m === 'under' ? 'u' : '');
   const want = sport === 'oztag' ? ({ boys: 'juniors', girls: 'juniors', open: 'men' }[cat] || cat)
     : grades.find(g => age && (g === age || g.replace('-', '') === age.replace(/^u/, ''))) || ({ women: 'women', girls: 'women' }[cat] || 'men');
@@ -1062,6 +1141,36 @@ export function teamInsight(team, now) {
     avgPct: trend.length && P.length ? Math.round(trend.reduce((n, x) => n + x.attended, 0) / trend.length / P.length * 100) : null,
     record: { won: rec.won, lost: rec.lost, drawn: rec.drawn, withResult: rec.withResult }, event
   };
+}
+
+// Our side of each active competition: results so far, today's matches, the next one and the last.
+function liveRow(t, entryId, now) {
+  const today = isoDay(now), ms = arr(t.matches).filter(m => m.entryId === entryId).sort(byWhen);
+  const upcoming = ms.filter(m => m.status === 'scheduled' && (eventTime(m.date, m.start, '', now) || { over: true }).over === false);
+  return { record: teamRecord(ms, today), today: ms.filter(m => m.date === today), next: upcoming[0] || null,
+    last: ms.filter(m => matchOutcome(m)).slice(-1)[0] || null, fixtures: ms.length };
+}
+// Where an active competition is up to: day n of a tournament, week n of a league, or before/after.
+export function compPhase(c, now) {
+  const today = isoDay(now);
+  if (!validDay(c.start)) return { kind: 'open' };
+  const end = validDay(c.end) ? c.end : c.start, d = (a, b) => Math.round((dateOf(b) - dateOf(a)) / 86400000);
+  if (today < c.start) return { kind: 'before', days: d(today, c.start) };
+  if (today > end) return { kind: 'after' };
+  const n = d(c.start, today) + 1, total = d(c.start, end) + 1;
+  return total > 14 ? { kind: 'week', n: Math.ceil(n / 7), of: Math.ceil(total / 7) } : { kind: 'day', n, of: total };
+}
+export function liveComps(ws, teams, now) {
+  return compsOf(ws).filter(c => c.status === 'active').map(comp => {
+    const rows = teams.flatMap(t => { const s = activeSeason(t); if (!s) return [];
+      return comp.entries.filter(e => e.teamId === t.id && e.seasonId === s.id && e.status === 'entered').map(entry => ({ teamId: t.id, team: teamName(t), entry, ...liveRow(t, entry.id, now) })); });
+    return rows.length ? { comp, phase: compPhase(comp, now), rows } : null;
+  }).filter(Boolean);
+}
+// The same for a players' copy: its own competitions and matches only.
+export function liveCompsForTeam(t, now) {
+  return arr(t.competitions).filter(c => c.status === 'active' && c.entryStatus !== 'withdrawn')
+    .map(c => ({ comp: c, phase: compPhase(c, now), rows: [{ teamId: t.id || PRIMARY_ID, team: teamName(t), entry: { id: c.entryId, division: c.division, pool: c.pool }, ...liveRow(t, c.entryId, now) }] }));
 }
 
 // Everything Home needs for the coach: the clubs and teams, the scope, every item in the scope ranked,

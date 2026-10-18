@@ -41,7 +41,7 @@ test('an old single-team copy becomes the first team of a workspace, the same wa
   const legacy = M.legacyTeam(a, 'team1');
   assert.equal(legacy.version, 2);
   for (const k of ['schema', 'teams', 'library']) assert.ok(!(k in legacy));
-  assert.deepEqual(legacy.players, old.players);
+  assert.deepEqual(legacy.players.map(({ jerseys, ...p }) => p), old.players, 'players as they were (plus their jersey record)');
 });
 
 test('teams stay separate, and at least one stays active', () => {
