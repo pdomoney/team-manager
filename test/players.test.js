@@ -135,6 +135,10 @@ test('new player positions follow effective sport, club changes and recognised l
   const restored = M.migrateWorkspace(JSON.parse(JSON.stringify(ws)));
   assert.deepEqual(M.positionsFor(restored.team, league), M.SPORT_POSITIONS.Netball);
   assert.equal(M.stable(M.migrateWorkspace(JSON.parse(JSON.stringify(restored)))), M.stable(restored), 'migration idempotent');
+  const newClubSport = ws0(); newClubSport.clubs[0].sport = 'Netball';
+  M.syncSportPositions(newClubSport);
+  assert.deepEqual(newClubSport.team.positions, M.SPORT_POSITIONS.Netball, 'editing only the club sport updates its team for the public view');
+  assert.deepEqual(teamView(M.activeLens(newClubSport), newClubSport.clubs[0]).team.positions, M.SPORT_POSITIONS.Netball);
 });
 
 test('photo dataset sizes and public projection at 30, 60 and 100 players', () => {
