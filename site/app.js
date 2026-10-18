@@ -447,6 +447,7 @@ function persistDraft() {
 
 // Every change: keep it (encrypted) on this phone, then publish shortly after.
 function save() {
+  M.syncSportPositions(ws);            // club sport changes must also update team/player projections
   M.claimRecords(data, editingSeasonId());   // new records join the season being worked on
   M.syncJerseys(data, todayISO());            // a number given out is a jersey given out
   M.syncEvents(ws);
