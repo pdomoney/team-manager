@@ -9,7 +9,7 @@ with sync_playwright() as p:
     pg.click('text=Load a sample squad'); pg.wait_for_timeout(300)
     d = lambda js: pg.evaluate(f'(() => {{ const D = window.__team.data, M = window.__team.M; return {js}; }})()')
     txt = pg.inner_text('#view')
-    c.ok('Match day' in txt and 'Hills Hornets' in txt, 'Home shows the coming match day')
+    c.ok('vs Hills Hornets' in txt and 'Coming up' in txt, 'Home shows the coming match')
     c.ok('availability repl' in txt or 'No lineup' in txt, 'match day lists what’s still to sort')
     pg.evaluate(act, ['train-view', {'v': 'matches'}]); pg.wait_for_timeout(150)
     txt = pg.inner_text('#view')

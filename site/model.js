@@ -591,6 +591,197 @@ export function summary(t, from, to, today) {
   };
 }
 
+/* ---------- Home: the coach's command centre ---------- */
+// Worked out from the teams' own records every time Home is drawn; nothing here is saved. Home shows
+// a scope (every club, one club, or one team), the most urgent item in it, the next few weeks in one
+// list, and the loose ends, each tied to the team it belongs to.
+//
+// Priority levels (1 is most urgent), from recorded dates and times only:
+//   1 critical  a match within 24 hours whose lineup isn't ready, or with too few players confirmed
+//               while replies are missing; riders without a seat, or volunteer spots not confirmed,
+//               for a task within 24 hours
+//   2 imminent  training within 24 hours; a match, or the tournament starting, within 72 hours; a
+//               task within 72 hours still waiting on volunteers or drivers
+//   3 upcoming  training, a match or the tournament within 7 days; tasks short of people within 14
+//               days; rule updates to review, results to enter, messages to confirm (no deadline)
+//   4 routine   everything else coming up
+// Without a recorded start time an event counts by calendar day (24 hours means today or tomorrow).
+// Same level: earliest first, then the one with more to sort, then by team and record.
+const ISO_DAY = /^\d{4}-\d\d-\d\d$/, HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const HOUR = 3600000, WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const NO_CLUB = 'none';
+const dateOf = (s, hhmm = '') => { const [y, m, d] = s.split('-').map(Number), [h, mi] = hhmm ? hhmm.split(':').map(Number) : [0, 0]; return new Date(y, m - 1, d, h, mi); };
+const validDay = s => ISO_DAY.test(String(s || '')) && isoDay(dateOf(s)) === s;
+// When something is, from now: calendar days from today, the start (or the start of its day when no
+// time is recorded), and whether it's over (past its end, or 3 hours after a start with no end).
+export function eventTime(date, start, end, now) {
+  if (!validDay(date)) return null;
+  const timed = HHMM.test(start || ''), at = dateOf(date, timed ? start : '').getTime();
+  const days = Math.round((dateOf(date) - dateOf(isoDay(now))) / 86400000);
+  const fin = timed ? (HHMM.test(end || '') && end > start ? dateOf(date, end).getTime() : at + 3 * HOUR) : null;
+  return { date, start: timed ? start : '', timed, at, days, until: at - now.getTime(), over: days < 0 || (days === 0 && timed && now.getTime() > fin) };
+}
+const within = (e, hours) => e.timed ? e.until <= hours * HOUR : e.days <= hours / 24;
+export function dayWord(e) {
+  if (e.days === 0) return 'today';
+  if (e.days === 1) return 'tomorrow';
+  const d = dateOf(e.date);
+  return e.days > 1 && e.days < 7 ? `on ${WEEKDAY[d.getDay()]}` : `on ${WEEKDAY[d.getDay()].slice(0, 3)} ${d.getDate()} ${MONTH[d.getMonth()]}`;
+}
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const KIND_ORDER = ['match', 'session', 'task', 'tournament', 'rules', 'result', 'messages'];
+const byRank = (a, b) => a.level - b.level || (a.at === b.at ? 0 : a.at < b.at ? -1 : 1) || b.issues.length - a.issues.length
+  || a.teamId.localeCompare(b.teamId) || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || String(a.id).localeCompare(String(b.id));
+const byTime = (a, b) => a.at - b.at || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || a.teamId.localeCompare(b.teamId) || String(a.id).localeCompare(String(b.id));
+
+// Clubs with active teams, then "No club" for teams without one. Archived teams are left out.
+export function homeClubs(ws) {
+  const teams = activeTeams(ws).sort((a, b) => teamName(a).localeCompare(teamName(b)));
+  const out = arr(ws && ws.clubs).map(c => ({ id: c.id, name: c.name || 'Club', short: c.shortName || c.name || 'Club', colours: c.colours || '', teams: teams.filter(t => t.team.clubId === c.id) }))
+    .filter(c => c.teams.length).sort((a, b) => a.name.localeCompare(b.name));
+  const none = teams.filter(t => !clubOf(ws, t));
+  if (none.length) out.push({ id: NO_CLUB, name: 'No club', short: 'No club', colours: '', teams: none });
+  return out;
+}
+// The scope Home shows: one team when there's only one; otherwise the remembered choice if it still
+// exists, or every club.
+export function homeScope(ws, pref) {
+  const teams = activeTeams(ws), p = obj(pref);
+  if (teams.length <= 1) return { kind: 'team', id: teams[0] ? teams[0].id : '' };
+  if (p.kind === 'team' && teams.some(t => t.id === p.id)) return { kind: 'team', id: p.id };
+  if (p.kind === 'club' && homeClubs(ws).some(c => c.id === p.id)) return { kind: 'club', id: p.id };
+  return { kind: 'all', id: '' };
+}
+export const scopeTeams = (ws, scope) => activeTeams(ws).filter(t => scope.kind === 'all'
+  || (scope.kind === 'team' ? t.id === scope.id : scope.id === NO_CLUB ? !clubOf(ws, t) : t.team.clubId === scope.id));
+
+// Every item for one team, each with its priority level. `coach` false leaves out anything private.
+export function homeItems(ws, t, now, coach = true) {
+  const T = obj(t.team), club = ws ? clubOf(ws, t) : null, rs = teamRules(T, club), today = isoDay(now), out = [];
+  const base = { teamId: t.id || PRIMARY_ID, team: teamName(t), club: club ? club.shortName || club.name : '' };
+  const add = x => out.push({ ...base, issues: [], place: '', ...x });
+  const avail = arr(t.players).filter(p => !p.status || p.status === 'available');
+  const need = Number(rs && rs.values.players) || avail.length;
+  const missing = rec => avail.filter(p => !rsvpOf(rec, p.id)).length;
+  arr(t.matches).forEach(m => {
+    if (m.status !== 'scheduled') return;
+    const e = eventTime(m.date, m.start, '', now); if (!e || e.over) return;
+    const issues = []; let lineup = false, short = false;
+    if (coach) {
+      const lu = m.lineupId && arr(t.lineups).find(l => l.id === m.lineupId), chk = lu && lineupCheck(t, lu, m);
+      if (!lu) issues.push('No lineup yet'); else if (!chk.ready) issues.push(`Lineup: ${chk.issues[0]}`);
+      lineup = !lu || !chk.ready;
+      const n = missing(m), yes = avail.filter(p => rsvpOf(m, p.id) === 'yes').length;
+      if (n) issues.push(`${plural(n, 'availability reply', 'availability replies')} missing`);
+      short = n > 0 && yes < need;
+      if (short) issues.push(`${yes} of ${need} players confirmed`);
+    }
+    const level = (lineup || short) && within(e, 24) ? 1 : within(e, 72) ? 2 : within(e, 168) ? 3 : 4;
+    add({ kind: 'match', id: m.id, ...e, level, issues, act: 'match-open', title: `vs ${m.opponent || 'TBC'}`, round: m.round || '',
+      place: [m.venue, m.field ? `Field ${m.field}` : ''].filter(Boolean).join(' · '),
+      label: level === 1 ? (lineup ? 'Lineup incomplete' : 'Availability not in') : `Match ${dayWord(e)}` });
+  });
+  arr(t.sessions).forEach(s => {
+    if (s.cancelled) return;
+    const e = eventTime(s.date, s.start, s.end, now); if (!e || e.over) return;
+    const n = coach && Object.keys(obj(s.rsvp)).length ? missing(s) : 0;
+    add({ kind: 'session', id: s.id, ...e, level: within(e, 24) ? 2 : within(e, 168) ? 3 : 4, act: 'edit-session', title: 'Training', label: `Training ${dayWord(e)}`,
+      place: s.venue || T.trainingVenue || '', issues: n ? [`${plural(n, 'availability reply', 'availability replies')} missing`] : [] });
+  });
+  arr(t.tasks).forEach(x => {
+    if (x.cancelled) return;
+    const e = eventTime(x.date, x.start, x.end, now); if (!e || e.over) return;
+    const lift = x.kind === 'lift', issues = []; let urgent = false;
+    if (lift) {
+      const L = liftPlan(x);
+      if (L.waiting) issues.push(`${L.waiting} without a seat`);
+      if (L.tentative) issues.push(`${L.tentative} waiting on a driver’s reply`);
+      urgent = L.waiting > 0;
+    } else {
+      const c = coverage(x);
+      if (c.short) issues.push(`${c.short} of ${plural(c.need, 'spot', 'spots')} not confirmed${c.invited ? ` (${c.invited} invited)` : ''}`);
+      urgent = c.short > 0;
+    }
+    const level = urgent && within(e, 24) ? 1 : issues.length && within(e, 72) ? 2 : issues.length && within(e, 336) ? 3 : 4;
+    add({ kind: 'task', id: x.id, ...e, level, issues, act: 'task-open', lift, title: x.title || (lift ? 'Lifts' : 'Task'), place: x.place || '',
+      parent: x.sessionId ? `session:${x.sessionId}` : x.matchId ? `match:${x.matchId}` : '',
+      label: issues.length ? (lift ? 'Transport needs confirmation' : 'Volunteers needed') : `${lift ? 'Lifts' : x.title || 'Task'} ${dayWord(e)}` });
+  });
+  const ev = validDay(T.eventStart) && eventTime(T.eventStart, '', '', now);
+  if (ev && ev.days >= 0) add({ kind: 'tournament', id: 'event', ...ev, level: within(ev, 72) ? 2 : within(ev, 168) ? 3 : 4, act: 'tab', tab: 'matches',
+    title: T.event || 'Tournament', place: T.venue || '', label: ev.days === 0 ? 'Tournament today' : `Tournament starts ${dayWord(ev)}` });
+  if (coach) {
+    const later = { at: Infinity, date: '', start: '', timed: false, days: null, over: false };
+    const fresh = rs ? rulesNew(T, rs.sport) : [];
+    if (fresh.length) add({ kind: 'rules', id: 'rules', ...later, level: 3, act: 'rules-review', title: `Rule set version ${fresh[0].pack}`, label: 'Rules updated' });
+    arr(t.matches).filter(m => validDay(m.date) && awaitingResult(m, today)).forEach(m => add({ kind: 'result', id: m.id, ...later, date: m.date, level: 3, act: 'match-open', title: `vs ${m.opponent || 'TBC'}`, label: 'Result not entered' }));
+    const n = arr(t.messages).filter(m => msgStatus(m) === 'prepared').length;
+    if (n) add({ kind: 'messages', id: 'messages', ...later, level: 3, act: 'tab', tab: 'messages', title: `${plural(n, 'WhatsApp message', 'WhatsApp messages')} not confirmed as sent`, label: 'Messages to confirm' });
+  }
+  return out;
+}
+
+// The loose ends for one team, with the record each opens and its urgency (taken from the item it's
+// about). Cancelled tasks and past events don't count.
+function homeActions(t, items, today) {
+  const o = outstanding(t, today), tid = t.id || PRIMARY_ID, base = { teamId: tid, team: teamName(t) };
+  const of = (k, id) => items.find(x => x.kind === k && x.id === id);
+  const out = [];
+  const add = (k, id, x) => { const it = of(k, id); out.push({ ...base, club: it ? it.club : '', recKind: k, recId: id, level: it ? it.level : 3, date: it ? it.date : '', at: it ? it.at : Infinity, ...x, key: `${tid}:${k}:${id}` }); };
+  o.rsvp.forEach(x => { const it = of(x.kind, x.id); add(x.kind, x.id, { kind: 'rsvp', act: 'rsvp-open', k: x.kind, title: `${plural(x.missing, 'availability reply', 'availability replies')} missing`, what: it ? (x.kind === 'match' ? it.title : 'Training') : '' }); });
+  o.noLineup.forEach(id => { const it = of('match', id); add('match', id, { kind: 'lineup', act: 'match-open', title: 'Match lineup not made', what: it ? it.title : '' }); });
+  o.toFind.forEach(x => { const it = of('task', x.id); add('task', x.id, { kind: 'volunteers', act: 'task-open', title: `${plural(x.n, 'volunteer spot', 'volunteer spots')} still to find`, what: it ? it.title : '' }); });
+  o.awaiting.forEach(x => { const it = of('task', x.id); add('task', x.id, { kind: 'invites', act: 'task-open', title: `${plural(x.n, 'volunteer invitation', 'volunteer invitations')} awaiting a reply`, what: it ? it.title : '' }); });
+  o.riders.forEach(x => { const it = of('task', x.id); add('task', x.id, { kind: 'transport', act: 'task-open', title: x.waiting ? `${x.waiting} without a seat` : `${x.tentative} waiting on a driver’s reply`, what: it ? it.title : 'Lifts' }); });
+  items.filter(x => ['result', 'rules', 'messages'].includes(x.kind)).forEach(x => out.push({ ...base, club: x.club, recKind: x.kind, recId: x.id, level: x.level, date: x.date, at: Infinity,
+    kind: x.kind, act: x.act, tab: x.tab, title: x.label === 'Rules updated' ? 'Rules updated: check what it affects' : x.kind === 'messages' ? x.title : x.label, what: x.kind === 'messages' ? 'Message log' : x.title, key: `${tid}:${x.kind}:${x.id}` }));
+  return out;
+}
+const byAction = (a, b) => a.level - b.level || (a.at === b.at ? 0 : a.at < b.at ? -1 : 1) || String(a.date).localeCompare(String(b.date)) || a.teamId.localeCompare(b.teamId) || a.kind.localeCompare(b.kind) || String(a.recId).localeCompare(String(b.recId));
+
+// One team at a glance, for Home when a single team is selected.
+export function teamInsight(t, now) {
+  const today = isoDay(now), P = arr(t.players), T = obj(t.team);
+  const trend = attendanceTrend(t.sessions, today).filter(x => x.status === 'recorded').slice(-5);
+  const rec = teamRecord(t.matches, today);
+  const end = T.eventEnd || T.eventStart;
+  const event = validDay(T.eventStart) ? { name: T.event || 'Tournament', start: T.eventStart, end, days: eventTime(T.eventStart, '', '', now).days,
+    state: today < T.eventStart ? 'before' : today <= end ? 'during' : 'after' } : null;
+  return {
+    players: P.length, available: P.filter(p => !p.status || p.status === 'available').length, injured: P.filter(p => p.status === 'injured').length,
+    unavailable: P.filter(p => p.status === 'unavailable').length, female: P.filter(p => p.gender === 'F').length, male: P.filter(p => p.gender === 'M').length,
+    attendance: trend.map(x => ({ date: x.date, attended: x.attended })),
+    avgPct: trend.length && P.length ? Math.round(trend.reduce((n, x) => n + x.attended, 0) / trend.length / P.length * 100) : null,
+    record: { won: rec.won, lost: rec.lost, drawn: rec.drawn, withResult: rec.withResult }, event
+  };
+}
+
+// Everything Home needs for the coach: the clubs and teams, the scope, every item in the scope ranked,
+// the most urgent one, the next `days` days in date order (a task tied to a training session or match
+// in the list goes under it), events that were cancelled or postponed, and the loose ends (leaving
+// out the record already in the spotlight).
+export function homeView(ws, pref, now, { days = 14 } = {}) {
+  const today = isoDay(now), clubs = homeClubs(ws), scope = homeScope(ws, pref), teams = scopeTeams(ws, scope);
+  const byTeam = new Map(activeTeams(ws).map(t => [t.id, homeItems(ws, t, now, true)]));
+  const urgency = {};
+  byTeam.forEach((items, id) => { urgency[id] = items.some(x => x.level === 1) ? 'critical' : items.some(x => x.level === 2 && x.issues.length) ? 'soon' : ''; });
+  const items = teams.flatMap(t => byTeam.get(t.id)).sort(byRank);
+  const spotlight = items[0] || null, spotKey = spotlight ? `${spotlight.teamId}:${spotlight.kind}:${spotlight.id}` : '';
+  const events = items.filter(x => ['match', 'session', 'task', 'tournament'].includes(x.kind) && x.days <= days).map(x => ({ ...x, subs: [] })).sort(byTime);
+  const parents = new Map(events.filter(x => x.kind === 'match' || x.kind === 'session').map(x => [`${x.teamId}:${x.kind}:${x.id}`, x]));
+  const upcoming = [];
+  events.forEach(x => { const p = x.kind === 'task' && x.parent && parents.get(`${x.teamId}:${x.parent}`); if (p) p.subs.push(x); else upcoming.push(x); });
+  const changed = teams.flatMap(t => [
+    ...arr(t.sessions).filter(s => s.cancelled).map(s => ({ kind: 'session', id: s.id, date: s.date, start: s.start, status: 'Cancelled', title: 'Training', act: 'edit-session' })),
+    ...arr(t.matches).filter(m => m.status === 'cancelled' || m.status === 'postponed').map(m => ({ kind: 'match', id: m.id, date: m.date, start: m.start, status: MATCH_STATUS[m.status], title: `vs ${m.opponent || 'TBC'}`, act: 'match-open' }))
+  ].map(x => ({ ...x, teamId: t.id, team: teamName(t), e: eventTime(x.date, x.start, '', now) })).filter(x => x.e && x.e.days >= 0 && x.e.days <= days))
+    .sort((a, b) => a.e.at - b.e.at || a.teamId.localeCompare(b.teamId) || a.id.localeCompare(b.id));
+  const actions = teams.flatMap(t => homeActions(t, byTeam.get(t.id), today)).sort(byAction);
+  const team = scope.kind === 'team' ? teams[0] || null : null;
+  return { today, clubs, scope, teams, urgency, items, spotlight, upcoming, changed, actions: actions.filter(a => a.key !== spotKey), featured: actions.filter(a => a.key === spotKey).length,
+    insight: team ? teamInsight(team, now) : null, multi: activeTeams(ws).length > 1 };
+}
+
 /* ---------- WhatsApp message log ---------- */
 // Opening WhatsApp only prepares a message; it's "sent" once the coach says it went. Nothing here
 // ever claims a message was delivered.

@@ -2,7 +2,19 @@
 
 A phone-first app for running Oztag teams, built for the DragonTag Mixed 20s in the lead-up to the NSW State Cup in Coffs Harbour: squad, training and RSVPs, roll call, matches and the tournament draw, lineups and game systems on a field diagram, plays, volunteer tasks and lifts, reports, a noticeboard, and messages sent through WhatsApp. One coach can run several teams.
 
-The app has five sections: **Home** (what needs attention, the next match day and training), **Schedule** (upcoming, training, matches, attendance), **Team** (squad, tasks, helpers, tally), **Tactics** (lineup, plays, the shared library) and **More** (messages, reports, teams, notices, settings).
+The app has five sections: **Home** (the command centre below), **Schedule** (upcoming, training, matches, attendance), **Team** (squad, tasks, helpers, tally), **Tactics** (lineup, plays, the shared library) and **More** (messages, reports, teams, notices, settings).
+
+**Home** is the coach's command centre across every club and team:
+- **Clubs and teams**: a compact row of club badges and team chips, with a dot on a team that needs attention. Show every club, one club or one team; the choice is kept on this device. Picking a team also makes it the team you're editing. With one team there's nothing to pick.
+- **Spotlight**: the single most urgent thing, from recorded dates and times only.
+  - Critical: a match within 24 hours without a ready lineup or enough players confirmed, or riders without a seat or volunteer spots not confirmed within 24 hours.
+  - Imminent: training within 24 hours, a match or the tournament within 72 hours.
+  - Upcoming: anything within 7 days, rule updates, results and messages to confirm.
+  - An event without a start time counts by calendar day and shows "time TBC".
+- **Coming up**: training, matches, tasks and the tournament for the next 7, 14 or 30 days in one list. A task tied to a session or match shows under it; cancelled and postponed events are listed apart.
+- **Outstanding actions**: the loose ends across the teams shown, most urgent first, without repeating the spotlight.
+- **At a glance** (one team): availability, next training and match, training turnout, results and the tournament countdown.
+Anything on Home that belongs to another team switches to that team before opening it. Players' Home shows only their team: what's next, the next two weeks, notices, help needed and rule updates.
 
 **Site:** https://pdomoney.github.io/team-manager/
 
@@ -87,7 +99,7 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 **Tactics → Rules** shows the official rules the team plays to, for coaches and players: the numbers at a glance (players, tags, defence distance, kicking, scoring) and every rule with its number in the rule book.
 - **Rule sets** come from `site/rules.js`: Oztag (Australian Oztag rule book: mixed, men's, women's, juniors), rugby league (6–12 junior laws, 13–14, open men and women) and league tag (6–7 to 15 and over). Each sport has base rules; a grade lists only what differs. A team follows its club's sport and category automatically, or picks a rule set in Settings.
 - **By-laws** are the coach's own: their competition's rules, added on the Rules page, optionally in place of an official rule. Updates never change them. A team's own number for most males on field counts as a by-law (leave it blank to follow the rule set).
-- **Updates**: only the app's owner changes the official rules, through a pull request: raise `pack`, add a `changes` entry naming the rule ids, and set each source's `checked` date. When the release goes live, the bell in the header and Home's Needs attention show the update; **Review** lists the game systems and plays that rely on a changed rule (a play's rules are set in its Words tab) and any by-law that replaces one, and can post a notice to players.
+- **Updates**: only the app's owner changes the official rules, through a pull request: raise `pack`, add a `changes` entry naming the rule ids, and set each source's `checked` date. When the release goes live, the bell in the header and Home's Outstanding actions show the update; **Review** lists the game systems and plays that rely on a changed rule (a play's rules are set in its Words tab) and any by-law that replaces one, and can post a notice to players.
 - **Rule book watch**: the `Rules watch` workflow fingerprints each rule book once a week (or from **Check the rule books now** on the Rules page) and keeps the results on the `rules-watch` branch. A change opens an issue for the owner and shows on the Rules page and the bell. A monthly scheduled check also looks for new editions and drafts any update as a pull request for the owner to approve.
 
 ### Backups and going back
@@ -119,7 +131,7 @@ To build with real data, check out the data branch first: `git worktree add data
 Browser checks (optional, need Python with Playwright and Chromium) walk through the app at phone and desktop sizes, with GitHub simulated and WhatsApp stubbed, so nothing goes online:
 
 ```sh
-for t in test/browser/{m0_stability,m2_participation,m3_teams_library,m4_matches,m5_reports,regress,live_publishing,clubs,rules}.py; do python3 "$t"; done
+for t in test/browser/{m0_stability,m2_participation,m3_teams_library,m4_matches,m5_reports,regress,live_publishing,clubs,rules,home}.py; do python3 "$t"; done
 ```
 
 ## Licence
