@@ -56,6 +56,15 @@ Review of PR #7 confirmed that forms, sport lists, photographs, return-tracking 
 - A previous issue deliberately deleted is **not** reissued automatically in that season. An explicit new issue is required.
 - These changes do not add sport-specific tactics field diagrams beyond current support.
 
+## Verified CI evidence and parallel development
+
+- PR: **[#9](https://github.com/pdomoney/team-manager/pull/9)** (draft, not merged).
+- Successful source regression at `d27bb67f72d3a563d6e19293b078482d2138e864`:
+  - GitHub Actions unit tests: **97 passed, 0 failed, 0 skipped**.
+  - GitHub Actions Playwright Chromium browser suites: **490 checks passed across 13 suites**. GitHub publishing was simulated; WhatsApp was stubbed.
+- A subsequent **presentation-only wording correction** clarifies “No issue this season” instead of inaccurately saying “No jersey”. Validate the latest branch HEAD's CI before final acceptance.
+- **Parallel candidate warning:** [PR #8](https://github.com/pdomoney/team-manager/pull/8) from another development chat covers overlapping corrective work, including a more extensive photo capacity harness. **Do not merge both PRs independently.** Compare their implementations, select the preferred candidate, reconcile any unique tests, and qualify the consolidated result on a separate reviewed branch if necessary.
+
 ## Outstanding qualification / limitations
 
 - CI unit and Chromium browser results MUST be read from the candidate commit checks. Do not substitute previously passed `main` checks.
