@@ -994,7 +994,7 @@ function playerForm(p) {
     <label class="field-l"><span>Mobile</span><input type="tel" name="phone" placeholder="04xx xxx xxx" value="${esc(p.phone)}"><small>Coach only. For messaging them directly on WhatsApp.</small></label>
     <div class="field-l"><span>Preferred positions · this team</span><div class="opts">
       ${[...new Set([...M.positionsFor(data.team, M.clubOf(ws, data)), ...arr(p.positions)])].map(x => `<label class="opt"><input type="checkbox" name="positions" value="${esc(x)}" ${p.positions.includes(x) ? 'checked' : ''}><span>${esc(x)}</span></label>`).join('')}
-    </div><small>${esc(M.teamSport(data.team, M.clubOf(ws, data)))} positions. Change the list in Settings › Team.</small></div>
+    </div><small>These are the <b>${esc(M.teamSport(data.team, M.clubOf(ws, data)))}</b> positions for <b>${esc(M.teamName(data))}</b> (${data.team.sport ? 'team sport override' : 'inherited club default'}). Change the team's sport or customise the list in Settings › Team.</small></div>
     <label class="field-l"><span>Notes</span><input type="text" name="notes" value="${esc(p.notes)}" placeholder="Coach only, e.g. works Thursdays"></label>
     ${isNew ? '' : jerseyBlock(p)}
     ${isNew ? '<p class="hint">Already plays for another team in this workspace? Use <b>From another team</b> on the Squad page instead, so the records are linked without copying uniform numbers or positions.</p>' : playerOtherTeams(p)}
@@ -3803,7 +3803,8 @@ function clubForm(c) {
         <button type="button" class="btn sm" data-act="club-logo-clear" ${c.logo ? '' : 'hidden'}>Remove logo</button></div>
       <input type="hidden" name="logo" value="${esc(c.logo)}">
       <small>A square image works best. It’s shrunk to a small badge and kept with the club; its teams’ players see it too. Without one, the badge shows the club’s initials.</small></div>
-    <div class="two"><label class="field-l"><span>Sport</span><select name="sport">${[...new Set([...CLUB_SPORTS, c.sport])].map(x => `<option ${x === c.sport ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>${f('governingBody', 'Governing body', 'e.g. Australian Oztag')}</div>
+    <div class="two"><label class="field-l"><span>Default sport for teams</span><select name="sport">${[...new Set([...CLUB_SPORTS, c.sport])].map(x => `<option ${x === c.sport ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>${f('governingBody', 'Governing body', 'e.g. Australian Oztag')}</div>
+    <p class="hint">Teams inherit this sport unless their own Team sport setting overrides it. Changing the club default does not change teams with an explicit sport.</p>
     <div class="two">${f('founded', 'Founded', 'e.g. 1992')}${f('juniorBrand', 'Junior program', 'e.g. DragonTag')}</div>
     <h3 class="form-sec">Contact</h3>
     <div class="two">${f('email', 'Email', '', 'email')}${f('phone', 'Phone', '', 'tel')}</div>
@@ -3824,15 +3825,35 @@ function clubForm(c) {
     <p class="hint">Players see the club’s name, contacts, ground, nights, colours and links. Officials and notes stay with coaches.</p>
   </form>`;
 }
+// Calculate from the form's selected team/club, not the currently saved club.
+// Never replace manually edited/custom preferred-position lists.
+function refreshTeamSportGuide(form) {
+  if (!form) return;
+  const clubId = (form.querySelector('[name=clubId]') || {}).value || '';
+  const club = arr(ws.clubs).find(c => c.id === clubId) || null;
+  const sel = form.querySelector('[name=teamSport]'); if (!sel) return;
+  const explicit = sel.value || '', sport = M.teamSport({ sport: explicit }, club);
+  const positions = M.SPORT_POSITIONS[sport] || [];
+  const empty = sel.querySelector('option[value=""]');
+  if (empty) empty.textContent = `Use club default (${club ? club.sport : 'Oztag'})`;
+  const guide = form.querySelector('[data-sport-guide]');
+  if (guide) guide.textContent = `New players for this team will see ${sport} positions (${explicit ? 'team override' : 'club default'}): ${positions.join(', ') || 'no predefined positions; configure them in Settings'}.`;
+  const input = form.querySelector('input[name=positions][data-auto-positions]');
+  if (input && input.dataset.autoPositions === 'true' && input.value === input.dataset.lastDefault) {
+    input.value = positions.join(', ');
+    input.dataset.lastDefault = input.value;
+  }
+}
 // The team's details: its club, division, category, season and staff (part of Settings).
 function teamDetailsFields(T) {
   const staff = [...arr(T.staff), { role: 'Head coach', name: '', phone: '', email: '' }];
   return `<h3 class="form-sec">Team details</h3>
-    <div class="two"><label class="field-l"><span>Club</span><select name="clubId"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${T.clubId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select><small><button type="button" class="link-btn inline" data-act="club-new">New club</button></small></label>
+    <div class="two"><label class="field-l"><span>Club</span><select name="clubId" data-change="team-context"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${T.clubId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select><small><button type="button" class="link-btn inline" data-act="club-new">New club</button></small></label>
       <label class="field-l"><span>Division</span><input type="text" name="division" value="${esc(T.division)}" placeholder="e.g. Mixed 20s"></label></div>
     <div class="two"><label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${T.category === k ? 'selected' : ''}>${l}</option>`).join('')}</select><small>Mixed turns on the males-on-field check.</small></label>
       <label class="field-l"><span>Age group</span><input type="text" name="ageGroup" value="${esc(T.ageGroup)}" placeholder="e.g. 20 and over, Under 16"></label></div>
-    <label class="field-l"><span>Sport</span>${sportSelect('teamSport', T.sport || '', `Club’s sport (${(M.clubOf(ws, data) || {}).sport || 'Oztag'})`)}<small>Sets the positions players can pick and the official rules. Most teams play their club’s sport.</small></label>
+    <label class="field-l"><span>Team sport</span>${sportSelect('teamSport', T.sport || '', 'Use club default', 'team-context')}<small>Choose a different sport for this team if needed. The team's choice takes priority over its club's default.</small></label>
+    <p class="hint team-sport-guide" data-sport-guide role="status" aria-live="polite">${esc(M.teamSport(T, M.clubOf(ws, data)))} positions will be offered to new players.</p>
     ${ruleSetField(T)}
     <div class="two"><div class="field-l"><span>Season</span><p class="field-static">${esc((M.activeSeason(data) || {}).name || 'No active season')} <button type="button" class="link-btn inline" data-act="season-open">Seasons</button></p></div>
       <label class="field-l"><span>Team colours</span><input type="text" name="colours" value="${esc(T.colours)}" placeholder="Blank: the club’s"></label></div>
@@ -3847,11 +3868,12 @@ function teamForm() {
   const T = data.team;
   return `<form data-form="team-new" autocomplete="off">
     <label class="field-l"><span>Team name</span><input type="text" name="name" required placeholder="e.g. DragonTag Under 16s"></label>
-    <div class="two"><label class="field-l"><span>Club</span><select name="clubId"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${(state.newTeamClub || T.clubId) === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+    <div class="two"><label class="field-l"><span>Club</span><select name="clubId" data-change="team-context"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${(state.newTeamClub || T.clubId) === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
       <label class="field-l"><span>Division</span><input type="text" name="division" placeholder="e.g. Women's Open"></label></div>
     <div class="two"><label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${k === (T.category || 'mixed') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="field-l"><span>First season</span><input type="text" name="season" value="${esc(String(new Date().getFullYear()))}" placeholder="e.g. Winter 2027"></label></div>
-    <label class="field-l"><span>Sport</span>${sportSelect('teamSport', '', 'The club’s sport')}</label>
+    <label class="field-l"><span>Team sport</span>${sportSelect('teamSport', '', 'Use club default', 'team-context')}<small>Choose this team's sport, or inherit the club default. For example, a Rugby League club can have League Tag and Netball teams.</small></label>
+    <p class="hint team-sport-guide" data-sport-guide role="status" aria-live="polite">The new player's preferred positions follow this team's sport.</p>
     <label class="field-l"><span>Tournament or season</span><input type="text" name="event" value="${esc(T.event)}"></label>
     <div class="two">
       <label class="field-l"><span>Starts</span><input type="date" name="eventStart" value="${esc(T.eventStart)}"></label>
@@ -3895,7 +3917,7 @@ function teamSwitcher() {
 // its seasons. Matches belong to an entry, or are friendlies, or aren't linked to anything yet. No
 // tables or standings are worked out: only this app's own teams' results are recorded.
 // A sport picked from the list (a name typed before the list existed is kept as an option).
-const sportSelect = (name, cur, blank = '') => `<select name="${name}">${blank ? `<option value="">${esc(blank)}</option>` : ''}${[...new Set([...M.SPORTS, ...(cur ? [cur] : [])])].map(x => `<option value="${esc(x)}" ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
+const sportSelect = (name, cur, blank = '', change = '') => `<select name="${name}"${change ? ` data-change="${esc(change)}"` : ''}>${blank ? `<option value="">${esc(blank)}</option>` : ''}${[...new Set([...M.SPORTS, ...(cur ? [cur] : [])])].map(x => `<option value="${esc(x)}" ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
 // The competition a match is in, for showing beside it ('' when none).
 function matchCompLabel(m) {
   if (S.role === 'coach' && !state.preview) {
@@ -4526,7 +4548,7 @@ function settingsBody() {
       <label class="field-l"><span>Red middle channel (m)</span><input type="number" name="fieldMiddle" min="4" max="20" step="0.5" value="${esc(T.field.middle)}"></label>
     </div>
     <p class="hint" style="margin-top:-6px;margin-bottom:14px">The two outside channels share the rest of the 50 m width: ${esc(fieldDims(T.field).outside)} m each now.</p>
-    <label class="field-l"><span>Positions</span><input type="text" name="positions" value="${esc(M.positionsFor(T, M.clubOf(ws, data)).join(', '))}"><small>What players can pick as preferred positions, separated by commas. ${esc(M.teamSport(T, M.clubOf(ws, data)))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, M.clubOf(ws, data))] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>
+    <label class="field-l"><span>Positions for this team</span><input type="text" name="positions" data-auto-positions="${T.positionsCustom === true ? 'false' : 'true'}" data-last-default="${esc(M.positionsFor(T, M.clubOf(ws, data)).join(', '))}" value="${esc(M.positionsFor(T, M.clubOf(ws, data)).join(', '))}"><small>What players can pick as preferred positions, separated by commas. ${esc(M.teamSport(T, M.clubOf(ws, data)))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, M.clubOf(ws, data))] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>
     <label class="check"><input type="checkbox" name="jerseyLoan" ${T.jerseyLoan ? 'checked' : ''}><span>Jerseys are lent to players and must be handed back</span></label>
     <button class="btn primary block" type="submit">Save settings</button>
   </form>
@@ -4676,6 +4698,9 @@ function openSheet(title, body, key = null) {
       <div class="panel-head"><h2 id="sheet-title">${esc(title)}</h2><button class="icon-btn" data-act="close-sheet" aria-label="Close">${icon('close', 22)}</button></div>
       <div class="panel-body">${body}</div></div>`;
   sh.hidden = false; document.body.classList.add('locked'); state.sheet = key;
+  // Resolve the selected team's sport before players are registered.
+  const sportForm = sh.querySelector('form[data-form=team-new], form[data-form=settings]');
+  if (sportForm) refreshTeamSportGuide(sportForm);
   BEHIND.forEach(q => { const el = $(q); if (el) el.inert = true; });
   setTimeout(() => { const b = sh.querySelector('.panel-head .icon-btn'); if (b) b.focus(); }, 30);
 }
@@ -5305,8 +5330,12 @@ const actions = {
   }),
   'positions-default': coachOnly(el => {
     const form = el.closest('form'), inp = form && form.querySelector('[name=positions]'); if (!inp) return;
-    const sel = form.querySelector('[name=teamSport]'), sp = (sel && sel.value) || M.teamSport({}, M.clubOf(ws, data));
+    const sel = form.querySelector('[name=teamSport]'), clubId = (form.querySelector('[name=clubId]') || {}).value;
+    const club = arr(ws.clubs).find(c => c.id === clubId) || null;
+    const sp = M.teamSport({ sport: sel && sel.value || '' }, club);
     inp.value = (M.SPORT_POSITIONS[sp] || []).join(', ');
+    inp.dataset.autoPositions = 'true'; inp.dataset.lastDefault = inp.value;
+    refreshTeamSportGuide(form);
   }),
   'club-logo-clear': coachOnly(el => {
     const form = el.closest('form'); if (!form) return;
@@ -5398,6 +5427,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
+  if (k === 'team-context') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'player-photo') {
     const inp = e.target, form = inp.closest('form');
     readPhoto(inp.files && inp.files[0]).then(d => {
