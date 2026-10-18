@@ -99,7 +99,7 @@ with sync_playwright() as p:
     W("(D.team.positions = ['Custom left', 'Custom right'], D.team.positionsCustom = true, 1)")
     pg.evaluate(act, ['team-new', {}]); pg.wait_for_selector('#sheet form[data-form=team-new]')
     pg.fill('#sheet form[data-form=team-new] input[name=name]', 'League Team Next')
-    pg.select_option('#sheet form[data-form=team-new] select[name=clubId]', 'tp')
+    pg.select_option('#sheet form[data-form=team-new] select[name=clubId]', 'stgeorge')
     pg.select_option('#sheet form[data-form=team-new] select[name=teamSport]', 'Rugby league')
     pg.click('#sheet form[data-form=team-new] button[type=submit]'); pg.wait_for_timeout(200)
     c.ok(W("D.team.positions.join('|')") == W("M.SPORT_POSITIONS['Rugby league'].join('|')"),
