@@ -79,8 +79,13 @@ with sync_playwright() as p:
     pg.wait_for_selector('#sheet form[data-form=player]')
     c.ok('Other teams' in pg.inner_text('#sheet') and original_name in pg.input_value('#sheet [name=name]'),
          'linked team visible when editing')
-    c.ok(W("(() => { const M = window.__team.M; return JSON.stringify(window.__team.vault.teamView(M.activeLens(D))); })()").find('personId') < 0,
-         'shared person link is not published in player-facing projection')
+    public_view = pg.evaluate("""async () => {
+      const { teamView } = await import('./vault.js');
+      const { M, data } = window.__team;
+      return JSON.stringify(teamView(M.activeLens(data)));
+    }""")
+    c.ok('personId' not in public_view and 'jerseys' not in public_view and '0400' not in public_view,
+         'shared link and jersey history are private to the coach')
     pg.keyboard.press('Escape')
     for width in (390, 1280):
         pg.set_viewport_size({'width': width, 'height': 900})
