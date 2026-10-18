@@ -53,6 +53,62 @@ export const teamsOf = ws => ws ? [ws, ...arr(ws.teams)] : [];
 export const activeTeams = ws => teamsOf(ws).filter(t => !t.archived);
 export const findTeam = (ws, id) => teamsOf(ws).find(t => t.id === id) || null;
 export const teamName = t => (t && t.team && t.team.name) || 'Team';
+
+// A person may play for several teams, but each team keeps its own player record.
+// Sharing identity is an EXPLICIT coach action; names are never matched automatically.
+// Local player IDs remain authoritative for lineups, matches, attendance and seasons.
+// A linked player's team-specific number/positions/availability/jerseys never propagate.
+export const personKey = (t, p) => String((p && p.personId) || ('person:' + (t && t.id || '') + ':' + (p && p.id || '')));
+export function personTeams(ws, teamId, playerId) {
+  const home = findTeam(ws, teamId), p = home && arr(home.players).find(x => x.id === playerId);
+  if (!p) return [];
+  const key = personKey(home, p);
+  // Legacy records without a personId are never joined through an assumed name.
+  return teamsOf(ws).flatMap(t => arr(t.players).filter(x =>
+    (t.id === teamId && x.id === playerId) || (p.personId && x.personId === key))
+    .map(x => ({ teamId: t.id, playerId: x.id, teamName: teamName(t),
+      sport: teamSport(t.team, clubOf(ws, t)), number: String(x.number || ''),
+      positions: arr(x.positions).slice(), archived: !!t.archived })));
+}
+export function teamPlayerCandidates(ws, targetTeamId) {
+  return activeTeams(ws).filter(t => t.id !== targetTeamId).flatMap(t =>
+    activeLens(t).players.map(p => ({ teamId: t.id, playerId: p.id, personId: personKey(t,p),
+      name: p.name, teamName: teamName(t), sport: teamSport(t.team, clubOf(ws,t)) })))
+    .filter(x => !teamsOf(ws).some(t => t.id === targetTeamId &&
+      arr(t.players).some(p => p.personId && p.personId === x.personId)))
+    .sort((a,b) => a.name.localeCompare(b.name) || a.teamName.localeCompare(b.teamName));
+}
+// Add this person to another team's CURRENT season, or explicitly link two
+// pre-existing team-local player records. Never copy a uniform allocation, RSVP,
+// injury status, notes, availability or historical result into a different team.
+export function linkPlayerTeams(ws, sourceTeamId, sourcePlayerId, targetTeamId, targetPlayerId = '') {
+  const source = findTeam(ws, sourceTeamId), target = findTeam(ws, targetTeamId);
+  if (!source || !target || source.id === target.id) return { error: 'Choose two different teams.' };
+  if (target.archived || !activeSeason(target)) return { error: 'The destination team needs an active season.' };
+  const p = arr(source.players).find(x => x.id === sourcePlayerId);
+  if (!p) return { error: 'Source player not found.' };
+  const key = personKey(source, p);
+  if (arr(target.players).some(x => x.personId === key)) return { error: 'This player is already linked to that team.' };
+  let dest = null;
+  if (targetPlayerId) {
+    dest = arr(target.players).find(x => x.id === targetPlayerId);
+    if (!dest) return { error: 'The selected destination player was not found.' };
+    if (dest.personId && dest.personId !== key) return { error: 'That player is already linked to another person.' };
+  }
+  // All validation precedes mutations, so rejected links cannot modify either team.
+  if (!p.personId) p.personId = key;
+  if (dest) {
+    dest.personId = key; // existing jersey history, lineup IDs and positions remain intact
+  } else {
+    dest = { id: uid(), personId: key, name: String(p.name || ''), gender: p.gender || '',
+      phone: String(p.phone || ''), ...(validPhoto(p.photo) ? { photo: p.photo } : {}),
+      number: '', positions: [], status: 'available', notes: '', jerseys: [] };
+    target.players = arr(target.players);
+    while (target.players.some(x => x.id === dest.id)) dest.id = uid();
+    target.players.push(dest);
+  }
+  return { player: dest, team: target, linkedExisting: !!targetPlayerId };
+}
 // The players' file for each team. The first team keeps the original name so existing invite links work.
 export const teamFile = (ws, t) => t === ws ? 'team.enc.json' : `team-${t.id}.enc.json`;
 export const TEAM_FILE = /^team(?:-([a-z0-9]{3,32}))?\.enc\.json$/;
