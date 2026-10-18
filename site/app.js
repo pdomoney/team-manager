@@ -939,12 +939,12 @@ function viewSquad() {
   const P = V.players;
   if (!P.length) return isCoach()
     ? `<section class="empty"><h3>No players yet</h3><p>Add players one by one, or paste a whole list from a spreadsheet or the team chat.</p>
-      <div class="btn-row"><button class="btn primary" data-act="add-player">${icon('plus')}Add a player</button><button class="btn" data-act="bulk-add">Paste a list</button></div></section>`
+      <div class="btn-row"><button class="btn primary" data-act="add-player">${icon('plus')}Add a player</button><button class="btn" data-act="player-import">${icon('users', 18)}From another team</button><button class="btn" data-act="bulk-add">Paste a list</button></div></section>`
     : `<p class="muted">The squad hasn't been announced yet.</p>`;
   const cnt = { all: P.length, F: P.filter(p => p.gender === 'F').length, M: P.filter(p => p.gender === 'M').length, out: P.filter(p => p.status && p.status !== 'available').length };
   if (!isCoach() && state.squadFilter === 'out') state.squadFilter = 'all';
   const chip = (k, l) => `<button class="chip" data-act="squad-filter" data-f="${k}" aria-pressed="${state.squadFilter === k}">${l} (${cnt[k]})</button>`;
-  return `<div class="sec-h"><h2>Squad</h2>${isCoach() ? `<div class="btn-row"><button class="btn sm" data-act="bulk-add">Paste list</button><button class="btn primary sm" data-act="add-player">${icon('plus', 18)}Add</button></div>` : ''}</div>
+  return `<div class="sec-h"><h2>Squad</h2>${isCoach() ? `<div class="btn-row"><button class="btn sm" data-act="bulk-add">Paste list</button><button class="btn sm" data-act="player-import">From another team</button><button class="btn primary sm" data-act="add-player">${icon('plus', 18)}Add</button></div>` : ''}</div>
     <input type="text" placeholder="Search players" aria-label="Search players" data-input="squad-search" value="${esc(state.squadSearch)}" style="margin-bottom:10px">
     <div class="chips">${chip('all', 'All')}${chip('F', 'Female')}${chip('M', 'Male')}${isCoach() ? chip('out', 'Injured / unavailable') : ''}</div>
     <div id="squad-list">${squadList()}</div>
@@ -988,21 +988,54 @@ function playerForm(p) {
       <label class="opt"><input type="radio" name="gender" value="M" ${p.gender === 'M' ? 'checked' : ''}><span>Male</span></label>
     </div><small>Used for the mixed ratio check on the lineup screen.</small></div>
     <div class="two">
-      <label class="field-l"><span>Jersey no.</span><input type="text" name="number" inputmode="numeric" maxlength="3" value="${esc(p.number)}"></label>
+      <label class="field-l"><span>Jersey no. · this team</span><input type="text" name="number" inputmode="numeric" maxlength="3" value="${esc(p.number)}"><small>Allocating a number records the jersey as issued on save. ${data.team.jerseyLoan ? 'Loan returns are tracked below.' : 'Enable loaned jerseys in Settings › Team to record returns.'}</small></label>
       <label class="field-l"><span>Status</span><select name="status">${Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>
     <label class="field-l"><span>Mobile</span><input type="tel" name="phone" placeholder="04xx xxx xxx" value="${esc(p.phone)}"><small>Coach only. For messaging them directly on WhatsApp.</small></label>
-    <div class="field-l"><span>Preferred positions</span><div class="opts">
+    <div class="field-l"><span>Preferred positions · this team</span><div class="opts">
       ${[...new Set([...M.positionsFor(data.team, M.clubOf(ws, data)), ...arr(p.positions)])].map(x => `<label class="opt"><input type="checkbox" name="positions" value="${esc(x)}" ${p.positions.includes(x) ? 'checked' : ''}><span>${esc(x)}</span></label>`).join('')}
     </div><small>${esc(M.teamSport(data.team, M.clubOf(ws, data)))} positions. Change the list in Settings › Team.</small></div>
     <label class="field-l"><span>Notes</span><input type="text" name="notes" value="${esc(p.notes)}" placeholder="Coach only, e.g. works Thursdays"></label>
     ${isNew ? '' : jerseyBlock(p)}
+    ${isNew ? '<p class="hint">Already plays for another team in this workspace? Use <b>From another team</b> on the Squad page instead, so the records are linked without copying uniform numbers or positions.</p>' : playerOtherTeams(p)}
     ${st && st.total ? `<p class="note" style="background:var(--ok-soft)">Training: ${st.att} of ${st.total} sessions (${st.pct}%)${st.late ? `, ${st.late} late` : ''}${st.apol ? `, ${st.apol} apolog${st.apol === 1 ? 'y' : 'ies'}` : ''}.</p>` : ''}
     <div class="btn-row">
       <button class="btn primary" type="submit" value="save">${isNew ? 'Add player' : 'Save changes'}</button>
       ${isNew ? `<button class="btn" type="submit" value="another">Add and next</button>` : ''}
     </div>
     ${!isNew ? `<div class="btn-row" style="margin-top:10px">${p.phone ? `<button type="button" class="btn wa" data-act="wa-player" data-id="${p.id}">${icon('chat', 18)}WhatsApp</button>` : ''}<button type="button" class="btn danger" data-act="delete-player" data-id="${p.id}">Remove from squad</button></div>` : ''}
+  </form>`;
+}
+// Team records are distinct; the explicit link only connects a person's identity.
+// A coach may hold the same player in two sports with different positions and kits.
+function playerOtherTeams(p) {
+  const linked = M.personTeams(ws, data.id, p.id).filter(x => x.teamId !== data.id);
+  const remaining = M.activeTeams(ws).some(t => t.id !== data.id && M.activeSeason(t) &&
+    !linked.some(x => x.teamId === t.id));
+  return `<section class="sec" style="padding:12px;margin:10px 0">
+    <div class="sec-h"><h3>Other teams</h3>${remaining ? `<button type="button" class="btn sm" data-act="player-link-out" data-player="${esc(p.id)}">Add to a team</button>` : ''}</div>
+    ${linked.length ? `<div class="list">${linked.map(x => `<div class="row"><span class="grow"><b>${esc(x.teamName)}</b><small class="sub" style="display:block">${esc(x.sport)} · ${x.number ? `Jersey #${esc(x.number)}` : 'No jersey'} · ${esc(x.positions.join(', ') || 'Positions not selected')}${x.archived ? ' · Archived' : ''}</small></span></div>`).join('')}</div>` : '<p class="hint">Not linked to any other team.</p>'}
+    <p class="hint">Linked players keep separate positions, jersey issues and returns, availability and season history on each team. Contact details are copied only when creating the new team record; later changes remain local to each team.</p>
+    </section>`;
+}
+function playerImportForm() {
+  const choices = M.teamPlayerCandidates(ws, data.id);
+  return `<form data-form="player-link" novalidate><input type="hidden" name="mode" value="into">
+    <p class="hint">Select a person already on another active team's squad. This team receives its own player record, with no jersey number or preferred positions until you assign them. No players are automatically matched by name.</p>
+    ${choices.length ? `<label class="field-l"><span>Player and source team</span><select name="source" required>${choices.map(x => `<option value="${esc(x.teamId + '|' + x.playerId)}">${esc(x.name + ' · ' + x.teamName + ' (' + x.sport + ')')}</option>`).join('')}</select></label>
+    <label class="field-l"><span>Existing player on this team (optional)</span><select name="existing"><option value="">Create a new team record</option>${arr(data.players).filter(p => !p.personId).map(p => `<option value="${esc(p.id)}">${esc(p.name)} · existing records retained</option>`).join('')}</select>
+    <small>If that person was already manually added to this team, select their exact existing record instead of making a duplicate. This preserves their match and jersey history.</small></label>
+    <button class="btn primary block" type="submit">Link player to ${esc(M.teamName(data))}</button>` : '<p class="muted">No other active-team players are available to link. Create another team and add a player there first.</p>'}
+  </form>`;
+}
+function playerLinkOutForm(p) {
+  const links = new Set(M.personTeams(ws,data.id,p.id).map(x=>x.teamId));
+  const targets = M.activeTeams(ws).filter(t=>t.id!==data.id && !links.has(t.id) && M.activeSeason(t));
+  return `<form data-form="player-link" novalidate><input type="hidden" name="mode" value="out">
+    <input type="hidden" name="sourcePlayer" value="${esc(p.id)}">
+    <p class="hint"><b>${esc(p.name)}</b> will have a separate player record on the destination team. Uniform allocation, sport positions, notes, injury status and season results are not copied. Save any unsaved changes to this player's current card first.</p>
+    ${targets.length ? `<label class="field-l"><span>Destination team</span><select name="target">${targets.map(t=>`<option value="${esc(t.id)}">${esc(M.teamName(t) + ' · ' + M.teamSport(t.team,M.clubOf(ws,t)))}</option>`).join('')}</select></label><button class="btn primary block" type="submit">Add to another team</button>` : '<p class="muted">Already linked to all available teams.</p>'}
+    <p class="hint">If the person is already manually recorded on the other team, switch to that team and use <b>From another team → Existing player</b> to link the existing record without duplication.</p>
   </form>`;
 }
 // The jerseys this player has been given, and (where jerseys are lent) whether each came back.
@@ -4763,6 +4796,15 @@ const actions = {
 
   'sample': coachOnly(() => loadSample()),
   'add-player': coachOnly(() => openSheet('Add player', playerForm(null), 'player')),
+  'player-import': coachOnly(() => openSheet('From another team', playerImportForm(), 'player-link')),
+  'player-link-out': coachOnly(el => {
+    const p = data.players.find(x => x.id === el.dataset.player); if (!p) return;
+    const form = el.closest('form[data-form=player]');
+    if (form && form.querySelector('[name=name]') && form.querySelector('[name=name]').value.trim() !== p.name) {
+      toast('Save player changes before adding them to another team.'); return;
+    }
+    openSheet('Add to another team', playerLinkOutForm(p), 'player-link');
+  }),
   'bulk-add': coachOnly(() => openSheet('Paste a list', bulkForm())),
   'edit-player': coachOnly(el => { const p = playerById(el.dataset.id); if (p) openSheet(p.name, playerForm(p), 'player'); }),
   'delete-player': coachOnly(el => {
@@ -5632,6 +5674,19 @@ document.addEventListener('submit', async e => {
   if (kind === 'system') {
     saveSystemWords(str('id'), { when: raw('when'), points: raw('points'), jobs: Object.fromEntries(JOB_GROUPS.map(g => [g, raw('job-' + g)])) });
     save(); closeSheet(); render(); toast('Saved');
+    return;
+  }
+  if (kind === 'player-link') {
+    const mode = str('mode'), pair = str('source').split('|');
+    const srcTeam = mode === 'into' ? pair[0] : data.id;
+    const srcPlayer = mode === 'into' ? pair[1] : str('sourcePlayer');
+    const targetTeam = mode === 'into' ? data.id : str('target');
+    if (!srcTeam || !srcPlayer || !targetTeam) { toast('Choose a player and a team first.'); return; }
+    const result = M.linkPlayerTeams(ws, srcTeam, srcPlayer, targetTeam, mode === 'into' ? str('existing') : '');
+    if (result.error) { toast(result.error); return; }
+    save(); render();
+    if (mode === 'into') openSheet(result.player.name, playerForm(result.player), 'player');
+    else { closeSheet(); toast(`Added to ${M.teamName(result.team)}. Switch to that team to assign its own jersey and sport positions.`); }
     return;
   }
   if (kind === 'player') {
