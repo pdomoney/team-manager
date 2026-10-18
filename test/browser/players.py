@@ -70,6 +70,11 @@ with sync_playwright() as p:
     with pg.expect_popup() as pop: pg.locator('[data-act=jersey-remind]').first.click()
     c.ok('jersey' in pop.value.url.lower() or 'wa.me' in pop.value.url, 'reminder to hand a jersey back opens WhatsApp')
     pop.value.close()
+    # The WhatsApp handoff explicitly asks the coach whether a message was sent.
+    # A stubbed popup did not send anything; dismiss it as Not sent before
+    # interacting with another form. Otherwise its fixed action panel can cover buttons.
+    if pg.locator('#ask [data-act="msg-not-sent"]:visible').count():
+        pg.locator('#ask [data-act="msg-not-sent"]').click()
     # live competition on Home
     W("(() => { const c = M.findComp(W, D.team.eventCompId), t = M.isoDay(new Date()); c.start = M.addDays(t, -1); c.end = M.addDays(t, 1); c.status = 'active'; const ms = D.matches.filter(m => m.entryId); ms[0].date = M.addDays(t, -1); ms[0].status = 'played'; ms[0].result = { us: 5, them: 2 }; ms[1].date = t; return 1; })()")
     pg.goto(url + '#home'); pg.wait_for_timeout(250)
