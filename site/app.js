@@ -3836,13 +3836,19 @@ function refreshTeamSportGuide(form) {
   const positions = M.SPORT_POSITIONS[sport] || [];
   const empty = sel.querySelector('option[value=""]');
   if (empty) empty.textContent = `Use club default (${club ? club.sport : 'Oztag'})`;
-  const guide = form.querySelector('[data-sport-guide]');
-  if (guide) guide.textContent = `New players for this team will see ${sport} positions (${explicit ? 'team override' : 'club default'}): ${positions.join(', ') || 'no predefined positions; configure them in Settings'}.`;
   const input = form.querySelector('input[name=positions][data-auto-positions]');
   if (input && input.dataset.autoPositions === 'true' && input.value === input.dataset.lastDefault) {
     input.value = positions.join(', ');
     input.dataset.lastDefault = input.value;
   }
+  const sourceSport = M.teamSport(data.team, M.clubOf(ws, data));
+  const copy = form.querySelector('[name=copySettings]');
+  const copiedCustom = !input && copy && copy.checked && data.team.positionsCustom === true && sport === sourceSport;
+  const chosen = input ? input.value.split(',').map(x => x.trim()).filter(Boolean)
+    : copiedCustom ? arr(data.team.positions) : positions;
+  const custom = input ? (input.dataset.autoPositions === 'false' || input.value !== positions.join(', ')) : !!copiedCustom;
+  const guide = form.querySelector('[data-sport-guide]');
+  if (guide) guide.textContent = `New players for this team will see ${sport} positions (${explicit ? 'team override' : 'club default'}): ${chosen.join(', ') || 'no positions set'}.${custom ? ' This is a custom team position list.' : ''}`;
 }
 // The team's details: its club, division, category, season and staff (part of Settings).
 function teamDetailsFields(T) {
@@ -4548,7 +4554,7 @@ function settingsBody() {
       <label class="field-l"><span>Red middle channel (m)</span><input type="number" name="fieldMiddle" min="4" max="20" step="0.5" value="${esc(T.field.middle)}"></label>
     </div>
     <p class="hint" style="margin-top:-6px;margin-bottom:14px">The two outside channels share the rest of the 50 m width: ${esc(fieldDims(T.field).outside)} m each now.</p>
-    <label class="field-l"><span>Positions for this team</span><input type="text" name="positions" data-auto-positions="${T.positionsCustom === true ? 'false' : 'true'}" data-last-default="${esc(M.positionsFor(T, M.clubOf(ws, data)).join(', '))}" value="${esc(M.positionsFor(T, M.clubOf(ws, data)).join(', '))}"><small>What players can pick as preferred positions, separated by commas. ${esc(M.teamSport(T, M.clubOf(ws, data)))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, M.clubOf(ws, data))] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>
+    <label class="field-l"><span>Positions for this team</span><input type="text" name="positions" data-auto-positions="${T.positionsCustom === true ? 'false' : 'true'}" data-last-default="${esc(M.positionsFor(T, M.clubOf(ws, data)).join(', '))}" data-input="team-positions" value="${esc(M.positionsFor(T, M.clubOf(ws, data)).join(', '))}"><small>What players can pick as preferred positions, separated by commas. ${esc(M.teamSport(T, M.clubOf(ws, data)))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, M.clubOf(ws, data))] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>
     <label class="check"><input type="checkbox" name="jerseyLoan" ${T.jerseyLoan ? 'checked' : ''}><span>Jerseys are lent to players and must be handed back</span></label>
     <button class="btn primary block" type="submit">Save settings</button>
   </form>
@@ -5413,6 +5419,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('input', e => {
   const k = e.target.dataset.input; if (!k) return;
   if (k === 'squad-search') { state.squadSearch = e.target.value; const l = $('#squad-list'); if (l) l.innerHTML = squadList(); }
+  if (k === 'team-positions') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'msg') state.msgDraft = e.target.value;
   if (k === 'ped-ptitle' && state.ped) { pedCur(state.ped).title = e.target.value; state.ped.dirty = true; }
   if ((k === 'ped-text' || k === 'ped-line') && state.ped && state.ped.sel) {
