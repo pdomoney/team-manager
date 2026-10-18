@@ -96,6 +96,13 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 - St George Oztag is set up with DragonTag Mixed 20s in it.
 - **More → Club** shows the club to players and coaches. Each team has its own squad, schedule, matches, tasks, lineups, plays and messages, and its own players' password and invite link. The **library** (Tactics → Library) shares plays, game systems and player lists between teams: a team uses a linked copy, which follows new library versions until the team changes it.
 
+### Players, sports and jerseys
+
+- **Sport**: a team plays its club's sport unless it's set in Settings › Team (Oztag, touch, league tag, rugby league and union, sevens, tag rugby, AFL, netball, football, basketball, hockey, cricket). The sport sets the positions players can pick (the team can keep its own list) and the automatic rule set; the app has official rules for Oztag, rugby league and league tag only.
+- **Photos**: add a photo in the player form to put names to faces. Photos are shrunk to a small image and stay in the coach's copy; players never see them.
+- **Jerseys**: giving a player a number records their jersey as given out. If jerseys are lent (Settings › Team), mark each one returned on the player or in Reports › Jerseys, which lists who has one, who's handed it back and anyone who left still holding one, with a WhatsApp reminder.
+- **Competition day**: when a competition is active, Home shows it: where it's up to (day or week), our results, today's matches, the next match and the last result.
+
 ### Seasons
 
 A team carries on from season to season (Winter 2026, Winter 2027…) without being made again. The season shows under the team name; tap it to look back at a past season or open **Seasons** (also in Clubs and teams and Settings).
@@ -151,7 +158,7 @@ To build with real data, check out the data branch first: `git worktree add data
 Browser checks (optional, need Python with Playwright and Chromium) walk through the app at phone and desktop sizes, with GitHub simulated and WhatsApp stubbed, so nothing goes online:
 
 ```sh
-for t in test/browser/{m0_stability,m2_participation,m3_teams_library,m4_matches,m5_reports,regress,live_publishing,clubs,rules,home,seasons,competitions}.py; do python3 "$t"; done
+for t in test/browser/{m0_stability,m2_participation,m3_teams_library,m4_matches,m5_reports,regress,live_publishing,clubs,rules,home,seasons,competitions,players}.py; do python3 "$t"; done
 ```
 
 ## Licence

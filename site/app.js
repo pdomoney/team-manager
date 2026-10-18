@@ -94,6 +94,7 @@ const todayISO = () => toISODate(new Date());
 const daysBetween = (a, b) => Math.round((parseDate(b) - parseDate(a)) / 86400000);
 const fmtDay = s => parseDate(s).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
 const fmtLong = s => parseDate(s).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+const fmtDM = s => parseDate(s).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
 const fmtShort = s => { const d = parseDate(s); return `${d.getDate()}/${d.getMonth() + 1}`; };
 function fmtTime(t) { if (!t) return ''; const [h, m] = t.split(':').map(Number); const ap = h >= 12 ? 'pm' : 'am'; const hh = ((h + 11) % 12) + 1; return m ? `${hh}:${pad(m)}${ap}` : `${hh}${ap}`; }
 const fmtRange = s => s.start ? fmtTime(s.start) + (s.end ? '–' + fmtTime(s.end) : '') : 'Time TBC';
@@ -442,6 +443,7 @@ function persistDraft() {
 // Every change: keep it (encrypted) on this phone, then publish shortly after.
 function save() {
   M.claimRecords(data, editingSeasonId());   // new records join the season being worked on
+  M.syncJerseys(data, todayISO());            // a number given out is a jersey given out
   M.syncEvents(ws);
   data.updatedAt = ws.updatedAt = new Date().toISOString();
   if (S.trial) { if (!store.set(KEYS.trial, JSON.stringify(ws))) S.storageFull = true; renderStatus(); return; }
@@ -571,6 +573,10 @@ const ICON = {
 const icon = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
 const gBadge = p => { const g = p.gender === 'F' ? 'F' : p.gender === 'M' ? 'M' : 'U'; return `<span class="g ${g}" title="${g === 'F' ? 'Female' : g === 'M' ? 'Male' : 'Gender not set'}">${g === 'U' ? '?' : g}</span>`; };
 const jersey = p => `<span class="jersey ${p.number ? '' : 'none'}">${esc(p.number || initials(p))}</span>`;
+// A player's photo with their number on it (coach only); the number badge when there's no photo.
+const playerPic = (p, big = false) => isCoach() && M.validPhoto(p.photo)
+  ? `<span class="pphoto${big ? ' big' : ''}"><img src="${p.photo}" alt="">${p.number ? `<b>${esc(p.number)}</b>` : ''}</span>`
+  : big ? `<span class="pphoto big none" aria-hidden="true">${esc(initials(p) || '?')}</span>` : jersey(p);
 const isOut = p => isCoach() && p.status && p.status !== 'available';
 const statusPill = p => isOut(p) ? ` <span class="pill ${p.status}">${STATUS[p.status]}</span>` : '';
 
@@ -839,11 +845,39 @@ function startSquad() {
       <p class="hint" style="margin-top:14px">Just exploring? <button class="link-btn inline" data-act="sample">Load a sample squad</button>. Clear it in Settings before you invite players.</p>
     </section>`;
 }
+// An active competition on Home: where it's up to, our results so far, today's matches (a tournament
+// day), the next match and the last result. Players get the same for their own team.
+const TROPHY = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4"/></svg>';
+function phaseText(ph) {
+  return ph.kind === 'day' ? `Day ${ph.n} of ${ph.of}` : ph.kind === 'week' ? `Week ${ph.n} of ${ph.of}` : ph.kind === 'before' ? `Starts in ${ph.days} day${ph.days === 1 ? '' : 's'}` : ph.kind === 'after' ? 'Finished' : '';
+}
+function liveCard(lc, coach) {
+  const c = lc.comp, many = lc.rows.length > 1, phase = phaseText(lc.phase);
+  const go = (r, act, id) => coach ? `data-act="home-go" data-team="${esc(r.teamId)}" data-go="${act}" data-id="${esc(id)}"` : '';
+  const when = m => [m.date === todayISO() ? '' : fmtDay(m.date), m.start ? fmtTime(m.start) : 'time TBC', m.field ? `Field ${m.field}` : ''].filter(Boolean).join(' · ');
+  const rows = lc.rows.map(r => {
+    const rec = r.record, tag = coach ? 'button' : 'div';
+    const today = r.today.map(m => { const res = resultText(m), o = M.matchOutcome(m);
+      return `<li><${tag} class="cl-match" ${go(r, 'match-open', m.id)}><span class="cl-time">${m.start ? esc(fmtTime(m.start)) : 'TBC'}</span><span class="grow"><b>vs ${esc(m.opponent || 'TBC')}</b><small>${esc([m.field && `Field ${m.field}`, m.round].filter(Boolean).join(' · ') || 'Field TBC')}</small></span>${res ? `<span class="cl-res ${o}">${esc(res)}</span>` : m.status !== 'scheduled' ? `<span class="cl-res">${esc(M.MATCH_STATUS[m.status])}</span>` : ''}</${tag}></li>`; }).join('');
+    const next = r.next && !r.today.includes(r.next) ? `<${tag} class="cl-line" ${go(r, 'match-open', r.next.id)}><span class="cl-lbl">Next</span><span><b>vs ${esc(r.next.opponent || 'TBC')}</b> · ${esc(when(r.next))}${r.next.round ? ` · ${esc(r.next.round)}` : ''}</span></${tag}>` : '';
+    const last = r.last && !r.today.includes(r.last) ? `<${tag} class="cl-line" ${go(r, 'match-open', r.last.id)}><span class="cl-lbl">Last</span><span>vs ${esc(r.last.opponent || 'TBC')} · <b>${esc(resultText(r.last))}</b></span></${tag}>` : '';
+    return `<div class="cl-team">${many ? `<p class="cl-tname">${esc(r.team)}${r.entry.division ? ` · ${esc(r.entry.division)}` : ''}</p>` : ''}
+      <dl class="cl-rec"><div><dt>Won</dt><dd>${rec.won}</dd></div><div><dt>Drawn</dt><dd>${rec.drawn}</dd></div><div><dt>Lost</dt><dd>${rec.lost}</dd></div><div><dt>For–against</dt><dd>${rec.scoredGames ? `${rec.scored}–${rec.conceded}` : '–'}</dd></div></dl>
+      ${today ? `<p class="cl-lbl" style="margin-top:10px">Today</p><ol class="cl-day">${today}</ol>` : ''}${next}${last}${r.fixtures ? '' : '<p class="cl-line">No fixtures linked to it yet.</p>'}</div>`;
+  }).join('');
+  return `<section class="comp-live" aria-labelledby="cl-${esc(c.id)}">
+    <div class="cl-head"><span class="cl-trophy">${TROPHY}</span><div class="grow"><p class="cl-k"><span class="cl-dot" aria-hidden="true"></span>Live${M.COMP_FORMATS[c.format] ? ` · ${esc(M.COMP_FORMATS[c.format])}` : ''}${phase ? ` · ${esc(phase)}` : ''}</p>
+      <h2 id="cl-${esc(c.id)}">${esc(c.name)}</h2><p class="cl-sub">${esc([!many && lc.rows[0].entry.division, c.venue, c.start ? compDates(c) : ''].filter(Boolean).join(' · '))}</p></div></div>
+    ${rows}
+    ${coach ? `<button class="btn sm on-dark cl-open" data-act="home-go" data-team="${esc(lc.rows[0].teamId)}" data-go="comp-open" data-id="${esc(c.id)}">Open competition</button>` : ''}
+  </section>`;
+}
 function viewHome() {
   if (!isCoach()) return playerHome();
   const hv = M.homeView(ws, homePref(), new Date(), { days: homeDays() });
   const one = hv.scope.kind === 'team' && hv.teams[0] === data;
-  const left = (one && !M.activeLens(data).players.length ? startSquad() : '') + homeSpotlight(hv) + homeUpcoming(hv);
+  const live = M.liveComps(ws, hv.teams, new Date()).map(lc => liveCard(lc, true)).join('');
+  const left = (one && !M.activeLens(data).players.length ? startSquad() : '') + homeSpotlight(hv) + live + homeUpcoming(hv);
   const right = homeActionList(hv) + (hv.insight ? homeInsight(hv) : '') + (one ? homeNotices(3) : '');
   return `${homeSelector(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
 }
@@ -864,7 +898,8 @@ function playerHome() {
   const rules = fresh.length ? `<div class="note rules-new">${esc(fresh[0].notice || fresh[0].summary)} <button class="link-btn inline" data-act="rules-open">See the rules</button></div>` : '';
   const up = `<section class="sec home-up" aria-labelledby="up-h"><div class="sec-h"><h2 id="up-h">Coming up</h2><button class="btn sm" data-act="tab" data-tab="agenda">Full schedule</button></div>
     ${rest.length ? `<div class="list">${rest.slice(0, 5).map(agendaItem).join('')}</div>` : `<p class="muted small">Nothing else in the next two weeks.</p>`}</section>`;
-  return `${strip}<div class="cols home-cols"><div class="col">${spot}${rules}${up}</div><div class="col">${homeNotices(10)}${homeTasks()}</div></div>`;
+  const live = M.liveCompsForTeam(V, new Date()).map(lc => liveCard(lc, false)).join('');
+  return `${strip}<div class="cols home-cols"><div class="col">${spot}${live}${rules}${up}</div><div class="col">${homeNotices(10)}${homeTasks()}</div></div>`;
 }
 function calBlock(date) {
   const d = parseDate(date);
@@ -897,7 +932,7 @@ function squadList() {
   });
   if (!list.length) return `<p class="muted" style="padding:12px 0">No players match.</p>`;
   return `<div class="list grid">${list.map(p => {
-    const main = `${jersey(p)}
+    const main = `${playerPic(p)}
       <span class="grow"><span class="name" style="display:block">${esc(p.name)} ${gBadge(p)}${statusPill(p)}</span><span class="sub" style="display:block">${esc(p.positions.join(', ') || 'No positions set')}</span></span>`;
     if (!isCoach()) return `<div class="row"><div class="row-main">${main}</div></div>`;
     const st = playerStats(p.id);
@@ -914,7 +949,11 @@ function playerForm(p) {
   const st = p.id ? playerStats(p.id) : null;
   return `<form data-form="player" autocomplete="off">
     <input type="hidden" name="id" value="${esc(p.id || '')}">
-    <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(p.name)}" autocapitalize="words"></label>
+    <div class="photo-row"><span class="photo-prev">${playerPic(p, true)}</span>
+      <div class="grow"><label class="field-l" style="margin-bottom:6px"><span>Name</span><input type="text" name="name" required value="${esc(p.name)}" autocapitalize="words"></label>
+      <div class="btn-row" style="margin:0"><label class="btn sm file-btn"><input type="file" accept="image/*" data-change="player-photo" aria-label="Choose a photo of the player">${p.photo ? 'Change photo' : 'Add photo'}</label><button type="button" class="btn sm" data-act="player-photo-clear" ${p.photo ? '' : 'hidden'}>Remove photo</button></div></div></div>
+    <input type="hidden" name="photo" value="${esc(p.photo || '')}">
+    <p class="hint" style="margin:-2px 0 12px">The photo helps you put names to faces. It stays in the coach’s copy; players never see it.</p>
     <div class="field-l"><span>Gender</span><div class="opts">
       <label class="opt"><input type="radio" name="gender" value="F" ${p.gender === 'F' ? 'checked' : ''}><span>Female</span></label>
       <label class="opt"><input type="radio" name="gender" value="M" ${p.gender === 'M' ? 'checked' : ''}><span>Male</span></label>
@@ -925,9 +964,10 @@ function playerForm(p) {
     </div>
     <label class="field-l"><span>Mobile</span><input type="tel" name="phone" placeholder="04xx xxx xxx" value="${esc(p.phone)}"><small>Coach only. For messaging them directly on WhatsApp.</small></label>
     <div class="field-l"><span>Preferred positions</span><div class="opts">
-      ${data.team.positions.map(x => `<label class="opt"><input type="checkbox" name="positions" value="${esc(x)}" ${p.positions.includes(x) ? 'checked' : ''}><span>${esc(x)}</span></label>`).join('')}
-    </div></div>
+      ${[...new Set([...M.positionsFor(data.team, M.clubOf(ws, data)), ...arr(p.positions)])].map(x => `<label class="opt"><input type="checkbox" name="positions" value="${esc(x)}" ${p.positions.includes(x) ? 'checked' : ''}><span>${esc(x)}</span></label>`).join('')}
+    </div><small>${esc(M.teamSport(data.team, M.clubOf(ws, data)))} positions. Change the list in Settings › Team.</small></div>
     <label class="field-l"><span>Notes</span><input type="text" name="notes" value="${esc(p.notes)}" placeholder="Coach only, e.g. works Thursdays"></label>
+    ${isNew ? '' : jerseyBlock(p)}
     ${st && st.total ? `<p class="note" style="background:var(--ok-soft)">Training: ${st.att} of ${st.total} sessions (${st.pct}%)${st.late ? `, ${st.late} late` : ''}${st.apol ? `, ${st.apol} apolog${st.apol === 1 ? 'y' : 'ies'}` : ''}.</p>` : ''}
     <div class="btn-row">
       <button class="btn primary" type="submit" value="save">${isNew ? 'Add player' : 'Save changes'}</button>
@@ -935,6 +975,32 @@ function playerForm(p) {
     </div>
     ${!isNew ? `<div class="btn-row" style="margin-top:10px">${p.phone ? `<button type="button" class="btn wa" data-act="wa-player" data-id="${p.id}">${icon('chat', 18)}WhatsApp</button>` : ''}<button type="button" class="btn danger" data-act="delete-player" data-id="${p.id}">Remove from squad</button></div>` : ''}
   </form>`;
+}
+// The jerseys this player has been given, and (where jerseys are lent) whether each came back.
+function jerseyBlock(p) {
+  const loans = arr(p.jerseys), lend = !!data.team.jerseyLoan, season = id => (M.findSeason(data, id) || {}).name || 'an earlier season';
+  if (!loans.length) return `<div class="jersey-block"><p class="hint" style="margin:-4px 0 14px">${p.number ? 'Save to record their jersey as given out.' : 'Give them a number and their jersey is recorded as given out.'}</p></div>`;
+  return `<div class="field-l jersey-block"><span>Jerseys</span><div class="list jersey-list">${loans.slice().reverse().map(j => `<div class="row">
+      <span class="jersey">${esc(j.number || '?')}</span><span class="grow"><span class="name" style="display:block">${j.back ? `Returned ${esc(fmtDay(j.back))}` : lend ? 'With the player' : 'Given out'}</span>
+      <span class="tagline">${esc(season(j.seasonId))} · ${j.out ? `out ${esc(fmtDay(j.out))}` : 'date out not recorded'}</span></span>
+      ${lend && !j.back ? `<button type="button" class="btn sm" data-act="jersey-back" data-player="${esc(p.id)}" data-id="${esc(j.id)}">Returned</button>` : ''}
+      ${j.back ? `<button type="button" class="btn sm" data-act="jersey-undo" data-player="${esc(p.id)}" data-id="${esc(j.id)}">Undo</button>` : ''}
+      <button type="button" class="icon-btn" data-act="jersey-del" data-player="${esc(p.id)}" data-id="${esc(j.id)}" aria-label="Remove the jersey ${esc(j.number)} record">${icon('close', 18)}</button></div>`).join('')}</div>
+    <small>${lend ? 'Jerseys are lent: mark each one when it comes back. ' : ''}Remove a record only if it was a mistake.</small></div>`;
+}
+// Jerseys for the season on screen: who has one and, where they're lent, who's handed theirs back.
+function jerseyReportHtml() {
+  if (!V.viewSeason) return '';
+  const r = M.jerseyReport(data, V.viewSeason.id), lend = !!data.team.jerseyLoan;
+  if (!r.rows.length) return '';
+  const status = x => x.status === 'out' ? (lend ? `<span class="pill neutral">With player</span>` : `<span class="pill ok">Given out</span>`) : x.status === 'returned' ? '<span class="pill ok">Returned</span>' : '<span class="pill neutral">No jersey</span>';
+  return `<section class="sec"><div class="sec-h"><h2>Jerseys</h2>${lend && r.out ? `<button class="btn sm" data-act="jersey-share">${icon('copy', 18)}Copy list</button>` : ''}</div>
+    <p class="small" style="margin-bottom:8px">${lend ? `<b>${r.out}</b> still out · <b>${r.returned}</b> returned` : `<b>${r.out}</b> given out`} · ${r.none} without a jersey${r.gone ? ` · ${r.gone} no longer in the squad but still holding one` : ''}.</p>
+    <div class="table-wrap"><table class="rtable"><thead><tr><th scope="col">Player</th><th scope="col">Jersey</th><th scope="col">Status</th>${lend ? '<th scope="col"><span class="sr-only">Actions</span></th>' : ''}</tr></thead><tbody>
+    ${r.rows.map(x => { const j = x.open[0] || x.season[x.season.length - 1];
+      return `<tr><th scope="row">${esc(x.name)}${x.inSquad ? '' : '<small class="muted" style="display:block">Left the squad</small>'}</th><td>${esc(x.open.map(o => '#' + o.number).join(', ') || (j ? '#' + j.number : x.number ? '#' + x.number : '–'))}${j && j.out && x.status === 'out' ? `<small class="muted" style="display:block">since ${esc(fmtDM(j.out))}</small>` : ''}</td><td>${status(x)}</td>
+      ${lend ? `<td>${x.open.map(o => `<button class="btn sm" data-act="jersey-back" data-player="${esc(x.id)}" data-id="${esc(o.id)}" aria-label="${esc(x.name)} returned jersey ${esc(o.number)}">Returned</button>`).join(' ')}${x.open.length && (data.players.find(p => p.id === x.id) || {}).phone ? ` <button class="btn sm" data-act="jersey-remind" data-player="${esc(x.id)}" aria-label="Remind ${esc(x.name)} to return their jersey">${icon('chat', 16)}</button>` : ''}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>
+    <p class="hint">${esc(V.viewSeason.name)}. A number given out counts as a jersey received${lend ? '; returns are marked here or on the player' : '. Turn on lent jerseys in Settings › Team to track returns'}.</p></section>`;
 }
 function bulkForm() {
   return `<form data-form="bulk">
@@ -3236,6 +3302,7 @@ function viewReports() {
         ${helpers.slice(0, 12).map(([w, L]) => `<tr><th scope="row">${esc(whoName(w))}</th><td>${L.done}</td><td>${L.accepted + L.invited}${L.invited ? ` <small class="muted">(${L.invited} invited)</small>` : ''}</td><td>${L.declined}</td></tr>`).join('')}</tbody></table>
         <p class="hint">${helpers.length > 12 ? `Top 12 of ${helpers.length}. ` : ''}${notHelped} ${notHelped === 1 ? 'person hasn’t' : 'people haven’t'} helped or been asked. Accepted spots on past tasks that were never marked done aren’t counted as done.</p>` : '<p class="muted small">Not recorded: nobody has been put on a task in this period.</p>'}
     </section>
+    ${jerseyReportHtml()}
     ${compResults()}
     ${seasonCompare()}
     </div></div>`;
@@ -3653,7 +3720,7 @@ function viewClub() {
     ${c.notes ? `<p class="hint">${esc(c.notes)}</p>` : ''}` : ''}
     </div></div>`;
 }
-const CLUB_SPORTS = ['Oztag', 'Rugby league', 'League tag', 'Touch football'];
+const CLUB_SPORTS = M.SPORTS;
 function clubForm(c) {
   const isNew = !c; c = M.normClub(c || { name: '' });
   const f = (name, label, ph = '', type = 'text') => `<label class="field-l"><span>${label}</span><input type="${type}" name="${name}" value="${esc(c[name])}" placeholder="${esc(ph)}"></label>`;
@@ -3695,6 +3762,7 @@ function teamDetailsFields(T) {
       <label class="field-l"><span>Division</span><input type="text" name="division" value="${esc(T.division)}" placeholder="e.g. Mixed 20s"></label></div>
     <div class="two"><label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${T.category === k ? 'selected' : ''}>${l}</option>`).join('')}</select><small>Mixed turns on the males-on-field check.</small></label>
       <label class="field-l"><span>Age group</span><input type="text" name="ageGroup" value="${esc(T.ageGroup)}" placeholder="e.g. 20 and over, Under 16"></label></div>
+    <label class="field-l"><span>Sport</span>${sportSelect('teamSport', T.sport || '', `Club’s sport (${(M.clubOf(ws, data) || {}).sport || 'Oztag'})`)}<small>Sets the positions players can pick and the official rules. Most teams play their club’s sport.</small></label>
     ${ruleSetField(T)}
     <div class="two"><div class="field-l"><span>Season</span><p class="field-static">${esc((M.activeSeason(data) || {}).name || 'No active season')} <button type="button" class="link-btn inline" data-act="season-open">Seasons</button></p></div>
       <label class="field-l"><span>Team colours</span><input type="text" name="colours" value="${esc(T.colours)}" placeholder="Blank: the club’s"></label></div>
@@ -3713,6 +3781,7 @@ function teamForm() {
       <label class="field-l"><span>Division</span><input type="text" name="division" placeholder="e.g. Women's Open"></label></div>
     <div class="two"><label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${k === (T.category || 'mixed') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="field-l"><span>First season</span><input type="text" name="season" value="${esc(String(new Date().getFullYear()))}" placeholder="e.g. Winter 2027"></label></div>
+    <label class="field-l"><span>Sport</span>${sportSelect('teamSport', '', 'The club’s sport')}</label>
     <label class="field-l"><span>Tournament or season</span><input type="text" name="event" value="${esc(T.event)}"></label>
     <div class="two">
       <label class="field-l"><span>Starts</span><input type="date" name="eventStart" value="${esc(T.eventStart)}"></label>
@@ -3755,7 +3824,8 @@ function teamSwitcher() {
 // A competition (a league, a tournament, a championship) is kept once and entered by a team for one of
 // its seasons. Matches belong to an entry, or are friendlies, or aren't linked to anything yet. No
 // tables or standings are worked out: only this app's own teams' results are recorded.
-const COMP_SPORTS = ['Oztag', 'Rugby league', 'League tag', 'Touch football'];
+// A sport picked from the list (a name typed before the list existed is kept as an option).
+const sportSelect = (name, cur, blank = '') => `<select name="${name}">${blank ? `<option value="">${esc(blank)}</option>` : ''}${[...new Set([...M.SPORTS, ...(cur ? [cur] : [])])].map(x => `<option value="${esc(x)}" ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
 // The competition a match is in, for showing beside it ('' when none).
 function matchCompLabel(m) {
   if (S.role === 'coach' && !state.preview) {
@@ -3831,8 +3901,7 @@ function compForm(c, forEntry = null) {
   openSheet(isNew ? 'New competition' : `Edit ${c.name}`, `<form data-form="comp" autocomplete="off" novalidate><input type="hidden" name="id" value="${esc(isNew ? '' : c.id)}">
     <label class="field-l"><span>Name</span><input type="text" name="name" value="${esc(c.name)}" placeholder="e.g. Winter League 2027"></label>
     <div class="two"><label class="field-l"><span>Format</span><select name="format">${Object.entries(M.COMP_FORMATS).map(([k, l]) => `<option value="${k}" ${c.format === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      <label class="field-l"><span>Sport</span><input type="text" name="sport" list="comp-sports" value="${esc(c.sport)}"></label></div>
-    <datalist id="comp-sports">${COMP_SPORTS.map(x => `<option value="${x}">`).join('')}</datalist>
+      <label class="field-l"><span>Sport</span>${sportSelect('sport', c.sport)}</label></div>
     <div class="two"><label class="field-l"><span>Year or edition</span><input type="text" name="edition" value="${esc(c.edition)}"></label>
       <label class="field-l"><span>Status</span><select name="status">${Object.entries(M.COMP_STATUS).map(([k, l]) => `<option value="${k}" ${c.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
     <div class="two"><label class="field-l"><span>Starts</span><input type="date" name="start" value="${esc(c.start)}"></label><label class="field-l"><span>Ends</span><input type="date" name="end" value="${esc(c.end)}"></label></div>
@@ -3876,28 +3945,38 @@ function compEnterSheet(sid) {
 
 // A club logo from the phone: any image, shrunk to fit 160 px and kept as a small WebP (or PNG, or
 // JPEG if it's still too big) with the club.
-function readLogo(file) {
+const readLogo = file => readImage(file, 160, M.LOGO_MAX, M.validLogo);
+const readPhoto = file => readImage(file, 240, M.PHOTO_MAX, M.validPhoto);
+function readImage(file, px, max, valid) {
   return new Promise((resolve, reject) => {
     if (!file || !/^image\//.test(file.type)) { reject(new Error('Pick an image file')); return; }
     if (file.size > 15e6) { reject(new Error('That image is too big. Try one under 15 MB.')); return; }
     const url = URL.createObjectURL(file), img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const W0 = img.naturalWidth || 160, H0 = img.naturalHeight || 160, k = Math.min(1, 160 / Math.max(W0, H0));
+      const W0 = img.naturalWidth || px, H0 = img.naturalHeight || px, k = Math.min(1, px / Math.max(W0, H0));
       const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(W0 * k)); cv.height = Math.max(1, Math.round(H0 * k));
       cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
       let out = '';
       try {
         out = cv.toDataURL('image/webp', 0.85);
         if (!/^data:image\/(webp|png)/.test(out)) out = cv.toDataURL('image/png');
-        if (out.length > M.LOGO_MAX) out = cv.toDataURL('image/jpeg', 0.8);
+        if (out.length > max) out = cv.toDataURL('image/jpeg', 0.8);
       } catch (e) { reject(new Error('That image can’t be used. Try a PNG or JPEG.')); return; }
-      if (!M.validLogo(out)) { reject(new Error('That image can’t be used. Try a smaller PNG or JPEG.')); return; }
+      if (!valid(out)) { reject(new Error('That image can’t be used. Try a smaller PNG or JPEG.')); return; }
       resolve(out);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That image can’t be read. Try a PNG or JPEG.')); };
     img.src = url;
   });
+}
+
+// After a jersey change: refresh the player sheet if it's open, otherwise the page.
+function afterJersey(p, msg) {
+  render();
+  const blk = $('#sheet form[data-form=player] .jersey-block');
+  if (blk) blk.outerHTML = jerseyBlock(p);   // keeps anything typed in the form
+  toast(msg);
 }
 
 /* ---------- Seasons ---------- */
@@ -4366,7 +4445,8 @@ function settingsBody() {
       <label class="field-l"><span>Red middle channel (m)</span><input type="number" name="fieldMiddle" min="4" max="20" step="0.5" value="${esc(T.field.middle)}"></label>
     </div>
     <p class="hint" style="margin-top:-6px;margin-bottom:14px">The two outside channels share the rest of the 50 m width: ${esc(fieldDims(T.field).outside)} m each now.</p>
-    <label class="field-l"><span>Position groups</span><input type="text" name="positions" value="${esc(T.positions.join(', '))}"><small>Preferred-position options for players. Separate with commas.</small></label>
+    <label class="field-l"><span>Positions</span><input type="text" name="positions" value="${esc(M.positionsFor(T, M.clubOf(ws, data)).join(', '))}"><small>What players can pick as preferred positions, separated by commas. ${esc(M.teamSport(T, M.clubOf(ws, data)))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, M.clubOf(ws, data))] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>
+    <label class="check"><input type="checkbox" name="jerseyLoan" ${T.jerseyLoan ? 'checked' : ''}><span>Jerseys are lent to players and must be handed back</span></label>
     <button class="btn primary block" type="submit">Save settings</button>
   </form>
   ${S.trial ? trialSettings() : liveSettings()}`;
@@ -4634,9 +4714,9 @@ const actions = {
   },
 
   'sample': coachOnly(() => loadSample()),
-  'add-player': coachOnly(() => openSheet('Add player', playerForm(null))),
+  'add-player': coachOnly(() => openSheet('Add player', playerForm(null), 'player')),
   'bulk-add': coachOnly(() => openSheet('Paste a list', bulkForm())),
-  'edit-player': coachOnly(el => { const p = playerById(el.dataset.id); if (p) openSheet(p.name, playerForm(p)); }),
+  'edit-player': coachOnly(el => { const p = playerById(el.dataset.id); if (p) openSheet(p.name, playerForm(p), 'player'); }),
   'delete-player': coachOnly(el => {
     const p = playerById(el.dataset.id), s = V.viewSeason; if (!p) return;
     const earlier = s && M.memberSeasons(data, p.id).some(x => x.id !== s.id);
@@ -5097,6 +5177,33 @@ const actions = {
       toast(e.status === 403 || e.status === 404 ? 'Your GitHub token can’t start the Rules watch. Run it from the repository’s Actions tab, or give the token Actions: Read and write.' : (e.message || 'Couldn’t start the check'));
     } finally { el.disabled = false; }
   }),
+  'player-photo-clear': coachOnly(el => {
+    const form = el.closest('form'); if (!form) return;
+    form.querySelector('[name=photo]').value = '';
+    form.querySelector('.photo-prev').innerHTML = `<span class="pphoto big none" aria-hidden="true">${esc(initials({ name: (form.querySelector('[name=name]') || {}).value || '' }) || '?')}</span>`;
+    el.hidden = true;
+  }),
+  'jersey-back': coachOnly(el => { const p = data.players.find(x => x.id === el.dataset.player); if (!p || !M.returnJersey(p, el.dataset.id, todayISO())) return; save(); afterJersey(p, `${p.name}’s jersey returned`); }),
+  'jersey-undo': coachOnly(el => { const p = data.players.find(x => x.id === el.dataset.player); if (!p || !M.undoReturn(p, el.dataset.id)) return; save(); afterJersey(p, 'Marked as still out'); }),
+  'jersey-del': coachOnly(el => {
+    const p = data.players.find(x => x.id === el.dataset.player); if (!p) return;
+    if (!confirm('Remove this jersey record? Only do this if it was recorded by mistake.')) return;
+    M.removeLoan(p, el.dataset.id); save(); afterJersey(p, 'Jersey record removed');
+  }),
+  'jersey-remind': coachOnly(el => {
+    const p = data.players.find(x => x.id === el.dataset.player); if (!p || !p.phone) return;
+    const nums = M.openLoans(p).map(j => '#' + j.number).join(', ');
+    sendWa(`Hi ${firstName(p)}, a reminder from ${data.team.name}: please hand back your jersey (${nums}) at training or to the team manager. Thanks!`, { to: p.name, phone: p.phone, ref: 'jersey:' + p.id });
+  }),
+  'jersey-share': coachOnly(() => {
+    const r = M.jerseyReport(data, V.viewSeason.id), out = r.rows.filter(x => x.status === 'out');
+    copyText(`👕 *Jerseys still out — ${data.team.name}*\n${out.map(x => `• ${x.name}: ${x.open.map(o => '#' + o.number).join(', ')}`).join('\n')}`);
+  }),
+  'positions-default': coachOnly(el => {
+    const form = el.closest('form'), inp = form && form.querySelector('[name=positions]'); if (!inp) return;
+    const sel = form.querySelector('[name=teamSport]'), sp = (sel && sel.value) || M.teamSport({}, M.clubOf(ws, data));
+    inp.value = (M.SPORT_POSITIONS[sp] || []).join(', ');
+  }),
   'club-logo-clear': coachOnly(el => {
     const form = el.closest('form'); if (!form) return;
     form.querySelector('[name=logo]').value = '';
@@ -5187,6 +5294,14 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
+  if (k === 'player-photo') {
+    const inp = e.target, form = inp.closest('form');
+    readPhoto(inp.files && inp.files[0]).then(d => {
+      form.querySelector('[name=photo]').value = d;
+      form.querySelector('.photo-prev').innerHTML = `<span class="pphoto big"><img src="${d}" alt=""></span>`;
+      form.querySelector('[data-act=player-photo-clear]').hidden = false;
+    }).catch(err => toast(err.message)).finally(() => { inp.value = ''; });
+  }
   if (k === 'club-logo') {
     const inp = e.target, form = inp.closest('form');
     readLogo(inp.files && inp.files[0]).then(d => {
@@ -5411,9 +5526,11 @@ document.addEventListener('submit', async e => {
     const t = normalize({ ...defaultData(), id: M.uid() });
     t.team.name = name; t.team.event = str('event'); t.team.eventStart = str('eventStart'); t.team.eventEnd = str('eventEnd');
     t.team.season = str('season') || String(new Date().getFullYear());   // names the team's first season
+    t.team.sport = M.SPORTS.includes(str('teamSport')) ? str('teamSport') : '';
     t.team.clubId = str('clubId'); t.team.division = str('division'); t.team.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
     if (f.get('copySettings')) ['venue', 'trainingVenue', 'trainingStart', 'trainingEnd', 'maxMales', 'positions', 'field', 'tasksContact', 'rules', 'bylaws'].forEach(k => { t.team[k] = clone(data.team[k]); });
     t.team.rulesSeen = M.RULES.pack;
+    { const sp = M.teamSport(t.team, M.clubOf(ws, t)); if (!(f.get('copySettings') && sp === M.teamSport(data.team, M.clubOf(ws, data)))) t.team.positions = (M.SPORT_POSITIONS[sp] || []).slice(); }
     t.teamPass = pass; t.teamSalt = '';
     M.addTeam(ws, t);
     if (f.get('withLibrary')) ['plays', 'systems', 'playerSets'].forEach(k => M.libItems(ws, k).forEach(li => M.libAdd(ws, t, k, li.id)));
@@ -5460,9 +5577,10 @@ document.addEventListener('submit', async e => {
     const id = str('id'); const p = id ? playerById(id) : { id: uid() };
     if (!str('name')) { fieldError(form, 'name', 'Add a name'); return; }
     Object.assign(p, { name: str('name'), gender: str('gender'), number: str('number'), phone: str('phone'), positions: f.getAll('positions'), status: str('status') || 'available', notes: str('notes') });
+    if (M.validPhoto(str('photo'))) p.photo = str('photo'); else delete p.photo;
     if (!id) data.players.push(p);
     save(); render();
-    if (!id && e.submitter && e.submitter.value === 'another') { openSheet('Add player', playerForm(null)); toast(`${p.name} added`); setTimeout(() => { const n = $('#sheet input[name=name]'); if (n) n.focus(); }, 60); }
+    if (!id && e.submitter && e.submitter.value === 'another') { openSheet('Add player', playerForm(null), 'player'); toast(`${p.name} added`); setTimeout(() => { const n = $('#sheet input[name=name]'); if (n) n.focus(); }, 60); }
     else { closeSheet(); toast(id ? 'Saved' : `${p.name} added`); }
   }
   if (kind === 'bulk') {
@@ -5614,7 +5732,14 @@ document.addEventListener('submit', async e => {
     T.staff = peopleRows(f, 'st');
     T.tasksContact = { name: str('tasksName'), phone: str('tasksPhone') };
     T.trainingVenue = str('trainingVenue'); T.trainingStart = str('trainingStart'); T.trainingEnd = str('trainingEnd');
-    const pos = str('positions').split(',').map(x => x.trim()).filter(Boolean); if (pos.length) T.positions = pos;
+    const oldSport = M.teamSport(T, M.clubOf(ws, data)), sp = str('teamSport');
+    T.sport = M.SPORTS.includes(sp) || sp === T.sport ? sp : '';
+    const newSport = M.teamSport(T, M.clubOf(ws, data));
+    let pos = str('positions').split(',').map(x => x.trim()).filter(Boolean);
+    // Changing the sport brings its positions, unless the team had its own list.
+    if (oldSport !== newSport && pos.join('|') === (M.SPORT_POSITIONS[oldSport] || []).join('|')) pos = (M.SPORT_POSITIONS[newSport] || []).slice();
+    T.positions = pos;
+    T.jerseyLoan = !!f.get('jerseyLoan');
     const zone = Number(str('fieldZone')), touch = Number(str('fieldTouch')), middle = Number(str('fieldMiddle'));
     const fits = zone >= 5 && zone <= 30 && touch >= 2 && middle >= 4 && (50 - middle - 2 * touch) / 2 >= 3;
     if (fits) T.field = { zone, touch, middle };
