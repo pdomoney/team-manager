@@ -401,6 +401,20 @@ body:not(.wide) .report-stats .stat:nth-child(n+3){border-top:1px solid var(--li
 .rtable-wrap{overflow-x:auto}
 .rtable.players th[scope=row]{white-space:nowrap}
 
+/* Clubs */
+.club-line{margin-top:2px;font-weight:600;color:rgba(255,255,255,.88)}
+.club-group{margin-bottom:18px}
+.club-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.club-head .name{font-family:var(--font-d);font-size:20px;font-weight:700}
+.club-dl{margin:0;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.club-dl div{display:grid;grid-template-columns:120px 1fr;gap:10px;padding:10px 14px;border-top:1px solid var(--line)}
+.club-dl div:first-child{border-top:0}
+.club-dl dt{font-weight:600;color:var(--muted);font-size:14px}
+.club-dl dd{margin:0;overflow-wrap:anywhere}
+.club-dl a{color:var(--pitch);font-weight:600}
+.club-dl:empty{display:none}
+.person-row{border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:10px 12px 0;margin:0 0 10px;min-width:0}
+
 /* Teams and the library */
 .team-row.current{background:#F7FAF5}
 .team-row .btn[disabled]{opacity:.45}

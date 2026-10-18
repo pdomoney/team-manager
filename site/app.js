@@ -68,7 +68,7 @@ const NAV = [
   { id: 'tactics', label: 'Tactics', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14M5 5.5h14M5 18.5h14"/>',
     views: [['field', 'Lineup'], ['plays', 'Plays'], ['library', 'Library', true]] },
   { id: 'more', label: 'More', icon: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
-    views: [['more', 'More'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['teams', 'Teams', true], ['notices', 'Notices']] }
+    views: [['more', 'More'], ['club', 'Club'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['teams', 'Clubs and teams', true], ['notices', 'Notices']] }
 ];
 const VIEW_IDS = NAV.flatMap(g => g.views.map(v => v[0]));
 
@@ -134,6 +134,7 @@ function defaultData() {
       venue: 'C.ex Coffs International Stadium, Coffs Harbour',
       trainingVenue: '', trainingStart: '18:00', trainingEnd: '19:30',
       maxMales: 4, positions: ['Wing', 'Link', 'Rover', 'Middle'],
+      clubId: '', division: '', category: 'mixed', ageGroup: '', season: '', colours: '', staff: [],
       field: { ...FIELD_DEFAULTS }, tasksContact: { name: '', phone: '' }
     },
     players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [], plays: starterPlays(), playerSets: [], systems: {}, tasks: [], helpers: [], matches: [],
@@ -186,6 +187,7 @@ function normalize(d) {
   ['players', 'sessions', 'lineups', 'messages', 'notices', 'plays', 'playerSets', 'tasks', 'helpers', 'matches'].forEach(k => { out[k] = arr(out[k]); });
   out.systems = obj(out.systems);
   out.team.tasksContact = { name: '', phone: '', ...obj(out.team.tasksContact) };
+  out.team.staff = arr(out.team.staff).filter(x => x && typeof x === 'object');
   out.tasks.forEach(t => { t.people = arr(t.people); t.cancelled = !!t.cancelled; });
   out.matches.forEach(m => { m.rsvp = obj(m.rsvp); m.result = obj(m.result); if (!M.MATCH_STATUS[m.status]) m.status = 'scheduled'; });
   renameHalfToRover(out);
@@ -204,6 +206,8 @@ function normalizeTeam(t) {
   ['players', 'sessions', 'lineups', 'notices', 'plays', 'playerSets', 'tasks', 'matches'].forEach(k => { out[k] = arr(out[k]); });
   out.systems = obj(out.systems);
   out.team.tasksContact = { name: '', phone: '', ...obj(out.team.tasksContact) };
+  out.club = t && t.club && typeof t.club === 'object' ? t.club : null;
+  out.staff = arr(out.staff);
   if (!out.lineups.length) out.lineups = base.lineups;
   renameHalfToRover(out);
   toPairedLayout(out);
@@ -262,7 +266,10 @@ const state = {
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false
 };
 const isCoach = () => S.role === 'coach' && !state.preview;
-const curView = () => S.role === 'coach' ? (state.preview ? normalizeTeam(teamView(data)) : data) : teamData;
+const curView = () => S.role === 'coach' ? (state.preview ? normalizeTeam(teamView(data, M.clubOf(ws, data))) : data) : teamData;
+// The club of the team on screen: from the workspace for the coach, from the players' copy otherwise.
+const curClub = () => S.role === 'coach' && !state.preview ? M.clubOf(ws, data) : (V && V.club) || null;
+const isMixed = T => !T.category || T.category === 'mixed';
 
 const playerById = id => V.players.find(p => p.id === id);
 const sessionById = id => V.sessions.find(s => s.id === id);
@@ -480,7 +487,7 @@ async function publish(auto = false, force = false) {
     for (const t of M.teamsOf(snapshot)) {
       const name = M.teamFile(snapshot, t);
       if (t.archived) { files[name] = null; continue; }   // an archived team's file comes off the site
-      files[name] = JSON.stringify(await seal(teamView(t), await teamLockFor(t), 'team'), null, 1);
+      files[name] = JSON.stringify(await seal(teamView(t, M.clubOf(snapshot, t)), await teamLockFor(t), 'team'), null, 1);
       const live = M.findTeam(ws, t.id); if (live) live.teamSalt = t.teamSalt;
     }
     files['coach.enc.json'] = JSON.stringify(await seal(snapshot, S.coachLock, 'coach'), null, 1);
@@ -573,7 +580,7 @@ const VIEWS = {
   home: () => viewHome(), agenda: () => viewAgenda(), training: () => viewSchedule(), matches: () => viewMatches(), attendance: () => viewAttendance(),
   squad: () => viewSquad(), tasks: () => viewTaskList(), helpers: () => viewHelpers(), tally: () => viewHelped(),
   field: () => viewField(), plays: () => viewPlays(), library: () => viewLibrary(),
-  more: () => viewMore(), messages: () => viewMessages(), reports: () => viewReports(), teams: () => viewTeams(), notices: () => viewNotices()
+  more: () => viewMore(), club: () => viewClub(), messages: () => viewMessages(), reports: () => viewReports(), teams: () => viewTeams(), notices: () => viewNotices()
 };
 const navOf = tab => NAV.find(g => g.views.some(v => v[0] === tab)) || NAV[0];
 const viewsOf = g => g.views.filter(v => !v[2] || isCoach());
@@ -684,6 +691,7 @@ function viewHome() {
       <div>${big}</div>
       <p class="ev">${esc(T.event)}, ${esc(fmtEventDates())}</p>
       <p class="meta">${esc(T.venue)}</p>
+      ${curClub() || T.division ? `<p class="meta club-line">${esc([curClub() && curClub().name, T.division, T.season].filter(Boolean).join(' · '))}</p>` : ''}
       ${cd.state === 'before' ? `<span class="tagline">${left} training session${left === 1 ? '' : 's'} before then</span>` : ''}
     </section>`;
   }
@@ -1057,11 +1065,11 @@ function viewField() {
     ${matchBanner(lu)}
     ${sys ? systemCard(sys, lu) : `<p class="hint sys-hint">Tap a system to see where everyone stands and what to do at that stage of the game.</p>`}
     ${coach ? `<div class="ratio">
-      <span class="pill ${males > max ? 'bad' : 'ok'}">${males} of ${max} males max</span>
-      <span class="pill neutral">${females} female</span>
+      ${isMixed(V.team) ? `<span class="pill ${males > max ? 'bad' : 'ok'}">${males} of ${max} males max</span>
+      <span class="pill neutral">${females} female</span>` : ''}
       <span class="pill ${onField.length === 8 ? 'ok' : 'neutral'}">${onField.length}/8 on field</span>
     </div>
-    ${males > max ? `<p class="note" style="background:var(--bad-soft);margin-top:8px">Too many males on field for mixed. Swap ${males - max} out for a female player.</p>` : ''}
+    ${isMixed(V.team) && males > max ? `<p class="note" style="background:var(--bad-soft);margin-top:8px">Too many males on field for mixed. Swap ${males - max} out for a female player.</p>` : ''}
     <p class="hint" style="text-align:center">${ownSpots === 'none' ? 'Players are hidden for this one. Tap it again to see your lineup.'
       : state.moveMode ? (ownSpots ? `Drag the circles to change where they stand in ${esc(sys.name)}. Their lines move with them.` : 'Drag the circles to set your shape.')
       : 'Tap a position to put a player there.'}</p>
@@ -3488,22 +3496,110 @@ function openWhatsApp(text, phone) {
 const multiTeam = () => S.role === 'coach' && M.activeTeams(ws).length > 1;
 function viewTeams() {
   if (!isCoach()) return '';
-  const all = M.teamsOf(ws), act = all.filter(t => !t.archived), arch = all.filter(t => t.archived);
+  const all = M.teamsOf(ws), activeN = all.filter(t => !t.archived).length;
   const row = t => `<div class="row team-row ${t === data ? 'current' : ''}">
       <span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}${t === data ? ' <span class="pill ok">On screen</span>' : ''}${t.archived ? ' <span class="pill neutral">Archived</span>' : ''}</span>
-      <span class="sub" style="display:block">${esc([t.team.event, `${arr(t.players).length} players`, `${arr(t.sessions).length} sessions`, `${arr(t.matches).length} matches`].filter(Boolean).join(' · '))}</span></span>
+      <span class="sub" style="display:block">${esc([t.team.division, M.TEAM_CATEGORIES[t.team.category], t.team.season || t.team.event, `${arr(t.players).length} players`].filter(Boolean).join(' · '))}</span></span>
       ${t.archived ? `<button class="btn sm" data-act="team-restore" data-id="${t.id}">Restore</button>` : t === data ? '' : `<button class="btn sm" data-act="team-pick" data-id="${t.id}">Switch</button>`}
-      ${t.archived ? '' : `<button class="btn sm" data-act="team-archive" data-id="${t.id}" ${act.length < 2 ? 'disabled title="At least one team stays active"' : ''}>Archive</button>`}
+      ${t.archived ? '' : `<button class="btn sm" data-act="team-archive" data-id="${t.id}" ${activeN < 2 ? 'disabled title="At least one team stays active"' : ''}>Archive</button>`}
     </div>`;
-  return `<div class="sec-h"><h2>Teams</h2><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button></div>
-    <div class="list">${act.map(row).join('')}</div>
-    ${arch.length ? `<h3 class="form-sec">Archived</h3><div class="list">${arch.map(row).join('')}</div>` : ''}
-    <p class="hint">Each team has its own players’ file and team password, so players only ever see their own team. Archiving takes a team’s file off the site until you restore it. Plays, game systems and player lists can be shared through the library (Plays › Library).</p>`;
+  const sortT = ts => ts.slice().sort((a, b) => (a.archived - b.archived) || M.teamName(a).localeCompare(M.teamName(b)));
+  const clubs = arr(ws.clubs).slice().sort((a, b) => a.name.localeCompare(b.name));
+  const loose = sortT(all.filter(t => !M.clubOf(ws, t)));
+  return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus', 18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button></div></div>
+    ${clubs.map(c => { const ts = sortT(M.clubTeams(ws, c.id)); return `<section class="sec club-group">
+      <div class="club-head"><span class="grow"><span class="name" style="display:block">${esc(c.name)}</span><span class="sub">${esc([c.sport, c.governingBody, `${ts.length} team${ts.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</span></span>
+        <button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
+      ${ts.length ? `<div class="list">${ts.map(row).join('')}</div>` : '<p class="muted small">No teams in this club yet.</p>'}
+    </section>`; }).join('')}
+    ${loose.length ? `<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name" style="display:block">Not in a club</span><span class="sub">Choose a club in Settings › Team details</span></span></div><div class="list">${loose.map(row).join('')}</div></section>` : ''}
+    <p class="hint">A club keeps what its teams share: contacts, home ground, links and officials. Each team has its own division, staff, players’ file and team password, so players only ever see their own team (and their club’s public details). Archiving takes a team’s file off the site until you restore it.</p>`;
 }
+// Links from what the coach typed: web addresses, email and phone.
+const webLink = (u, label) => { if (!u) return ''; const href = /^https?:\/\//i.test(u) ? u : `https://${u.replace(/^\/+/, '')}`; return `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(label || u.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))}</a>`; };
+const mailLink = e => e ? `<a href="mailto:${esc(e)}">${esc(e)}</a>` : '';
+const telLink = ph => ph ? `<a href="tel:${esc(String(ph).replace(/[^\d+]/g, ''))}">${esc(ph)}</a>` : '';
+function viewClub() {
+  const coach = isCoach();
+  const c = coach && state.clubId ? arr(ws.clubs).find(x => x.id === state.clubId) || curClub() : curClub();
+  if (!c) return `<div class="sec-h"><h2>Club</h2></div><div class="empty"><p>${coach ? `${esc(V.team.name)} isn’t in a club yet. Pick its club in Settings › Team details, or create one.` : 'Your coach hasn’t added the club’s details yet.'}</p>
+    ${coach ? `<div class="btn-row" style="justify-content:center"><button class="btn primary" style="flex:0" data-act="club-new">${icon('plus')}New club</button><button class="btn" style="flex:0" data-act="settings">Team details</button></div>` : ''}</div>`;
+  const line = (label, val) => val ? `<div><dt>${label}</dt><dd>${val}</dd></div>` : '';
+  const teams = coach ? M.clubTeams(ws, c.id) : [];
+  const staff = coach ? arr(data.team.staff) : arr(V.staff);
+  return `<div class="sec-h"><h2>${esc(c.name)}</h2>${coach ? `<button class="btn sm" data-act="club-edit" data-id="${esc(c.id)}">Edit club</button>` : ''}</div>
+    <p class="muted" style="margin:-4px 0 14px">${esc([c.sport, c.governingBody && `under ${c.governingBody}`, c.founded && `since ${c.founded}`].filter(Boolean).join(' · '))}</p>
+    <div class="cols"><div class="col">
+    <section class="sec"><div class="sec-h"><h2>Contact</h2></div><dl class="club-dl">
+      ${line('Website', webLink(c.website))}${line('Email', mailLink(c.email))}${line('Phone', telLink(c.phone))}${line('Post', esc(c.postal))}
+      ${line('Facebook', webLink(c.facebook, 'Facebook'))}${line('Instagram', webLink(c.instagram, 'Instagram'))}
+    </dl></section>
+    <section class="sec"><div class="sec-h"><h2>Playing</h2></div><dl class="club-dl">
+      ${line('Home ground', esc([c.homeGround, c.homeAddress].filter(Boolean).join(', ')))}${line('Nights', esc(c.nights))}${line('Colours', esc(c.colours))}${line('Juniors', esc(c.juniorBrand))}
+      ${line('Registration', webLink(c.registration, 'Register'))}${line('Code of conduct', webLink(c.conduct, 'Read it'))}
+    </dl>${!c.homeGround && !c.nights && coach ? '<p class="hint">Add the home ground and the nights played so players have them.</p>' : ''}</section>
+    </div><div class="col">
+    ${staff.length || coach ? `<section class="sec"><div class="sec-h"><h2>${esc(V.team.name)} staff</h2>${coach ? '<button class="btn sm" data-act="settings">Edit</button>' : ''}</div>
+      ${staff.length ? `<div class="list">${staff.map(x => `<div class="row"><span class="grow"><span class="name" style="display:block">${esc(x.name)}</span><span class="sub">${esc(x.role)}</span></span>${coach && x.phone ? `<a class="icon-btn" style="color:var(--wa)" href="https://wa.me/${esc(waNumber(x.phone))}" target="_blank" rel="noopener" aria-label="WhatsApp ${esc(x.name)}">${icon('chat', 22)}</a>` : ''}</div>`).join('')}</div>` : '<p class="muted small">No staff listed yet. Add the coach, team manager and trainer in Settings › Team details.</p>'}</section>` : ''}
+    ${coach ? `<section class="sec"><div class="sec-h"><h2>Club officials</h2></div>
+      ${c.officials.length ? `<div class="list">${c.officials.map(o => `<div class="row"><span class="grow"><span class="name" style="display:block">${esc(o.name)}</span><span class="sub">${esc([o.role, o.phone, o.email].filter(Boolean).join(' · '))}</span></span></div>`).join('')}</div>` : '<p class="muted small">None added yet: president, secretary, registrar, representative coordinator, member protection officer.</p>'}
+      <p class="hint">Officials are only shown to coaches.</p></section>
+    <section class="sec"><div class="sec-h"><h2>Teams</h2></div><div class="list">${teams.map(t => `<div class="row"><span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}</span><span class="sub">${esc([t.team.division, t.team.season].filter(Boolean).join(' · '))}</span></span></div>`).join('') || '<p class="muted small" style="padding:10px 14px">None yet.</p>'}</div></section>
+    ${c.notes ? `<p class="hint">${esc(c.notes)}</p>` : ''}` : ''}
+    </div></div>`;
+}
+const CLUB_SPORTS = ['Oztag', 'Rugby league', 'League tag', 'Touch football'];
+function clubForm(c) {
+  const isNew = !c; c = M.normClub(c || { name: '' });
+  const f = (name, label, ph = '', type = 'text') => `<label class="field-l"><span>${label}</span><input type="${type}" name="${name}" value="${esc(c[name])}" placeholder="${esc(ph)}"></label>`;
+  const rows = [...c.officials, { role: 'President', name: '', phone: '', email: '' }, { role: 'Secretary', name: '', phone: '', email: '' }];
+  return `<form data-form="club" autocomplete="off"><input type="hidden" name="id" value="${isNew ? '' : esc(c.id)}">
+    <div class="two">${f('name', 'Club name', 'e.g. St George Oztag')}${f('shortName', 'Short name', 'e.g. St George')}</div>
+    <div class="two"><label class="field-l"><span>Sport</span><select name="sport">${[...new Set([...CLUB_SPORTS, c.sport])].map(x => `<option ${x === c.sport ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>${f('governingBody', 'Governing body', 'e.g. Australian Oztag')}</div>
+    <div class="two">${f('founded', 'Founded', 'e.g. 1992')}${f('juniorBrand', 'Junior program', 'e.g. DragonTag')}</div>
+    <h3 class="form-sec">Contact</h3>
+    <div class="two">${f('email', 'Email', '', 'email')}${f('phone', 'Phone', '', 'tel')}</div>
+    ${f('website', 'Website', 'https://')}${f('postal', 'Postal address')}
+    <div class="two">${f('facebook', 'Facebook page', 'https://www.facebook.com/…')}${f('instagram', 'Instagram', 'https://www.instagram.com/…')}</div>
+    <h3 class="form-sec">Playing</h3>
+    <div class="two">${f('homeGround', 'Home ground', 'e.g. ground name, fields 1–4')}${f('homeAddress', 'Address')}</div>
+    <div class="two">${f('nights', 'Nights played', 'e.g. Tue mixed, Wed men’s')}${f('colours', 'Colours', 'e.g. red and white')}</div>
+    <div class="two">${f('registration', 'Registration link', 'https://')}${f('conduct', 'Code of conduct link', 'https://')}</div>
+    <h3 class="form-sec">Officials <span class="small muted">coaches only</span></h3>
+    ${rows.map((o, i) => `<fieldset class="person-row"><legend class="sr-only">Official ${i + 1}</legend>
+      <div class="two"><label class="field-l"><span>Role</span><select name="o-role">${M.CLUB_ROLES.map(r => `<option ${r === o.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label><label class="field-l"><span>Name</span><input type="text" name="o-name" value="${esc(o.name)}"></label></div>
+      <div class="two"><label class="field-l"><span>Mobile</span><input type="tel" name="o-phone" value="${esc(o.phone)}"></label><label class="field-l"><span>Email</span><input type="email" name="o-email" value="${esc(o.email)}"></label></div></fieldset>`).join('')}
+    <p class="hint" style="margin:-4px 0 12px">Leave a name blank to leave that row out. Save and reopen to add more.</p>
+    <label class="field-l"><span>Notes</span><textarea name="notes" rows="3">${esc(c.notes)}</textarea><small>Coaches only.</small></label>
+    <button class="btn primary block" type="submit">${isNew ? 'Create club' : 'Save club'}</button>
+    ${isNew ? '' : `<button type="button" class="btn danger block" style="margin-top:10px" data-act="club-del" data-id="${esc(c.id)}">Delete club</button>`}
+    <p class="hint">Players see the club’s name, contacts, ground, nights, colours and links. Officials and notes stay with coaches.</p>
+  </form>`;
+}
+// The team's details: its club, division, category, season and staff (part of Settings).
+function teamDetailsFields(T) {
+  const staff = [...arr(T.staff), { role: 'Head coach', name: '', phone: '', email: '' }];
+  return `<h3 class="form-sec">Team details</h3>
+    <div class="two"><label class="field-l"><span>Club</span><select name="clubId"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${T.clubId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select><small><button type="button" class="link-btn inline" data-act="club-new">New club</button></small></label>
+      <label class="field-l"><span>Division</span><input type="text" name="division" value="${esc(T.division)}" placeholder="e.g. Mixed 20s"></label></div>
+    <div class="two"><label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${T.category === k ? 'selected' : ''}>${l}</option>`).join('')}</select><small>Mixed turns on the males-on-field check.</small></label>
+      <label class="field-l"><span>Age group</span><input type="text" name="ageGroup" value="${esc(T.ageGroup)}" placeholder="e.g. 20 and over, Under 16"></label></div>
+    <div class="two"><label class="field-l"><span>Season</span><input type="text" name="season" value="${esc(T.season)}" placeholder="e.g. 2026–27"></label>
+      <label class="field-l"><span>Team colours</span><input type="text" name="colours" value="${esc(T.colours)}" placeholder="Blank: the club’s"></label></div>
+    <h3 class="form-sec">Team staff</h3>
+    ${staff.map((x, i) => `<fieldset class="person-row"><legend class="sr-only">Staff member ${i + 1}</legend>
+      <div class="two"><label class="field-l"><span>Role</span><select name="st-role">${M.TEAM_ROLES.map(r => `<option ${r === x.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label><label class="field-l"><span>Name</span><input type="text" name="st-name" value="${esc(x.name)}"></label></div>
+      <div class="two"><label class="field-l"><span>Mobile</span><input type="tel" name="st-phone" value="${esc(x.phone)}"></label><label class="field-l"><span>Email</span><input type="email" name="st-email" value="${esc(x.email)}"></label></div></fieldset>`).join('')}
+    <p class="hint" style="margin:-4px 0 14px">Players see staff names and roles; mobiles and emails stay with coaches. Leave a name blank to leave a row out.</p>`;
+}
+const peopleRows = (f, p) => f.getAll(p + '-name').map((name, i) => ({ role: String(f.getAll(p + '-role')[i] || 'Other'), name: String(name).trim(), phone: String(f.getAll(p + '-phone')[i] || '').trim(), email: String(f.getAll(p + '-email')[i] || '').trim() })).filter(x => x.name);
 function teamForm() {
   const T = data.team;
   return `<form data-form="team-new" autocomplete="off">
     <label class="field-l"><span>Team name</span><input type="text" name="name" required placeholder="e.g. DragonTag Under 16s"></label>
+    <div class="two"><label class="field-l"><span>Club</span><select name="clubId"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${(state.newTeamClub || T.clubId) === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+      <label class="field-l"><span>Division</span><input type="text" name="division" placeholder="e.g. Women's Open"></label></div>
+    <label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${k === (T.category || 'mixed') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <label class="field-l"><span>Tournament or season</span><input type="text" name="event" value="${esc(T.event)}"></label>
     <div class="two">
       <label class="field-l"><span>Starts</span><input type="date" name="eventStart" value="${esc(T.eventStart)}"></label>
@@ -3650,7 +3746,8 @@ function viewMore() {
   return `<div class="sec-h"><h2>More</h2></div><div class="list">
     ${coach ? item('tab', 'data-tab="messages"', 'Messages and noticeboard', 'WhatsApp messages, the message log and notices', 'chat') : item('tab', 'data-tab="notices"', 'Notices', 'Everything the coach has posted', 'clip')}
     ${coach ? item('tab', 'data-tab="reports"', 'Reports', 'Attendance, results, volunteering and loose ends', 'chart') : ''}
-    ${coach ? item('tab', 'data-tab="teams"', 'Teams', `${M.activeTeams(ws).length} active${M.teamsOf(ws).length > M.activeTeams(ws).length ? `, ${M.teamsOf(ws).length - M.activeTeams(ws).length} archived` : ''}`, 'team') : ''}
+    ${item('tab', 'data-tab="club"', curClub() ? esc(curClub().name) : 'Club', coach ? 'Club details, officials and team staff' : 'Club contacts, ground and links', 'team')}
+    ${coach ? item('tab', 'data-tab="teams"', 'Clubs and teams', `${M.activeTeams(ws).length} active${M.teamsOf(ws).length > M.activeTeams(ws).length ? `, ${M.teamsOf(ws).length - M.activeTeams(ws).length} archived` : ''}`, 'team') : ''}
     ${item('settings', '', 'Settings', coach ? 'Team, field, team contact, publishing, backups, screen layout' : 'Screen layout, updates, sign out', 'cog')}
   </div>
   ${coach ? '' : `<p class="hint">${S.fromCache ? 'No connection: you’re seeing the copy saved on this phone. ' : ''}The coach keeps everything up to date. Use Settings › Check for updates to get the latest.</p>`}`;
@@ -3692,6 +3789,8 @@ function settingsBody() {
     <form data-form="settings">
     <h3 class="form-sec">Team and tournament</h3>
     <label class="field-l"><span>Team name</span><input type="text" name="name" value="${esc(T.name)}"></label>
+    ${teamDetailsFields(T)}
+    <h3 class="form-sec">Tournament</h3>
     <label class="field-l"><span>Tournament</span><input type="text" name="event" value="${esc(T.event)}"></label>
     <div class="two">
       <label class="field-l"><span>Starts</span><input type="date" name="eventStart" value="${esc(T.eventStart)}"></label>
@@ -3951,14 +4050,14 @@ function loadSample() {
   const ev = data.team.eventStart || sat(20), ev2 = M.addDays(ev, 1);
   data.matches = [
     Mt('Northern Beaches', past, '09:00', { status: 'played', result: { us: 6, them: 4, notes: 'Defence line held well. Kick chase too slow.' }, lineupId: trialLu.id, round: 'Trial game' }),
-    Mt('Hills Hornets', sat(1), '09:30', { venue: 'Hills Sports Park', field: '4', round: 'Trial game', notes: 'Meet 45 minutes before. White tops.', rsvp: Object.fromEntries(data.players.slice(0, 11).map((pl, j) => [pl.id, { v: j === 3 ? 'no' : j === 7 ? 'maybe' : 'yes', via: 'coach' }])) }),
+    Mt('Hills Hornets', sat(0), '09:30', { venue: 'Hills Sports Park', field: '4', round: 'Trial game', notes: 'Meet 45 minutes before. White tops.', rsvp: Object.fromEntries(data.players.slice(0, 11).map((pl, j) => [pl.id, { v: j === 3 ? 'no' : j === 7 ? 'maybe' : 'yes', via: 'coach' }])) }),
     Mt('Coffs Coast', ev, '09:00', { venue: data.team.venue, field: '3', round: 'Pool A, round 1', tournament: true }),
     Mt('Sydney Sharks', ev, '12:40', { venue: data.team.venue, field: '5', round: 'Pool A, round 2', tournament: true }),
     Mt('Central Coast Waves', ev2, '10:20', { venue: data.team.venue, field: '2', round: 'Pool A, round 3', tournament: true })
   ];
   const liftTask = data.tasks.find(x => x.kind === 'lift');
-  if (liftTask) { liftTask.title = 'Lifts to the Hills game'; liftTask.date = sat(1); liftTask.matchId = data.matches[1].id; }
-  data.tasks.filter(x => x.kind === 'firstaid').forEach(x => { x.date = sat(1); x.matchId = data.matches[1].id; x.place = 'Hills Sports Park'; });
+  if (liftTask) { liftTask.title = 'Lifts to the Hills game'; liftTask.date = sat(0); liftTask.matchId = data.matches[1].id; }
+  data.tasks.filter(x => x.kind === 'firstaid').forEach(x => { x.date = sat(0); x.matchId = data.matches[1].id; x.place = 'Hills Sports Park'; });
   save(); state.msgDraft = null; render(); toast('Sample squad loaded');
 }
 
@@ -3967,7 +4066,7 @@ function loadSample() {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
-  'tab': el => goTo(el.dataset.tab),
+  'tab': el => { if (el.dataset.tab === 'club') state.clubId = null; goTo(el.dataset.tab); },
   'nav': el => { const g = NAV.find(x => x.id === el.dataset.g); if (!g) return; const last = state.lastView[g.id]; goTo(last && viewsOf(g).some(v => v[0] === last) && navOf(state.tab) !== g ? last : viewsOf(g)[0][0]); },
   'close-sheet': () => requestCloseSheet(),
   'settings': () => openSheet('Settings', settingsBody(), 'settings'),
@@ -4250,7 +4349,7 @@ const actions = {
     if (pid) { const other = lu.slots.find(s => s.playerId === pid && s.id !== sl.id); if (other) other.playerId = sl.playerId; }
     sl.playerId = pid; save(); closeSheet(); render();
     const max = Number(data.team.maxMales) || 4, males = lu.slots.filter(s => (playerById(s.playerId) || {}).gender === 'M').length;
-    if (males > max) toast(`Heads up: ${males} males on field (max ${max})`);
+    if (isMixed(data.team) && males > max) toast(`Heads up: ${males} males on field (max ${max})`);
   }),
   'lineup-new': coachOnly(() => { const name = prompt('Name for the new lineup', `Lineup ${data.lineups.length + 1}`); if (!name) return; const l = makeLineup(name.trim()); data.lineups.push(l); state.lineupId = l.id; save(); closeSheet(); render(); }),
   'lineup-dup': coachOnly(() => { const lu = curLineup(); const l = JSON.parse(JSON.stringify(lu)); l.id = uid(); l.name = lu.name + ' (copy)'; data.lineups.push(l); state.lineupId = l.id; save(); closeSheet(); render(); }),
@@ -4316,6 +4415,15 @@ const actions = {
   'team-switch': coachOnly(() => teamSwitcher()),
   'team-pick': coachOnly(el => switchTeam(el.dataset.id)),
   'team-new': coachOnly(() => openSheet('New team', teamForm(), 'team-new')),
+  'club-new': coachOnly(() => { state.clubFor = state.sheet === 'settings' ? data.id : null; openSheet('New club', clubForm(null), 'club'); }),
+  'club-edit': coachOnly(el => { const c = arr(ws.clubs).find(x => x.id === el.dataset.id); if (c) openSheet(`Edit ${c.name}`, clubForm(c), 'club'); }),
+  'club-open': coachOnly(el => { state.clubId = el.dataset.id; goTo('club'); }),
+  'club-del': coachOnly(el => {
+    const c = arr(ws.clubs).find(x => x.id === el.dataset.id); if (!c) return;
+    const n = M.clubTeams(ws, c.id).length;
+    if (!confirm(`Delete ${c.name}?${n ? ` Its ${n} team${n === 1 ? '' : 's'} stay, just not in a club.` : ''}`)) return;
+    M.removeClub(ws, c.id); state.clubId = null; save(); closeSheet(); render(); toast('Club deleted');
+  }),
   'team-archive': coachOnly(el => {
     const t = M.findTeam(ws, el.dataset.id); if (!t) return;
     if (!confirm(`Archive ${M.teamName(t)}? ${S.trial ? 'It’s hidden from the team list' : 'Its players can’t open it once this publishes'} until you restore it. Nothing is deleted.`)) return;
@@ -4578,6 +4686,20 @@ document.addEventListener('submit', async e => {
     save(); refreshMatch(m.id); toast(M.matchOutcome(m) ? `Saved: ${resultText(m)}` : 'Saved');
     return;
   }
+  if (kind === 'club') {
+    const name = str('name'); if (!name) { fieldError(form, 'name', 'Give the club a name'); return; }
+    const id = str('id'), old = id && arr(ws.clubs).find(c => c.id === id);
+    const fields = Object.fromEntries(M.CLUB_PUBLIC.filter(k => k !== 'id').map(k => [k, str(k)]));
+    const club = M.normClub({ ...(old || {}), ...fields, name, officials: peopleRows(f, 'o'), notes: str('notes') });
+    if (old) Object.assign(old, club);
+    else {
+      ws.clubs = arr(ws.clubs); ws.clubs.push(club);
+      const t = state.clubFor && M.findTeam(ws, state.clubFor); if (t && !t.team.clubId) t.team.clubId = club.id;
+    }
+    state.clubFor = null; state.clubId = club.id;
+    save(); closeSheet(); if (state.tab !== 'teams') state.tab = 'club'; render(); toast(old ? 'Club saved' : `${club.name} created`);
+    return;
+  }
   if (kind === 'team-new') {
     const name = str('name'); if (!name) { fieldError(form, 'name', 'Give the team a name'); return; }
     let pass = '';
@@ -4588,11 +4710,12 @@ document.addEventListener('submit', async e => {
     }
     const t = normalize({ ...defaultData(), id: M.uid() });
     t.team.name = name; t.team.event = str('event'); t.team.eventStart = str('eventStart'); t.team.eventEnd = str('eventEnd');
+    t.team.clubId = str('clubId'); t.team.division = str('division'); t.team.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
     if (f.get('copySettings')) ['venue', 'trainingVenue', 'trainingStart', 'trainingEnd', 'maxMales', 'positions', 'field', 'tasksContact'].forEach(k => { t.team[k] = clone(data.team[k]); });
     t.teamPass = pass; t.teamSalt = '';
     M.addTeam(ws, t);
     if (f.get('withLibrary')) ['plays', 'systems', 'playerSets'].forEach(k => M.libItems(ws, k).forEach(li => M.libAdd(ws, t, k, li.id)));
-    pickTeam(t.id); Object.assign(state, { lineupId: null, playId: null, msgDraft: null, tab: 'home' });
+    pickTeam(t.id); Object.assign(state, { lineupId: null, playId: null, msgDraft: null, tab: 'home', newTeamClub: null });
     history.replaceState(null, '', '#home');
     save(); closeSheet(); render(); toast(`${name} created and on screen`);
     return;
@@ -4684,6 +4807,10 @@ document.addEventListener('submit', async e => {
     const T = data.team;
     T.name = str('name') || T.name; T.event = str('event'); T.eventStart = str('eventStart'); T.eventEnd = str('eventEnd');
     T.venue = str('venue'); T.maxMales = Number(str('maxMales')) || 4;
+    T.clubId = arr(ws.clubs).some(c => c.id === str('clubId')) ? str('clubId') : '';
+    T.division = str('division'); T.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
+    T.ageGroup = str('ageGroup'); T.season = str('season'); T.colours = str('colours');
+    T.staff = peopleRows(f, 'st');
     T.tasksContact = { name: str('tasksName'), phone: str('tasksPhone') };
     T.trainingVenue = str('trainingVenue'); T.trainingStart = str('trainingStart'); T.trainingEnd = str('trainingEnd');
     const pos = str('positions').split(',').map(x => x.trim()).filter(Boolean); if (pos.length) T.positions = pos;

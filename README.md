@@ -74,9 +74,13 @@ When you're ready, tap **Go live**. Your test data comes with you; the unencrypt
 
 On another device (a laptop, or an assistant coach's phone), open the site, tap **I'm the coach** and sign in with the coach password. To publish from that device too, add the token under **Settings → Publishing**. If two devices change things between publishes, the app shows what changed on each side, combines them, and asks which version to keep only where both changed the same record.
 
-### More than one team
+### Clubs and teams
 
-**More → Teams** (or the team name in the header) creates, switches, archives and restores teams. Each team has its own squad, schedule, matches, tasks, lineups, plays and messages, and its own players' password and invite link. The **library** (Tactics → Library) shares plays, game systems and player lists between teams: a team uses a linked copy, which follows new library versions until the team changes it.
+**More → Clubs and teams** (or the team name in the header) creates clubs and teams, and switches, archives and restores teams.
+- A **club** holds what its teams share: contacts, website and social pages, home ground, nights played, colours, registration and code-of-conduct links, and its officials (coaches only).
+- Each team names its club and has its own division, category (mixed turns on the males-on-field check), age group, season and staff (players see staff names and roles, not their numbers).
+- St George Oztag is set up with DragonTag Mixed 20s in it.
+- **More → Club** shows the club to players and coaches. Each team has its own squad, schedule, matches, tasks, lineups, plays and messages, and its own players' password and invite link. The **library** (Tactics → Library) shares plays, game systems and player lists between teams: a team uses a linked copy, which follows new library versions until the team changes it.
 
 ### Backups and going back
 
@@ -86,7 +90,7 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 
 | Path | What it holds |
 | --- | --- |
-| `team.enc.json`, `team-<id>.enc.json` | A team's players' copy, encrypted with that team's password: team and tournament details, squad names, gender, numbers and preferred positions, training sessions, matches with scores, lineups, notices, plays, the coach's changes to the game systems, and the volunteer tasks without anyone's name (just whether each spot is confirmed, invited or open). |
+| `team.enc.json`, `team-<id>.enc.json` | A team's players' copy, encrypted with that team's password: team and tournament details, the club's public details, staff names, squad names, gender, numbers and preferred positions, training sessions, matches with scores, lineups, notices, plays, the coach's changes to the game systems, and the volunteer tasks without anyone's name (just whether each spot is confirmed, invited or open). |
 | `coach.enc.json` | Everything for every team, encrypted with the coach password: the above plus phone numbers, availability and injuries, player notes, roll calls, RSVPs and match availability, coach's notes, the message log, helpers and who is on each task, the library, and the team passwords (so the coach can re-encrypt the players' copies and make invite links). |
 
 Each file is JSON with the fields `format`, `version`, `role`, `kdf`, `salt`, `iv` and `data` (the encrypted content, base64).

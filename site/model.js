@@ -11,6 +11,7 @@
 //     { schema: 3, id: 'team1', team: {...}, players: [...], sessions: [...], ...   <- first team
 //       teams: [{ id, team, players, sessions, ... }],                              <- other teams
 //       library: { plays: [], systems: {}, playerSets: [] },
+//       clubs: [{ id, name, ... }],                                  <- clubs; a team names its club in team.clubId
 //       updatedAt }
 //
 // People on a task are 'p:<player id>' or 'h:<helper id>'. Replies a coach records (RSVPs, task
@@ -18,7 +19,7 @@
 
 export const SCHEMA = 3;
 export const PRIMARY_ID = 'team1';
-const WS_KEYS = ['schema', 'teams', 'library'];
+const WS_KEYS = ['schema', 'teams', 'library', 'clubs'];
 const TEAM_ID = /^[a-z0-9]{3,32}$/;
 
 export const arr = v => Array.isArray(v) ? v : [];
@@ -68,11 +69,55 @@ export function migrateWorkspace(raw, normTeam = t => t) {
   });
   ws.archived = !!src.archived;
   ws.library = normLibrary(src.library);
+  ws.clubs = src.clubs === undefined ? seedClubs(ws) : arr(src.clubs).filter(isObj).map(normClub);
+  const clubIds = new Set(ws.clubs.map(c => c.id));
+  teamsOf(ws).forEach(t => { if (t.team && t.team.clubId && !clubIds.has(t.team.clubId)) t.team.clubId = ''; });
   ws.schema = SCHEMA;
   ws.updatedAt = src.updatedAt || null;
   teamsOf(ws).forEach(t => repairTeam(t));
   return ws;
 }
+/* ---------- Clubs ---------- */
+// A club holds what's shared by its teams: who it is, how to reach it, where it plays, its links and
+// its officials. A team names its club (team.clubId) and keeps its own division, category, season and
+// staff. The club's public details go into each of its teams' players' copies; officials' phone
+// numbers and email addresses stay in the coach's copy.
+export const CLUB_PUBLIC = ['id', 'name', 'shortName', 'sport', 'governingBody', 'founded', 'website', 'email', 'phone', 'postal', 'facebook', 'instagram', 'colours', 'homeGround', 'homeAddress', 'nights', 'registration', 'conduct', 'juniorBrand'];
+export const CLUB_ROLES = ['President', 'Vice-president', 'Secretary', 'Treasurer', 'Registrar', 'Representative coordinator', 'Member protection officer', 'Referee coordinator', 'Other'];
+export const TEAM_ROLES = ['Head coach', 'Assistant coach', 'Team manager', 'Trainer', 'First aid', 'Other'];
+export const TEAM_CATEGORIES = { mixed: 'Mixed', men: 'Men', women: 'Women', boys: 'Boys', girls: 'Girls', open: 'Open (any)' };
+export function normClub(c) {
+  const out = { ...obj(c) };
+  if (!out.id || typeof out.id !== 'string') out.id = uid();
+  CLUB_PUBLIC.forEach(k => { if (k !== 'id' && typeof out[k] !== 'string') out[k] = out[k] == null ? '' : String(out[k]); });
+  if (!out.sport) out.sport = 'Oztag';
+  out.officials = arr(out.officials).filter(isObj).map(o => ({ role: String(o.role || 'Other'), name: String(o.name || ''), phone: String(o.phone || ''), email: String(o.email || '') }));
+  out.notes = String(out.notes || '');
+  return out;
+}
+// The team this app was made for belongs to St George Oztag. When an earlier copy (with no clubs yet)
+// is upgraded, that club is added once, with its published details, and a DragonTag team is put in it.
+export const ST_GEORGE = {
+  id: 'stgeorge', name: 'St George Oztag', shortName: 'St George', sport: 'Oztag', governingBody: 'Australian Oztag',
+  founded: '1992', juniorBrand: 'DragonTag (juniors, since 2001)', website: 'https://www.nswoztag.au/',
+  email: 'stgeorgeoztag@oztag.com', phone: '0421 065 242', postal: 'PO Box 399, Padstow NSW 2211',
+  facebook: 'https://www.facebook.com/stgeorge.oztag', instagram: 'https://www.instagram.com/stgeorgeoztag',
+  notes: 'Home of the first Oztag competition (1992). Details from the club’s website; check the venue, nights and officials.'
+};
+function seedClubs(ws) {
+  const club = normClub(ST_GEORGE);
+  teamsOf(ws).forEach(t => { if (t.team && !t.team.clubId && /dragon\s*tag/i.test(t.team.name || '')) t.team.clubId = club.id; });
+  return [club];
+}
+export const clubOf = (ws, t) => (t && t.team && t.team.clubId && arr(ws && ws.clubs).find(c => c.id === t.team.clubId)) || null;
+export const clubTeams = (ws, id) => teamsOf(ws).filter(t => t.team && t.team.clubId === id);
+// What a team's players see of its club: no officials, no notes.
+export const clubForPlayers = c => c ? Object.fromEntries(CLUB_PUBLIC.filter(k => c[k]).map(k => [k, c[k]])) : null;
+export function removeClub(ws, id) {
+  clubTeams(ws, id).forEach(t => { t.team.clubId = ''; });
+  ws.clubs = arr(ws.clubs).filter(c => c.id !== id);
+}
+
 // One team as a single-team copy in the earlier format, for rolling back to the previous app version.
 export function legacyTeam(ws, id) {
   const t = findTeam(ws, id); if (!t) return null;
@@ -333,7 +378,8 @@ export function lineupCheck(t, lu, rec) {
   const declined = said('no'), unsure = said('maybe'), noReply = rec ? on.filter(p => !rsvpOf(rec, p.id)) : [];
   const issues = [];
   if (on.length < slots.length) issues.push(`${slots.length - on.length} position${slots.length - on.length === 1 ? '' : 's'} empty`);
-  if (males > max) issues.push(`${males} males on field (max ${max})`);
+  const mixed = !t.team || !t.team.category || t.team.category === 'mixed';
+  if (mixed && males > max) issues.push(`${males} males on field (max ${max})`);
   if (on.length - males - females) issues.push(`${on.length - males - females} on field without a gender set`);
   out.forEach(p => issues.push(`${p.name} is marked ${p.status}`));
   declined.forEach(p => issues.push(`${p.name} said they can’t play`));
@@ -647,6 +693,7 @@ export function records(ws) {
     COLLECTIONS.forEach(c => arr(t[c]).forEach(x => { if (x && x.id) put(`${tk}/${c}/${x.id}`, x, pre + LABEL[c](x)); }));
     Object.entries(obj(t.systems)).forEach(([id, v]) => put(`${tk}/systems/${id}`, v, `${pre}Game system: ${id}`));
   });
+  arr(ws.clubs).forEach(c => { if (c && c.id) put(`club/${c.id}`, c, `Club: ${c.name || '?'}`); });
   const L = normLibrary(ws.library);
   ['plays', 'playerSets'].forEach(c => L[c].forEach(x => { if (x.id) put(`lib/${c}/${x.id}`, x, `Library · ${LABEL[c](x)}`); }));
   Object.entries(L.systems).forEach(([id, v]) => put(`lib/systems/${id}`, v, `Library · Game system: ${id}`));
@@ -655,6 +702,12 @@ export function records(ws) {
 // Put one record (or remove it, when value is undefined) into a workspace.
 function putRecord(ws, key, value, template) {
   const parts = key.split('/');
+  if (parts[0] === 'club') {
+    ws.clubs = arr(ws.clubs);
+    const i = ws.clubs.findIndex(c => c.id === parts[1]);
+    if (value === undefined) { if (i >= 0) ws.clubs.splice(i, 1); } else if (i >= 0) ws.clubs[i] = clone(value); else ws.clubs.push(clone(value));
+    return;
+  }
   if (parts[0] === 'lib') {
     ws.library = normLibrary(ws.library);
     const [, c, id] = parts;

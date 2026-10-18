@@ -117,6 +117,17 @@ test('a workspace’s team view is that team only', () => {
   assert.ok(!JSON.stringify(teamView(ws.teams[0])).includes('0499'));
 });
 
+test('players see their club’s public details and staff names, not phones, emails or officials', () => {
+  const club = { id: 'stgeorge', name: 'St George Oztag', website: 'https://www.nswoztag.au/', email: 'stgeorgeoztag@oztag.com', officials: [{ role: 'President', name: 'Pat Secret', phone: '0400 111 999' }], notes: 'private club note' };
+  const d = { ...sample, team: { ...sample.team, clubId: 'stgeorge', division: 'Mixed 20s', staff: [{ role: 'Head coach', name: 'Paul', phone: '0411 222 333', email: 'paul@x.com' }] } };
+  const v = teamView(d, club), text = JSON.stringify(v);
+  for (const secret of ['Pat Secret', '0400 111 999', 'private club note', 'officials', '0411 222 333', 'paul@x.com']) assert.ok(!text.includes(secret), `team view leaked "${secret}"`);
+  assert.equal(v.club.name, 'St George Oztag');
+  assert.equal(v.team.division, 'Mixed 20s');
+  assert.deepEqual(v.staff, [{ role: 'Head coach', name: 'Paul' }]);
+  assert.equal(teamView(sample).club, null);
+});
+
 test('invite links survive any password characters', () => {
   for (const pw of ['plain', 'with spaces & symbols/+=?', 'Grace O’Brien 🏉']) {
     const enc = toB64Url(pw);
