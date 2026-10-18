@@ -1,6 +1,6 @@
 # Team Manager
 
-A phone-first app for running Oztag teams, built for the DragonTag Mixed 20s in the lead-up to the NSW State Cup in Coffs Harbour: squad, training and RSVPs, roll call, matches and the tournament draw, lineups and game systems on a field diagram, plays, volunteer tasks and lifts, reports, a noticeboard, and messages sent through WhatsApp. One coach can run several teams.
+A phone-first coach and player app for multiple clubs, teams, seasons and competitions. Originally developed for Oztag, it now supports configurable sports and sport-specific player positions, with the existing field tactics editor primarily designed for Oztag. Manage squads, training, RSVPs, roll calls, matches, lineups, volunteer tasks, transport, reports, notices and WhatsApp communications across teams.
 
 The app has five sections: **Home** (the command centre below), **Schedule** (upcoming, training, matches, attendance), **Team** (squad, tasks, helpers, tally), **Tactics** (lineup, plays, the shared library) and **More** (messages, reports, teams, notices, settings).
 
@@ -98,8 +98,7 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 
 ### Players, sports and jerseys
 
-> **Accepted automated-test baseline (18 October 2026):** [PR #9](https://github.com/pdomoney/team-manager/pull/9) and [PR #10](https://github.com/pdomoney/team-manager/pull/10) were merged into `main` at `7eb1976fdd5e`. This baseline passed 97 unit and 491 Chromium browser checks, and Pages deployed. [PR #8](https://github.com/pdomoney/team-manager/pull/8) remains an unmerged, conflicting alternative—do not merge it wholesale. The [selective qualification candidate](docs/pr8-selective-qualification-20261018.md) incorporates only adapted tests and a storage/backup warning, on a separate branch. The tested code at `8b7b00d20537` passed **103/103 units and 521/521 Chromium checks** in [Actions run 39108441274](https://github.com/pdomoney/team-manager/actions/runs/39108441274), including 30/60/100-photo capacity qualification. This does not establish real iOS Safari or real GitHub publishing acceptance. See [the corrective handoff](docs/corrective-players-sports-jerseys.md) and [merge reconciliation record](docs/merge-reconciliation-20261018.md).
-
+> **Current merged development baseline — 18 October 2026:** `main` at [`960212fdb3c6`](https://github.com/pdomoney/team-manager/commit/960212fdb3c6bfcf73bbb3c2160aa21ac2ea07e6), following merged [PR #9](https://github.com/pdomoney/team-manager/pull/9) (player and jersey corrections), [PR #10](https://github.com/pdomoney/team-manager/pull/10) (concurrent publishing stabilisation), and [PR #11](https://github.com/pdomoney/team-manager/pull/11) (selective photo-capacity tests and storage recovery). [PR #8](https://github.com/pdomoney/team-manager/pull/8) was **closed without merging** as superseded. On the merged `main` commit, [unit and Chromium checks passed](https://github.com/pdomoney/team-manager/actions/runs/39112283528): **103/103 unit tests** and **491/491 browser checks** across 13 suites; [GitHub Pages deployed](https://github.com/pdomoney/team-manager/actions/runs/39112283502). The full **30/60/100-photo** synthetic capacity suite passed **30/30 checks** on [PR #11's tested head](https://github.com/pdomoney/team-manager/actions/runs/39108841423); it is deliberately omitted on ordinary `main` pushes for speed. Real iOS/macOS Safari, physical-device storage and authenticated production data publishing remain **not verified**. See the [release qualification record](docs/pr8-selective-qualification-20261018.md) and [reconciliation history](docs/merge-reconciliation-20261018.md).
 
 - **Sport**: a team plays its club's sport unless it's set in Settings › Team (Oztag, touch, league tag, rugby league and union, sevens, tag rugby, AFL, netball, football, basketball, hockey, cricket). The sport sets the positions players can pick (the team can keep its own list) and the automatic rule set; the app has official rules for Oztag, rugby league and league tag only.
 - **Photos**: add a photo in the player form to put names to faces. Photos stay in the encrypted coach copy and never reach players. New uploads target a compact 180 px, 12 KB avatar; previously stored photos up to the old 80 KB limit remain readable. Phone storage is finite: keep encrypted backups and heed storage warnings.
@@ -159,7 +158,7 @@ npm run build && npm run serve    # build into ./dist and serve on http://localh
 
 To build with real data, check out the data branch first: `git worktree add data data`.
 
-Browser checks (Python with Playwright and Chromium) run at phone and desktop sizes, with **simulated GitHub** and stubbed WhatsApp. The selective qualification candidate adds a slower photo-capacity run (30/60/100 synthetic player photos, browser quota and backup/restore), a structured JSON report and CI artifacts. **Safari/iOS, actual phone storage and production publishing remain manual checks.**
+Browser checks (Python with Playwright and Chromium) run at phone and desktop sizes, with **simulated GitHub** and stubbed WhatsApp. Merged PR #11 added a 30/60/100-photo synthetic capacity suite (including quota exhaustion, encrypted backup/restore and simulated publishing), a structured JSON report and CI artifacts. **Safari/iOS, actual phone storage and production publishing remain manual acceptance checks.**
 
 ```bash
 npm test                    # Unit regression suite
@@ -167,7 +166,7 @@ npm run test:browser        # Full unit + Chromium and capacity qualification
 npm run test:browser:smoke  # Unit + standard Chromium suites; omit slow capacity
 ```
 
-On pull requests, GitHub Actions runs unit tests separately and browser qualification sequentially with a JSON evidence artifact. On ordinary `main` pushes the slower capacity suite is omitted. The runner is `test/browser/run_all.py` and uses synthetic images only.
+On pull requests, GitHub Actions runs unit tests separately and browser qualification sequentially with a JSON evidence artifact (14-day retention). On ordinary `main` pushes the slower capacity suite is intentionally omitted, so a green main-branch run does not indicate that the capacity suite ran on that commit. The runner is `test/browser/run_all.py` and uses synthetic images only.
 
 ## Licence
 
