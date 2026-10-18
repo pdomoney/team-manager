@@ -4441,9 +4441,9 @@ function rulesWatchPanel() {
 function ruleSetField(T) {
   const club = M.clubOf(ws, data), auto = M.ruleSet(M.defaultRuleSet(T, club)), sets = M.ruleSetList();
   const groups = [...new Set(sets.map(x => x.sportName))];
-  return `<label class="field-l"><span>Rule set</span><select name="rules"><option value="">Automatic: ${esc(auto.sportName)}, ${esc(auto.name)}</option>
+  return `<label class="field-l"><span>Rule set</span><select name="rules"><option value="">${auto ? `Automatic: ${esc(auto.sportName)}, ${esc(auto.name)}` : 'Automatic: no built-in rule pack for this sport'}</option>
     ${groups.map(g => `<optgroup label="${esc(g)}">${sets.filter(x => x.sportName === g).map(x => `<option value="${esc(x.id)}" ${T.rules === x.id ? 'selected' : ''}>${esc(g)}, ${esc(x.name)}</option>`).join('')}</optgroup>`).join('')}</select>
-    <small>The official rules this team plays to. Automatic follows the club’s sport and the category. Add your competition’s by-laws in Tactics › Rules.</small></label>`;
+    <small>Automatic follows the team's sport (or its club default) and category. Built-in official rules cover Oztag, Rugby League and League Tag; other sports can still use team-specific positions and competition by-laws. Select a different official pack only deliberately.</small></label>`;
 }
 function playRulesField(draft) {
   const rs = M.teamRules(data.team, M.clubOf(ws, data)); if (!rs) return '';
