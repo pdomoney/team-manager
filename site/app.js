@@ -3893,10 +3893,10 @@ function teamForm() {
       <label class="field-l"><span>First season</span><input type="text" name="season" value="${esc(String(new Date().getFullYear()))}" placeholder="e.g. Winter 2027"></label></div>
     <label class="field-l"><span>Team sport</span>${sportSelect('teamSport', source ? T.sport || '' : '', 'Use club default', 'team-context')}<small>Choose this team's sport, or inherit the club default. For example, a Rugby League club can have League Tag and Netball teams.</small></label>
     <p class="hint team-sport-guide" data-sport-guide role="status" aria-live="polite">The new player's preferred positions follow this team's sport.</p>
-    <label class="field-l"><span>Tournament or season</span><input type="text" name="event" value="${esc(T.event)}"></label>
+    <label class="field-l"><span>Competition or tournament (optional)</span><input type="text" name="event" placeholder="e.g. Winter competition — leave blank if unknown"></label>
     <div class="two">
-      <label class="field-l"><span>Starts</span><input type="date" name="eventStart" value="${esc(T.eventStart)}"></label>
-      <label class="field-l"><span>Ends</span><input type="date" name="eventEnd" value="${esc(T.eventEnd)}"></label>
+      <label class="field-l"><span>Starts</span><input type="date" name="eventStart"></label>
+      <label class="field-l"><span>Ends</span><input type="date" name="eventEnd"></label>
     </div>
     ${source && !source.archived ? `<input type="hidden" name="sourceTeamId" value="${esc(source.id)}"><label class="check"><input type="checkbox" name="copySettings" data-change="team-context" checked><span>Reuse ${esc(T.name)}’s training times, venue, field setup, rule selection and by-laws</span></label><p class="hint">Only possible for the same club and sport. It will never copy players, coach contact details, staff, passwords, matches or history. Untick to start fresh.</p>${M.libItems(ws, 'plays').length || Object.keys(ws.library.systems).length ? `<label class="check"><input type="checkbox" name="withLibrary"><span>Also add shared tactics-library items</span></label>` : ''}` : '<p class="hint">Fresh setup: no existing team, coach or shared library settings will be copied.</p>'}
     ${S.trial ? '' : `<h3 class="form-sec">Team password</h3>
