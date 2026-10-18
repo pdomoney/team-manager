@@ -38,7 +38,7 @@ Review of PR #7 confirmed that forms, sport lists, photographs, return-tracking 
 - Team creation and Settings select the correct effective sport and its position defaults, including inherited club sport and custom settings. **Copied settings only retain a custom position list when the new team's sport matches the source team's sport**; a new team in a different sport uses that sport's standard positions.
 - Active competition detail explicitly explains eligibility for the Home competition card and directs the coach to **Enter a team**.
 - New photo uploads target 180 px / 12 KB where feasible, with several compression attempts. Existing photos within the original 80 KB maximum are still valid and visible. Storage-write failures surface warnings; backups remain the recovery control.
-- Existing HTML structure and 46 px form control consistency remain; no wholesale rewrite.
+- Existing HTML structure and 46 px form control consistency remain; non-interactive status toasts no longer intercept taps on underlying form controls (`pointer-events: none`); no wholesale rewrite.
 
 ### Regression qualification
 
