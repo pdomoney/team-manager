@@ -120,8 +120,12 @@ const CLUB_PUBLIC = ['id', 'name', 'shortName', 'sport', 'governingBody', 'found
 
 // The players' copy. Anything not listed here stays in the coach's file only. `club` is the team's
 // club, if it has one.
+// `d` is the team as of its active season (model.js activeLens), so past seasons' squads, matches and
+// notices never reach the players' file.
 export function teamView(d, club = null) {
+  const season = d.viewSeason && typeof d.viewSeason === 'object' ? pick(d.viewSeason, ['id', 'name', 'start', 'end', 'status']) : null;
   return {
+    season,
     team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field', 'tasksContact', 'clubId', 'division', 'category', 'ageGroup', 'season', 'colours', 'rules', 'bylaws']),
     club: club && typeof club === 'object' ? pick(club, CLUB_PUBLIC) : null,
     // Team staff: who they are; their phone numbers and email addresses stay with the coach.
