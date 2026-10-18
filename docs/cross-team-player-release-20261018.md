@@ -43,6 +43,18 @@ New deterministic unit tests: cross-team identity, target-specific sport positio
 
 New Playwright browser journey: create a Netball team, add a player from another squad, verify its independent jersey and sport positions, mark a target jersey returned and verify the source team issue is unaffected; check manager reports and mobile layout. Existing complete unit and Chromium regression suites must remain green.
 
+## Verified automated qualification — 18 October 2026
+
+- **Implementation commit qualified:** `e6b58a31ad3b94e5b58d7045f29e49c387ac1837`.
+- **Pull request:** [PR #13](https://github.com/pdomoney/team-manager/pull/13) — draft, mergeable, not merged.
+- **GitHub Actions run:** [39122540536](https://github.com/pdomoney/team-manager/actions/runs/39122540536).
+- **Unit tests:** **109/109 passed**, 0 failed.
+- **Chromium browser qualification:** **540/540 checks in 15/15 suites passed**; includes the new `cross_team_players` suite **19/19**, existing `live_publishing` checks **31/31** and 30/60/100-photo synthetic capacity **30/30**.
+- **Machine-readable artifact:** [browser qualification evidence](https://github.com/pdomoney/team-manager/actions/runs/39122540536/artifacts/12134248648) (`qualification.json`).
+- **Test-only publishing fix:** `test/browser/live_publishing.py` now waits for the *initial terminal publish status* after Go Live before asserting mock GitHub files exist. Previously it could race ahead during async encryption and falsely report no files. Production publishing code was not changed.
+- These are **synthetic/test-mode** results. They do **not** validate actual iPhone Safari storage limits, production GitHub credentials or real player data handling.
+- **Source provenance:** These pass counts apply to the implementation commit above; a subsequent documentation-only commit must pass its own head checks before final PR acceptance.
+
 ### Manual acceptance outstanding
 
 - Coach must visually inspect the workflow and confirm the terminology meets their use case.
