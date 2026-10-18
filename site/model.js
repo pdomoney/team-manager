@@ -20,9 +20,12 @@
 import { RULES } from './rules.js';
 export { RULES };
 
-export const SCHEMA = 3;
+// Schema 4 adds seasons (team.seasons, and a seasonId on training, matches, tasks, messages and
+// notices) and competitions (ws.competitions, with entries for a team's season). Both are additions:
+// an earlier app still opens a schema 4 copy, showing every season's records together.
+export const SCHEMA = 4;
 export const PRIMARY_ID = 'team1';
-const WS_KEYS = ['schema', 'teams', 'library', 'clubs'];
+const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions'];
 const TEAM_ID = /^[a-z0-9]{3,32}$/;
 
 export const arr = v => Array.isArray(v) ? v : [];
@@ -77,9 +80,304 @@ export function migrateWorkspace(raw, normTeam = t => t) {
   teamsOf(ws).forEach(t => { if (t.team && t.team.clubId && !clubIds.has(t.team.clubId)) t.team.clubId = ''; });
   ws.schema = SCHEMA;
   ws.updatedAt = src.updatedAt || null;
+  teamsOf(ws).forEach(t => ensureSeasons(t));
+  ws.competitions = src.competitions === undefined ? seedCompetitions(ws) : arr(src.competitions).filter(isObj).map(normComp);
+  repairCompetitions(ws);
+  syncEvents(ws);
   teamsOf(ws).forEach(t => repairTeam(t));
   return ws;
 }
+/* ---------- Seasons ---------- */
+// A team keeps its identity across seasons: its id, club, name, settings, plays and game systems. A
+// season is one period of play with its own squad, staff and records. Training sessions, matches,
+// tasks, messages and notices carry the seasonId of the season they belong to. People stay in
+// team.players (one record per person, never matched by name); a season's squad entries say who
+// played that season and with what number, positions, availability and registration.
+// While a season is active, the player records hold its current values, and anyone not yet in any
+// season's squad counts as in it (so adding a player only changes that player's record, and two
+// phones adding different players don't clash). When a season is completed, or the next one is made,
+// its squad is written down in full: from then on its squad entries are the record of that season.
+export const SEASON_STATUS = { planned: 'Planned', active: 'Active', completed: 'Completed', archived: 'Archived' };
+export const SEASON_MOVES = { planned: ['active', 'archived'], active: ['completed'], completed: ['active', 'archived'], archived: ['completed'] };
+export const SEASON_KINDS = ['sessions', 'matches', 'tasks', 'messages', 'notices'];
+export const REG_STATUS = { '': 'Not recorded', registered: 'Registered', pending: 'Pending' };
+const DEFAULT_KEYS = ['trainingVenue', 'trainingStart', 'trainingEnd'];
+const memberOf = p => ({ playerId: p.id, number: String(p.number || ''), positions: arr(p.positions).slice(), status: p.status || 'available', reg: '' });
+export function normSeason(x) {
+  const s = obj(x);
+  return {
+    id: String(s.id || uid()), name: String(s.name || 'Season'), label: String(s.label || ''), year: String(s.year || ''),
+    start: String(s.start || ''), end: String(s.end || ''), status: SEASON_STATUS[s.status] ? s.status : 'planned',
+    staff: arr(s.staff).filter(isObj).map(r => ({ role: String(r.role || 'Other'), name: String(r.name || ''), phone: String(r.phone || ''), email: String(r.email || '') })),
+    defaults: Object.fromEntries(Object.entries(obj(s.defaults)).filter(([k]) => DEFAULT_KEYS.includes(k)).map(([k, v]) => [k, String(v || '')])),
+    squad: arr(s.squad).filter(m => isObj(m) && m.playerId).map(m => ({ playerId: String(m.playerId), number: String(m.number || ''), positions: arr(m.positions).map(String),
+      status: ['available', 'injured', 'unavailable'].includes(m.status) ? m.status : 'available', reg: REG_STATUS[m.reg] !== undefined ? m.reg : '' })),
+    createdAt: s.createdAt || null, completedAt: s.completedAt || null, from: String(s.from || '')
+  };
+}
+export const seasonsOf = t => arr(t && t.seasons);
+export const activeSeason = t => seasonsOf(t).find(s => s.status === 'active') || null;
+export const findSeason = (t, id) => (id && seasonsOf(t).find(s => s.id === id)) || null;
+export const memberSeasons = (t, pid) => seasonsOf(t).filter(s => s.squad.some(m => m.playerId === pid));
+// Is this person in that season's squad (the active season also has anyone not yet in any squad)?
+export const inSeason = (t, sid, pid) => { const s = findSeason(t, sid); return !!s && (s.squad.some(m => m.playerId === pid) || (s.status === 'active' && !inAnySeason(t).has(pid))); };
+// The first season for data from before seasons: named from the team's season setting, or the years
+// its records span ("2026–27"); its dates are left for the coach to fill in.
+function firstSeason(t) {
+  const T = obj(t.team);
+  const years = SEASON_KINDS.flatMap(k => arr(t[k]).map(x => String((x && (x.date || x.at)) || '').slice(0, 4))).filter(y => /^\d{4}$/.test(y)).sort();
+  const span = !years.length ? '' : years[0] === years[years.length - 1] ? years[0] : `${years[0]}–${years[years.length - 1].slice(2)}`;
+  return normSeason({ id: 'season1', name: T.season || span || 'Current season', year: years[0] || '', status: 'active',
+    staff: arr(T.staff), defaults: Object.fromEntries(DEFAULT_KEYS.map(k => [k, T[k] || ''])), squad: arr(t.players).filter(p => p && p.id).map(memberOf) });
+}
+// Every team has its seasons in order: the first one made from its existing data (always the same,
+// so two phones upgrading the same copy agree), at most one active, and records claimed by a season.
+export function ensureSeasons(t) {
+  t.seasons = seasonsOf(t).filter(isObj).map(normSeason);
+  if (!t.seasons.length) t.seasons.push(firstSeason(t));
+  let seen = false;
+  t.seasons.forEach(s => { if (s.status === 'active') { if (seen) s.status = 'completed'; seen = true; } });
+  const a = activeSeason(t);
+  if (a && t.team) t.team.season = a.name;   // the team's season setting is the active season's name
+  claimRecords(t);
+  return t;
+}
+// Records without a season (new ones, or made by an earlier app) join the season being worked on, and
+// a match's own lineup goes with its match. Only those new records change.
+export function claimRecords(t, sid) {
+  const target = findSeason(t, sid) || activeSeason(t);
+  if (!target) return 0;
+  let n = 0;
+  SEASON_KINDS.forEach(k => arr(t[k]).forEach(x => { if (isObj(x) && !x.seasonId) { x.seasonId = target.id; n++; } }));
+  const lineups = new Map(arr(t.lineups).map(l => [l.id, l]));
+  arr(t.matches).forEach(m => { const l = m.lineupId && lineups.get(m.lineupId); if (l && !l.seasonId) l.seasonId = m.seasonId; });
+  return n;
+}
+const inAnySeason = t => new Set(seasonsOf(t).flatMap(s => s.squad.map(m => m.playerId)));
+// Write the active season down as it stands: its whole squad with current numbers, positions and
+// availability (registration kept), its staff and training defaults.
+function syncActive(t) {
+  const s = activeSeason(t); if (!s) return;
+  const old = new Map(s.squad.map(m => [m.playerId, m]));
+  s.squad = seasonLens(t, s.id).players.map(p => ({ ...memberOf(p), reg: (old.get(p.id) || {}).reg || '' }));
+  const T = obj(t.team);
+  s.staff = arr(T.staff).filter(isObj).map(r => ({ role: String(r.role || 'Other'), name: String(r.name || ''), phone: String(r.phone || ''), email: String(r.email || '') }));
+  s.defaults = Object.fromEntries(DEFAULT_KEYS.map(k => [k, String(T[k] || '')]));
+  if (t.team) t.team.season = s.name;
+}
+// A season becoming active: its squad entries become the players' current number, positions and
+// availability, and its staff and training defaults become the team's.
+function applySeason(t, s) {
+  const ps = new Map(arr(t.players).map(p => [p.id, p]));
+  s.squad.forEach(m => { const p = ps.get(m.playerId); if (p) Object.assign(p, { number: m.number, positions: m.positions.slice(), status: m.status || 'available' }); });
+  if (!t.team) t.team = {};
+  t.team.staff = s.staff.map(r => ({ ...r }));
+  DEFAULT_KEYS.forEach(k => { if (k in s.defaults) t.team[k] = s.defaults[k]; });
+  t.team.season = s.name;
+}
+// Planned → active or archived; active → completed; completed → active (reopened) or archived;
+// archived → completed. Only one season can be active. Returns '' or why it can't.
+export function seasonMove(t, id, to, now = new Date()) {
+  const s = findSeason(t, id); if (!s) return 'missing';
+  if (!(SEASON_MOVES[s.status] || []).includes(to)) return 'not-allowed';
+  const a = activeSeason(t);
+  if (to === 'active' && a && a !== s) return 'other-active';
+  if (s.status === 'active') syncActive(t);
+  s.status = to;
+  if (to === 'active') { applySeason(t, s); claimRecords(t); }
+  if (to === 'completed' && !s.completedAt) s.completedAt = isoDay(now);
+  return '';
+}
+// The next season. Only the players the coach picked are in it (each with the number and positions
+// given), plus anyone new; availability starts fresh. Nothing from the last season is copied: no
+// training, matches, results, RSVPs, tasks, lifts or messages. Staff and training defaults only if
+// asked for. Optionally completes the current season and starts the new one straight away.
+export function rollover(t, d, now = new Date()) {
+  const cur = activeSeason(t);
+  if (cur) syncActive(t);
+  const ids = new Set(arr(t.players).map(p => p.id)), squad = [], seen = new Set();
+  arr(d.carry).forEach(c => { if (!ids.has(c.playerId) || seen.has(c.playerId)) return; seen.add(c.playerId);
+    squad.push({ playerId: c.playerId, number: String(c.number || ''), positions: arr(c.positions).map(String), status: 'available', reg: '' }); });
+  const added = arr(d.newPlayers).filter(x => x && String(x.name || '').trim()).map(x => {
+    const p = { id: uid(), name: String(x.name).trim(), gender: x.gender === 'F' || x.gender === 'M' ? x.gender : '', number: String(x.number || ''), phone: '', positions: arr(x.positions).map(String), status: 'available', notes: '' };
+    t.players = arr(t.players); t.players.push(p); squad.push(memberOf(p)); return p;
+  });
+  const T = obj(t.team);
+  const s = normSeason({ id: uid(), name: d.name || 'Next season', label: d.label, year: d.year, start: d.start, end: d.end, status: 'planned', squad,
+    staff: arr(d.staff), defaults: Object.fromEntries(DEFAULT_KEYS.map(k => [k, d.keepDefaults ? T[k] || '' : ''])), createdAt: isoDay(now), from: cur ? cur.id : '' });
+  t.seasons = seasonsOf(t); t.seasons.push(s);
+  if (d.activate) { if (cur) seasonMove(t, cur.id, 'completed', now); seasonMove(t, s.id, 'active', now); }
+  return { season: s, added };
+}
+// The next season's name: the same name a year on ("Winter 2026" → "Winter 2027", "2026–27" → "2027–28").
+export const nextSeasonName = name => String(name || '').replace(/(\d{4})(\s*[–-]\s*)(\d{2})\b/, (m, a, sep, b) => `${+a + 1}${sep}${String((+b + 1) % 100).padStart(2, '0')}`)
+  .replace(/\b(\d{4})\b(?!\s*[–-]\s*\d)/, y => String(+y + 1));
+// Take someone out of one season's squad. They stay in the seasons they played; a person who's in
+// no other season is removed altogether (as before seasons). Returns 'season' or 'player'.
+export function removeMember(t, sid, pid) {
+  const s = findSeason(t, sid); if (!s) return '';
+  s.squad = s.squad.filter(m => m.playerId !== pid);
+  if (memberSeasons(t, pid).length) return 'season';
+  t.players = arr(t.players).filter(p => p.id !== pid);
+  return 'player';
+}
+// One season of a team as the app shows it: its squad (from its squad entries, so a past season keeps
+// that season's numbers and positions), its records, the lineups made for its matches and the
+// team's own saved lineups. A season that isn't active is read-only. With no season to show, nothing.
+export function seasonLens(t, sid) {
+  if (!seasonsOf(t).length) return t;
+  const s = findSeason(t, sid);
+  if (!s) return { ...t, players: [], sessions: [], matches: [], tasks: [], messages: [], notices: [], lineups: arr(t.lineups).filter(l => !l.seasonId), viewSeason: null, readOnly: true };
+  const live = s.status === 'active', mine = x => x && (x.seasonId === s.id || (!x.seasonId && live));
+  const members = new Map(s.squad.map(m => [m.playerId, m])), known = live ? inAnySeason(t) : null;
+  const players = arr(t.players).filter(p => members.has(p.id) || (live && !known.has(p.id))).map(p => {
+    if (live) return p;
+    const m = members.get(p.id);
+    return { ...p, number: m.number, positions: m.positions.slice(), status: m.status };
+  });
+  const out = { ...t, players, lineups: arr(t.lineups).filter(l => !l.seasonId || l.seasonId === s.id), viewSeason: s, readOnly: !live };
+  SEASON_KINDS.forEach(k => { out[k] = arr(t[k]).filter(mine); });
+  return out;
+}
+export const activeLens = t => seasonLens(t, (activeSeason(t) || {}).id);
+// Each season's figures side by side, from what was recorded in it.
+export function seasonStats(t, today) {
+  return seasonsOf(t).map(s => {
+    const L = seasonLens(t, s.id), sum = summary(L, '', '', today);
+    const dates = SEASON_KINDS.slice(0, 3).flatMap(k => L[k].map(x => x.date)).filter(Boolean).sort();
+    return { id: s.id, name: s.name, status: s.status, start: s.start || dates[0] || '', end: s.end || dates[dates.length - 1] || '', squad: L.players.length, ...sum };
+  });
+}
+
+/* ---------- Competitions ---------- */
+// A competition is an organised event, kept once in the coach's copy: a league, a tournament, a
+// championship. A team takes part through an entry for one of its seasons (with an optional division
+// or pool). A match can belong to an entry; one that doesn't is a friendly or simply not linked yet.
+export const COMP_FORMATS = { league: 'League', knockout: 'Knockout tournament', roundrobin: 'Round-robin tournament', championship: 'Championship', carnival: 'Carnival or festival', other: 'Other' };
+export const TOURNAMENT_FORMATS = ['knockout', 'roundrobin', 'championship', 'carnival'];
+export const COMP_STATUS = { planned: 'Planned', active: 'Active', completed: 'Completed', archived: 'Archived' };
+export const ENTRY_STATUS = { entered: 'Entered', withdrawn: 'Withdrawn' };
+export const COMP_PUBLIC = ['id', 'name', 'sport', 'format', 'edition', 'start', 'end', 'organiser', 'venue', 'status', 'description'];
+export function normComp(c) {
+  const x = obj(c), out = { id: String(x.id || uid()) };
+  COMP_PUBLIC.slice(1).forEach(k => { out[k] = String(x[k] == null ? '' : x[k]); });
+  if (!COMP_FORMATS[out.format]) out.format = 'other';
+  if (!COMP_STATUS[out.status]) out.status = 'planned';
+  out.rules = String(x.rules || '');
+  out.bylaws = arr(x.bylaws).filter(isObj).map((b, i) => ({ ...normBylaw(b), id: String(b.id || `b${i + 1}`) })).filter(b => b.text);
+  out.entries = arr(x.entries).filter(e => isObj(e) && e.teamId).map(e => ({ id: String(e.id || uid()), teamId: String(e.teamId), seasonId: String(e.seasonId || ''),
+    status: ENTRY_STATUS[e.status] ? e.status : 'entered', division: String(e.division || ''), pool: String(e.pool || '') }));
+  return out;
+}
+export const compsOf = ws => arr(ws && ws.competitions);
+export const findComp = (ws, id) => (id && compsOf(ws).find(c => c.id === id)) || null;
+export function findEntry(ws, entryId) {
+  for (const comp of compsOf(ws)) { const entry = comp.entries.find(e => e.id === entryId); if (entry) return { comp, entry }; }
+  return null;
+}
+// A team's entries, for one season or all of them.
+export const teamEntries = (ws, teamId, seasonId) => compsOf(ws).flatMap(comp => comp.entries.filter(e => e.teamId === teamId && (!seasonId || e.seasonId === seasonId)).map(entry => ({ comp, entry })));
+const sameDiv = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+// Enter a team's season. The same team, season and division can only be entered once (entering again
+// after withdrawing brings the entry back); a different division is a separate entry.
+export function addEntry(ws, compId, teamId, seasonId, { division = '', pool = '' } = {}) {
+  const comp = findComp(ws, compId), t = findTeam(ws, teamId);
+  if (!comp) return { error: 'no-competition' };
+  if (!t || !findSeason(t, seasonId)) return { error: 'no-season' };
+  const same = comp.entries.find(e => e.teamId === teamId && e.seasonId === seasonId && sameDiv(e.division, division));
+  if (same) { if (same.status === 'entered') return { error: 'duplicate', entry: same }; same.status = 'entered'; same.pool = pool; return { entry: same }; }
+  const entry = { id: uid(), teamId, seasonId, status: 'entered', division: String(division).trim(), pool: String(pool).trim() };
+  comp.entries.push(entry);
+  return { entry };
+}
+// Withdrawing keeps the entry and its fixtures and results; removing is only for an entry with no
+// matches (made by mistake).
+export function withdrawEntry(ws, compId, entryId) { const e = (findComp(ws, compId) || { entries: [] }).entries.find(x => x.id === entryId); if (!e) return false; e.status = 'withdrawn'; return true; }
+export function removeEntry(ws, compId, entryId) {
+  const comp = findComp(ws, compId); if (!comp) return 'missing';
+  if (teamsOf(ws).some(t => arr(t.matches).some(m => m.entryId === entryId))) return 'has-fixtures';
+  comp.entries = comp.entries.filter(e => e.id !== entryId);
+  return '';
+}
+// Link a match to an entry of its own team and season (or unlink it with '').
+export function linkMatch(ws, t, m, entryId) {
+  if (!entryId) { m.entryId = ''; m.compId = ''; return ''; }
+  const f = findEntry(ws, entryId);
+  if (!f || f.entry.teamId !== t.id) return 'wrong-team';
+  if (m.seasonId && f.entry.seasonId !== m.seasonId) return 'wrong-season';
+  m.entryId = entryId; m.compId = f.comp.id;
+  if (TOURNAMENT_FORMATS.includes(f.comp.format) || t.team.eventCompId === f.comp.id) m.tournament = true;
+  return '';
+}
+// What a match is: part of a competition (a tournament format counts as a tournament), a friendly,
+// or not linked to anything (matches from before competitions).
+export function matchKind(ws, m) {
+  const f = m && m.entryId && findEntry(ws, m.entryId);
+  if (f) return { kind: TOURNAMENT_FORMATS.includes(f.comp.format) ? 'tournament' : 'competition', comp: f.comp, entry: f.entry };
+  return { kind: m && m.friendly ? 'friendly' : 'none', comp: null, entry: null };
+}
+// Every match in a competition, across its teams, with the team and entry it belongs to.
+export function compMatches(ws, compId) {
+  const comp = findComp(ws, compId); if (!comp) return [];
+  const entries = new Map(comp.entries.map(e => [e.id, e]));
+  return teamsOf(ws).flatMap(t => arr(t.matches).filter(m => entries.has(m.entryId)).map(m => ({ team: t, entry: entries.get(m.entryId), match: m })))
+    .sort((a, b) => byWhen(a.match, b.match) || a.team.id.localeCompare(b.team.id));
+}
+// Matches of the team in the competition's dates that aren't linked to anything: offered to the coach
+// to link, never linked on their own.
+export function unlinkedInDates(ws, compId, teamId) {
+  const comp = findComp(ws, compId), t = findTeam(ws, teamId);
+  if (!comp || !t || !comp.start) return [];
+  const to = comp.end || comp.start;
+  return arr(t.matches).filter(m => !m.entryId && !m.friendly && m.date >= comp.start && m.date <= to).sort(byWhen);
+}
+// The team's tournament (team.event and its dates) becomes a competition when the copy is upgraded:
+// one per distinct event, entered by each team with it, for that team's active season. Only matches
+// already marked as tournament matches are linked to it.
+function seedCompetitions(ws) {
+  const comps = new Map();
+  teamsOf(ws).forEach(t => {
+    const T = obj(t.team);
+    if (!T.event || !validDay(T.eventStart)) return;
+    const end = validDay(T.eventEnd) ? T.eventEnd : T.eventStart;
+    const key = `${T.event.trim().toLowerCase()}|${T.eventStart}|${end}`;
+    if (!comps.has(key)) comps.set(key, normComp({ id: `c${T.eventStart.replace(/-/g, '')}${T.event.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 20)}`, name: T.event, format: 'other',
+      edition: T.eventStart.slice(0, 4), start: T.eventStart, end, venue: T.venue || '', sport: '', status: 'planned', entries: [] }));
+    const comp = comps.get(key), s = activeSeason(t);
+    if (!s) return;
+    const entry = { id: `${t.id}-${s.id}`, teamId: t.id, seasonId: s.id, status: 'entered', division: T.division || '', pool: '' };
+    comp.entries.push(entry);
+    T.eventCompId = comp.id;
+    arr(t.matches).forEach(m => { if (m.tournament && !m.entryId && (!m.seasonId || m.seasonId === s.id)) { m.entryId = entry.id; m.compId = comp.id; } });
+  });
+  return [...comps.values()];
+}
+// Entries for teams or seasons that no longer exist are dropped; a match whose entry is gone is
+// unlinked (it keeps everything else).
+export function repairCompetitions(ws) {
+  const teams = new Map(teamsOf(ws).map(t => [t.id, t]));
+  compsOf(ws).forEach(c => { c.entries = c.entries.filter(e => { const t = teams.get(e.teamId); return t && findSeason(t, e.seasonId); }); });
+  const entries = new Map(compsOf(ws).flatMap(c => c.entries.map(e => [e.id, c.id])));
+  teamsOf(ws).forEach(t => arr(t.matches).forEach(m => {
+    if (m.entryId && !entries.has(m.entryId)) { m.entryId = ''; m.compId = ''; }
+    else if (m.entryId) m.compId = entries.get(m.entryId);
+  }));
+  teamsOf(ws).forEach(t => { if (t.team && t.team.eventCompId && !findComp(ws, t.team.eventCompId)) t.team.eventCompId = ''; });
+}
+// A team's tournament settings follow the competition they were made into.
+export function syncEvents(ws) {
+  teamsOf(ws).forEach(t => {
+    const c = t.team && findComp(ws, t.team.eventCompId); if (!c) return;
+    Object.assign(t.team, { event: c.name, eventStart: c.start, eventEnd: c.end, venue: c.venue || t.team.venue || '' });
+  });
+}
+// What a team's players see of its competitions this season.
+export function compsForPlayers(ws, t) {
+  const s = activeSeason(t); if (!s) return [];
+  return teamEntries(ws, t.id, s.id).map(({ comp, entry }) => ({ ...Object.fromEntries(COMP_PUBLIC.map(k => [k, comp[k]])), entryId: entry.id, division: entry.division, pool: entry.pool,
+    entryStatus: entry.status, bylaws: comp.bylaws.map(b => ({ topic: b.topic, text: b.text })) }));
+}
+
 /* ---------- Clubs ---------- */
 // A club holds what's shared by its teams: who it is, how to reach it, where it plays, its links and
 // its officials. A team names its club (team.clubId) and keeps its own division, category, season and
@@ -190,6 +488,7 @@ export function legacyTeam(ws, id) {
 export function addTeam(ws, team) {
   ws.teams = arr(ws.teams);
   if (!team.id || findTeam(ws, team.id)) team.id = uid();
+  ensureSeasons(team);
   ws.teams.push(team);
   return team;
 }
@@ -222,6 +521,7 @@ export function repairTeam(t) {
   arr(t.lineups).forEach(l => arr(l && l.slots).forEach(s => { if (s.playerId && !players.has(s.playerId)) { s.playerId = null; fixes.push({ what: 'slot', id: l.id }); } }));
   arr(t.helpers).forEach(h => { if (h.playerId && !players.has(h.playerId)) { h.playerId = ''; fixes.push({ what: 'helper-player', id: h.id }); } });
   arr(t.matches).forEach(m => { if (m.lineupId && !lineups.has(m.lineupId)) { m.lineupId = ''; fixes.push({ what: 'match-lineup', id: m.id }); } });
+  arr(t.seasons).forEach(se => { const n = arr(se.squad).length; se.squad = arr(se.squad).filter(m => m && players.has(m.playerId)); if (se.squad.length !== n) fixes.push({ what: 'season-member', id: se.id, n: n - se.squad.length }); });
   return fixes;
 }
 
@@ -656,9 +956,10 @@ export const scopeTeams = (ws, scope) => activeTeams(ws).filter(t => scope.kind 
   || (scope.kind === 'team' ? t.id === scope.id : scope.id === NO_CLUB ? !clubOf(ws, t) : t.team.clubId === scope.id));
 
 // Every item for one team, each with its priority level. `coach` false leaves out anything private.
-export function homeItems(ws, t, now, coach = true) {
+export function homeItems(ws, team, now, coach = true) {
+  const t = activeLens(team);   // the active season only: past seasons never raise anything
   const T = obj(t.team), club = ws ? clubOf(ws, t) : null, rs = teamRules(T, club), today = isoDay(now), out = [];
-  const base = { teamId: t.id || PRIMARY_ID, team: teamName(t), club: club ? club.shortName || club.name : '' };
+  const base = { teamId: t.id || PRIMARY_ID, team: teamName(t), club: club ? club.shortName || club.name : '', season: (activeSeason(team) || {}).name || '' };
   const add = x => out.push({ ...base, issues: [], place: '', ...x });
   const avail = arr(t.players).filter(p => !p.status || p.status === 'available');
   const need = Number(rs && rs.values.players) || avail.length;
@@ -677,7 +978,8 @@ export function homeItems(ws, t, now, coach = true) {
       if (short) issues.push(`${yes} of ${need} players confirmed`);
     }
     const level = (lineup || short) && within(e, 24) ? 1 : within(e, 72) ? 2 : within(e, 168) ? 3 : 4;
-    add({ kind: 'match', id: m.id, ...e, level, issues, act: 'match-open', title: `vs ${m.opponent || 'TBC'}`, round: m.round || '',
+    const mk = ws ? matchKind(ws, m) : { comp: null, entry: null };
+    add({ kind: 'match', id: m.id, ...e, level, issues, act: 'match-open', title: `vs ${m.opponent || 'TBC'}`, round: m.round || '', comp: mk.comp ? mk.comp.name : '', compId: mk.comp ? mk.comp.id : '',
       place: [m.venue, m.field ? `Field ${m.field}` : ''].filter(Boolean).join(' · '),
       label: level === 1 ? (lineup ? 'Lineup incomplete' : 'Availability not in') : `Match ${dayWord(e)}` });
   });
@@ -708,7 +1010,8 @@ export function homeItems(ws, t, now, coach = true) {
       label: issues.length ? (lift ? 'Transport needs confirmation' : 'Volunteers needed') : `${lift ? 'Lifts' : x.title || 'Task'} ${dayWord(e)}` });
   });
   const ev = validDay(T.eventStart) && eventTime(T.eventStart, '', '', now);
-  if (ev && ev.days >= 0) add({ kind: 'tournament', id: 'event', ...ev, level: within(ev, 72) ? 2 : within(ev, 168) ? 3 : 4, act: 'tab', tab: 'matches',
+  const evComp = ws && findComp(ws, T.eventCompId);
+  if (ev && ev.days >= 0) add({ kind: 'tournament', ...ev, level: within(ev, 72) ? 2 : within(ev, 168) ? 3 : 4, ...(evComp ? { id: evComp.id, act: 'comp-open', compId: evComp.id } : { id: 'event', act: 'tab', tab: 'matches' }),
     title: T.event || 'Tournament', place: T.venue || '', label: ev.days === 0 ? 'Tournament today' : `Tournament starts ${dayWord(ev)}` });
   if (coach) {
     const later = { at: Infinity, date: '', start: '', timed: false, days: null, over: false };
@@ -740,8 +1043,8 @@ function homeActions(t, items, today) {
 const byAction = (a, b) => a.level - b.level || (a.at === b.at ? 0 : a.at < b.at ? -1 : 1) || String(a.date).localeCompare(String(b.date)) || a.teamId.localeCompare(b.teamId) || a.kind.localeCompare(b.kind) || String(a.recId).localeCompare(String(b.recId));
 
 // One team at a glance, for Home when a single team is selected.
-export function teamInsight(t, now) {
-  const today = isoDay(now), P = arr(t.players), T = obj(t.team);
+export function teamInsight(team, now) {
+  const t = activeLens(team), today = isoDay(now), P = arr(t.players), T = obj(t.team);
   const trend = attendanceTrend(t.sessions, today).filter(x => x.status === 'recorded').slice(-5);
   const rec = teamRecord(t.matches, today);
   const end = T.eventEnd || T.eventStart;
@@ -771,12 +1074,12 @@ export function homeView(ws, pref, now, { days = 14 } = {}) {
   const parents = new Map(events.filter(x => x.kind === 'match' || x.kind === 'session').map(x => [`${x.teamId}:${x.kind}:${x.id}`, x]));
   const upcoming = [];
   events.forEach(x => { const p = x.kind === 'task' && x.parent && parents.get(`${x.teamId}:${x.parent}`); if (p) p.subs.push(x); else upcoming.push(x); });
-  const changed = teams.flatMap(t => [
+  const changed = teams.map(activeLens).flatMap(t => [
     ...arr(t.sessions).filter(s => s.cancelled).map(s => ({ kind: 'session', id: s.id, date: s.date, start: s.start, status: 'Cancelled', title: 'Training', act: 'edit-session' })),
     ...arr(t.matches).filter(m => m.status === 'cancelled' || m.status === 'postponed').map(m => ({ kind: 'match', id: m.id, date: m.date, start: m.start, status: MATCH_STATUS[m.status], title: `vs ${m.opponent || 'TBC'}`, act: 'match-open' }))
   ].map(x => ({ ...x, teamId: t.id, team: teamName(t), e: eventTime(x.date, x.start, '', now) })).filter(x => x.e && x.e.days >= 0 && x.e.days <= days))
     .sort((a, b) => a.e.at - b.e.at || a.teamId.localeCompare(b.teamId) || a.id.localeCompare(b.id));
-  const actions = teams.flatMap(t => homeActions(t, byTeam.get(t.id), today)).sort(byAction);
+  const actions = teams.flatMap(t => homeActions(activeLens(t), byTeam.get(t.id), today)).sort(byAction);
   const team = scope.kind === 'team' ? teams[0] || null : null;
   return { today, clubs, scope, teams, urgency, items, spotlight, upcoming, changed, actions: actions.filter(a => a.key !== spotKey), featured: actions.filter(a => a.key === spotKey).length,
     insight: team ? teamInsight(team, now) : null, multi: activeTeams(ws).length > 1 };
@@ -928,13 +1231,13 @@ export function libImport(ws, file) {
 /* ---------- Comparing two copies (publishing conflicts) ---------- */
 // A workspace broken into records: each player, session, match, task and so on; each team's settings;
 // each game system; each library item. Two copies can then be compared record by record.
-const COLLECTIONS = ['players', 'sessions', 'matches', 'lineups', 'tasks', 'helpers', 'notices', 'messages', 'plays', 'playerSets'];
+const COLLECTIONS = ['players', 'sessions', 'matches', 'lineups', 'tasks', 'helpers', 'notices', 'messages', 'plays', 'playerSets', 'seasons'];
 const NOT_SETTINGS = new Set([...COLLECTIONS, ...WS_KEYS, 'systems', 'updatedAt', 'id']);
 const LABEL = {
   players: p => `Player: ${p.name || '?'}`, sessions: s => `Training: ${s.date || '?'}`, matches: m => `Match: ${m.opponent || 'opponent TBC'}, ${m.date || '?'}`,
   lineups: l => `Lineup: ${l.name || '?'}`, tasks: x => `Task: ${x.title || '?'}, ${x.date || '?'}`, helpers: h => `Helper: ${h.name || '?'}`,
   notices: n => `Notice: ${String(n.text || '').slice(0, 40)}`, messages: m => `Message: ${String(m.text || '').split('\n')[0].slice(0, 40)}`,
-  plays: p => `Play: ${p.name || '?'}`, playerSets: x => `Player list: ${x.name || '?'}`
+  plays: p => `Play: ${p.name || '?'}`, playerSets: x => `Player list: ${x.name || '?'}`, seasons: x => `Season: ${x.name || '?'}`
 };
 export function records(ws) {
   const out = new Map();
@@ -947,6 +1250,7 @@ export function records(ws) {
     Object.entries(obj(t.systems)).forEach(([id, v]) => put(`${tk}/systems/${id}`, v, `${pre}Game system: ${id}`));
   });
   arr(ws.clubs).forEach(c => { if (c && c.id) put(`club/${c.id}`, c, `Club: ${c.name || '?'}`); });
+  compsOf(ws).forEach(c => { if (c && c.id) put(`comp/${c.id}`, c, `Competition: ${c.name || '?'}`); });
   const L = normLibrary(ws.library);
   ['plays', 'playerSets'].forEach(c => L[c].forEach(x => { if (x.id) put(`lib/${c}/${x.id}`, x, `Library · ${LABEL[c](x)}`); }));
   Object.entries(L.systems).forEach(([id, v]) => put(`lib/systems/${id}`, v, `Library · Game system: ${id}`));
@@ -955,10 +1259,11 @@ export function records(ws) {
 // Put one record (or remove it, when value is undefined) into a workspace.
 function putRecord(ws, key, value, template) {
   const parts = key.split('/');
-  if (parts[0] === 'club') {
-    ws.clubs = arr(ws.clubs);
-    const i = ws.clubs.findIndex(c => c.id === parts[1]);
-    if (value === undefined) { if (i >= 0) ws.clubs.splice(i, 1); } else if (i >= 0) ws.clubs[i] = clone(value); else ws.clubs.push(clone(value));
+  if (parts[0] === 'club' || parts[0] === 'comp') {
+    const k = parts[0] === 'club' ? 'clubs' : 'competitions';
+    ws[k] = arr(ws[k]);
+    const i = ws[k].findIndex(c => c.id === parts[1]);
+    if (value === undefined) { if (i >= 0) ws[k].splice(i, 1); } else if (i >= 0) ws[k][i] = clone(value); else ws[k].push(clone(value));
     return;
   }
   if (parts[0] === 'lib') {

@@ -22,7 +22,7 @@ with sync_playwright() as p:
     c.ok(W("W.clubs[0].homeGround") == 'Kogarah Park' and W("W.clubs[0].officials.length") == 1, 'club saved with an official')
     # team details and staff in Settings
     pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#sheet input[name=division]')
-    pg.fill('#sheet input[name=division]', 'Mixed 20s'); pg.fill('#sheet input[name=season]', '2026–27')
+    pg.fill('#sheet input[name=division]', 'Mixed 20s')
     pg.locator('#sheet input[name=st-name]').first.fill('Paul Coach'); pg.locator('#sheet input[name=st-phone]').first.fill('0411 222 333')
     pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(150)
     c.ok(W("D.team.division") == 'Mixed 20s' and W("D.team.staff[0].name") == 'Paul Coach', 'division and staff saved')

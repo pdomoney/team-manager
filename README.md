@@ -94,6 +94,24 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 - St George Oztag is set up with DragonTag Mixed 20s in it.
 - **More → Club** shows the club to players and coaches. Each team has its own squad, schedule, matches, tasks, lineups, plays and messages, and its own players' password and invite link. The **library** (Tactics → Library) shares plays, game systems and player lists between teams: a team uses a linked copy, which follows new library versions until the team changes it.
 
+### Seasons
+
+A team carries on from season to season (Winter 2026, Winter 2027…) without being made again. The season shows under the team name; tap it to look back at a past season or open **Seasons** (also in Clubs and teams and Settings).
+- Each season has its own squad (with that season's numbers, positions, availability and registration), staff, training and roll calls, matches and results, tasks and lifts, messages and notices. People are kept once: a player who comes back is the same record.
+- **Create next season**: pick who carries over (nobody is carried until ticked) and their new numbers, add new players, keep staff and training defaults if you want, then check a summary before creating. Nothing from the old schedule is copied. When the squad changes, you're reminded you can change the players' password; nothing changes unless you do.
+- Statuses: planned, active (one at a time), completed, archived. A past season opens read-only; **Make a correction** saves deliberate changes into it, and its squad is edited in Seasons.
+- Home, the players' page and alerts use the active season. Reports compare seasons.
+- Upgrading: an existing team gets a first season holding everything it has (named from its season setting, or the years its records span). The copy from before is kept and can be downloaded in Settings › Backup.
+
+### Competitions
+
+**More › Competitions** keeps each league, tournament or carnival once. A team takes part through an **entry** for one of its seasons (with a division or pool), so a competition can have several teams and a season several competitions.
+- A match can belong to an entry (shown beside it), be a friendly, or not be linked yet. Matches in a competition's dates are offered for linking, never linked on their own.
+- The competition page lists entries, fixtures and our results. No ladder is worked out, because other teams' results aren't recorded.
+- Competition by-laws sit between the official rule set and the team's own by-laws on the Rules page.
+- Withdrawing keeps fixtures and results; completing or archiving a competition keeps its results; an archived team's entry stays.
+- Upgrading: a team's tournament (its event and dates) becomes a competition entered by its season, with only the matches already marked as tournament matches linked.
+
 ### Rules
 
 **Tactics → Rules** shows the official rules the team plays to, for coaches and players: the numbers at a glance (players, tags, defence distance, kicking, scoring) and every rule with its number in the rule book.
@@ -110,8 +128,8 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 
 | Path | What it holds |
 | --- | --- |
-| `team.enc.json`, `team-<id>.enc.json` | A team's players' copy, encrypted with that team's password: team and tournament details, the club's public details, staff names, squad names, gender, numbers and preferred positions, training sessions, matches with scores, lineups, notices, plays, the coach's changes to the game systems, and the volunteer tasks without anyone's name (just whether each spot is confirmed, invited or open). |
-| `coach.enc.json` | Everything for every team, encrypted with the coach password: the above plus phone numbers, availability and injuries, player notes, roll calls, RSVPs and match availability, coach's notes, the message log, helpers and who is on each task, the library, and the team passwords (so the coach can re-encrypt the players' copies and make invite links). |
+| `team.enc.json`, `team-<id>.enc.json` | A team's players' copy, encrypted with that team's password, for its active season only: the season's name and dates, the competitions it's in (public details and by-laws, not other teams' entries), team and tournament details, the club's public details, staff names, squad names, gender, numbers and preferred positions, training sessions, matches with scores, lineups, notices, plays, the coach's changes to the game systems, and the volunteer tasks without anyone's name (just whether each spot is confirmed, invited or open). |
+| `coach.enc.json` | Everything for every team and every season, encrypted with the coach password: the above plus past seasons, every competition and its entries, phone numbers, availability and injuries, player notes, roll calls, RSVPs and match availability, coach's notes, the message log, helpers and who is on each task, the library, and the team passwords (so the coach can re-encrypt the players' copies and make invite links). |
 
 The `rules-watch` branch holds `rules-watch.json`: the Rules watch's fingerprints of the public rule books (no team data). The site publishes it as `data/rules-watch.json` only if it's in exactly the expected shape.
 
@@ -131,7 +149,7 @@ To build with real data, check out the data branch first: `git worktree add data
 Browser checks (optional, need Python with Playwright and Chromium) walk through the app at phone and desktop sizes, with GitHub simulated and WhatsApp stubbed, so nothing goes online:
 
 ```sh
-for t in test/browser/{m0_stability,m2_participation,m3_teams_library,m4_matches,m5_reports,regress,live_publishing,clubs,rules,home}.py; do python3 "$t"; done
+for t in test/browser/{m0_stability,m2_participation,m3_teams_library,m4_matches,m5_reports,regress,live_publishing,clubs,rules,home,seasons,competitions}.py; do python3 "$t"; done
 ```
 
 ## Licence
