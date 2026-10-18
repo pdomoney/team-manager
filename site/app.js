@@ -24,7 +24,7 @@ import { ITERATIONS, makeLock, newSalt, seal, openFile, teamView, toB64, fromB64
 import { GitHub, repoFromLocation } from './github.js';
 import * as M from './model.js';
 
-const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', team: 'tm-team' };
+const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
 
 // Eight on field, symmetrical: from the centre out to each touch line, Middle, Rover, Link, Wing.
 const SLOT_DEFS = [
@@ -186,6 +186,7 @@ function normalize(d) {
   out.team.field = { ...FIELD_DEFAULTS, ...((d.team && d.team.field) || {}) };
   ['players', 'sessions', 'lineups', 'messages', 'notices', 'plays', 'playerSets', 'tasks', 'helpers', 'matches'].forEach(k => { out[k] = arr(out[k]); });
   out.systems = obj(out.systems);
+  out.seasons = arr(out.seasons);
   out.team.tasksContact = { name: '', phone: '', ...obj(out.team.tasksContact) };
   out.team.staff = arr(out.team.staff).filter(x => x && typeof x === 'object');
   out.team.bylaws = arr(out.team.bylaws).filter(x => x && typeof x === 'object').map(M.normBylaw);
@@ -252,6 +253,11 @@ async function loadWs(raw, lock) {
     const at = new Date().toISOString();
     store.set(KEYS.backup, JSON.stringify(lock ? { at, file: await seal(raw, lock, 'coach') } : { at, data: raw }));
   }
+  // The copy as it was before seasons (schema 4), kept once, so it can be downloaded again.
+  if (raw && typeof raw === 'object' && (Number(raw.schema) || 0) < 4 && (Array.isArray(raw.players) || raw.team) && !store.get(KEYS.seasonsBackup)) {
+    const at = new Date().toISOString();
+    store.set(KEYS.seasonsBackup, JSON.stringify(lock ? { at, file: await seal(raw, lock, 'coach') } : { at, data: raw }));
+  }
   ws = normalizeWs(raw);
   return pickTeam();
 }
@@ -266,10 +272,19 @@ const state = {
   system: null, sysFlip: false,
   playId: null, playSide: 'right', ped: null,
   taskFilter: 'up', taskPick: null,
-  preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false
+  preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
+  viewSeason: {},        // the season on screen for each team, when it isn't the active one
+  correcting: null       // a past season the coach chose to correct ({ team, season })
 };
 const isCoach = () => S.role === 'coach' && !state.preview;
-const curView = () => S.role === 'coach' ? (state.preview ? normalizeTeam(teamView(data, M.clubOf(ws, data))) : data) : teamData;
+// The coach sees one season of the team at a time: the active one, or a past one being looked back on
+// (read-only unless they choose to correct it). Players see their published copy (this season only).
+const viewSeasonId = () => { const want = state.viewSeason[data.id]; return M.findSeason(data, want) ? want : (M.activeSeason(data) || M.seasonsOf(data).slice(-1)[0] || {}).id; };
+const correcting = () => !!(state.correcting && data && state.correcting.team === data.id && V && V.viewSeason && V.viewSeason.id === state.correcting.season);
+const readOnlyView = () => S.role === 'coach' && !state.preview && !!V && !!V.readOnly && !correcting();
+const editingSeasonId = () => state.correcting && data && state.correcting.team === data.id ? state.correcting.season : '';
+const playersCopy = t => teamView(M.activeLens(t), M.clubOf(ws, t));
+const curView = () => S.role === 'coach' ? (state.preview ? normalizeTeam(playersCopy(data)) : M.seasonLens(data, viewSeasonId())) : teamData;
 // The club of the team on screen: from the workspace for the coach, from the players' copy otherwise.
 const curClub = () => S.role === 'coach' && !state.preview ? M.clubOf(ws, data) : (V && V.club) || null;
 const isMixed = T => !T.category || T.category === 'mixed';
@@ -426,6 +441,7 @@ function persistDraft() {
 
 // Every change: keep it (encrypted) on this phone, then publish shortly after.
 function save() {
+  M.claimRecords(data, editingSeasonId());   // new records join the season being worked on
   data.updatedAt = ws.updatedAt = new Date().toISOString();
   if (S.trial) { if (!store.set(KEYS.trial, JSON.stringify(ws))) S.storageFull = true; renderStatus(); return; }
   S.dirty = true;
@@ -490,7 +506,7 @@ async function publish(auto = false, force = false) {
     for (const t of M.teamsOf(snapshot)) {
       const name = M.teamFile(snapshot, t);
       if (t.archived) { files[name] = null; continue; }   // an archived team's file comes off the site
-      files[name] = JSON.stringify(await seal(teamView(t, M.clubOf(snapshot, t)), await teamLockFor(t), 'team'), null, 1);
+      files[name] = JSON.stringify(await seal(teamView(M.activeLens(t), M.clubOf(snapshot, t)), await teamLockFor(t), 'team'), null, 1);
       const live = M.findTeam(ws, t.id); if (live) live.teamSalt = t.teamSalt;
     }
     files['coach.enc.json'] = JSON.stringify(await seal(snapshot, S.coachLock, 'coach'), null, 1);
@@ -564,7 +580,11 @@ function render() {
   if (!VIEW_IDS.includes(state.tab) || !viewsOf(navOf(state.tab)).some(v => v[0] === state.tab)) state.tab = 'home';
   renderNav();
   renderStatus();
-  $('#team-title').innerHTML = multiTeam() && !state.preview ? `<button class="team-btn" data-act="team-switch" aria-haspopup="dialog" aria-label="${esc(V.team.name)}. Switch team">${esc(V.team.name || 'Team')}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : esc(V.team.name || 'Team Manager');
+  const coachSeason = S.role === 'coach' && !state.preview && M.seasonsOf(data).length;
+  const sName = coachSeason ? (V.viewSeason ? V.viewSeason.name : 'No active season') : (V.season && V.season.name) || '';
+  const tag = !sName ? '' : coachSeason ? `<button class="season-tag${V.readOnly ? ' past' : ''}" data-act="season-pick" aria-haspopup="dialog" aria-label="Season: ${esc(sName)}${V.readOnly ? ', looking back' : ''}. Change season">${esc(sName)}${V.readOnly ? ' · looking back' : ''}</button>` : `<span class="season-tag">${esc(sName)}</span>`;
+  $('#team-title').classList.toggle('with-season', !!tag);
+  $('#team-title').innerHTML = (multiTeam() && !state.preview ? `<button class="team-btn" data-act="team-switch" aria-haspopup="dialog" aria-label="${esc(V.team.name)}. Switch team"><span class="t-name">${esc(V.team.name || 'Team')}</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : `<span class="t-name">${esc(V.team.name || 'Team Manager')}</span>`) + tag;
   document.title = V.team.name || 'Team Manager';
   $('#menu-btn').hidden = false;
   renderBell(); loadWatch();
@@ -576,7 +596,7 @@ function render() {
   const v = $('#view'), g = navOf(state.tab);
   state.lastView[g.id] = state.tab;
   document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
-  v.innerHTML = subNav(g) + VIEWS[state.tab]();
+  v.innerHTML = subNav(g) + (state.tab === 'home' ? '' : seasonBanner()) + VIEWS[state.tab]();
   if (state.tab === 'field') bindField();
   renderAsk();
 }
@@ -819,7 +839,7 @@ function viewHome() {
   if (!isCoach()) return playerHome();
   const hv = M.homeView(ws, homePref(), new Date(), { days: homeDays() });
   const one = hv.scope.kind === 'team' && hv.teams[0] === data;
-  const left = (one && !data.players.length ? startSquad() : '') + homeSpotlight(hv) + homeUpcoming(hv);
+  const left = (one && !M.activeLens(data).players.length ? startSquad() : '') + homeSpotlight(hv) + homeUpcoming(hv);
   const right = homeActionList(hv) + (hv.insight ? homeInsight(hv) : '') + (one ? homeNotices(3) : '');
   return `${homeSelector(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
 }
@@ -926,7 +946,7 @@ const RSVP_SHORT = { yes: 'Yes', maybe: 'Unsure', no: 'No' };
 const rsvpTarget = (kind, id) => kind === 'match' ? matchById(id) : sessionById(id);
 const asking = rec => Object.keys(obj(rec && rec.rsvp)).length > 0;
 function rsvpPills(rec) {
-  const c = M.rsvpCounts(rec, data.players);
+  const c = M.rsvpCounts(rec, V.players);
   return `<span class="pill ok">${c.yes} attending</span>${c.maybe ? ` <span class="pill neutral">${c.maybe} unsure</span>` : ''}${c.no ? ` <span class="pill bad">${c.no} not attending</span>` : ''} <span class="pill neutral">${c.none} no reply</span>`;
 }
 function rsvpBody(kind, id) {
@@ -1143,7 +1163,7 @@ function viewField() {
 // A match lineup says which match, and (for the coach) whether it's ready to send.
 function matchBanner(lu) {
   const m = matchOfLineup(lu); if (!m) return '';
-  const chk = isCoach() ? M.lineupCheck(data, lu, m) : null;
+  const chk = isCoach() ? M.lineupCheck(V, lu, m) : null;
   return `<div class="match-banner"><b>Match lineup: vs ${esc(m.opponent || 'TBC')}</b>, ${esc(fmtDay(m.date))}${m.start ? ` ${esc(fmtTime(m.start))}` : ''}
     ${chk ? (chk.ready ? '<span class="pill ok">Ready</span>' : `<ul class="diff-list issues">${chk.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`) + (chk.checks.length ? `<p class="small muted">To check: ${esc(chk.checks.join('; '))}</p>` : '') + `<button class="link-btn inline" data-act="match-open" data-id="${m.id}">Match details</button>` : ''}</div>`;
 }
@@ -1590,7 +1610,7 @@ function systemShareText(sys, lu) {
   return `🏉 *${sys.title}*${side}\n${w(sys.when)}${table}\n\n${sys.points.map(p => `• ${w(p)}`).join('\n')}${jobs.length ? `\n\n*Jobs*\n${jobs.join('\n')}` : ''}\n\nSee where you stand: Lineup page in the team app.`;
 }
 function bindField() {
-  const svg = $('#field'); if (!svg || !isCoach()) return;
+  const svg = $('#field'); if (!svg || !isCoach() || readOnlyView()) return;
   let drag = null;
   const toSvg = e => { const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); };
   // While a system with its own spots is showing, moving a player changes that system, not the lineup.
@@ -3127,14 +3147,14 @@ function reportRange() {
   const T = data.team, today = todayISO();
   if (state.reportRange === 'event' && T.eventStart) return { from: T.eventStart, to: T.eventEnd || T.eventStart, label: T.event || 'Tournament' };
   if (state.reportRange === 'recent') return { from: M.addDays(today, -56), to: today, label: 'Last 8 weeks' };
-  return { from: '', to: '', label: 'Whole season' };
+  return { from: '', to: '', label: V.viewSeason ? `Whole season (${V.viewSeason.name})` : 'Whole season' };
 }
 function inRangeTeam(r) {
   const ok = x => (!r.from || x.date >= r.from) && (!r.to || x.date <= r.to);
-  return { ...data, sessions: data.sessions.filter(ok), matches: arr(data.matches).filter(ok), tasks: data.tasks.filter(ok) };
+  return { ...V, sessions: V.sessions.filter(ok), matches: arr(V.matches).filter(ok), tasks: V.tasks.filter(ok) };
 }
 function trendChart(trend) {
-  const squad = Math.max(1, data.players.length), last = trend.slice(-16), n = last.length;
+  const squad = Math.max(1, V.players.length), last = trend.slice(-16), n = last.length;
   const W = 340, H = 150, top = 20, base = 112, gap = 6, bw = Math.min(26, (W - 20 - gap * (n - 1)) / n), x0 = (W - (n * bw + (n - 1) * gap)) / 2;
   let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Training attendance, last ${n} sessions: ${last.map(x => `${fmtShort(x.date)} ${x.status === 'recorded' ? x.attended : x.status === 'cancelled' ? 'cancelled' : 'not recorded'}`).join(', ')}">`;
   s += `<line x1="8" x2="${W - 8}" y1="${base}" y2="${base}" stroke="#DCE1D9"/><line x1="8" x2="${W - 8}" y1="${top}" y2="${top}" stroke="#DCE1D9" stroke-dasharray="3 3"/><text x="${W - 8}" y="${top - 6}" text-anchor="end" font-size="10" fill="#5B6861" font-family="Barlow, sans-serif">Squad (${squad})</text>`;
@@ -3151,9 +3171,9 @@ function trendChart(trend) {
 function viewReports() {
   if (!isCoach()) return '';
   const r = reportRange(), T = inRangeTeam(r), today = todayISO();
-  const sum = M.summary(data, r.from, r.to, today), trend = M.attendanceTrend(T.sessions, today);
+  const sum = M.summary(V, r.from, r.to, today), trend = M.attendanceTrend(T.sessions, today);
   const pva = M.plannedVsActual(T.sessions, today), part = M.participation(T, today), pos = M.positionUsage(T, today);
-  const load = M.volunteerLoad(T, today), out = M.outstanding(data, today), rec = sum.matches;
+  const load = M.volunteerLoad(T, today), out = M.outstanding(V, today), rec = sum.matches;
   const ranges = [['season', 'Whole season'], ...(data.team.eventStart ? [['event', data.team.event || 'Tournament']] : []), ['recent', 'Last 8 weeks']];
   const pct = (a, b) => b ? `${Math.round(a / b * 100)}%` : NR;
   const outItems = [
@@ -3212,10 +3232,22 @@ function viewReports() {
         ${helpers.slice(0, 12).map(([w, L]) => `<tr><th scope="row">${esc(whoName(w))}</th><td>${L.done}</td><td>${L.accepted + L.invited}${L.invited ? ` <small class="muted">(${L.invited} invited)</small>` : ''}</td><td>${L.declined}</td></tr>`).join('')}</tbody></table>
         <p class="hint">${helpers.length > 12 ? `Top 12 of ${helpers.length}. ` : ''}${notHelped} ${notHelped === 1 ? 'person hasn’t' : 'people haven’t'} helped or been asked. Accepted spots on past tasks that were never marked done aren’t counted as done.</p>` : '<p class="muted small">Not recorded: nobody has been put on a task in this period.</p>'}
     </section>
+    ${seasonCompare()}
     </div></div>`;
 }
+// Every season of the team side by side, each from what was recorded in it.
+function seasonCompare() {
+  const st = M.seasonStats(data, todayISO()).filter(x => x.status !== 'archived');
+  if (st.length < 2) return '';
+  const cur = V.viewSeason && V.viewSeason.id;
+  return `<section class="sec"><div class="sec-h"><h2>Seasons compared</h2><button class="btn sm" data-act="season-open">Seasons</button></div>
+    <div class="table-wrap"><table class="rtable"><thead><tr><th scope="col">Season</th><th scope="col">Squad</th><th scope="col">Training</th><th scope="col">Turnout</th><th scope="col">Results</th><th scope="col">Volunteer spots</th></tr></thead><tbody>
+    ${st.map(x => `<tr${x.id === cur ? ' class="on"' : ''}><th scope="row">${esc(x.name)}<small class="muted" style="display:block">${esc(M.SEASON_STATUS[x.status])}</small></th><td>${x.squad}</td><td>${x.sessions.held}</td><td>${x.sessions.avgPct === null ? NR : `${x.sessions.avgPct}%`}</td>
+      <td>${x.matches.withResult ? `W${x.matches.won} D${x.matches.drawn} L${x.matches.lost}` : NR}</td><td>${x.volunteers.spotsNeeded ? `${x.volunteers.spotsDone} of ${x.volunteers.spotsNeeded}` : NR}</td></tr>`).join('')}</tbody></table></div>
+    <p class="hint">Each season’s own roll calls, results and tasks, whole season. Turnout is the average share of that season’s squad at training.</p></section>`;
+}
 function reportText() {
-  const r = reportRange(), today = todayISO(), s = M.summary(data, r.from, r.to, today), rec = s.matches;
+  const r = reportRange(), today = todayISO(), s = M.summary(V, r.from, r.to, today), rec = s.matches;
   return `📊 *${data.team.name} — ${r.label}*\nTraining: ${s.sessions.held} sessions held${s.sessions.cancelled ? `, ${s.sessions.cancelled} cancelled` : ''}. ${s.sessions.avgPct === null ? 'Attendance not recorded.' : `Average attendance ${s.sessions.avgPct}% over ${s.sessions.recorded} roll calls.`}\nMatches: ${rec.withResult ? `won ${rec.won}, drew ${rec.drawn}, lost ${rec.lost}` : 'no results entered'}${rec.awaiting ? ` (${rec.awaiting} without a result)` : ''}.\nVolunteers: ${s.volunteers.spotsNeeded ? `${s.volunteers.spotsDone} of ${s.volunteers.spotsNeeded} task spots done by ${s.volunteers.people} people.` : 'no tasks.'}`;
 }
 
@@ -3240,7 +3272,7 @@ function matchPills(m) {
   else if (m.status !== 'scheduled') out.push(`<span class="pill ${m.status === 'cancelled' ? 'bad' : 'neutral'}">${esc(M.MATCH_STATUS[m.status])}${m.status === 'played' ? ', result not entered' : ''}</span>`);
   else if (m.date < today) out.push(coach ? '<span class="pill neutral">Result not entered</span>' : '');
   if (coach && m.status === 'scheduled' && m.date >= today) {
-    const c = M.rsvpCounts(m, data.players), lu = matchLineup(m), chk = lu ? M.lineupCheck(data, lu, m) : null;
+    const c = M.rsvpCounts(m, V.players), lu = matchLineup(m), chk = lu ? M.lineupCheck(V, lu, m) : null;
     out.push(`<span class="pill ${c.none ? 'neutral' : 'ok'}">${c.yes} available${c.none ? `, ${c.none} no reply` : ''}</span>`);
     out.push(lu ? `<span class="pill ${chk.ready ? 'ok' : 'bad'}">${chk.ready ? 'Lineup ready' : `Lineup: ${chk.issues.length} to fix`}</span>` : '<span class="pill neutral">No lineup yet</span>');
   }
@@ -3323,7 +3355,7 @@ function parseMatchLine(line) {
   return m;
 }
 function matchBody(m) {
-  const lu = matchLineup(m), chk = lu ? M.lineupCheck(data, lu, m) : null, c = M.rsvpCounts(m, data.players);
+  const lu = matchLineup(m), chk = lu ? M.lineupCheck(V, lu, m) : null, c = M.rsvpCounts(m, V.players);
   const tasks = M.linkedTasks(data, 'match', m.id), live = m.status === 'scheduled';
   const r = m.result || {};
   return `<p class="task-when"><b>${esc(fmtLong(m.date))}${m.start ? `, ${esc(fmtTime(m.start))}` : ''}</b>${matchWhere(m) ? `<br>${esc(matchWhere(m))}` : ''}${m.round ? `<br>${esc(m.round)}` : ''}</p>
@@ -3339,7 +3371,7 @@ function matchBody(m) {
       ${chk.checks.length ? `<p class="hint">To check: ${esc(chk.checks.join('; '))}.</p>` : ''}
       <div class="btn-row" style="margin-top:8px"><button class="btn" data-act="match-lineup-open" data-id="${m.id}">Open in Lineup</button><button class="btn" data-act="match-lineup-unlink" data-id="${m.id}">Use a different lineup</button></div>`
       : `<form data-form="match-lineup" class="inline-form"><input type="hidden" name="id" value="${m.id}">
-        <label class="field-l"><span>Start from</span><select name="from">${data.lineups.filter(l => !matchOfLineup(l)).map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('')}<option value="">An empty lineup</option></select><small>Makes a copy for this match with the same shape and players, so your saved lineup stays as it is.</small></label>
+        <label class="field-l"><span>Start from</span><select name="from">${V.lineups.filter(l => !matchOfLineup(l)).map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('')}<option value="">An empty lineup</option></select><small>Makes a copy for this match with the same shape and players, so your saved lineup stays as it is.</small></label>
         <button class="btn primary block" type="submit">Make the match lineup</button></form>`}
     <h3 class="form-sec">Result</h3>
     <form data-form="match-result" autocomplete="off"><input type="hidden" name="id" value="${m.id}">
@@ -3380,7 +3412,7 @@ function matchText(m) {
 }
 function dayText(date) {
   const ms = sortedMatches().filter(m => m.date === date && m.status !== 'cancelled');
-  const tasks = arr(data.tasks).filter(t => t.date === date && !t.cancelled);
+  const tasks = arr(V.tasks).filter(t => t.date === date && !t.cancelled);
   return `🏉 *Match day — ${fmtLong(date)}*\n${data.team.name}\n\n${ms.map(m => `• ${m.start ? fmtTime(m.start) : 'Time TBC'} vs ${m.opponent || 'TBC'}${m.field ? `, field ${m.field}` : ''}${m.round ? ` (${m.round})` : ''}`).join('\n')}${ms[0] && ms[0].venue ? `\n📍 ${ms[0].venue}` : ''}${ms.some(m => m.notes) ? `\n📝 ${[...new Set(ms.map(m => m.notes).filter(Boolean))].join(' ')}` : ''}${tasks.length ? `\n\n*Jobs*\n${tasks.map(t => `• ${t.title}${t.start ? ` ${fmtTime(t.start)}` : ''}`).join('\n')}` : ''}\n\nGood luck! 💪`;
 }
 function drawText() {
@@ -3388,7 +3420,7 @@ function drawText() {
   return `🏆 *${data.team.event || 'Tournament'} draw — ${data.team.name}*\n${days.map(d => `\n*${fmtLong(d.date)}*\n${d.matches.map(m => `• ${m.start ? fmtTime(m.start) : 'TBC'} vs ${m.opponent || 'TBC'}${m.field ? `, field ${m.field}` : ''}${m.status !== 'scheduled' ? ` (${resultText(m) || M.MATCH_STATUS[m.status].toLowerCase()})` : ''}`).join('\n')}`).join('\n')}${data.team.venue ? `\n\n📍 ${data.team.venue}` : ''}`;
 }
 function resultsText() {
-  const ms = sortedMatches().filter(m => M.matchOutcome(m)), rec = M.teamRecord(data.matches, todayISO());
+  const ms = sortedMatches().filter(m => M.matchOutcome(m)), rec = M.teamRecord(V.matches, todayISO());
   if (!ms.length) return `🏉 *Results — ${data.team.name}*\n\nNo results entered yet.`;
   return `🏉 *Results — ${data.team.name}*\n\n${ms.map(m => `• ${fmtDay(m.date)} vs ${m.opponent || 'TBC'}: ${resultText(m)}`).join('\n')}\n\nWon ${rec.won}, drew ${rec.drawn}, lost ${rec.lost}.`;
 }
@@ -3487,11 +3519,11 @@ function viewMessages() {
     <p class="hint">WhatsApp opens with the message ready. Choose your team group, check it and send, then tell the app it went. *Stars* make text bold in WhatsApp.</p>
   </section></div><div class="col">
   <section class="sec"><div class="sec-h"><h2>Noticeboard</h2><button class="btn sm" data-act="add-notice">${icon('plus', 18)}Post</button></div>
-    ${data.notices.length ? `<div class="list">${data.notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p>
+    ${V.notices.length ? `<div class="list">${V.notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p>
       <button class="btn sm danger" data-act="del-notice" data-id="${n.id}">Take down</button></div>`).join('')}</div>` : `<p class="muted small">Players see notices on their home screen.</p>`}
   </section>
   <section class="sec"><div class="sec-h"><h2>Message log</h2></div>
-    ${data.messages.length ? `<div class="list">${data.messages.slice(0, 30).map(m => { const sent = M.msgStatus(m) === 'sent'; return `<div class="msg-item">
+    ${V.messages.length ? `<div class="list">${V.messages.slice(0, 30).map(m => { const sent = M.msgStatus(m) === 'sent'; return `<div class="msg-item">
       <span class="sub">${esc(fmtStamp(m.at))}${m.to ? ` — to ${esc(m.to)}` : ''} <span class="pill ${sent ? 'ok' : 'neutral'}">${sent ? `Sent${m.sentAt ? ' ' + esc(fmtStamp(m.sentAt)) : ''}` : 'Opened, not confirmed sent'}</span></span>
       <p class="preview">${esc(m.text)}</p>
       <div class="btn-row" style="justify-content:flex-start"><button class="btn sm" style="flex:0" data-act="msg-mark" data-id="${m.id}">${sent ? 'Mark not sent' : 'Mark as sent'}</button><button class="btn sm" style="flex:0" data-act="reuse" data-id="${m.id}">Use again</button><button class="btn sm danger" style="flex:0" data-act="del-msg" data-id="${m.id}" aria-label="Remove this log entry">Remove</button></div>
@@ -3548,7 +3580,8 @@ function viewTeams() {
   const all = M.teamsOf(ws), activeN = all.filter(t => !t.archived).length;
   const row = t => `<div class="row team-row ${t === data ? 'current' : ''}">
       <span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}${t === data ? ' <span class="pill ok">On screen</span>' : ''}${t.archived ? ' <span class="pill neutral">Archived</span>' : ''}</span>
-      <span class="sub" style="display:block">${esc([t.team.division, M.TEAM_CATEGORIES[t.team.category], t.team.season || t.team.event, `${arr(t.players).length} players`].filter(Boolean).join(' · '))}</span></span>
+      <span class="sub" style="display:block">${esc([t.team.division, M.TEAM_CATEGORIES[t.team.category], (M.activeSeason(t) || {}).name || 'No active season', `${M.activeLens(t).players.length} players`].filter(Boolean).join(' · '))}</span></span>
+      <button class="btn sm" data-act="season-open" data-team="${t.id}" aria-label="Seasons of ${esc(M.teamName(t))}">Seasons</button>
       ${t.archived ? `<button class="btn sm" data-act="team-restore" data-id="${t.id}">Restore</button>` : t === data ? '' : `<button class="btn sm" data-act="team-pick" data-id="${t.id}">Switch</button>`}
       ${t.archived ? '' : `<button class="btn sm" data-act="team-archive" data-id="${t.id}" ${activeN < 2 ? 'disabled title="At least one team stays active"' : ''}>Archive</button>`}
     </div>`;
@@ -3634,7 +3667,7 @@ function teamDetailsFields(T) {
     <div class="two"><label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${T.category === k ? 'selected' : ''}>${l}</option>`).join('')}</select><small>Mixed turns on the males-on-field check.</small></label>
       <label class="field-l"><span>Age group</span><input type="text" name="ageGroup" value="${esc(T.ageGroup)}" placeholder="e.g. 20 and over, Under 16"></label></div>
     ${ruleSetField(T)}
-    <div class="two"><label class="field-l"><span>Season</span><input type="text" name="season" value="${esc(T.season)}" placeholder="e.g. 2026–27"></label>
+    <div class="two"><div class="field-l"><span>Season</span><p class="field-static">${esc((M.activeSeason(data) || {}).name || 'No active season')} <button type="button" class="link-btn inline" data-act="season-open">Seasons</button></p></div>
       <label class="field-l"><span>Team colours</span><input type="text" name="colours" value="${esc(T.colours)}" placeholder="Blank: the club’s"></label></div>
     <h3 class="form-sec">Team staff</h3>
     ${staff.map((x, i) => `<fieldset class="person-row"><legend class="sr-only">Staff member ${i + 1}</legend>
@@ -3649,7 +3682,8 @@ function teamForm() {
     <label class="field-l"><span>Team name</span><input type="text" name="name" required placeholder="e.g. DragonTag Under 16s"></label>
     <div class="two"><label class="field-l"><span>Club</span><select name="clubId"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${(state.newTeamClub || T.clubId) === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
       <label class="field-l"><span>Division</span><input type="text" name="division" placeholder="e.g. Women's Open"></label></div>
-    <label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${k === (T.category || 'mixed') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <div class="two"><label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${k === (T.category || 'mixed') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="field-l"><span>First season</span><input type="text" name="season" value="${esc(String(new Date().getFullYear()))}" placeholder="e.g. Winter 2027"></label></div>
     <label class="field-l"><span>Tournament or season</span><input type="text" name="event" value="${esc(T.event)}"></label>
     <div class="two">
       <label class="field-l"><span>Starts</span><input type="date" name="eventStart" value="${esc(T.eventStart)}"></label>
@@ -3676,6 +3710,7 @@ async function teamPassProblem(p1, p2, team) {
 function switchTeam(id) {
   const t = M.findTeam(ws, id); if (!t) return;
   pickTeam(id);
+  state.correcting = null;
   const pref = homePref();   // Home showing one team follows the switch
   if (pref && pref.kind === 'team') store.set('tm-home-scope', JSON.stringify({ kind: 'team', id: data.id }));
   Object.assign(state, { lineupId: null, playId: null, msgDraft: null, msgSession: null, msgEvent: null, system: state.system, preview: false });
@@ -3685,6 +3720,134 @@ function switchTeam(id) {
 function teamSwitcher() {
   openSheet('Switch team', `<div class="list">${M.activeTeams(ws).map(t => `<button class="pick" data-act="team-pick" data-id="${t.id}" ${t === data ? 'aria-current="true"' : ''}><span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}</span><span class="tagline">${esc([t.team.event, `${arr(t.players).length} players`].filter(Boolean).join(' · '))}</span></span>${t === data ? icon('check') : ''}</button>`).join('')}</div>
     <button class="btn block" style="margin-top:12px" data-act="teams">Manage teams</button>`, 'switch');
+}
+
+/* ---------- Seasons ---------- */
+// A team plays season after season. The active season is the one being run; past seasons are kept as
+// they were and opened read-only (with a deliberate "make a correction" step), and the next season is
+// set up by picking who carries over. Nothing from one season's schedule is copied into the next.
+const SAFE_ACTS = new Set(('tab nav close-sheet settings layout layout-width lock-mode refresh sign-out squad-filter train-view report-range toggle-past attendance '
+  + 'lineup-menu layer system sys-side sys-play task-view task-filter task-waiting play-open play-phase anim-play anim-slow play-back play-side plays-view psets '
+  + 'preview-on preview-off teams team-switch team-pick home-scope home-days home-more home-go updates rules-open rules-seen review-system review-play club-open '
+  + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open').split(' '));
+const pastMsg = () => V && V.viewSeason ? `${V.viewSeason.name} is read-only. Go back to the current season, or make a correction.` : 'Start a season first: Seasons, from the season under the team name.';
+function blockedInPast(act) {
+  if (!V || S.role !== 'coach' || state.preview || /^(season|comp)-/.test(act) || SAFE_ACTS.has(act)) return false;
+  if (correcting()) {
+    if (!['add-player', 'bulk-add', 'edit-player', 'delete-player', 'sample'].includes(act)) return false;
+    toast(`Change the ${V.viewSeason.name} squad in Seasons.`); return true;
+  }
+  if (!V.readOnly) return false;
+  toast(pastMsg()); return true;
+}
+function seasonBanner() {
+  if (S.role !== 'coach' || state.preview || !M.seasonsOf(data).length) return '';
+  const s = V.viewSeason, act = M.activeSeason(data);
+  if (!s) return `<div class="season-banner" role="status"><span>No season is active, so there’s nothing to run. Start or plan one.</span><button class="btn sm" data-act="season-open">Seasons</button></div>`;
+  if (!V.readOnly) return '';
+  if (correcting()) return `<div class="season-banner fix" role="status"><span><b>Correcting ${esc(s.name)}.</b> What you change here is saved to that season.</span><button class="btn sm" data-act="season-fix-done">Done</button></div>`;
+  return `<div class="season-banner" role="status"><span><b>${esc(s.name)}</b> · ${M.SEASON_STATUS[s.status]}. Looking back, so nothing can be changed.</span>
+    <span class="btn-row">${act ? `<button class="btn sm primary" data-act="season-view" data-id="${esc(act.id)}">Back to ${esc(act.name)}</button>` : ''}${s.status === 'completed' ? '<button class="btn sm" data-act="season-fix">Make a correction</button>' : ''}</span></div>`;
+}
+const seasonDates = s => s.start ? `${fmtDay(s.start)}${s.end ? ` – ${fmtDay(s.end)}` : ''}` : 'Dates not set';
+const seasonPill = s => `<span class="pill ${s.status === 'active' ? 'ok' : s.status === 'planned' ? 'neutral' : 'neutral'}">${M.SEASON_STATUS[s.status]}</span>`;
+function seasonPicker() {
+  const list = M.seasonsOf(data).filter(s => s.status !== 'archived').slice().reverse(), cur = V.viewSeason;
+  openSheet('Season', `<div class="list">${list.map(s => `<button class="pick" data-act="season-view" data-id="${esc(s.id)}" ${cur && cur.id === s.id ? 'aria-current="true"' : ''}>
+      <span class="grow"><span class="name" style="display:block">${esc(s.name)} ${seasonPill(s)}</span><span class="tagline">${esc(seasonDates(s))} · ${s.squad.length} players</span></span>${cur && cur.id === s.id ? icon('check') : ''}</button>`).join('')}</div>
+    <p class="hint">A past season opens read-only. Home and the players’ page always show the active season.</p>
+    <button class="btn block" style="margin-top:12px" data-act="season-open">Manage seasons</button>`, 'season-pick');
+}
+function seasonsSheet() {
+  const all = M.seasonsOf(data).slice().reverse(), act = M.activeSeason(data);
+  const counts = s => { const L = M.seasonLens(data, s.id); return `${L.players.length} players · ${L.sessions.length} training · ${L.matches.length} matches`; };
+  const moves = s => (M.SEASON_MOVES[s.status] || []).map(to => {
+    const label = to === 'active' ? (s.status === 'completed' ? 'Reopen' : act ? `Start (completes ${act.name})` : 'Start') : to === 'completed' ? (s.status === 'archived' ? 'Restore' : 'Complete') : 'Archive';
+    return `<button class="btn sm" data-act="season-move" data-id="${esc(s.id)}" data-to="${to}">${esc(label)}</button>`;
+  }).join('');
+  openSheet(`Seasons: ${data.team.name}`, `<p class="muted small" style="margin-bottom:12px">Each season keeps its own squad, numbers, training and roll calls, matches and results, tasks and messages. The team, its plays and its saved lineups carry on from season to season.</p>
+    <div class="btn-row" style="margin-bottom:14px"><button class="btn primary" data-act="season-next">${icon('plus')}Create next season</button><button class="btn" data-act="season-new">Plan a season</button></div>
+    <div class="list">${all.map(s => `<div class="season-row ${s.status}"><div class="grow"><span class="name" style="display:block">${esc(s.name)} ${seasonPill(s)}</span>
+      <span class="sub" style="display:block;white-space:normal">${esc(seasonDates(s))} · ${esc(counts(s))}</span></div>
+      <div class="btn-row"><button class="btn sm" data-act="season-view" data-id="${esc(s.id)}">${s.status === 'active' ? 'Open' : 'Look back'}</button><button class="btn sm" data-act="season-squad" data-id="${esc(s.id)}">Squad</button><button class="btn sm" data-act="season-edit" data-id="${esc(s.id)}">Edit</button>${moves(s)}</div></div>`).join('')}</div>
+    <p class="hint">Only one season can be active. Completing a season keeps it as it was; you can still correct it later, deliberately.</p>`, 'seasons');
+}
+function seasonForm(s) {
+  const T = data.team, isNew = !s;
+  s = s || { name: '', label: '', year: String(new Date().getFullYear()), start: '', end: '' };
+  openSheet(isNew ? 'Plan a season' : `Edit ${s.name}`, `<form data-form="season" autocomplete="off" novalidate><input type="hidden" name="id" value="${esc(isNew ? '' : s.id)}">
+    <label class="field-l"><span>Season name</span><input type="text" name="name" value="${esc(s.name)}" placeholder="e.g. Winter 2027"></label>
+    <div class="two"><label class="field-l"><span>Type</span><input type="text" name="label" list="season-labels" value="${esc(s.label)}" placeholder="e.g. Winter"></label>
+      <label class="field-l"><span>Year</span><input type="text" name="year" inputmode="numeric" value="${esc(s.year)}"></label></div>
+    <datalist id="season-labels">${['Winter', 'Summer', 'Autumn', 'Spring', 'Season'].map(x => `<option value="${x}">`).join('')}</datalist>
+    <div class="two"><label class="field-l"><span>Starts</span><input type="date" name="start" value="${esc(s.start)}"></label><label class="field-l"><span>Ends</span><input type="date" name="end" value="${esc(s.end)}"></label></div>
+    ${isNew ? `<p class="hint" style="margin:-4px 0 14px">A planned season starts with no squad. To carry players over from ${esc((M.activeSeason(data) || {}).name || 'this season')}, use Create next season instead.</p>` : ''}
+    <button class="btn primary block" type="submit">${isNew ? 'Plan season' : 'Save'}</button></form>`, 'season');
+}
+const parseNewPlayers = text => String(text || '').split(/\n+/).map(l => l.trim()).filter(Boolean).map(line => {
+  const parts = line.split(/[,\t;]+/).map(x => x.trim()).filter(Boolean), p = { name: parts[0] || '', gender: '', number: '' };
+  parts.slice(1).forEach(x => { const low = x.toLowerCase(); if (['f', 'female', 'w', 'woman', 'girl'].includes(low)) p.gender = 'F'; else if (['m', 'male', 'man', 'boy'].includes(low)) p.gender = 'M'; else if (/^\d{1,3}$/.test(x)) p.number = x; });
+  return p;
+}).filter(p => p.name);
+function rolloverForm(d) {
+  const cur = M.activeSeason(data), L = M.activeLens(data), T = data.team;
+  const nextYear = cur && /^\d{4}$/.test(cur.year) ? String(+cur.year + 1) : String(new Date().getFullYear() + 1);
+  const named = cur && M.nextSeasonName(cur.name) !== cur.name ? M.nextSeasonName(cur.name) : `${cur && cur.label ? cur.label + ' ' : ''}${nextYear}`;
+  d = d || { name: named, label: cur ? cur.label : '', year: nextYear,
+    start: '', end: '', activate: false, carry: [], newText: '', staff: arr(T.staff).map((_, i) => i), keepDefaults: true };
+  const carried = new Map(d.carry.map(c => [c.playerId, c]));
+  const players = L.players.slice().sort((a, b) => a.name.localeCompare(b.name));
+  openSheet('Create next season', `<form data-form="season-next" autocomplete="off" novalidate>
+    <h3 class="form-sec">1. The season</h3>
+    <label class="field-l"><span>Season name</span><input type="text" name="name" value="${esc(d.name)}"></label>
+    <div class="two"><label class="field-l"><span>Type</span><input type="text" name="label" list="season-labels2" value="${esc(d.label)}" placeholder="e.g. Winter"></label><label class="field-l"><span>Year</span><input type="text" name="year" inputmode="numeric" value="${esc(d.year)}"></label></div>
+    <datalist id="season-labels2">${['Winter', 'Summer', 'Autumn', 'Spring', 'Season'].map(x => `<option value="${x}">`).join('')}</datalist>
+    <div class="two"><label class="field-l"><span>Starts</span><input type="date" name="start" value="${esc(d.start)}"></label><label class="field-l"><span>Ends</span><input type="date" name="end" value="${esc(d.end)}"></label></div>
+    <fieldset class="radio-set"><legend>When</legend>
+      <label class="check"><input type="radio" name="when" value="plan" ${d.activate ? '' : 'checked'}><span>Plan it: ${esc(cur ? cur.name : 'this season')} carries on for now</span></label>
+      <label class="check"><input type="radio" name="when" value="now" ${d.activate ? 'checked' : ''}><span>Start it now${cur ? ` and complete ${esc(cur.name)}` : ''}</span></label></fieldset>
+    <h3 class="form-sec">2. Who carries over</h3>
+    <p class="muted small" style="margin-bottom:8px">Tick the players coming back. Anyone you leave unticked stays in ${esc(cur ? cur.name : 'this season')}’s history. Availability starts fresh.</p>
+    ${players.length ? `<button type="button" class="btn sm" data-act="season-carry-all" style="margin-bottom:8px">Tick everyone</button>
+    <div class="carry-list">${players.map(p => { const c = carried.get(p.id); return `<div class="carry-row">
+      <label class="check"><input type="checkbox" name="carry" value="${esc(p.id)}" ${c ? 'checked' : ''}><span>${esc(p.name)}${p.status !== 'available' ? ` <span class="pill ${p.status}">${esc(STATUS[p.status] || p.status)} now: check</span>` : ''}</span></label>
+      <div class="two"><label class="field-l"><span>Number</span><input type="text" name="num-${esc(p.id)}" inputmode="numeric" value="${esc(c ? c.number : p.number || '')}"></label>
+      <label class="field-l"><span>Positions</span><input type="text" name="pos-${esc(p.id)}" value="${esc((c ? c.positions : arr(p.positions)).join(', '))}"></label></div></div>`; }).join('')}</div>` : '<p class="muted small">No players in this season.</p>'}
+    <label class="field-l"><span>New players, one per line</span><textarea name="newPlayers" rows="3" placeholder="Name, F or M, number">${esc(d.newText)}</textarea><small>People already in the team’s history: tick them above instead, so their record carries on.</small></label>
+    <h3 class="form-sec">3. Staff and training</h3>
+    ${arr(T.staff).length ? arr(T.staff).map((r, i) => `<label class="check"><input type="checkbox" name="staff" value="${i}" ${d.staff.includes(i) ? 'checked' : ''}><span>${esc(r.role)}: ${esc(r.name)}</span></label>`).join('') : '<p class="muted small">No staff recorded for this season.</p>'}
+    <label class="check"><input type="checkbox" name="keepDefaults" ${d.keepDefaults ? 'checked' : ''}><span>Keep the training venue and times${T.trainingVenue || T.trainingStart ? ` (${esc([T.trainingVenue, T.trainingStart && fmtTime(T.trainingStart)].filter(Boolean).join(', '))})` : ''}</span></label>
+    <p class="hint">Plays, game systems, saved lineups and by-laws belong to the team and carry on. Training, matches, results, RSVPs, tasks, lifts and messages stay with ${esc(cur ? cur.name : 'this season')}.</p>
+    <button class="btn primary block" type="submit">Review</button></form>`, 'season-next');
+}
+function rolloverReview() {
+  const d = state.rollover, cur = M.activeSeason(data), L = M.activeLens(data), T = data.team;
+  const byId = new Map(L.players.map(p => [p.id, p])), carry = d.carry.map(c => ({ ...c, p: byId.get(c.playerId) })).filter(c => c.p);
+  const left = L.players.filter(p => !d.carry.some(c => c.playerId === p.id)), fresh = parseNewPlayers(d.newText), staff = d.staff.map(i => arr(T.staff)[i]).filter(Boolean);
+  const li = xs => xs.length ? `<ul class="plain">${xs.map(x => `<li>${x}</li>`).join('')}</ul>` : '<p class="muted small">None.</p>';
+  openSheet('Check before creating', `<div class="review">
+    <p><b>${esc(d.name)}</b>${d.start ? ` · ${esc(seasonDates(d))}` : ''}. ${d.activate ? `Starts now; ${esc(cur ? cur.name : '')} is marked completed.` : 'Planned: it starts when you start it.'}</p>
+    <h3 class="form-sec">Carrying over (${carry.length})</h3>${li(carry.map(c => `${esc(c.p.name)}${c.number ? ` · #${esc(c.number)}` : ''}${c.positions.length ? ` · ${esc(c.positions.join(', '))}` : ''}`))}
+    <h3 class="form-sec">New (${fresh.length})</h3>${li(fresh.map(p => `${esc(p.name)}${p.gender ? ` · ${p.gender}` : ''}${p.number ? ` · #${esc(p.number)}` : ''}`))}
+    <h3 class="form-sec">Staying in ${esc(cur ? cur.name : 'this season')} (${left.length})</h3>${li(left.map(p => esc(p.name)))}
+    <h3 class="form-sec">Staff and training</h3>${li([...staff.map(r => `${esc(r.role)}: ${esc(r.name)}`), d.keepDefaults ? 'Training venue and times kept' : 'Training venue and times start blank'])}
+    <p class="hint">Not copied: training, roll calls, matches, results, RSVPs, tasks, lifts and messages.</p>
+    <div class="btn-row"><button class="btn" data-act="season-next-back">Back</button><button class="btn primary" data-act="season-next-go">Create ${esc(d.name)}</button></div></div>`, 'season-review');
+}
+function seasonSquadForm(s) {
+  const live = s.status === 'active', members = new Map(s.squad.map(m => [m.playerId, m]));
+  const inSquad = M.seasonLens(data, s.id).players.slice().sort((a, b) => a.name.localeCompare(b.name)), ids = new Set(inSquad.map(p => p.id));
+  const others = data.players.filter(p => !ids.has(p.id)).sort((a, b) => a.name.localeCompare(b.name));
+  openSheet(`${s.name} squad`, `<form data-form="season-squad" autocomplete="off" novalidate><input type="hidden" name="id" value="${esc(s.id)}">
+    <p class="muted small" style="margin-bottom:10px">${live ? 'This is the active season: numbers and positions here are the players’ current ones.' : `Numbers, positions and registration as they ${s.status === 'planned' ? 'will be' : 'were'} in ${esc(s.name)}. Changing them doesn’t touch any other season.`}</p>
+    ${inSquad.length ? inSquad.map(p => { const m = members.get(p.id) || { number: p.number || '', positions: arr(p.positions), reg: '' }, only = M.memberSeasons(data, p.id).filter(x => x.id !== s.id).length === 0;
+      return `<fieldset class="person-row"><legend>${esc(p.name)}</legend>
+      <div class="two"><label class="field-l"><span>Number</span><input type="text" name="num-${esc(p.id)}" inputmode="numeric" value="${esc(live ? p.number || '' : m.number)}"></label>
+      <label class="field-l"><span>Positions</span><input type="text" name="pos-${esc(p.id)}" value="${esc((live ? arr(p.positions) : m.positions).join(', '))}"></label></div>
+      <div class="two"><label class="field-l"><span>Registration</span><select name="reg-${esc(p.id)}">${Object.entries(M.REG_STATUS).map(([k, l]) => `<option value="${k}" ${m.reg === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="check" style="align-self:end"><input type="checkbox" name="remove" value="${esc(p.id)}"><span>Take out of this squad${only ? ' (only in this season, so removed from the team)' : ''}</span></label></div></fieldset>`; }).join('') : '<p class="muted small">Nobody in this squad yet.</p>'}
+    ${others.length ? `<h3 class="form-sec">Add from the team’s players</h3>${others.map(p => `<label class="check"><input type="checkbox" name="add" value="${esc(p.id)}"><span>${esc(p.name)}</span></label>`).join('')}` : ''}
+    <button class="btn primary block" type="submit">Save squad</button></form>`, 'season-squad');
 }
 
 /* ---------- The library ---------- */
@@ -3736,14 +3899,16 @@ function libSaveReport(r) {
 
 /* ---------- Backups and importing ---------- */
 function importBody(raw) {
-  const isWs = raw.schema === M.SCHEMA && Array.isArray(raw.teams) && raw.teams.length;
+  // A whole copy: several teams, or (since seasons) any copy with its clubs.
+  const many = Number(raw.schema) >= 3 && Array.isArray(raw.teams) && raw.teams.length > 0;
+  const isWs = many || (Number(raw.schema) >= 4 && Array.isArray(raw.teams));
   const teams = isWs ? [raw, ...raw.teams] : [raw];
   const sum = t => `${esc((t.team && t.team.name) || 'Team')}: ${arr(t.players).length} players, ${arr(t.sessions).length} sessions, ${arr(t.matches).length} matches`;
   return `<p style="margin-bottom:10px">This backup has ${teams.length === 1 ? 'one team' : `${teams.length} teams`}:</p>
     <ul class="diff-list">${teams.map(t => `<li>${sum(t)}</li>`).join('')}</ul>
     <div class="list" style="margin-top:12px">
-      ${isWs ? `<button class="pick" data-act="import-do" data-m="all"><span class="grow"><span class="name" style="display:block">Replace everything with it</span><span class="tagline">Every team and the library on this phone are replaced.</span></span></button>`
-        : `<button class="pick" data-act="import-do" data-m="team"><span class="grow"><span class="name" style="display:block">Replace ${esc(data.team.name)} with it</span><span class="tagline">${S.trial ? '' : 'Its team password stays the same, so invite links keep working.'}</span></span></button>
+      ${isWs ? `<button class="pick" data-act="import-do" data-m="all"><span class="grow"><span class="name" style="display:block">Replace everything with it</span><span class="tagline">Every team, its seasons, the clubs and library on this phone are replaced.</span></span></button>` : ''}
+      ${many ? '' : `<button class="pick" data-act="import-do" data-m="team"><span class="grow"><span class="name" style="display:block">Replace ${esc(data.team.name)} with it</span><span class="tagline">${S.trial ? '' : 'Its team password stays the same, so invite links keep working.'}</span></span></button>
       <button class="pick" data-act="import-do" data-m="add"><span class="grow"><span class="name" style="display:block">Add it as a new team</span><span class="tagline">Your teams stay as they are.</span></span></button>`}
     </div>
     <p class="hint">Not sure? Export a backup of what’s here first.</p>`;
@@ -3762,6 +3927,7 @@ function doImport(mode) {
       const keep = { id: data.id, archived: data.archived, ...keepPass(data) };
       Object.keys(data).filter(k => !['schema', 'teams', 'library'].includes(k)).forEach(k => delete data[k]);
       Object.assign(data, t, keep);
+      M.ensureSeasons(data);   // an older backup gets its first season
     } else {
       t.id = M.uid(); t.archived = false;
       if (S.trial) { t.teamPass = ''; t.teamSalt = ''; }
@@ -3781,13 +3947,14 @@ async function download(obj, name) {
 }
 const fileSlug = t => String(t.team.name || 'team').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'team';
 function backupSection() {
-  const pre = readJson(KEYS.backup);
+  const pre = readJson(KEYS.backup), preS = readJson(KEYS.seasonsBackup);
   return `<h3 class="form-sec">Backup</h3>
   <p class="muted small" style="margin-bottom:10px">${S.trial ? 'Test-mode backups aren’t encrypted, so keep the file private. It includes any phone numbers you’ve entered.' : 'Backups are encrypted and open with the coach password.'} A backup holds every team and the library.</p>
   <div class="btn-row"><button class="btn" data-act="export">Export backup</button><button class="btn" data-act="import">Import backup</button></div>
   <details class="more"><summary>Going back to the previous version of the app</summary>
     <p class="muted small" style="margin-bottom:10px">The previous version only knew one team. It still opens the first team (${esc(M.teamName(ws))}) as it is. To take another team back to it, export that team on its own.</p>
-    <div class="btn-row"><button class="btn" data-act="export-legacy">Export ${esc(data.team.name)} on its own</button>${pre ? `<button class="btn" data-act="export-pre">Copy from before the upgrade (${esc(fmtStamp(pre.at))})</button>` : ''}</div>
+    <p class="muted small" style="margin-bottom:10px">Seasons came later. An earlier version still opens this copy, but shows every season’s training, matches and tasks together and ignores seasons; nothing is lost, and this version sorts it out again when it next opens the copy.</p>
+    <div class="btn-row"><button class="btn" data-act="export-legacy">Export ${esc(data.team.name)} on its own</button>${pre ? `<button class="btn" data-act="export-pre">Copy from before the upgrade (${esc(fmtStamp(pre.at))})</button>` : ''}${preS ? `<button class="btn" data-act="export-pre-seasons">Copy from before seasons (${esc(fmtStamp(preS.at))})</button>` : ''}</div>
   </details>`;
 }
 
@@ -4270,7 +4437,17 @@ const actions = {
   'bulk-add': coachOnly(() => openSheet('Paste a list', bulkForm())),
   'edit-player': coachOnly(el => { const p = playerById(el.dataset.id); if (p) openSheet(p.name, playerForm(p)); }),
   'delete-player': coachOnly(el => {
-    const p = playerById(el.dataset.id); if (!p || !confirm(`Remove ${p.name} from the squad?`)) return;
+    const p = playerById(el.dataset.id), s = V.viewSeason; if (!p) return;
+    const earlier = s && M.memberSeasons(data, p.id).some(x => x.id !== s.id);
+    if (!confirm(earlier ? `Take ${p.name} out of the ${s.name} squad? They stay in the seasons they played.` : `Remove ${p.name} from the squad?`)) return;
+    if (earlier) {
+      // Only this season: its lineups and tasks; earlier seasons keep their record of them.
+      M.removeMember(data, s.id, p.id);
+      data.lineups.filter(l => !l.seasonId || l.seasonId === s.id).forEach(l => l.slots.forEach(x => { if (x.playerId === p.id) x.playerId = null; }));
+      data.tasks.filter(t => t.seasonId === s.id).forEach(t => { t.people = arr(t.people).filter(x => x.who !== 'p:' + p.id); });
+      save(); closeSheet(); render(); toast(`${p.name} taken out of ${s.name}`); return;
+    }
+    if (s) M.removeMember(data, s.id, p.id);
     data.players = data.players.filter(x => x.id !== p.id);
     data.lineups.forEach(l => l.slots.forEach(s => { if (s.playerId === p.id) s.playerId = null; }));
     forgetPerson('p:' + p.id);
@@ -4305,7 +4482,7 @@ const actions = {
     m.lineupId = ''; if (del && data.lineups.length > 1) data.lineups = data.lineups.filter(l => l.id !== lu.id);
     save(); refreshMatch(m.id);
   }),
-  'rsvp-open': coachOnly(el => { const rec = rsvpTarget(el.dataset.k, el.dataset.id); if (!rec) return; if (!data.players.length) { toast('Add players to your squad first'); return; } openSheet('Availability', rsvpBody(el.dataset.k, rec.id), 'rsvp'); }),
+  'rsvp-open': coachOnly(el => { const rec = rsvpTarget(el.dataset.k, el.dataset.id); if (!rec) return; if (!V.players.length) { toast('Add players to your squad first'); return; } openSheet('Availability', rsvpBody(el.dataset.k, rec.id), 'rsvp'); }),
   'rsvp': coachOnly(el => {
     const rec = rsvpTarget(el.dataset.k, el.dataset.id); if (!rec) return;
     const v = M.rsvpOf(rec, el.dataset.pid) === el.dataset.v ? '' : el.dataset.v;
@@ -4342,7 +4519,7 @@ const actions = {
   }),
   'link-choice': coachOnly(el => applyLinkChoice(el.dataset.c)),
   'remind': coachOnly(el => { state.tab = 'messages'; state.msgTpl = 'reminder'; state.msgSession = el.dataset.id; state.msgDraft = buildTemplate('reminder'); history.replaceState(null, '', '#messages'); render(); window.scrollTo(0, 0); }),
-  'roll': coachOnly(el => { const s = sessionById(el.dataset.id); if (!s) return; if (!data.players.length) { toast('Add players to your squad first'); return; } openSheet('Roll call', rollBody(s.id), 'roll'); }),
+  'roll': coachOnly(el => { const s = sessionById(el.dataset.id); if (!s) return; if (!V.players.length) { toast('Add players to your squad first'); return; } openSheet('Roll call', rollBody(s.id), 'roll'); }),
   'mark': coachOnly(el => {
     const s = sessionById(el.dataset.sid); if (!s) return;
     const pid = el.dataset.pid, v = el.dataset.s;
@@ -4353,12 +4530,12 @@ const actions = {
   }),
   'mark-all': coachOnly(el => {
     const s = sessionById(el.dataset.sid); if (!s) return;
-    data.players.forEach(p => { if (!s.attendance[p.id] && p.status === 'available') s.attendance[p.id] = 'present'; });
+    V.players.forEach(p => { if (!s.attendance[p.id] && p.status === 'available') s.attendance[p.id] = 'present'; });
     save(); $('#sheet .panel-body').innerHTML = rollBody(s.id);
   }),
   'roll-done': coachOnly(el => {
     const s = sessionById(el.dataset.sid); if (!s) return;
-    data.players.forEach(p => { if (!s.attendance[p.id]) s.attendance[p.id] = 'absent'; });
+    V.players.forEach(p => { if (!s.attendance[p.id]) s.attendance[p.id] = 'absent'; });
     save(); closeSheet(); render(); toast('Roll call saved');
   }),
 
@@ -4593,10 +4770,61 @@ const actions = {
     download(pre.file || pre.data, `team-before-upgrade-${pre.at.slice(0, 10)}.json`);
     toast('Copy from before the upgrade downloaded');
   }),
+  'export-pre-seasons': coachOnly(() => {
+    const pre = readJson(KEYS.seasonsBackup); if (!pre) return;
+    download(pre.file || pre.data, `team-before-seasons-${pre.at.slice(0, 10)}.json`);
+    toast('Copy from before seasons downloaded');
+  }),
   'import-do': coachOnly(el => doImport(el.dataset.m)),
   'teams': coachOnly(() => goTo('teams')),
   'team-switch': coachOnly(() => teamSwitcher()),
   'team-pick': coachOnly(el => switchTeam(el.dataset.id)),
+  'season-pick': coachOnly(() => seasonPicker()),
+  'season-view': coachOnly(el => {
+    const s = M.findSeason(data, el.dataset.id); if (!s) return;
+    if (s.status === 'active') delete state.viewSeason[data.id]; else state.viewSeason[data.id] = s.id;
+    state.correcting = null; closeSheet(); render(); window.scrollTo(0, 0);
+    toast(s.status === 'active' ? `Back to ${s.name}` : `Looking back at ${s.name}`);
+  }),
+  'season-open': coachOnly(el => { if (el.dataset.team && el.dataset.team !== data.id) switchTeam(el.dataset.team); seasonsSheet(); }),
+  'season-new': coachOnly(() => seasonForm(null)),
+  'season-edit': coachOnly(el => { const s = M.findSeason(data, el.dataset.id); if (s) seasonForm(s); }),
+  'season-squad': coachOnly(el => { const s = M.findSeason(data, el.dataset.id); if (s) seasonSquadForm(s); }),
+  'season-move': coachOnly(el => {
+    const s = M.findSeason(data, el.dataset.id), to = el.dataset.to; if (!s) return;
+    const a = M.activeSeason(data);
+    if (to === 'completed' && s.status === 'active' && !confirm(`Complete ${s.name}? It's kept as it was and opens read-only. Nothing is deleted.`)) return;
+    if (to === 'archived' && !confirm(`Archive ${s.name}? It's hidden from the season list but kept, and can be restored.`)) return;
+    let err = M.seasonMove(data, s.id, to);
+    if (err === 'other-active') {
+      if (!confirm(`Complete ${a.name} and start ${s.name}?`)) return;
+      M.seasonMove(data, a.id, 'completed'); err = M.seasonMove(data, s.id, 'active');
+    }
+    if (err) { toast('That season can’t move there'); return; }
+    if (to === 'active') { delete state.viewSeason[data.id]; state.correcting = null; }
+    save(); render(); seasonsSheet();
+    toast(to === 'active' ? `${s.name} is the active season` : to === 'completed' ? `${s.name} completed` : to === 'archived' ? `${s.name} archived` : 'Saved');
+  }),
+  'season-next': coachOnly(() => rolloverForm(state.rollover)),
+  'season-next-back': coachOnly(() => rolloverForm(state.rollover)),
+  'season-carry-all': coachOnly(() => { document.querySelectorAll('#sheet input[name=carry]').forEach(i => { i.checked = true; }); }),
+  'season-next-go': coachOnly(() => {
+    const d = state.rollover; if (!d) return;
+    const before = M.activeLens(data).players.length, staff = d.staff.map(i => arr(data.team.staff)[i]).filter(Boolean);
+    const r = M.rollover(data, { ...d, staff, newPlayers: parseNewPlayers(d.newText) });
+    const left = before - d.carry.length;
+    state.rollover = null; delete state.viewSeason[data.id]; state.correcting = null;
+    save(); render();
+    openSheet(`${r.season.name} created`, `<p>${r.season.status === 'active' ? `${esc(r.season.name)} is now the active season.` : `${esc(r.season.name)} is planned. Start it from Seasons when it begins.`} ${d.carry.length} player${d.carry.length === 1 ? '' : 's'} carried over${r.added.length ? `, ${r.added.length} new` : ''}.</p>
+      ${left > 0 ? `<p class="note" style="margin-top:12px">${left} player${left === 1 ? '' : 's'} didn’t carry over. Anyone with the players’ password or invite link can still open the team page. If you’d like to change it, do it in Settings, then send the new invite link to the squad. Nothing changes unless you do.</p>` : ''}
+      <div class="btn-row" style="margin-top:14px"><button class="btn" data-act="settings">Settings</button><button class="btn primary" data-act="season-open">Seasons</button></div>`, 'season-done');
+  }),
+  'season-fix': coachOnly(() => {
+    const s = V.viewSeason; if (!s || s.status !== 'completed') return;
+    if (!confirm(`Correct ${s.name}? Changes are saved to that season's records, not the current season.`)) return;
+    state.correcting = { team: data.id, season: s.id }; render(); toast(`Correcting ${s.name}`);
+  }),
+  'season-fix-done': coachOnly(() => { state.correcting = null; render(); toast('Corrections saved'); }),
   'home-scope': coachOnly(el => {
     const kind = el.dataset.kind, id = el.dataset.id || '';
     store.set('tm-home-scope', JSON.stringify({ kind, id })); state.homeAllUp = false;
@@ -4612,6 +4840,7 @@ const actions = {
       if (!M.findTeam(ws, d.team) || M.findTeam(ws, d.team).archived) { toast('That team is no longer active'); render(); return; }
       switchTeam(d.team);
     }
+    if (state.viewSeason[data.id] || state.correcting) { delete state.viewSeason[data.id]; state.correcting = null; render(); }   // Home is about the active season
     if (d.go === 'tab') { goTo(d.tab); return; }
     const fn = actions[d.go]; if (fn) fn({ dataset: { id: d.id || '', k: d.k || '', tab: d.tab || '', date: d.date || '' } });
   }),
@@ -4697,7 +4926,9 @@ const actions = {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const fn = actions[el.dataset.act]; if (!fn) return;
-  e.preventDefault(); fn(el, e);
+  e.preventDefault();
+  if (blockedInPast(el.dataset.act)) return;
+  fn(el, e);
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !$('#sheet').hidden) { requestCloseSheet(); return; }
@@ -4776,6 +5007,7 @@ document.addEventListener('change', e => {
 document.addEventListener('submit', async e => {
   const form = e.target, kind = form.dataset.form; if (!kind) return;
   e.preventDefault();
+  if (readOnlyView() && !/^(season|comp|club|settings)/.test(kind)) { toast(pastMsg()); return; }
   const f = new FormData(form);
   const str = k => String(f.get(k) ?? '').trim();
   const raw = k => String(f.get(k) ?? '');
@@ -4933,6 +5165,7 @@ document.addEventListener('submit', async e => {
     }
     const t = normalize({ ...defaultData(), id: M.uid() });
     t.team.name = name; t.team.event = str('event'); t.team.eventStart = str('eventStart'); t.team.eventEnd = str('eventEnd');
+    t.team.season = str('season') || String(new Date().getFullYear());   // names the team's first season
     t.team.clubId = str('clubId'); t.team.division = str('division'); t.team.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
     if (f.get('copySettings')) ['venue', 'trainingVenue', 'trainingStart', 'trainingEnd', 'maxMales', 'positions', 'field', 'tasksContact', 'rules', 'bylaws'].forEach(k => { t.team[k] = clone(data.team[k]); });
     t.team.rulesSeen = M.RULES.pack;
@@ -5005,7 +5238,7 @@ document.addEventListener('submit', async e => {
     });
     if (!added) { toast('No names found'); return; }
     save(); closeSheet(); render();
-    const noG = data.players.filter(p => !p.gender).length;
+    const noG = V.players.filter(p => !p.gender).length;
     toast(`${added} player${added === 1 ? '' : 's'} added${noG ? `, ${noG} still need a gender` : ''}`);
   }
   if (kind === 'session') {
@@ -5026,6 +5259,44 @@ document.addEventListener('submit', async e => {
     }
     dates.forEach(dt => data.sessions.push({ id: uid(), date: dt, ...fields, cancelled: false, attendance: {} }));
     save(); closeSheet(); render(); toast(dates.length > 1 ? `${dates.length} sessions added` : 'Training added');
+  }
+  if (kind === 'season') {
+    if (!str('name')) { fieldError(form, 'name', 'Give the season a name'); return; }
+    if (str('start') && str('end') && str('end') < str('start')) { fieldError(form, 'end', 'The end is before the start'); return; }
+    const fields = { name: str('name'), label: str('label'), year: str('year'), start: str('start'), end: str('end') };
+    const s = M.findSeason(data, str('id'));
+    if (s) { Object.assign(s, fields); if (s.status === 'active') data.team.season = s.name; }
+    else data.seasons.push(M.normSeason({ ...fields, id: uid(), status: 'planned', createdAt: todayISO() }));
+    save(); render(); seasonsSheet(); toast(s ? 'Season saved' : `${fields.name} planned`);
+    return;
+  }
+  if (kind === 'season-next') {
+    if (!str('name')) { fieldError(form, 'name', 'Give the season a name'); return; }
+    if (str('start') && str('end') && str('end') < str('start')) { fieldError(form, 'end', 'The end is before the start'); return; }
+    const pos = v => String(v || '').split(',').map(x => x.trim()).filter(Boolean);
+    state.rollover = { name: str('name'), label: str('label'), year: str('year'), start: str('start'), end: str('end'), activate: str('when') === 'now',
+      carry: f.getAll('carry').map(id => ({ playerId: String(id), number: str('num-' + id), positions: pos(f.get('pos-' + id)) })),
+      newText: raw('newPlayers'), staff: f.getAll('staff').map(Number), keepDefaults: !!f.get('keepDefaults') };
+    rolloverReview();
+    return;
+  }
+  if (kind === 'season-squad') {
+    const s = M.findSeason(data, str('id')); if (!s) return;
+    const live = s.status === 'active', pos = v => String(v || '').split(',').map(x => x.trim()).filter(Boolean);
+    const removing = new Set(f.getAll('remove').map(String));
+    M.seasonLens(data, s.id).players.forEach(lp => {
+      const p = data.players.find(x => x.id === lp.id); if (!p || removing.has(p.id)) return;
+      const number = str('num-' + p.id), positions = pos(f.get('pos-' + p.id)), reg = M.REG_STATUS[str('reg-' + p.id)] !== undefined ? str('reg-' + p.id) : '';
+      let m = s.squad.find(x => x.playerId === p.id);
+      if (live) Object.assign(p, { number, positions });
+      if (!m && (reg || !live)) { m = { playerId: p.id, number, positions, status: p.status || 'available', reg: '' }; s.squad.push(m); }
+      if (m) { if (!live) Object.assign(m, { number, positions }); m.reg = reg; }
+    });
+    let gone = 0;
+    removing.forEach(pid => { if (M.removeMember(data, s.id, pid) === 'player') gone++; });
+    f.getAll('add').forEach(pid => { const p = data.players.find(x => x.id === pid); if (p && !M.inSeason(data, s.id, pid)) s.squad.push({ playerId: p.id, number: String(p.number || ''), positions: arr(p.positions).slice(), status: 'available', reg: '' }); });
+    save(); render(); seasonsSheet(); toast(`Squad saved${gone ? `; ${gone} removed from the team` : ''}`);
+    return;
   }
   if (kind === 'rules-review') {
     data.team.rulesSeen = M.RULES.pack;
@@ -5049,7 +5320,7 @@ document.addEventListener('submit', async e => {
     T.rules = M.ruleSet(str('rules')) ? str('rules') : '';
     T.clubId = arr(ws.clubs).some(c => c.id === str('clubId')) ? str('clubId') : '';
     T.division = str('division'); T.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
-    T.ageGroup = str('ageGroup'); T.season = str('season'); T.colours = str('colours');
+    T.ageGroup = str('ageGroup'); T.colours = str('colours');
     T.staff = peopleRows(f, 'st');
     T.tasksContact = { name: str('tasksName'), phone: str('tasksPhone') };
     T.trainingVenue = str('trainingVenue'); T.trainingStart = str('trainingStart'); T.trainingEnd = str('trainingEnd');

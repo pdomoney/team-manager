@@ -827,3 +827,28 @@ body.wide .ped > .two{grid-template-columns:2fr 1fr}
 .spark{display:block;margin-top:4px}
 .spark rect{fill:var(--turf)}
 .start-squad{margin-bottom:20px}
+
+/* Seasons */
+#team-title.with-season{display:flex;flex-direction:column;justify-content:center;line-height:1.05}
+#team-title .t-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;min-width:0}
+#team-title.with-season .team-btn{min-height:28px;padding:0 6px 0 0}
+.season-tag{appearance:none;background:none;border:0;color:rgba(255,255,255,.82);font:600 13px/1.2 var(--font-b);padding:2px 0;cursor:pointer;text-align:left;min-height:24px;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+span.season-tag{cursor:default}
+.season-tag.past{color:var(--gold)}
+.season-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--gold-soft);color:var(--gold-ink);border-radius:10px;padding:10px 12px;margin:0 0 16px;font-size:14px}
+.season-banner.fix{background:var(--sky-soft);color:var(--sky-ink)}
+.season-banner .btn-row{margin:0}
+.season-row{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
+.season-row:first-child{border-top:0}
+.season-row .btn-row{margin:0;flex-wrap:wrap}
+.season-row.archived{opacity:.7}
+.carry-list{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+.carry-row{border:1px solid var(--line);border-radius:10px;padding:8px 10px 0;background:var(--paper)}
+.carry-row .check{margin-bottom:6px}
+.radio-set{border:0;padding:0;margin:0 0 6px}
+.radio-set legend{font-weight:600;font-size:14px;margin-bottom:6px}
+.field-static{margin:6px 0 0;font-weight:600}
+ul.plain{margin:0 0 6px;padding-left:18px}
+.review p{margin:0 0 8px}
+.table-wrap{overflow-x:auto}
+.rtable tr.on th,.rtable tr.on td{background:#EEF4F0}

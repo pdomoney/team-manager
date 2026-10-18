@@ -21,11 +21,11 @@ with sync_playwright() as p:
     pg.route('**/fonts.g*/**', lambda r: r.abort())
     pg.goto(url + '#home'); pg.wait_for_function('window.__team && window.__team.ws')
     W = lambda js: pg.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M; return {js}; }})()')
-    c.ok(W('W.schema') == 3 and W('W.id') == 'team1', 'old copy upgraded to a workspace')
+    c.ok(W('W.schema') == W('M.SCHEMA') and W('W.id') == 'team1', 'old copy upgraded to a workspace')
     c.ok(W("D.players[0].name") == 'Mia Tuala' and W("D.messages[0].text") == 'old message', 'existing data kept')
     c.ok(W("D.tasks[0].people.length") == 1, 'dangling task person removed on upgrade')
     c.ok(json.loads(pg.evaluate("localStorage.getItem('tm-before-upgrade')"))['data']['players'][0]['name'] == 'Mia Tuala', 'pre-upgrade copy kept')
-    c.ok(json.loads(pg.evaluate("localStorage.getItem('tm-test-data')"))['schema'] == 3, 'upgraded copy stored')
+    c.ok(json.loads(pg.evaluate("localStorage.getItem('tm-test-data')"))['schema'] == W('M.SCHEMA'), 'upgraded copy stored')
     # new team
     pg.evaluate(act, ['teams', {}]); pg.wait_for_timeout(100)
     pg.click('text=New team'); pg.fill('#sheet input[name=name]', 'DragonTag Under 16s'); pg.click('#sheet button[type=submit]'); pg.wait_for_timeout(200)
