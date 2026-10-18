@@ -939,7 +939,7 @@ function viewSquad() {
   const P = V.players;
   if (!P.length) return isCoach()
     ? `<section class="empty"><h3>No players yet</h3><p>Add players one by one, or paste a whole list from a spreadsheet or the team chat.</p>
-      <div class="btn-row"><button class="btn primary" data-act="add-player">${icon('plus')}Add a player</button><button class="btn" data-act="player-import">${icon('users', 18)}From another team</button><button class="btn" data-act="bulk-add">Paste a list</button></div></section>`
+      <div class="btn-row"><button class="btn primary" data-act="add-player">${icon('plus')}Add a player</button><button class="btn" data-act="player-import">${icon('team', 18)}From another team</button><button class="btn" data-act="bulk-add">Paste a list</button></div></section>`
     : `<p class="muted">The squad hasn't been announced yet.</p>`;
   const cnt = { all: P.length, F: P.filter(p => p.gender === 'F').length, M: P.filter(p => p.gender === 'M').length, out: P.filter(p => p.status && p.status !== 'available').length };
   if (!isCoach() && state.squadFilter === 'out') state.squadFilter = 'all';
@@ -4800,8 +4800,15 @@ const actions = {
   'player-link-out': coachOnly(el => {
     const p = data.players.find(x => x.id === el.dataset.player); if (!p) return;
     const form = el.closest('form[data-form=player]');
-    if (form && form.querySelector('[name=name]') && form.querySelector('[name=name]').value.trim() !== p.name) {
-      toast('Save player changes before adding them to another team.'); return;
+    if (form) {
+      const value = n => (form.querySelector('[name=' + n + ']') || {}).value || '';
+      const gender = (form.querySelector('input[name=gender]:checked') || {}).value || '';
+      const positions = [...form.querySelectorAll('input[name=positions]:checked')].map(x=>x.value);
+      const changed = value('name').trim() !== String(p.name || '') || value('number').trim() !== String(p.number || '') ||
+        value('phone').trim() !== String(p.phone || '') || value('notes').trim() !== String(p.notes || '') ||
+        value('photo') !== String(p.photo || '') || value('status') !== String(p.status || 'available') ||
+        gender !== String(p.gender || '') || positions.join('|') !== arr(p.positions).join('|');
+      if (changed) { toast('Save the changes on this player card before linking another team.'); return; }
     }
     openSheet('Add to another team', playerLinkOutForm(p), 'player-link');
   }),
