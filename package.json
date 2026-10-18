@@ -9,6 +9,8 @@
   "scripts": {
     "build": "node src/build.js",
     "serve": "node src/serve.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "test:browser": "python3 test/browser/run_all.py",
+    "test:browser:smoke": "python3 test/browser/run_all.py --skip-capacity"
   }
 }
