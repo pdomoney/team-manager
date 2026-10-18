@@ -684,117 +684,168 @@ function setupForm() {
 }
 
 /* ---------- Home ---------- */
-function viewHome() {
-  const T = V.team, cd = countdown();
-  let hero = '';
-  if (cd) {
-    const left = V.sessions.filter(s => !s.cancelled && s.date >= todayISO() && s.date < T.eventStart).length;
-    const big = cd.state === 'before' ? `<span class="big">${cd.days}</span><span class="unit">day${cd.days === 1 ? '' : 's'} to go</span>`
-      : cd.state === 'during' ? `<span class="big">Game on</span>` : `<span class="big">Done</span>`;
-    hero = `<section class="hero">
-      <div>${big}</div>
-      <p class="ev">${esc(T.event)}, ${esc(fmtEventDates())}</p>
-      <p class="meta">${esc(T.venue)}</p>
-      ${curClub() || T.division ? `<p class="meta club-line">${esc([curClub() && curClub().name, T.division, T.season].filter(Boolean).join(' · '))}</p>` : ''}
-      ${cd.state === 'before' ? `<span class="tagline">${left} training session${left === 1 ? '' : 's'} before then</span>` : ''}
-    </section>`;
-  }
-  const notices = V.notices.slice(0, isCoach() ? 3 : 10);
-  const noticeHtml = notices.length ? `<section class="sec"><div class="sec-h"><h2>Notices</h2>${isCoach() ? '<button class="btn sm" data-act="tab" data-tab="messages">Manage</button>' : ''}</div>
+/* ---------- Home ---------- */
+// The coach's command centre: pick the clubs or team to look at, the one thing that matters most, the
+// next two weeks, the loose ends, and (for one team) how it's going. Everything comes from M.homeView,
+// worked out fresh from the teams' records. Nothing here switches the team being edited: that only
+// happens when the coach picks a team or opens something that belongs to another team.
+const HOME_LEVEL = { 1: 'Critical', 2: 'Imminent', 3: 'Upcoming', 4: 'Next up' };
+const HOME_OPEN = { match: 'Open match', session: 'Open training', task: 'Open task', tournament: 'See the draw', rules: 'Review the update', result: 'Enter the result', messages: 'Open message log' };
+const HOME_KIND = { match: ['Match', 'k-match'], session: ['Training', 'k-train'], task: ['Help needed', 'k-task'], tournament: ['Tournament', 'k-event'] };
+const homePref = () => readJson('tm-home-scope');
+const homeDays = () => [7, 14, 30].includes(Number(store.get('tm-home-days'))) ? Number(store.get('tm-home-days')) : 14;
+// Club colours are words ("red and white"); the first two known colours make the badge, otherwise a
+// colour from the app's own palette, the same one every time for that club.
+const COLOUR_WORDS = { red: '#C8102E', maroon: '#7A1F2B', white: '#FFFFFF', black: '#16201B', blue: '#1F4FA3', navy: '#1B2A4A', sky: '#5AA9E6', green: '#2F7D4E', gold: '#E3A400', yellow: '#F2C200', orange: '#E87722', purple: '#5B2C83', grey: '#6B756F', gray: '#6B756F' };
+const CREST_PALETTE = ['#123D2B', '#174E87', '#B01D30', '#6E5000', '#55399A', '#2F7D4E'];
+const lum = hex => { const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+const contrast = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+function crest(c, big = false) {
+  if (!c) return `<span class="crest all${big ? ' big' : ''}" aria-hidden="true">All</span>`;
+  const words = String(c.colours || '').toLowerCase().match(/[a-z]+/g) || [], cols = [...new Set(words.map(w => COLOUR_WORDS[w]).filter(Boolean))];
+  const bg = cols[0] || CREST_PALETTE[[...String(c.id)].reduce((n, ch) => n + ch.charCodeAt(0), 0) % CREST_PALETTE.length];
+  let fg = cols[1] || '#FFFFFF'; if (contrast(bg, fg) < 3) fg = contrast(bg, '#FFFFFF') >= 3 ? '#FFFFFF' : '#16201B';
+  const parts = String(c.short || c.name || '').replace(/\b(oztag|club|football|rugby|league|tag|inc|fc)\b/gi, '').trim().split(/\s+/).filter(Boolean);
+  const ini = c.id === M.NO_CLUB ? '–' : parts.length > 1 ? parts[0][0] + parts[1][0] : (parts[0] || c.name || '?').slice(0, 2);
+  return `<span class="crest${big ? ' big' : ''}" style="background:${bg};color:${fg}${bg === '#FFFFFF' ? ';border-color:var(--line)' : ''}" aria-hidden="true">${esc(ini.toUpperCase())}</span>`;
+}
+const urgencyDot = u => u ? `<span class="u-dot ${u}" aria-hidden="true"></span><span class="sr-only">${u === 'critical' ? ', needs attention now' : ', needs attention soon'}</span>` : '';
+function homeSelector(hv) {
+  const T = data.team, club = M.clubOf(ws, data);
+  if (!hv.multi) return `<div class="scope single">${crest(club ? { id: club.id, name: club.name, short: club.shortName, colours: club.colours } : { id: M.NO_CLUB, name: 'No club' }, true)}
+    <span class="grow"><span class="name" style="display:block">${esc(T.name || 'Team')}</span><span class="sub" style="display:block">${esc([club && club.name, T.division, T.season].filter(Boolean).join(' · ') || 'Not in a club')}</span></span></div>`;
+  const sc = hv.scope, clubOfScope = sc.kind === 'club' ? sc.id : sc.kind === 'team' ? (hv.clubs.find(c => c.teams.some(t => t.id === sc.id)) || {}).id : null;
+  const clubUrg = c => c.teams.some(t => hv.urgency[t.id] === 'critical') ? 'critical' : c.teams.some(t => hv.urgency[t.id] === 'soon') ? 'soon' : '';
+  const clubBtn = c => `<button class="scope-club" data-act="home-scope" data-kind="club" data-id="${esc(c.id)}" aria-pressed="${sc.kind === 'club' && sc.id === c.id}" ${clubOfScope === c.id ? 'data-open="1"' : ''} title="${esc(c.name)}">${crest(c)}<span class="scope-name">${esc(c.short)}</span>${urgencyDot(clubUrg(c))}</button>`;
+  const teams = clubOfScope ? (hv.clubs.find(c => c.id === clubOfScope) || { teams: [] }).teams : hv.clubs.flatMap(c => c.teams);
+  const teamBtn = t => `<button class="scope-team" data-act="home-scope" data-kind="team" data-id="${esc(t.id)}" aria-pressed="${sc.kind === 'team' && sc.id === t.id}" title="${esc(M.teamName(t))}"><span class="scope-name">${esc(M.teamName(t))}</span>${t === data ? '<span class="sr-only"> (the team you’re editing)</span>' : ''}${urgencyDot(hv.urgency[t.id])}</button>`;
+  return `<nav class="scope" aria-label="Clubs and teams on Home">
+    <div class="scope-row">
+      <button class="scope-club" data-act="home-scope" data-kind="all" aria-pressed="${sc.kind === 'all'}">${crest(null)}<span class="scope-name">All clubs</span></button>
+      ${hv.clubs.map(clubBtn).join('')}
+    </div>
+    <div class="scope-row teams" aria-label="${clubOfScope ? esc((hv.clubs.find(c => c.id === clubOfScope) || {}).name || '') + ' teams' : 'All teams'}" role="group">${teams.map(teamBtn).join('')}</div>
+  </nav>`;
+}
+const homeWhen = x => x.date ? `${x.days === 0 ? 'Today' : x.days === 1 ? 'Tomorrow' : fmtDay(x.date)}, ${x.start ? fmtTime(x.start) : 'time TBC'}` : '';
+function homeWhy(x) {
+  if (x.level === 1) return 'Less than 24 hours away and not ready.';
+  if (!x.date) return 'Waiting on you. There’s no deadline, but it’s still open.';
+  if (x.level === 2) return x.issues.length ? 'Within the next 72 hours, with things still to sort.' : x.kind === 'session' ? 'Within the next 24 hours.' : 'Within the next 72 hours.';
+  if (x.level === 3) return x.kind === 'task' ? 'Coming up and still short of people.' : 'Within the next 7 days.';
+  return 'The next thing on the schedule.';
+}
+// A dashboard button keeps the team its record belongs to; home-go switches to that team first.
+const goAttrs = (x, act, id) => `data-act="home-go" data-team="${esc(x.teamId)}" data-go="${esc(act)}" data-id="${esc(id)}"${x.k ? ` data-k="${esc(x.k)}"` : ''}${x.tab ? ` data-tab="${esc(x.tab)}"` : ''}`;
+function homeSpotlight(hv) {
+  const x = hv.spotlight;
+  if (!x) return `<section class="focus calm" aria-labelledby="spot-h"><h2 id="spot-h">Nothing coming up</h2>
+    <p class="spot-what">No training, matches or tasks ${hv.scope.kind === 'all' ? 'for any team' : hv.scope.kind === 'club' ? 'for this club’s teams' : 'for this team'} yet.</p>
+    ${hv.scope.kind === 'team' && hv.scope.id === data.id ? `<div class="btn-row"><button class="btn primary" data-act="add-session">${icon('plus')}Add training</button><button class="btn" data-act="tab" data-tab="matches">Matches</button></div>` : ''}</section>`;
+  const who = [x.team, hv.multi && x.club ? x.club : ''].filter(Boolean).join(' · ');
+  const share = x.kind === 'match' ? `<button class="btn sm on-dark" data-act="home-go" data-team="${esc(x.teamId)}" data-go="day-share" data-date="${esc(x.date)}">${icon('chat', 18)}Send match day</button>` : '';
+  return `<section class="focus lvl-${x.level}" aria-labelledby="spot-h">
+    <p class="spot-k"><span class="lvl-pill">${HOME_LEVEL[x.level]}</span>${hv.multi ? `<span>${esc(who)}</span>` : ''}</p>
+    <h2 id="spot-h">${esc(x.label)}</h2>
+    <p class="spot-what">${[x.kind === 'session' ? '' : `<b>${esc(x.title)}</b>`, x.round ? esc(x.round) : '', x.date ? esc(homeWhen(x)) : '', x.place ? esc(x.place) : ''].filter(Boolean).join(' · ')}</p>
+    <p class="spot-why">${esc(homeWhy(x))}</p>
+    ${x.issues.length ? `<ul class="spot-issues">${x.issues.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}
+    <div class="btn-row"><button class="btn primary" ${goAttrs(x, x.act, x.id)}>${HOME_OPEN[x.kind]}${x.teamId !== data.id ? `<span class="sr-only"> for ${esc(x.team)}</span>` : ''}</button>${share}</div>
+  </section>`;
+}
+function homeUpcoming(hv) {
+  const days = homeDays(), all = state.homeAllUp, list = all ? hv.upcoming : hv.upcoming.slice(0, 5);
+  const named = new Map(); hv.teams.forEach(t => named.set(M.teamName(t), (named.get(M.teamName(t)) || 0) + 1));
+  const dup = n => named.get(n) > 1;   // two teams with the same name: add the club
+  const teamOf = x => hv.teams.length > 1 ? `${x.team}${dup(x.team) && x.club ? ` (${x.club})` : ''}` : '';
+  const row = x => { const [k, cls] = HOME_KIND[x.kind] || ['', ''];
+    const meta = [teamOf(x), x.place].filter(Boolean).join(' · ');
+    return `<li><button class="tl-row" ${goAttrs(x, x.act, x.id)}>
+      <span class="tl-when"><b>${x.days === 0 ? 'Today' : x.days === 1 ? 'Tmrw' : esc(parseDate(x.date).toLocaleDateString('en-AU', { weekday: 'short' }) + ' ' + parseDate(x.date).getDate())}</b><span>${x.start ? esc(fmtTime(x.start)) : 'Time TBC'}</span></span>
+      <span class="tl-main"><span class="tl-top"><span class="ag-kind ${cls}">${k}</span><span class="t">${esc(x.title)}</span></span>
+        ${meta ? `<span class="sub tl-meta">${esc(meta)}</span>` : ''}
+        ${x.issues.length ? `<span class="tl-issue">${esc(x.issues.join(' · '))}</span>` : ''}</span>
+      <span aria-hidden="true" class="chev">›</span></button>
+      ${x.subs.map(s => `<button class="tl-sub" ${goAttrs(s, s.act, s.id)}><span aria-hidden="true">↳</span> ${esc(s.title)}${s.issues.length ? ` · <span class="tl-issue">${esc(s.issues.join(' · '))}</span>` : ' · covered'}</button>`).join('')}</li>`; };
+  return `<section class="sec home-up" aria-labelledby="up-h"><div class="sec-h"><h2 id="up-h">Coming up</h2>
+      <div class="seg mini" role="group" aria-label="How far ahead">${[7, 14, 30].map(d => `<button data-act="home-days" data-v="${d}" aria-pressed="${days === d}">${d} days</button>`).join('')}</div></div>
+    ${list.length ? `<ol class="tl">${list.map(row).join('')}</ol>` : `<p class="muted small">Nothing in the next ${days} days.</p>`}
+    <div class="tl-foot">${hv.upcoming.length > 5 ? `<button class="link-btn" data-act="home-more">${all ? 'Show fewer' : `Show all ${hv.upcoming.length}`}</button>` : ''}<button class="link-btn" data-act="tab" data-tab="agenda">Full schedule${hv.teams.length > 1 ? ` for ${esc(data.team.name)}` : ''}</button></div>
+    ${hv.changed.length ? `<p class="hint tl-changed"><b>Changed:</b> ${hv.changed.map(c => `<button class="link-btn inline" ${goAttrs(c, c.act, c.id)}>${esc(c.title)}, ${esc(fmtDay(c.date))}${hv.teams.length > 1 ? ` (${esc(c.team)})` : ''}: ${esc(c.status.toLowerCase())}</button>`).join('; ')}</p>` : ''}
+  </section>`;
+}
+function homeActionList(hv) {
+  const list = hv.actions.slice(0, 5), more = hv.actions.length - list.length;
+  const sub = a => [hv.teams.length > 1 ? a.team : '', a.what, a.date ? fmtDay(a.date) : ''].filter(Boolean).join(' · ');
+  return `<section class="sec home-act" aria-labelledby="act-h"><div class="sec-h"><h2 id="act-h">Outstanding actions</h2>${more > 0 ? '<button class="btn sm" data-act="tab" data-tab="reports">All loose ends</button>' : ''}</div>
+    ${list.length ? `<div class="list">${list.map(a => `<button class="pick act-row lvl-${a.level}" ${goAttrs(a, a.act, a.recId)}><span class="u-dot l${a.level}" aria-hidden="true"></span><span class="grow"><span class="name" style="display:block">${a.level <= 2 ? `<span class="sr-only">${HOME_LEVEL[a.level]}: </span>` : ''}${esc(a.title)}</span><span class="tagline">${esc(sub(a))}</span></span><span aria-hidden="true" class="chev">›</span></button>`).join('')}</div>
+      ${more > 0 ? `<p class="hint">And ${more} more.</p>` : ''}`
+      : `<p class="muted small all-clear">${icon('check', 18)} ${hv.featured ? 'Nothing else requiring attention.' : 'Nothing requiring attention.'}</p>`}</section>`;
+}
+function sparkBars(vals, max) {
+  if (!vals.length) return '';
+  const w = 8, gap = 4, h = 22, top = Math.max(1, max);
+  return `<svg class="spark" width="${vals.length * (w + gap) - gap}" height="${h}" viewBox="0 0 ${vals.length * (w + gap) - gap} ${h}" aria-hidden="true">${vals.map((v, i) => { const bh = Math.max(2, Math.round(h * Math.min(1, v / top))); return `<rect x="${i * (w + gap)}" y="${h - bh}" width="${w}" height="${bh}" rx="2"/>`; }).join('')}</svg>`;
+}
+function homeInsight(hv) {
+  const s = hv.insight, t = hv.teams[0]; if (!s || !t) return '';
+  const it = k => hv.items.find(x => x.kind === k && x.teamId === t.id);
+  const ns = it('session'), nm = it('match'), r = s.record, ev = s.event;
+  const cell = (dt, dd, sub = '') => `<div><dt>${dt}</dt><dd>${dd}</dd>${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
+  return `<section class="sec home-ins" aria-labelledby="ins-h"><div class="sec-h"><h2 id="ins-h">${esc(M.teamName(t))} at a glance</h2>${t === data ? '<button class="btn sm" data-act="tab" data-tab="reports">Reports</button>' : ''}</div>
+    <dl class="ins-grid">
+      ${cell('Available', s.players ? `${s.available} of ${s.players}` : 'No squad yet', s.players ? esc([s.injured ? `${s.injured} injured` : '', s.unavailable ? `${s.unavailable} unavailable` : '', `${s.female} F · ${s.male} M`].filter(Boolean).join(' · ')) : '')}
+      ${cell('Next training', ns ? esc(homeWhen(ns)) : 'None booked', ns && ns.place ? esc(ns.place) : '')}
+      ${cell('Next match', nm ? esc(homeWhen(nm)) : 'None scheduled', nm ? esc(nm.title) : '')}
+      ${cell('Training turnout', s.avgPct === null ? 'Not recorded' : `${s.avgPct}%`, s.attendance.length ? `${sparkBars(s.attendance.map(a => a.attended), s.players)}<span class="sr-only">Last ${s.attendance.length} roll calls: ${s.attendance.map(a => a.attended).join(', ')}</span>` : 'Take a roll call at training')}
+      ${cell('Results', r.withResult ? `W ${r.won} · L ${r.lost}${r.drawn ? ` · D ${r.drawn}` : ''}` : 'No results yet')}
+      ${ev ? cell(esc(ev.name), ev.state === 'before' ? `${ev.days} day${ev.days === 1 ? '' : 's'}` : ev.state === 'during' ? 'On now' : 'Finished', esc(fmtDay(ev.start))) : ''}
+    </dl></section>`;
+}
+function homeNotices(n) {
+  const notices = V.notices.slice(0, n);
+  return notices.length ? `<section class="sec"><div class="sec-h"><h2>Notices</h2>${isCoach() ? '<button class="btn sm" data-act="tab" data-tab="messages">Manage</button>' : ''}</div>
       <div class="list">${notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p></div>`).join('')}</div></section>` : '';
-
-  if (!V.players.length) {
-    if (!isCoach()) return hero + noticeHtml + `<p class="muted">The squad hasn't been announced yet.</p>`;
-    return hero + `<section class="empty">
+}
+function startSquad() {
+  return `<section class="empty start-squad">
       <h3>Start with your squad</h3>
       <p>Add your players first. Roll call, lineups and messages all build on the squad list.</p>
       <div class="btn-row"><button class="btn primary" data-act="add-player">${icon('plus')}Add a player</button><button class="btn" data-act="bulk-add">Paste a list</button></div>
       <p class="hint" style="margin-top:14px">Just exploring? <button class="link-btn inline" data-act="sample">Load a sample squad</button>. Clear it in Settings before you invite players.</p>
     </section>`;
-  }
-  const n = nextSession();
-  const nextHtml = n ? `<div class="next">
-      ${calBlock(n.date)}
-      <div class="grow">
-        <p class="name">${n.date === todayISO() ? 'Today, ' : ''}${esc(fmtRange(n))}</p>
-        <p class="sub">${esc(n.venue || T.trainingVenue || 'Venue TBC')}</p>
-        ${n.focus ? `<p class="small" style="margin-top:2px">Focus: ${esc(n.focus)}</p>` : ''}
-        ${n.notes ? `<p class="small muted" style="margin-top:2px">${esc(n.notes)}</p>` : ''}
-        ${isCoach() && asking(n) ? `<span class="ag-meta">${rsvpPills(n)}</span>` : ''}
-        ${isCoach() ? `<div class="btn-row" style="margin-top:10px">
-          <button class="btn wa sm" data-act="remind" data-id="${n.id}">${icon('chat', 18)}Send reminder</button>
-          <button class="btn sm" data-act="rsvp-open" data-k="session" data-id="${n.id}">${icon('rsvp', 18)}Availability</button>
-          <button class="btn sm" data-act="roll" data-id="${n.id}">${icon('clip', 18)}Roll call</button>
-        </div>` : replyBtns('session', n)}
-      </div></div>`
-    : isCoach() ? `<div class="empty"><p>No training booked yet.</p><button class="btn primary" data-act="add-session">${icon('plus')}Add training</button></div>`
-      : `<p class="muted">No training scheduled yet.</p>`;
-
-  const P = V.players;
-  const f = P.filter(p => p.gender === 'F').length, m = P.filter(p => p.gender === 'M').length;
-  let h = hero + (isCoach() ? homeAttention() : '') + homeMatchDay();   // first column on a wide screen
-  h += `<section class="sec"><div class="sec-h"><h2>Next training</h2><button class="btn sm" data-act="tab" data-tab="training">All sessions</button></div>${nextHtml}</section>`;
-  let h2 = '';    // second column
-  if (!isCoach()) h2 += noticeHtml + homeTasks();
-  if (isCoach()) {
-    const out = P.filter(p => p.status !== 'available').length;
-    const rs = rollSessions().slice(-8);
-    h += noticeHtml;
-    h2 += `<section class="sec"><div class="sec-h"><h2>Squad</h2><button class="btn sm" data-act="tab" data-tab="squad">Manage</button></div>
-      <div class="stats">
-        <div class="stat"><b>${P.length}</b><span>Players</span></div>
-        <div class="stat"><b>${f}</b><span>Female</span></div>
-        <div class="stat"><b>${m}</b><span>Male</span></div>
-        <div class="stat"><b style="color:${out ? 'var(--bad)' : 'inherit'}">${out}</b><span>Out</span></div>
-      </div></section>
-    <section class="sec"><div class="sec-h"><h2>Training turnout</h2><button class="btn sm" data-act="tab" data-tab="reports">Reports</button></div>
-      ${rs.length ? `<div class="chart">${turnoutChart(rs)}</div>` : `<p class="muted small">Take a roll call at training and turnout will chart here.</p>`}
-    </section>`;
-    h2 += homeTasks();
-  }
-  return `<div class="cols"><div class="col">${h}</div><div class="col">${h2}</div></div>`;
 }
-// What needs the coach's attention in the next four weeks, most urgent first, each a tap away.
-function homeAttention() {
-  const today = todayISO(), o = M.outstanding(data, today), items = [];
-  const rn = rulesUnseen();
-  if (rn.length) items.push(['rules-review', 'Rules updated: check what it affects', `Rule set version ${rn[0].pack}, ${fmtDay(rn[0].date)}`]);
-  const ev = x => x.kind === 'match' ? matchById(x.id) : sessionById(x.id);
-  o.rsvp.slice(0, 3).forEach(x => { const e = ev(x); items.push([`rsvp-open" data-k="${x.kind}" data-id="${x.id}`, `${x.missing} availability repl${x.missing === 1 ? 'y' : 'ies'} missing`, `${x.kind === 'match' ? `vs ${e.opponent || 'TBC'}` : 'Training'}, ${fmtDay(x.date)}`]); });
-  o.noLineup.slice(0, 2).forEach(id => { const m = matchById(id); items.push([`match-open" data-id="${id}`, 'Match lineup not made', `vs ${m.opponent || 'TBC'}, ${fmtDay(m.date)}`]); });
-  const awaiting = o.awaiting.reduce((n, x) => n + x.n, 0), toFind = o.toFind.reduce((n, x) => n + x.n, 0);
-  if (awaiting) items.push([`task-waiting`, `${awaiting} volunteer invitation${awaiting === 1 ? '' : 's'} awaiting a reply`, `${o.awaiting.length} task${o.awaiting.length === 1 ? '' : 's'}`]);
-  if (toFind) items.push([`tab" data-tab="tasks`, `${toFind} volunteer spot${toFind === 1 ? '' : 's'} still to find`, `${o.toFind.length} task${o.toFind.length === 1 ? '' : 's'}`]);
-  o.riders.slice(0, 2).forEach(x => { const t = taskById(x.id); items.push([`task-open" data-id="${x.id}`, x.waiting ? `${x.waiting} without a seat` : `${x.tentative} waiting on a driver’s reply`, t.title]); });
-  o.noResult.slice(0, 2).forEach(id => { const m = matchById(id); items.push([`match-open" data-id="${id}`, 'Result not entered', `vs ${m.opponent || 'TBC'}, ${fmtDay(m.date)}`]); });
-  if (o.unconfirmed) items.push([`tab" data-tab="messages`, `${o.unconfirmed} WhatsApp message${o.unconfirmed === 1 ? '' : 's'} not confirmed as sent`, 'Message log']);
-  if (!items.length) return V.players.length ? `<section class="sec"><div class="sec-h"><h2>Needs attention</h2></div><p class="muted small all-clear">${icon('check', 18)} Nothing outstanding for the next four weeks.</p></section>` : '';
-  return `<section class="sec attention"><div class="sec-h"><h2>Needs attention</h2><button class="btn sm" data-act="tab" data-tab="reports">All loose ends</button></div>
-    <div class="list">${items.slice(0, 6).map(([a, t, sub]) => `<button class="pick" data-act="${a}"><span class="grow"><span class="name" style="display:block">${esc(t)}</span><span class="tagline">${esc(sub)}</span></span><span aria-hidden="true" class="chev">›</span></button>`).join('')}</div>
-    ${items.length > 6 ? `<p class="hint">And ${items.length - 6} more in Reports.</p>` : ''}</section>`;
+function viewHome() {
+  if (!isCoach()) return playerHome();
+  const hv = M.homeView(ws, homePref(), new Date(), { days: homeDays() });
+  const one = hv.scope.kind === 'team' && hv.teams[0] === data;
+  const left = (one && !data.players.length ? startSquad() : '') + homeSpotlight(hv) + homeUpcoming(hv);
+  const right = homeActionList(hv) + (hv.insight ? homeInsight(hv) : '') + (one ? homeNotices(3) : '');
+  return `${homeSelector(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
+}
+// Players see their own team only: what's next, the next two weeks, notices and where help is needed.
+function playerHome() {
+  const T = V.team, club = curClub(), today = todayISO();
+  const strip = `<div class="scope single">${crest(club ? { id: club.id, name: club.name, short: club.shortName, colours: club.colours } : { id: M.NO_CLUB, name: 'No club' }, true)}
+    <span class="grow"><span class="name" style="display:block">${esc(T.name || 'Team')}</span><span class="sub" style="display:block">${esc([club && club.name, T.division, T.event && countdown() && countdown().state === 'before' ? `${T.event} in ${countdown().days} days` : T.event].filter(Boolean).join(' · '))}</span></span></div>`;
+  if (!V.players.length) return strip + homeNotices(10) + `<p class="muted">The squad hasn't been announced yet.</p>`;
+  const items = M.agenda(V, today, 14).filter(it => !it.cancelled && it.kind !== 'task');   // tasks are under Help needed
+  const next = items[0], rest = items.slice(1);
+  const spot = next ? `<section class="focus lite" aria-labelledby="spot-h"><p class="spot-k"><span class="lvl-pill">Next up</span></p>
+      <h2 id="spot-h">${next.kind === 'match' ? `Match ${next.date === today ? 'today' : next.date === M.addDays(today, 1) ? 'tomorrow' : esc(fmtDay(next.date))}` : `Training ${next.date === today ? 'today' : next.date === M.addDays(today, 1) ? 'tomorrow' : esc(fmtDay(next.date))}`}</h2>
+      <p class="spot-what">${next.kind === 'match' ? `<b>vs ${esc(next.x.opponent || 'TBC')}</b> · ` : ''}${next.start ? esc(fmtTime(next.start)) : 'Time TBC'}${(next.x.venue || (next.kind === 'session' && T.trainingVenue)) ? ` · ${esc(next.x.venue || T.trainingVenue)}` : ''}${next.x.field ? ` · Field ${esc(next.x.field)}` : ''}</p>
+      ${replyBtns(next.kind, next.x)}</section>`
+    : `<section class="focus calm" aria-labelledby="spot-h"><h2 id="spot-h">Nothing scheduled yet</h2><p class="spot-what">Training and matches show here once your coach adds them.</p></section>`;
+  const fresh = rulesUnseen();
+  const rules = fresh.length ? `<div class="note rules-new">${esc(fresh[0].notice || fresh[0].summary)} <button class="link-btn inline" data-act="rules-open">See the rules</button></div>` : '';
+  const up = `<section class="sec home-up" aria-labelledby="up-h"><div class="sec-h"><h2 id="up-h">Coming up</h2><button class="btn sm" data-act="tab" data-tab="agenda">Full schedule</button></div>
+    ${rest.length ? `<div class="list">${rest.slice(0, 5).map(agendaItem).join('')}</div>` : `<p class="muted small">Nothing else in the next two weeks.</p>`}</section>`;
+  return `${strip}<div class="cols home-cols"><div class="col">${spot}${rules}${up}</div><div class="col">${homeNotices(10)}${homeTasks()}</div></div>`;
 }
 function calBlock(date) {
   const d = parseDate(date);
   return `<div class="cal" aria-hidden="true"><span class="dow">${d.toLocaleDateString('en-AU', { weekday: 'short' })}</span><span class="d">${d.getDate()}</span><span class="mo">${d.toLocaleDateString('en-AU', { month: 'short' })}</span></div>`;
 }
-function turnoutChart(rs) {
-  const squad = Math.max(1, V.players.length);
-  const W = 320, H = 130, top = 18, base = 104, n = rs.length, gap = 10;
-  const bw = Math.min(30, (W - 20 - gap * (n - 1)) / n);
-  const x0 = (W - (n * bw + (n - 1) * gap)) / 2;
-  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Players at the last ${n} sessions">`;
-  s += `<line x1="8" x2="${W - 8}" y1="${base}" y2="${base}" stroke="#DCE1D9"/>`;
-  s += `<line x1="8" x2="${W - 8}" y1="${top}" y2="${top}" stroke="#DCE1D9" stroke-dasharray="3 3"/><text x="${W - 8}" y="${top - 5}" text-anchor="end" font-size="10" fill="#5B6861" font-family="Barlow, sans-serif">Full squad (${squad})</text>`;
-  rs.forEach((sess, i) => {
-    const a = Object.values(sess.attendance).filter(v => v === 'present' || v === 'late').length;
-    const h = (base - top) * Math.min(1, a / squad), x = x0 + i * (bw + gap);
-    s += `<rect x="${x}" y="${base - h}" width="${bw}" height="${h}" rx="4" fill="#123D2B"/>`;
-    s += `<text x="${x + bw / 2}" y="${base - h - 4}" text-anchor="middle" font-size="12" font-weight="700" fill="#16201B" font-family="Barlow Condensed, sans-serif">${a}</text>`;
-    s += `<text x="${x + bw / 2}" y="${base + 15}" text-anchor="middle" font-size="10" fill="#5B6861" font-family="Barlow, sans-serif">${fmtShort(sess.date)}</text>`;
-  });
-  return s + '</svg>';
-}
-
 /* ---------- Squad ---------- */
 function viewSquad() {
   const P = V.players;
@@ -3315,25 +3366,6 @@ function refreshMatch(id) {
   const top = body.scrollTop; body.innerHTML = matchBody(m); body.scrollTop = top;
 }
 // The match day on Home: the next day with a match in the coming week, and what's still to sort.
-function homeMatchDay() {
-  const today = todayISO(), soon = M.addDays(today, 7);
-  const next = sortedMatches().find(m => m.date >= today && m.date <= soon && m.status === 'scheduled');
-  if (!next) return '';
-  const day = sortedMatches().filter(m => m.date === next.date && m.status === 'scheduled');
-  const tasks = arr(V.tasks).filter(t => t.date === next.date && !t.cancelled);
-  const coach = isCoach();
-  let todo = [];
-  if (coach) {
-    const none = day.reduce((n, m) => n + M.rsvpCounts(m, data.players.filter(p => p.status === 'available')).none, 0);
-    if (none) todo.push(`<button class="link-btn inline" data-act="match-open" data-id="${day[0].id}">${none} availability repl${none === 1 ? 'y' : 'ies'} missing</button>`);
-    day.forEach(m => { const lu = matchLineup(m), chk = lu && M.lineupCheck(data, lu, m); if (!lu) todo.push(`No lineup for vs ${esc(m.opponent || 'TBC')}`); else if (!chk.ready) todo.push(`Lineup vs ${esc(m.opponent || 'TBC')}: ${esc(chk.issues[0])}`); });
-  }
-  tasks.forEach(t => { if (t.kind === 'lift') { const L = liftOf(t); if (L.waiting || L.tentative) todo.push(`${esc(t.title)}: ${L.waiting} without a seat${L.tentative ? `, ${L.tentative} waiting on a driver` : ''}`); } else { const c = covOf(t); if (c.short) todo.push(`${esc(t.title)}: ${c.short} more needed`); } });
-  return `<section class="sec match-day"><div class="sec-h"><h2>${next.date === today ? 'Match day' : `Match day: ${esc(fmtDay(next.date))}`}</h2>${coach ? `<button class="btn wa sm" data-act="day-share" data-date="${next.date}">${icon('chat', 18)}Send</button>` : ''}</div>
-    <div class="list">${day.map(matchRow).join('')}</div>
-    ${todo.length ? `<ul class="todo">${todo.map(x => `<li>${x}</li>`).join('')}</ul>` : coach ? '<p class="hint">Availability in, lineups ready, and every task covered.</p>' : ''}
-  </section>`;
-}
 /* WhatsApp words for matches */
 function matchLines(m) {
   const lu = matchLineup(m);
@@ -3644,6 +3676,8 @@ async function teamPassProblem(p1, p2, team) {
 function switchTeam(id) {
   const t = M.findTeam(ws, id); if (!t) return;
   pickTeam(id);
+  const pref = homePref();   // Home showing one team follows the switch
+  if (pref && pref.kind === 'team') store.set('tm-home-scope', JSON.stringify({ kind: 'team', id: data.id }));
   Object.assign(state, { lineupId: null, playId: null, msgDraft: null, msgSession: null, msgEvent: null, system: state.system, preview: false });
   closeSheet(); render(); window.scrollTo(0, 0);
   toast(`Now showing ${M.teamName(t)}`);
@@ -4563,6 +4597,24 @@ const actions = {
   'teams': coachOnly(() => goTo('teams')),
   'team-switch': coachOnly(() => teamSwitcher()),
   'team-pick': coachOnly(el => switchTeam(el.dataset.id)),
+  'home-scope': coachOnly(el => {
+    const kind = el.dataset.kind, id = el.dataset.id || '';
+    store.set('tm-home-scope', JSON.stringify({ kind, id })); state.homeAllUp = false;
+    if (kind === 'team' && id !== data.id) switchTeam(id);   // picking a team is choosing to work on it
+    else render();
+  }),
+  'home-days': el => { store.set('tm-home-days', el.dataset.v); render(); },
+  'home-more': () => { state.homeAllUp = !state.homeAllUp; render(); },
+  // Open a record from Home: switch to the team it belongs to first, then use the usual action.
+  'home-go': coachOnly(el => {
+    const d = el.dataset;
+    if (d.team && d.team !== data.id) {
+      if (!M.findTeam(ws, d.team) || M.findTeam(ws, d.team).archived) { toast('That team is no longer active'); render(); return; }
+      switchTeam(d.team);
+    }
+    if (d.go === 'tab') { goTo(d.tab); return; }
+    const fn = actions[d.go]; if (fn) fn({ dataset: { id: d.id || '', k: d.k || '', tab: d.tab || '', date: d.date || '' } });
+  }),
   'team-new': coachOnly(() => openSheet('New team', teamForm(), 'team-new')),
   'club-new': coachOnly(() => { state.clubFor = state.sheet === 'settings' ? data.id : null; openSheet('New club', clubForm(null), 'club'); }),
   'club-edit': coachOnly(el => { const c = arr(ws.clubs).find(x => x.id === el.dataset.id); if (c) openSheet(`Edit ${c.name}`, clubForm(c), 'club'); }),

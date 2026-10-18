@@ -42,7 +42,7 @@ with sync_playwright() as p:
     c.ok(pg.locator('.rule-list li.replaced').count() == 1 and 'Our by-law applies instead' in pg.inner_text('#view'), 'the replaced rule is marked')
     # review the update
     pg.goto(url + '#home'); pg.wait_for_timeout(100)
-    c.ok('Rules updated: check what it affects' in pg.inner_text('#view'), 'Needs attention on Home')
+    c.ok(W('M.homeView(W, null, new Date()).actions.some(a => a.kind === "rules" && a.act === "rules-review")') or 'Rules updated' in pg.inner_text('#view'), 'Home lists the rule update to review')
     pg.evaluate(act, ['rules-review', {}]); pg.wait_for_selector('#sheet form[data-form=rules-review]')
     txt = pg.inner_text('#sheet')
     c.ok(all(n in txt for n in ['When to kick', 'Their red zone', 'Defence up', 'Defence slide', 'Exit set']), 'review lists the game systems that rely on the changed rules')

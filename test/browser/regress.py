@@ -26,7 +26,7 @@ with sync_playwright() as p:
         d = lambda js: pg.evaluate(f'(() => {{ const D = window.__team.data, S = window.__team.state; return {js}; }})()')
         pg.wait_for_selector('text=Load a sample squad'); a11y(pg, W + ' empty home')
         pg.click('text=Load a sample squad'); pg.wait_for_timeout(300)
-        c.ok('Needs attention' in pg.inner_text('#view'), W + ' home shows what needs attention')
+        c.ok('Outstanding actions' in pg.inner_text('#view'), W + ' home shows what needs attention')
         # every section and view
         groups = pg.eval_on_selector_all('.nav-main', 'els => els.map(e => e.dataset.g)')
         c.ok(groups == ['home', 'schedule', 'team', 'tactics', 'more'], W + f' five sections {groups}')
@@ -114,7 +114,7 @@ with sync_playwright() as p:
         pg.evaluate(act, ['preview-on', {}]); pg.wait_for_timeout(100)
         c.ok(pg.locator('.nav-sub [data-tab=attendance], .subnav [data-tab=attendance]').count() == 0, W + ' players have no attendance view')
         pg.goto(url + '#home'); pg.wait_for_timeout(100); a11y(pg, W + ' player home')
-        c.ok('Needs attention' not in pg.inner_text('#view'), W + ' players don’t see the coach’s action list')
+        c.ok('Outstanding actions' not in pg.inner_text('#view'), W + ' players don’t see the coach’s action list')
         pg.evaluate(act, ['preview-off', {}])
         ctx.close()
     ok = c.done(allerrs); b.close()

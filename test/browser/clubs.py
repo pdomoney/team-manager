@@ -10,7 +10,7 @@ with sync_playwright() as p:
     pg.wait_for_selector('text=Load a sample squad')
     W = lambda js: pg.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M; return {js}; }})()')
     c.ok(W('W.clubs.map(c => c.id)') == ['stgeorge'] and W('D.team.clubId') == 'stgeorge', 'St George Oztag set up with DragonTag in it')
-    c.ok('St George Oztag' in pg.inner_text('.hero'), 'club shown on Home')
+    c.ok('St George Oztag' in pg.inner_text('.scope'), 'club shown on Home')
     pg.goto(url + '#club'); pg.wait_for_timeout(150)
     txt = pg.inner_text('#view')
     c.ok('stgeorgeoztag@oztag.com' in txt and 'nswoztag.au' in txt and 'Club officials' in txt, 'club page: contacts and officials section')
