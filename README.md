@@ -89,6 +89,12 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 ### Clubs and teams
 
 **More → Clubs and teams** (or the team name in the header) creates clubs and teams, and switches, archives and restores teams.
+
+**New team** always starts as a fresh team. It doesn't copy the currently selected team's club, competitions/dates, training venue/times, rules, by-laws, coach contacts, staff, players, jersey history, passwords or shared library items. Choose the club and team sport explicitly; the club sport is only a default. Built-in starter tactics are supplied by the app and are not another team's material.
+
+To deliberately reuse an existing setup **in the same coach workspace**, choose **Use existing setup**, then select the specific source team. Reuse is allowed only within the same club and effective sport; it copies training time, venue, field/rules/by-laws and optional team position customisation. It never copies players, staff, private contacts, passwords, fixtures, season results or jersey history. Shared tactics-library items are a separate unchecked opt-in. A different club/sport requires a fresh setup.
+
+**Access boundary:** the current application has one encrypted coach workspace, not separate individual coach accounts/permissions within one club. The source chooser lists teams already in that workspace; it cannot by itself enforce "my team versus another coach's team" ownership. Do not share a coach workspace with people who must not access each other's team settings or player records.
 - Every club, the team's own included, is listed and opened here (players get their own club under More).
 - A club can have a **logo**: choose an image in the club form and it's shrunk to a small badge, kept with the club (encrypted like everything else) and shown on Home, the club pages and the players' view. Without one, the badge shows the club's initials.
 - A **club** holds what its teams share: contacts, website and social pages, home ground, nights played, colours, registration and code-of-conduct links, and its officials (coaches only).
