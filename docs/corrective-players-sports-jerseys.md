@@ -1,6 +1,6 @@
 # Players, Sports & Jerseys — Corrective Candidate / Multi-LLM Handoff
 
-**Status:** Candidate branch only. NOT merged, deployed, or accepted.
+**Status update (18 October 2026):** PR #9 **was merged** into `main` at `1f9f7e7`, although its post-merge Chromium CI had a publishing regression. PR #8 remains **unmerged with conflicts**. The corrective/stabilisation follow-up is **draft PR #10**, not yet merged. See [merge reconciliation](merge-reconciliation-20261018.md). Historical notes below describe the PR9 development candidate and should not be mistaken for current acceptance evidence.
 **Repository:** `pdomoney/team-manager`
 **Baseline main:** `f1822a84224195a485fc275c21b617ebc28a1fc8` (PR #7, Players and Sports)
 **Development branch:** `corrective/players-jerseys-sports-20261018`
@@ -59,7 +59,7 @@ Review of PR #7 confirmed that forms, sport lists, photographs, return-tracking 
 
 ## Verified CI evidence and parallel development
 
-- PR: **[#9](https://github.com/pdomoney/team-manager/pull/9)** (draft, not merged).
+- PR: **[#9](https://github.com/pdomoney/team-manager/pull/9)** (**merged**; the qualification results below predate the additional UI tests and the post-merge `main` regression). See **[#10](https://github.com/pdomoney/team-manager/pull/10)** for the pending publishing-stabilisation candidate.
 - Successful source regression at `d27bb67f72d3a563d6e19293b078482d2138e864`:
   - GitHub Actions unit tests: **97 passed, 0 failed, 0 skipped**.
   - GitHub Actions Playwright Chromium browser suites: **490 checks passed across 13 suites**. GitHub publishing was simulated; WhatsApp was stubbed.
