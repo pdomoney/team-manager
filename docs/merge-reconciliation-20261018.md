@@ -1,67 +1,52 @@
-# Merge reconciliation and qualification — 18 October 2026
+# Merge reconciliation — historical decisions and final status
 
-## Authoritative repository status
+> **Resolved 18 October 2026.** This is a historical design-decision and multi-LLM handoff record, **not** an open merge task. Use the latest `main` HEAD and the [release record](release-record.md) for current status.
 
-- Repository: `pdomoney/team-manager`
-- Previously accepted baseline: `f1822a84224195a485fc275c21b617ebc28a1fc8` (Players and Sports).
-- **PR #9 merged** to `main` in merge commit `1f9f7e7b1b835c4c43ccd9db425eb7016d82b2fb`.
-- **PR #8 open, not merged and GitHub reports merge conflicts**. Its head is `019d54314d65d30f0f8bbd63cb171e4dbaf37353` and it was developed in parallel against the pre-PR9 baseline.
-- **PR #10 is the replacement reconciliation/stabilisation candidate**, branched from `1f9f7e7` as `reconcile/pr8-on-merged-corrective-20261018`. It is a draft, must remain unmerged pending acceptance.
-- The branch HEAD may advance; verify commit and status from GitHub Actions before claiming final qualification.
+## Final authoritative outcome
 
-## Why PR #8 cannot safely be merged wholesale
+| Pull request | Final status | Outcome |
+| --- | --- | --- |
+| [#8](https://github.com/pdomoney/team-manager/pull/8) | **Closed, not merged** | Parallel, incompatible alternative superseded; no PR8 merge conflict needs resolving |
+| [#9](https://github.com/pdomoney/team-manager/pull/9) | **Merged** | Jersey corrections, season-specific reports, sport-aware positions, player-photo resilience |
+| [#10](https://github.com/pdomoney/team-manager/pull/10) | **Merged** | Fixed a queued manual-publish request that could be lost while publishing was in progress |
+| [#11](https://github.com/pdomoney/team-manager/pull/11) | **Merged** | Selectively incorporated PR8's unique test/qualification tools, legacy-position checks and storage recovery improvements |
 
-Both PR #8 and merged PR #9 edit:
-- `.github/workflows/test.yml`
-- `site/app.js`
-- `site/model.js`
-- `test/browser/players.py`
-- `test/players.test.js`
+**Accepted merged baseline:** [`main` at `960212fdb3c6`](https://github.com/pdomoney/team-manager/commit/960212fdb3c6bfcf73bbb3c2160aa21ac2ea07e6).
 
-These are **semantic conflicts**, not only overlapping text.
+**Exact merged-commit evidence:**
+- [GitHub Actions Tests](https://github.com/pdomoney/team-manager/actions/runs/39112283528): **103/103 unit**, **491/491 Chromium browser checks** across 13 suites (capacity deliberately omitted on a normal `main` push).
+- [GitHub Pages Publish](https://github.com/pdomoney/team-manager/actions/runs/39112283502): **success**, site still in **test mode** because no data branch was present.
+- [PR #11 qualification](https://github.com/pdomoney/team-manager/actions/runs/39108841423): **521/521 Chromium checks** across 14 suites, including **30/30 synthetic photo-capacity** checks. This full-capacity result is from PR qualification, not the merged `main` push.
 
-| Design concern | Merged PR #9 | Alternative PR #8 | Merge decision |
-| --- | --- | --- | --- |
-| Incorrect jersey issue correction | `player.jerseyCorrections` suppression keys | Preserved `jerseys[].void` entries | Keep PR9 representation; do not introduce two parallel deletion mechanisms without a dedicated migration. |
-| Jersey manual reissue | `issueJersey` clears matching correction, then issues a record | Manual jersey issue flag, intentionally permitting replacements | Reconcile desired semantics through explicit tests, not by overwriting one set of methods. |
-| Season and inventory reporting | `jerseyReport` + `jerseyInventory` | `seasonJerseys` + different `jerseyInventory` shape | Must choose one interface; copying PR8's UI without its model will break Reports. |
-| Sport customisation | `positionsFor`, `changedSportPositions`, `positionsCustom`, `syncSportPositions` | `positionsFor`, `setTeamPositions`, `applyPositions`, `syncPositions` | Keep one model and add missing tests through it. |
-| Browser qualification | Chromium 13-suite PR checks with no artifact | 14-suite runner, JSON evidence artifact and fuller capacity test | May selectively port independent tests/reporting after confirming compatibility. |
+## Why the original PR #8 was not merged
 
-PR #8 includes additional, potentially valuable standalone files `test/browser/capacity.py`, `test/browser/run_all.py`, `test/jerseys.test.js`, and `test/positions.test.js`, plus a `package.json` script. These are **not yet accepted against merged PR9's APIs**. Do not assume all PR8 test code can run unchanged.
+PR8 and PR9 independently changed `site/model.js`, `site/app.js`, `test/browser/players.py`, `test/players.test.js` and `.github/workflows/test.yml`. Some differences were **semantic**, not merely text conflicts.
 
-## Separate regression found on main
+| Concern | Accepted implementation | Excluded PR8 alternative |
+| --- | --- | --- |
+| Incorrect jersey issue | `player.jerseyCorrections` with explicit `issueJersey` reissue | `jerseys[].void` history |
+| Season vs current equipment tracking | `jerseyReport` + `jerseyInventory` | Differently-shaped `seasonJerseys` and `jerseyInventory` |
+| Sports and position provenance | `positionsFor`, `changedSportPositions`, `positionsCustom`, `syncSportPositions` | `setTeamPositions`, `applyPositions`, `syncPositions` |
+| Test qualification | Existing suites augmented with `test/browser/capacity.py`, `run_all.py`, regression tests and CI artifacts | Wholesale competing model and form changes |
 
-The post-PR9 `main` Tests workflow [run 39106093892](https://github.com/pdomoney/team-manager/actions/runs/39106093892) had green unit tests but failed two Chromium `live_publishing.py` assertions:
-- `shows the other device’s change`
-- `both changes kept`
+The unique compatible tests and recovery affordances were adapted and included in PR11, **without** introducing the competing PR8 model. No further merge of PR8 is necessary.
 
-PR #8's own earlier [workflow run 39102376606](https://github.com/pdomoney/team-manager/actions/runs/39102376606) also had **111/111 unit tests passing but 604/606 browser checks**, failing the same live-publishing suite. Consequently, merging PR8 would not prove that regression fixed.
+## Historical publishing regression and resolution
 
-### Likely root cause and fix in PR #10
+After PR9 merged, [the `main` test run 39106093892](https://github.com/pdomoney/team-manager/actions/runs/39106093892) failed two simulated two-device publishing checks: another device's change was not reflected, and both changes were not retained. The prior PR8 candidate also failed those checks.
 
-The browser workflow can request a second manual Publish while the first publish is still in flight. The existing code set `S.again = true` but finished by calling `schedulePublish()`, which does nothing with `gh.autoPublish === false`. Changes made during the first publication could therefore remain unpublished despite the second manual request.
+**Root cause addressed in PR10:** A manual Publish request received while a publish was in flight set `S.again`, but the completion handler only scheduled automatic publishing; when `gh.autoPublish === false`, the second request could be lost. PR10 explicitly triggers the queued publication after a successful prior publication, without blindly retrying conflicts or errors.
 
-PR #10 changes the `finally` handling: after an earlier publish completes successfully, a queued request with dirty changes triggers `publish(false)` even with automatic publishing disabled. Conflicts/errors are not blindly republished. The existing multi-device browser suite remains a release gate.
+The final merged baseline's **31/31 simulated live-publishing checks passed**. This is a test-harness result, **not** evidence of live authenticated GitHub data-branch operation.
 
-This is a focused publishing concurrency fix, **not** a force-push or a rebase of PR #8.
+## Outstanding acceptance, not merge conflicts
 
-## Validation and acceptance
+- Check photo upload, dropdown/date controls, encrypted backup/restore, quota exhaustion and recovery on **real iPhone Safari and macOS Safari**.
+- Test authenticated encrypted-data GitHub publishing and recovery in an authorised non-production workspace before relying on live player information.
+- The synthetic 30/60/100-player photo figures apply to the CI Chromium environment, not a guaranteed browser storage limit on iOS.
+- Existing legacy photos up to 80 KB may require significantly more storage than newly compressed avatars.
+- Do not misrepresent GitHub Pages deployment in **test mode** as production data acceptance.
 
-1. Run `npm test` on the exact PR10 head.
-2. Run all existing Chromium browser suites, particularly `live_publishing.py` and `players.py`, on the same head.
-3. Verify the GitHub Actions results linked to PR10, not green results from earlier commits.
-4. Test real iOS Safari / macOS Safari forms, photo selection, browser quota and backup/restore manually; Playwright Chromium is not Safari.
-5. Confirm encrypted player projections contain no coach-only photos, contact details, jersey histories, or corrections.
-6. Review PR8-specific capacity tests and evidence-reporting tools only after stabilisation; port them on top of current main APIs as a separate additive change.
-7. **Do not merge PR8 and PR10 together**. After PR10 acceptance/merge, decide whether PR8 should be closed as superseded. Do not force-update its head unless explicitly approved.
-8. Do not publish or deploy additional code before explicit owner acceptance.
+## Guidance for future development chats
 
-## Next-action guidance for another LLM development chat
-
-- **Avoid creating a third parallel corrective implementation.**
-- Inspect `main` and PR10 head first.
-- Work only from current `main` or explicitly from the accepted replacement branch.
-- Leave PR8 untouched unless asked to close it or to port specifically identified nonconflicting features.
-- Preserve both historic branches until the release review is accepted.
-- Record pass/fail/not-run separately for unit, browser, real-device, GitHub production publishing and storage capacity.
+Start from the **current** `main` HEAD, not the earlier PR8, PR9, PR10 or PR11 head branches. Read [README](../README.md), the [current release record](release-record.md), and the [PR11 qualification evidence](pr8-selective-qualification-20261018.md) before proposing new changes. Preserve the accepted jersey history, sport positions, encryption, team IDs and multi-season model. Use independent branches and incremental qualification; do not regenerate a corrective PR8 implementation.

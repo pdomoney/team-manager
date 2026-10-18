@@ -1,9 +1,9 @@
 # Selective PR #8 qualification — 18 October 2026
 
-**Status:** Draft release candidate, not merged or accepted.
-**Accepted source:** `main` at `7eb1976fdd5e2c0f81b044793383c772573adf94` (PR #10 merged).
-**Candidate branch:** `qualification/pr8-selective-photo-regression-20261018`.
-**Source comparison:** [PR #8](https://github.com/pdomoney/team-manager/pull/8) (unmerged, incompatible alternative); PR #9/#10 are already in `main`.
+**Current status (18 October 2026):** [PR #11](https://github.com/pdomoney/team-manager/pull/11) **merged** as commit [`960212fdb3c6`](https://github.com/pdomoney/team-manager/commit/960212fdb3c6bfcf73bbb3c2160aa21ac2ea07e6). [PR #8](https://github.com/pdomoney/team-manager/pull/8) **closed without merging**, superseded by PRs #9/#10/#11.
+**Development base:** `7eb1976fdd5e2c0f81b044793383c772573adf94` (accepted PR #10 merge).
+**Historical PR #11 branch:** `qualification/pr8-selective-photo-regression-20261018` (now merged into `main`).
+**Latest merged `main` checks:** [103/103 unit + 491/491 Chromium browser checks](https://github.com/pdomoney/team-manager/actions/runs/39112283528) and [Pages deploy success](https://github.com/pdomoney/team-manager/actions/runs/39112283502). The heavier capacity qualification was run on PR #11 and is not repeated on ordinary `main` pushes.
 
 ## Selected content and boundaries
 
@@ -43,10 +43,10 @@ npm run test:browser
 3. Confirm independent, non-destructive historical season and roster behaviour.
 4. **Manual:** real iOS Safari and macOS Safari, photo chooser, select/date controls, 30/60/100 realistic photos on target devices, quota and backup restoration.
 5. **Manual:** real GitHub data-branch publishing and recovery in an explicitly authorised test workspace.
-6. Confirm PR #8 remains unchanged; it must not be merged wholesale. Close it as superseded **only after explicit owner approval**.
-7. **No merge, branch deletion or deployment** under this qualification task.
+6. [PR #8](https://github.com/pdomoney/team-manager/pull/8) was **closed without merging**; do not reopen or apply its competing implementation.
+7. PR #11 is already merged, but **manual operational qualification is still required** before handling real player information. Any further code or production-data changes require their own approval.
 
-## Verified automated test evidence — candidate (not merged)
+## Verified qualification evidence — merged PR #11
 
 - **Tested source commit:** `8b7b00d20537e8219f1421fd5bca8dceea856d47`.
 - **Actions run:** [39108441274](https://github.com/pdomoney/team-manager/actions/runs/39108441274).
@@ -64,7 +64,7 @@ npm run test:browser
 
 Source synthetic JPEGs ranged from 538,602 to 541,141 bytes, and after browser processing averaged about 8,541 **encoded characters** per new avatar. The 100-photo encrypted backup contained 1,255,515 characters. Photos did **not** appear in published team-player copies. After deliberate quota exhaustion, the last successful draft remained intact, the UI said the latest change was **not saved locally**, the **Export backup** action worked, and saving recovered once space was freed.
 
-**Important:** The reported head is the tested source commit. A later *documentation-only* commit will naturally trigger new pull-request checks; verify the latest PR head passes before merging. The recorded run remains valid evidence for the exact code tested.
+**Provenance:** The 521/521 count belongs to the full-capacity PR #11 qualification on its tested source commit. After merge, the actual `main` commit `960212fdb3c6` passed **103/103 unit tests and 491/491 standard browser checks**; normal main-branch runs deliberately skip the capacity suite. Do not present 521 as the main-push browser count or the Chromium quota as an iPhone storage guarantee.
 
 **Capacity projection only (not a verified real-device limit):** Under that Chromium runner quota, retaining both encrypted draft and conflict base is estimated to fit approximately 219 photos at the measured average size, but only **23 photos** at the legacy 80,000-character photo maximum. The estimates are not guarantees: browsers and iOS devices have different quotas.
 
