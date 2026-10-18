@@ -98,10 +98,14 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 
 ### Players, sports and jerseys
 
+> **Corrective candidate (not merged):** The `corrective/players-jerseys-sports-20261018` branch addresses inherited sport defaults, mistaken jersey issues, cross-season jersey reports, storage warnings and Home competition activation guidance. **Full developer handoff and acceptance checklist:** [docs/corrective-players-sports-jerseys.md](docs/corrective-players-sports-jerseys.md). Changes on this branch are not live until explicitly reviewed and merged.
+
+
 - **Sport**: a team plays its club's sport unless it's set in Settings › Team (Oztag, touch, league tag, rugby league and union, sevens, tag rugby, AFL, netball, football, basketball, hockey, cricket). The sport sets the positions players can pick (the team can keep its own list) and the automatic rule set; the app has official rules for Oztag, rugby league and league tag only.
-- **Photos**: add a photo in the player form to put names to faces. Photos are shrunk to a small image and stay in the coach's copy; players never see them.
-- **Jerseys**: giving a player a number records their jersey as given out. If jerseys are lent (Settings › Team), mark each one returned on the player or in Reports › Jerseys, which lists who has one, who's handed it back and anyone who left still holding one, with a WhatsApp reminder.
-- **Competition day**: when a competition is active, Home shows it: where it's up to (day or week), our results, today's matches, the next match and the last result.
+- **Photos**: add a photo in the player form to put names to faces. Photos stay in the encrypted coach copy and never reach players. New uploads target a compact 180 px, 12 KB avatar; previously stored photos up to the old 80 KB limit remain readable. Phone storage is finite: keep encrypted backups and heed storage warnings.
+- **Jerseys**: assigning a number normally records that jersey as given out. Lent jerseys can be marked **Returned** or **Undo**. An issue removed **as a recording mistake** is deliberately suppressed across saves; to issue that same number again, choose **Issue jersey again** on the player. **Reports › Jerseys** distinguishes issues/returns in the selected season from currently outstanding jerseys across all seasons (including former players).
+- **Positions**: new-player options follow the effective sport (team sport, otherwise club sport). Recognised legacy default lists follow the selected sport; genuinely custom lists are preserved. The coach may reset the list in Settings › Team.
+- **Competition day**: when a competition is active **and an active-season team is entered**, Home shows its progress (day or week), results, today's matches, the next match and the last result. Enter the team first if an active competition does not appear on Home.
 
 ### Seasons
 
@@ -155,7 +159,7 @@ npm run build && npm run serve    # build into ./dist and serve on http://localh
 
 To build with real data, check out the data branch first: `git worktree add data data`.
 
-Browser checks (optional, need Python with Playwright and Chromium) walk through the app at phone and desktop sizes, with GitHub simulated and WhatsApp stubbed, so nothing goes online:
+Browser checks (Python with Playwright and Chromium) walk through the app at phone and desktop sizes, with GitHub simulated and WhatsApp stubbed, so nothing goes online. **The corrective branch additionally requires these Chromium suites in pull-request CI** (Safari/iOS and production publishing remain manual acceptance checks):
 
 ```sh
 for t in test/browser/{m0_stability,m2_participation,m3_teams_library,m4_matches,m5_reports,regress,live_publishing,clubs,rules,home,seasons,competitions,players}.py; do python3 "$t"; done
