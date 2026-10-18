@@ -30,7 +30,8 @@ with sync_playwright() as p:
     pg.evaluate(act, ['teams', {}]); pg.wait_for_timeout(100)
     pg.click('text=New team'); pg.fill('#sheet input[name=name]', 'DragonTag Under 16s'); pg.click('#sheet button[type=submit]'); pg.wait_for_timeout(200)
     c.ok(W('D.team.name') == 'DragonTag Under 16s' and W('D.players.length') == 0, 'new team on screen and empty')
-    c.ok(W('D.team.trainingStart') == W('W.team.trainingStart'), 'settings copied from the first team')
+    c.ok(W('D.team.trainingStart') == '' and W('D.team.event') == '' and W('D.team.venue') == '',
+         'fresh team does not copy first-team training defaults, tournament or venue')
     c.ok(pg.is_visible('.team-btn'), 'team switcher appears with two teams')
     u16 = W('D.id')
     pg.evaluate(act, ['add-player', {}]); pg.fill('#sheet input[name=name]', 'Ava Young'); pg.check('#sheet input[value=F]'); pg.click('#sheet button[value=save]'); pg.wait_for_timeout(100)
