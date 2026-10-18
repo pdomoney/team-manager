@@ -443,11 +443,11 @@ function persistDraft() {
       if (!S.storageWarned) { S.storageWarned = true; toast('Storage getting full. The conflict-comparison copy was dropped; export a backup.'); }
       return;
     }
-    S.storageFull = true; renderStatus();
-    if (!S.storageWarned) { S.storageWarned = true; toast('Not saved on this phone: storage is full. Export an encrypted backup now.'); }
+    const wasFull = S.storageFull; S.storageFull = true; renderStatus();
+    if (!wasFull) toast('Not saved on this phone: storage is full. Export an encrypted backup now.');
   }).catch(() => {
-    S.storageFull = true; renderStatus();
-    if (!S.storageWarned) { S.storageWarned = true; toast('Not saved on this phone: encrypted draft storage failed. Export an encrypted backup now.'); }
+    const wasFull = S.storageFull; S.storageFull = true; renderStatus();
+    if (!wasFull) toast('Not saved on this phone: encrypted draft storage failed. Export an encrypted backup now.');
   });
 }
 
