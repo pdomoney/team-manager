@@ -122,7 +122,7 @@ const CLUB_PUBLIC = ['id', 'name', 'shortName', 'sport', 'governingBody', 'found
 // club, if it has one.
 export function teamView(d, club = null) {
   return {
-    team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field', 'tasksContact', 'clubId', 'division', 'category', 'ageGroup', 'season', 'colours']),
+    team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field', 'tasksContact', 'clubId', 'division', 'category', 'ageGroup', 'season', 'colours', 'rules', 'bylaws']),
     club: club && typeof club === 'object' ? pick(club, CLUB_PUBLIC) : null,
     // Team staff: who they are; their phone numbers and email addresses stay with the coach.
     staff: ((d.team && d.team.staff) || []).filter(x => x && x.name).map(x => pick(x, ['role', 'name'])),
@@ -133,7 +133,7 @@ export function teamView(d, club = null) {
       slots: (l.slots || []).map(s => pick(s, ['id', 'label', 'name', 'group', 'x', 'y', 'playerId']))
     })),
     notices: (d.notices || []).slice(0, 30).map(n => pick(n, ['id', 'at', 'text'])),
-    plays: (d.plays || []).map(p => pick(p, ['id', 'name', 'category', 'headline', 'when', 'steps', 'side', 'builtin', 'rev', 'edited', 'players', 'defence', 'moves', 'focus', 'ghost', 'view', 'tags', 'notes', 'labels', 'title', 'phases', 'set', 'who'])),
+    plays: (d.plays || []).map(p => pick(p, ['id', 'name', 'category', 'headline', 'when', 'steps', 'side', 'builtin', 'rev', 'edited', 'players', 'defence', 'moves', 'focus', 'ghost', 'view', 'tags', 'notes', 'labels', 'title', 'phases', 'set', 'who', 'rules'])),
     playerSets: (d.playerSets || []).map(x => pick(x, ['id', 'name', 'labels', 'slots'])),
     // Volunteer tasks without names: each spot is only taken or done (open spots are left to the app),
     // and a lift only says how many cars, seats and riders. Helpers never leave the coach's file.

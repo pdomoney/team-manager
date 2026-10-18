@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isWatchFile, WATCH_FILE } from './rules-watch.js';
 
 export const DATA_FILES = ['team.enc.json', 'coach.enc.json'];
 // The first team's players' file is team.enc.json; each other team's is team-<team id>.enc.json.
@@ -30,10 +31,10 @@ export function stampVersion(outDir, version) {
   edit('index.html', t => t
     .replace(/(src|href)="(app\.js|styles\.css|favicon\.svg)"/g, `$1="$2?v=${version}"`)
     .replace('<meta charset="utf-8">', `<meta charset="utf-8">\n  <meta name="app-version" content="${version}">`));
-  edit('app.js', t => t.replace(/from '\.\/(vault|github|model)\.js'/g, `from './$1.js?v=${version}'`));
+  for (const f of ['app.js', 'model.js']) edit(f, t => t.replace(/from '\.\/(vault|github|model|rules)\.js'/g, `from './$1.js?v=${version}'`));
 }
 
-export function build({ dataDir = 'data', outDir = 'dist', siteDir = 'site', log = console.log, version = (process.env.GITHUB_SHA || '').slice(0, 7) || Date.now().toString(36) } = {}) {
+export function build({ dataDir = 'data', outDir = 'dist', siteDir = 'site', watchDir = 'rules-watch', log = console.log, version = (process.env.GITHUB_SHA || '').slice(0, 7) || Date.now().toString(36) } = {}) {
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.cpSync(siteDir, outDir, { recursive: true });
   stampVersion(outDir, version);
@@ -48,6 +49,14 @@ export function build({ dataDir = 'data', outDir = 'dist', siteDir = 'site', log
     fs.writeFileSync(path.join(outDir, 'data', name), text);
     published.push(name);
   }
+  // The Rules watch results (public rule-book fingerprints, from the rules-watch branch). Only a file
+  // in exactly the expected shape is published; anything else is left out.
+  const watch = path.join(watchDir, WATCH_FILE);
+  if (fs.existsSync(watch)) {
+    const text = fs.readFileSync(watch, 'utf8');
+    if (isWatchFile(text)) { fs.writeFileSync(path.join(outDir, 'data', WATCH_FILE), text); log(`Published ${WATCH_FILE}.`); }
+    else log(`::warning::${WATCH_FILE} is not in the expected shape, so it was left out.`);
+  }
   fs.writeFileSync(path.join(outDir, 'data', 'manifest.json'), JSON.stringify({ version, builtAt: new Date().toISOString(), files: published }, null, 2) + '\n');
   fs.writeFileSync(path.join(outDir, '.nojekyll'), '');
   log(published.length ? `Published ${published.join(', ')}.` : 'No team data yet. The site opens in test mode.');
@@ -56,7 +65,7 @@ export function build({ dataDir = 'data', outDir = 'dist', siteDir = 'site', log
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   try {
-    build({ dataDir: process.env.DATA_DIR || 'data', outDir: process.env.OUT_DIR || 'dist', siteDir: process.env.SITE_DIR || 'site' });
+    build({ dataDir: process.env.DATA_DIR || 'data', outDir: process.env.OUT_DIR || 'dist', siteDir: process.env.SITE_DIR || 'site', watchDir: process.env.WATCH_DIR || 'rules-watch' });
   } catch (e) {
     console.error(`::error::${e.message}`);
     process.exit(1);

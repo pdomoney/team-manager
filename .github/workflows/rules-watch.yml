@@ -1,0 +1,73 @@
+name: Rules watch
+
+# Once a week, fingerprints each official rule book listed in site/rules.js and saves the results on
+# the rules-watch branch (kept apart from the data branch, so it never clashes with the coach's
+# publishing). When a rule book has changed, it opens an issue for the owner and republishes the site
+# so coaches see the notice. The rule sets themselves only change through a pull request the owner
+# approves. The app's "Check the rule books now" button starts it too.
+
+on:
+  schedule:
+    - cron: '23 20 * * 0'   # Sundays 20:23 UTC: Monday morning in Sydney
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: rules-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Get the last results
+        run: |
+          if git ls-remote --exit-code --heads origin rules-watch >/dev/null 2>&1; then
+            git fetch --quiet --depth 1 origin rules-watch
+            git show FETCH_HEAD:rules-watch.json > "$RUNNER_TEMP/prev.json" || true
+          fi
+
+      - name: Check the rule books
+        id: check
+        run: node src/rules-watch.js "$RUNNER_TEMP/prev.json" "$RUNNER_TEMP/rules-watch.json"
+
+      - name: Save the results on the rules-watch branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p "$RUNNER_TEMP/watch" && cd "$RUNNER_TEMP/watch"
+          git init --quiet -b rules-watch
+          cp "$RUNNER_TEMP/rules-watch.json" rules-watch.json
+          git add rules-watch.json
+          git commit --quiet -m "Rules watch: $(date -u +%Y-%m-%d)"
+          git push --quiet --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" rules-watch
+
+      - name: Tell the owner
+        if: steps.check.outputs.changed != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGED: ${{ steps.check.outputs.changed }}
+        run: |
+          body="The Rules watch found a change in: ${CHANGED}.
+
+          Compare the new rule book with site/rules.js. If the rules changed, update the rule set in a pull request: raise \`pack\` by one, add a \`changes\` entry naming the rule ids, and set each source's \`checked\` date. Coaches only get the update once you approve and merge it.
+
+          Results: https://github.com/${GITHUB_REPOSITORY}/blob/rules-watch/rules-watch.json"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "Rule book changed: ${CHANGED}" --body "$body"
+
+      - name: Republish the site with the results
+        if: steps.check.outputs.changed != '' || steps.check.outputs.first == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run publish.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.event.repository.default_branch }}"

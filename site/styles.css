@@ -727,3 +727,31 @@ body.wide .ped-diagram > .ped-panel{grid-area:panel;margin-top:4px}
 body.wide .ped-meta .field-l{margin-bottom:8px}
 body.wide .ped-card .pf{max-width:none;max-height:max(320px,calc(96vh - 420px))}
 body.wide .ped > .two{grid-template-columns:2fr 1fr}
+
+/* Rules */
+.bell{position:relative}
+.bell .badge{position:absolute;top:6px;right:5px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--tag);color:#fff;font:700 11px/18px var(--font-b);text-align:center}
+.bell .badge:empty{display:none}
+.rules-head{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+.rules-head h3{font-size:24px;margin:2px 0 6px}
+.rules-head .sub{display:block;white-space:normal}
+.rules-new .btn-row{margin-top:8px}
+.rule-values{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:0}
+.rule-values>div{padding:10px 12px;box-shadow:-1px -1px 0 var(--line)}
+.rule-values dt{font-size:13px;color:var(--muted)}
+.rule-values dd{margin:2px 0 0;font-weight:600}
+.rule-list{list-style:none;margin:0;padding:0;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.rule-list li{padding:10px 14px;border-top:1px solid var(--line)}
+.rule-list li:first-child{border-top:0}
+.rule-list li p{margin:0 0 4px}
+.rule-list.bylaws li{display:grid;grid-template-columns:1fr auto;column-gap:10px;align-items:center}
+.rule-list.bylaws li p,.rule-list.bylaws li .ref{grid-column:1}
+.rule-list.bylaws li .btn{grid-column:2;grid-row:1/span 2}
+.rule-list li.replaced p{color:var(--muted);text-decoration:line-through;text-decoration-color:rgba(91,104,97,.5)}
+.ref{font-size:13px;color:var(--muted)}
+.rule-pick{margin:4px 0 14px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--paper)}
+.rule-pick summary{font-weight:600;cursor:pointer;min-height:32px;display:flex;align-items:center}
+.rule-pick fieldset{border:0;padding:0;margin:10px 0 0}
+.rule-pick legend{font-weight:700;font-size:14px;margin-bottom:6px}
+.rule-pick .check{align-items:flex-start;font-weight:400;margin-bottom:8px}
+.rule-pick .check input{margin-top:3px}

@@ -5,7 +5,7 @@ from harness import build, WORK
 
 class GitHubMock:
     def __init__(self):
-        self.commits = {}; self.trees = {}; self.head = None; self.fail_next = []; self.dispatches = 0; self.log = []
+        self.commits = {}; self.trees = {}; self.head = None; self.fail_next = []; self.dispatches = 0; self.log = []; self.workflows = []
     def sha(self, obj):
         return hashlib.sha1(json.dumps(obj, sort_keys=True).encode() + os.urandom(4)).hexdigest()
     def files(self, sha=None):
@@ -51,5 +51,5 @@ class GitHubMock:
             if self.head: return J({'message': 'Reference already exists'}, 422)
             self.head = body['sha']; return J({'object': {'sha': self.head}}, 201)
         if m == 'POST' and path.startswith('/actions/workflows/'):
-            self.dispatches += 1; self.deploy(); return route.fulfill(status=204, body='')
+            self.dispatches += 1; self.workflows.append(path.split('/')[3]); self.deploy(); return route.fulfill(status=204, body='')
         return J({'message': f'mock: unhandled {m} {path}'}, 500)

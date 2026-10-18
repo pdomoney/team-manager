@@ -1,8 +1,9 @@
 name: Publish
 
-# Builds the site from site/ plus the encrypted files on the data branch and deploys it to
-# GitHub Pages. Runs when the app code changes, and when the coach's app starts it after saving
-# new team data (the data branch has no workflows of its own, so pushes there don't trigger runs).
+# Builds the site from site/ plus the encrypted files on the data branch (and the Rules watch
+# results from the rules-watch branch) and deploys it to GitHub Pages. Runs when the app code
+# changes, when the coach's app starts it after saving new team data (the data branch has no
+# workflows of its own, so pushes there don't trigger runs), and after a Rules watch finds a change.
 
 on:
   push:
@@ -44,9 +45,18 @@ jobs:
             mkdir data
           fi
 
+      - name: Get the Rules watch results
+        run: |
+          mkdir -p rules-watch
+          if git ls-remote --exit-code --heads origin rules-watch >/dev/null 2>&1; then
+            git fetch --quiet --depth 1 origin rules-watch
+            git show FETCH_HEAD:rules-watch.json > rules-watch/rules-watch.json || rm -f rules-watch/rules-watch.json
+          fi
+
       - name: Build the site
         env:
           DATA_DIR: data
+          WATCH_DIR: rules-watch
           OUT_DIR: dist
         run: node src/build.js
 

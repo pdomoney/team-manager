@@ -108,5 +108,9 @@ with sync_playwright() as p:
     d1.click('#sheet [data-act=import-do][data-m=all]'); d1.wait_for_timeout(300)
     c.ok(W(d1, "W.players.length") == 16 and W(d1, 'M.teamsOf(W).length') == 2, 'encrypted backup restored every team')
     c.ok(W(d1, 'W.teamPass') == 'team password one', 'team passwords kept on restore')
+    # Rules: the coach can start the rule book check from the Rules page
+    d1.evaluate(act, ['tab', {'tab': 'rules'}]); d1.wait_for_selector('[data-act=rules-check]')
+    d1.click('[data-act=rules-check]'); d1.wait_for_timeout(500)
+    c.ok(gh.workflows[-1:] == ['rules-watch.yml'] and 'Checking the rule books' in d1.inner_text('#toast'), 'Check the rule books now starts the Rules watch')
     ok = c.done(errs); b.close()
 srv.shutdown(); sys.exit(0 if ok else 1)
