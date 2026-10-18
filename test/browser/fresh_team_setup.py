@@ -103,7 +103,7 @@ with sync_playwright() as p:
     pg.select_option('#sheet select[name=teamSport]', 'League tag')
     pg.click('#sheet form[data-form=team-new] button[type=submit]')
     pg.wait_for_timeout(150)
-    c.ok(W("D.team.name") == 'Titans Under 14 Girls' and W("D.team.clubId") == '" + club + "',
+    c.ok(W("D.team.name") == 'Titans Under 14 Girls' and W("D.team.clubId") == club,
          'new squad created in same club as other existing squads')
     c.ok(W("D.team.trainingVenue") == '' and W("D.team.trainingStart") == '' and W("D.team.venue") == '',
          'same-club fresh team does not inherit another team venue or training times')
