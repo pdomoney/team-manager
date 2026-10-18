@@ -24,6 +24,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(300)
     c.ok(W('W.schema') == 4 and W('D.id') == 'team1' and W('D.seasons.map(s => s.name).join()') == '2026', 'old copy upgraded: same team, first season named from its records')
     c.ok(W('!!localStorage.getItem("tm-before-seasons")'), 'a copy from before seasons is kept')
+    c.ok(W('W.competitions.length') == 1 and W("D.matches[0].entryId") != '', 'its tournament became a competition, with the marked match in it')
     pg.evaluate(act, ['season-open', {}]); pg.wait_for_selector('#sheet [data-act=season-edit]')
     pg.click('#sheet [data-act=season-edit]'); pg.fill('#sheet input[name=name]', 'Winter 2026'); pg.fill('#sheet input[name=label]', 'Winter')
     pg.click('#sheet form[data-form=season] button[type=submit]'); pg.wait_for_timeout(150)

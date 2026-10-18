@@ -68,7 +68,7 @@ const NAV = [
   { id: 'tactics', label: 'Tactics', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14M5 5.5h14M5 18.5h14"/>',
     views: [['field', 'Lineup'], ['plays', 'Plays'], ['rules', 'Rules'], ['library', 'Library', true]] },
   { id: 'more', label: 'More', icon: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
-    views: [['more', 'More'], ['club', 'Club'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['teams', 'Clubs and teams', true], ['notices', 'Notices']] }
+    views: [['more', 'More'], ['club', 'Club'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['teams', 'Clubs and teams', true], ['comps', 'Competitions', true], ['notices', 'Notices']] }
 ];
 const VIEW_IDS = NAV.flatMap(g => g.views.map(v => v[0]));
 
@@ -253,7 +253,7 @@ async function loadWs(raw, lock) {
     const at = new Date().toISOString();
     store.set(KEYS.backup, JSON.stringify(lock ? { at, file: await seal(raw, lock, 'coach') } : { at, data: raw }));
   }
-  // The copy as it was before seasons (schema 4), kept once, so it can be downloaded again.
+  // The copy as it was before seasons and competitions (schema 4), kept once, so it can be downloaded again.
   if (raw && typeof raw === 'object' && (Number(raw.schema) || 0) < 4 && (Array.isArray(raw.players) || raw.team) && !store.get(KEYS.seasonsBackup)) {
     const at = new Date().toISOString();
     store.set(KEYS.seasonsBackup, JSON.stringify(lock ? { at, file: await seal(raw, lock, 'coach') } : { at, data: raw }));
@@ -283,7 +283,7 @@ const viewSeasonId = () => { const want = state.viewSeason[data.id]; return M.fi
 const correcting = () => !!(state.correcting && data && state.correcting.team === data.id && V && V.viewSeason && V.viewSeason.id === state.correcting.season);
 const readOnlyView = () => S.role === 'coach' && !state.preview && !!V && !!V.readOnly && !correcting();
 const editingSeasonId = () => state.correcting && data && state.correcting.team === data.id ? state.correcting.season : '';
-const playersCopy = t => teamView(M.activeLens(t), M.clubOf(ws, t));
+const playersCopy = t => teamView(M.activeLens(t), M.clubOf(ws, t), M.compsForPlayers(ws, t));
 const curView = () => S.role === 'coach' ? (state.preview ? normalizeTeam(playersCopy(data)) : M.seasonLens(data, viewSeasonId())) : teamData;
 // The club of the team on screen: from the workspace for the coach, from the players' copy otherwise.
 const curClub = () => S.role === 'coach' && !state.preview ? M.clubOf(ws, data) : (V && V.club) || null;
@@ -442,6 +442,7 @@ function persistDraft() {
 // Every change: keep it (encrypted) on this phone, then publish shortly after.
 function save() {
   M.claimRecords(data, editingSeasonId());   // new records join the season being worked on
+  M.syncEvents(ws);
   data.updatedAt = ws.updatedAt = new Date().toISOString();
   if (S.trial) { if (!store.set(KEYS.trial, JSON.stringify(ws))) S.storageFull = true; renderStatus(); return; }
   S.dirty = true;
@@ -506,7 +507,7 @@ async function publish(auto = false, force = false) {
     for (const t of M.teamsOf(snapshot)) {
       const name = M.teamFile(snapshot, t);
       if (t.archived) { files[name] = null; continue; }   // an archived team's file comes off the site
-      files[name] = JSON.stringify(await seal(teamView(M.activeLens(t), M.clubOf(snapshot, t)), await teamLockFor(t), 'team'), null, 1);
+      files[name] = JSON.stringify(await seal(teamView(M.activeLens(t), M.clubOf(snapshot, t), M.compsForPlayers(snapshot, t)), await teamLockFor(t), 'team'), null, 1);
       const live = M.findTeam(ws, t.id); if (live) live.teamSalt = t.teamSalt;
     }
     files['coach.enc.json'] = JSON.stringify(await seal(snapshot, S.coachLock, 'coach'), null, 1);
@@ -604,7 +605,7 @@ const VIEWS = {
   home: () => viewHome(), agenda: () => viewAgenda(), training: () => viewSchedule(), matches: () => viewMatches(), attendance: () => viewAttendance(),
   squad: () => viewSquad(), tasks: () => viewTaskList(), helpers: () => viewHelpers(), tally: () => viewHelped(),
   field: () => viewField(), plays: () => viewPlays(), rules: () => viewRules(), library: () => viewLibrary(),
-  more: () => viewMore(), club: () => viewClub(), messages: () => viewMessages(), reports: () => viewReports(), teams: () => viewTeams(), notices: () => viewNotices()
+  more: () => viewMore(), club: () => viewClub(), messages: () => viewMessages(), reports: () => viewReports(), teams: () => viewTeams(), comps: () => viewComps(), notices: () => viewNotices()
 };
 const navOf = tab => NAV.find(g => g.views.some(v => v[0] === tab)) || NAV[0];
 const viewsOf = g => g.views.filter(v => !v[2] || isCoach());
@@ -616,6 +617,7 @@ function subNav(g) {
 }
 function goTo(tab, focus = true) {
   if (tab === 'plays') state.playId = null;
+  if (tab === 'comps') state.compId = null;
   state.tab = tab; history.replaceState(null, '', '#' + tab);
   closeSheet(); render(); window.scrollTo(0, 0);
   if (focus) { const v = $('#view'); try { v.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
@@ -767,10 +769,10 @@ function homeSpotlight(hv) {
   return `<section class="focus lvl-${x.level}" aria-labelledby="spot-h">
     <p class="spot-k"><span class="lvl-pill">${HOME_LEVEL[x.level]}</span>${hv.multi ? `<span>${esc(who)}</span>` : ''}</p>
     <h2 id="spot-h">${esc(x.label)}</h2>
-    <p class="spot-what">${[x.kind === 'session' ? '' : `<b>${esc(x.title)}</b>`, x.round ? esc(x.round) : '', x.date ? esc(homeWhen(x)) : '', x.place ? esc(x.place) : ''].filter(Boolean).join(' · ')}</p>
+    <p class="spot-what">${[x.kind === 'session' ? '' : `<b>${esc(x.title)}</b>`, x.comp ? esc(x.comp) : '', x.round ? esc(x.round) : '', x.date ? esc(homeWhen(x)) : '', x.place ? esc(x.place) : ''].filter(Boolean).join(' · ')}</p>
     <p class="spot-why">${esc(homeWhy(x))}</p>
     ${x.issues.length ? `<ul class="spot-issues">${x.issues.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}
-    <div class="btn-row"><button class="btn primary" ${goAttrs(x, x.act, x.id)}>${HOME_OPEN[x.kind]}${x.teamId !== data.id ? `<span class="sr-only"> for ${esc(x.team)}</span>` : ''}</button>${share}</div>
+    <div class="btn-row"><button class="btn primary" ${goAttrs(x, x.act, x.id)}>${HOME_OPEN[x.kind]}${x.teamId !== data.id ? `<span class="sr-only"> for ${esc(x.team)}</span>` : ''}</button>${share}${x.compId && x.act !== 'comp-open' ? `<button class="btn sm on-dark" ${goAttrs(x, 'comp-open', x.compId)}>${esc(x.comp)}</button>` : ''}</div>
   </section>`;
 }
 function homeUpcoming(hv) {
@@ -779,7 +781,7 @@ function homeUpcoming(hv) {
   const dup = n => named.get(n) > 1;   // two teams with the same name: add the club
   const teamOf = x => hv.teams.length > 1 ? `${x.team}${dup(x.team) && x.club ? ` (${x.club})` : ''}` : '';
   const row = x => { const [k, cls] = HOME_KIND[x.kind] || ['', ''];
-    const meta = [teamOf(x), x.place].filter(Boolean).join(' · ');
+    const meta = [teamOf(x), x.comp, x.place].filter(Boolean).join(' · ');
     return `<li><button class="tl-row" ${goAttrs(x, x.act, x.id)}>
       <span class="tl-when"><b>${x.days === 0 ? 'Today' : x.days === 1 ? 'Tmrw' : esc(parseDate(x.date).toLocaleDateString('en-AU', { weekday: 'short' }) + ' ' + parseDate(x.date).getDate())}</b><span>${x.start ? esc(fmtTime(x.start)) : 'Time TBC'}</span></span>
       <span class="tl-main"><span class="tl-top"><span class="ag-kind ${cls}">${k}</span><span class="t">${esc(x.title)}</span></span>
@@ -3232,8 +3234,22 @@ function viewReports() {
         ${helpers.slice(0, 12).map(([w, L]) => `<tr><th scope="row">${esc(whoName(w))}</th><td>${L.done}</td><td>${L.accepted + L.invited}${L.invited ? ` <small class="muted">(${L.invited} invited)</small>` : ''}</td><td>${L.declined}</td></tr>`).join('')}</tbody></table>
         <p class="hint">${helpers.length > 12 ? `Top 12 of ${helpers.length}. ` : ''}${notHelped} ${notHelped === 1 ? 'person hasn’t' : 'people haven’t'} helped or been asked. Accepted spots on past tasks that were never marked done aren’t counted as done.</p>` : '<p class="muted small">Not recorded: nobody has been put on a task in this period.</p>'}
     </section>
+    ${compResults()}
     ${seasonCompare()}
     </div></div>`;
+}
+// Our results in each competition this season (no tables: only our own results are recorded).
+function compResults() {
+  if (!V.viewSeason) return '';
+  const list = M.teamEntries(ws, data.id, V.viewSeason.id);
+  if (!list.length) return '';
+  const today = todayISO(), loose = V.matches.filter(m => !m.entryId && !m.friendly).length, friendly = V.matches.filter(m => m.friendly);
+  return `<section class="sec"><div class="sec-h"><h2>Competitions</h2><button class="btn sm" data-act="tab" data-tab="comps">Competitions</button></div>
+    <div class="table-wrap"><table class="rtable"><thead><tr><th scope="col">Competition</th><th scope="col">Fixtures</th><th scope="col">Results</th><th scope="col">For–against</th></tr></thead><tbody>
+    ${list.map(({ comp, entry }) => { const ms = V.matches.filter(m => m.entryId === entry.id), r = M.teamRecord(ms, today);
+      return `<tr><th scope="row">${esc(comp.name)}${entry.division ? `<small class="muted" style="display:block">${esc(entry.division)}</small>` : ''}</th><td>${ms.length}</td><td>${r.withResult ? `W${r.won} D${r.drawn} L${r.lost}` : NR}</td><td>${r.scoredGames ? `${r.scored}–${r.conceded}` : NR}</td></tr>`; }).join('')}
+    ${friendly.length ? `<tr><th scope="row">Friendlies</th><td>${friendly.length}</td><td>${(r => r.withResult ? `W${r.won} D${r.drawn} L${r.lost}` : NR)(M.teamRecord(friendly, today))}</td><td></td></tr>` : ''}</tbody></table></div>
+    <p class="hint">${esc(V.viewSeason.name)}, whole season, from our own entered results. No ladder is worked out: other teams’ results aren’t recorded.${loose ? ` ${loose} match${loose === 1 ? ' isn’t' : 'es aren’t'} linked to a competition.` : ''}</p></section>`;
 }
 // Every season of the team side by side, each from what was recorded in it.
 function seasonCompare() {
@@ -3281,6 +3297,7 @@ function matchPills(m) {
 function matchRow(m) {
   const info = `<span class="t" style="display:block">vs ${esc(m.opponent || 'TBC')}${m.start ? ` <span class="muted">· ${esc(fmtTime(m.start))}</span>` : ''}</span>
     <span class="sub" style="display:block">${esc([matchWhere(m), m.round].filter(Boolean).join(' · ') || 'Venue TBC')}</span>
+    ${matchCompLabel(m) ? `<span class="comp-tag">${esc(matchCompLabel(m))}</span>` : ''}
     ${m.notes && !isCoach() ? `<span class="sub" style="display:block;white-space:normal">${esc(m.notes)}</span>` : ''}
     <span class="ag-meta">${matchPills(m)}</span>`;
   const cls = `sess match ${m.status === 'cancelled' || m.status === 'postponed' ? 'cancelled' : ''} ${m.date === todayISO() ? 'today' : ''}`;
@@ -3298,7 +3315,9 @@ function viewMatches() {
       <div class="stat"><b>${rec.scoredGames ? `${rec.scored}–${rec.conceded}` : '–'}</b><span>Tries for–against</span></div></div>
       ${rec.awaiting && coach ? `<p class="hint">${rec.awaiting} match${rec.awaiting === 1 ? ' has' : 'es have'} no result entered yet, so ${rec.awaiting === 1 ? 'it isn’t' : 'they aren’t'} counted.</p>` : ''}` : '';
   if (!all.length) return head + `<div class="empty"><p>${coach ? 'No matches yet. Add trial games and the tournament draw here: opponent, time, venue and field.' : 'No matches yet.'}</p>${coach ? `<div class="btn-row" style="justify-content:center"><button class="btn primary" style="flex:0" data-act="match-new">${icon('plus')}Add match</button><button class="btn" style="flex:0" data-act="match-day-new">Tournament day</button></div>` : ''}</div>`;
+  const comps = !coach ? arr(V.competitions).filter(c => c.entryStatus !== 'withdrawn') : [];
   return head + record
+    + (comps.length ? `<p class="hint" style="margin:-4px 0 14px">Playing in ${comps.map(c => `<b>${esc(c.name)}</b>${c.division ? ` (${esc(c.division)})` : ''}${c.start ? `, ${esc(compDates(c))}` : ''}`).join('; ')}.</p>` : '')
     + (days.length ? `<section class="sec"><div class="sec-h"><h2>${esc(V.team.event || 'Tournament')}</h2>${coach ? `<button class="btn wa sm" data-act="t-share">${icon('chat', 18)}Send draw</button>` : ''}</div>
         ${days.map(d => `<h3 class="ag-date">${esc(fmtLong(d.date))}${coach ? ` <button class="link-btn inline" data-act="day-share" data-date="${d.date}">Send this day</button>` : ''}</h3><div class="list grid sess-grid">${d.matches.map(matchRow).join('')}</div>`).join('')}</section>` : '')
     + `<section class="sec"><div class="sec-h"><h2>${days.length ? 'Other matches' : 'Coming up'}</h2></div>${up.length ? `<div class="list grid sess-grid">${up.map(matchRow).join('')}</div>` : '<p class="muted small">Nothing else coming up.</p>'}</section>`
@@ -3322,7 +3341,8 @@ function matchForm(m) {
       <label class="field-l"><span>Round</span><input type="text" name="round" value="${esc(m.round || '')}" placeholder="e.g. Pool A, round 2"></label>
       ${isNew ? '' : `<label class="field-l"><span>Status</span><select name="status">${Object.entries(M.MATCH_STATUS).map(([k, l]) => `<option value="${k}" ${m.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`}
     </div>
-    <label class="check"><input type="checkbox" name="tournament" ${m.tournament || (T.eventStart && m.date >= T.eventStart && m.date <= (T.eventEnd || T.eventStart)) ? 'checked' : ''}><span>Part of ${esc(T.event || 'the tournament')}</span></label>
+    ${entrySelect(m)}
+    <label class="check"><input type="checkbox" name="tournament" ${m.tournament || (T.eventStart && m.date >= T.eventStart && m.date <= (T.eventEnd || T.eventStart)) ? 'checked' : ''}><span>Show in the ${esc(T.event || 'tournament')} draw</span></label>
     <label class="field-l"><span>Notes for players</span><input type="text" name="notes" value="${esc(m.notes || '')}" placeholder="e.g. Meet 45 minutes early, white tops"></label>
     <label class="field-l"><span>Coach notes</span><input type="text" name="coachNotes" value="${esc(m.coachNotes || '')}" placeholder="Only coaches see these"></label>
     <button class="btn primary block" type="submit">${isNew ? 'Add match' : 'Save changes'}</button>
@@ -3337,7 +3357,8 @@ function matchDayForm() {
       <label class="field-l"><span>Venue</span><input type="text" name="venue" value="${esc(T.venue || '')}"></label>
     </div>
     <label class="field-l"><span>Matches</span><textarea name="lines" rows="6" placeholder="9:00, Coffs Coast, 3, Pool A R1&#10;12:30, Sydney Sharks, 5, Pool A R2&#10;15:40, Hills Hornets, 2, Pool A R3"></textarea></label>
-    <label class="check"><input type="checkbox" name="tournament" checked><span>Part of ${esc(T.event || 'the tournament')}</span></label>
+    ${entrySelect(null)}
+    <label class="check"><input type="checkbox" name="tournament" checked><span>Show in the ${esc(T.event || 'tournament')} draw</span></label>
     <button class="btn primary block" type="submit">Add these matches</button>
   </form>`;
 }
@@ -3722,6 +3743,129 @@ function teamSwitcher() {
     <button class="btn block" style="margin-top:12px" data-act="teams">Manage teams</button>`, 'switch');
 }
 
+/* ---------- Competitions ---------- */
+// A competition (a league, a tournament, a championship) is kept once and entered by a team for one of
+// its seasons. Matches belong to an entry, or are friendlies, or aren't linked to anything yet. No
+// tables or standings are worked out: only this app's own teams' results are recorded.
+const COMP_SPORTS = ['Oztag', 'Rugby league', 'League tag', 'Touch football'];
+// The competition a match is in, for showing beside it ('' when none).
+function matchCompLabel(m) {
+  if (S.role === 'coach' && !state.preview) {
+    const k = M.matchKind(ws, m);
+    return k.comp ? `${k.comp.name}${k.entry.division ? ` (${k.entry.division})` : ''}` : k.kind === 'friendly' ? 'Friendly' : '';
+  }
+  const c = arr(V.competitions).find(x => x.entryId && x.entryId === m.entryId);
+  return c ? `${c.name}${c.division ? ` (${c.division})` : ''}` : m.friendly ? 'Friendly' : '';
+}
+// The competitions this team's season is entered in, to pick for a match.
+function entrySelect(m) {
+  const sid = editingSeasonId() || (V.viewSeason || {}).id || (M.activeSeason(data) || {}).id;
+  const list = M.teamEntries(ws, data.id, sid).filter(({ entry }) => entry.status === 'entered' || (m && m.entryId === entry.id));
+  const cur = m ? (m.entryId || (m.friendly ? 'friendly' : '')) : (list.length === 1 ? list[0].entry.id : '');
+  return `<label class="field-l"><span>Competition</span><select name="entry">
+    <option value="">Not in a competition</option><option value="friendly" ${cur === 'friendly' ? 'selected' : ''}>Friendly or trial</option>
+    ${list.map(({ comp, entry }) => `<option value="${esc(entry.id)}" ${cur === entry.id ? 'selected' : ''}>${esc(comp.name)}${entry.division ? ` · ${esc(entry.division)}` : ''}${entry.status === 'withdrawn' ? ' (withdrawn)' : ''}</option>`).join('')}</select>
+    <small>${list.length ? 'Fixtures belong to the competition entry for this season.' : 'Not entered in any competition this season. Enter one in More › Competitions.'}</small></label>`;
+}
+function setEntry(m, v) {
+  if (v === 'friendly') { M.linkMatch(ws, data, m, ''); m.friendly = true; return; }
+  delete m.friendly;
+  const err = M.linkMatch(ws, data, m, v || '');
+  if (err) toast('That competition entry is for another season, so the match wasn’t linked');
+}
+const compDates = c => c.start ? `${fmtDay(c.start)}${c.end && c.end !== c.start ? ` – ${fmtDay(c.end)}` : ''}` : 'Dates not set';
+const compPill = c => `<span class="pill ${c.status === 'active' ? 'ok' : 'neutral'}">${M.COMP_STATUS[c.status]}</span>`;
+const entryName = e => { const t = M.findTeam(ws, e.teamId), s = t && M.findSeason(t, e.seasonId); return `${t ? M.teamName(t) : 'Team'}${s ? ` · ${s.name}` : ''}${t && t.archived ? ' (archived team)' : ''}`; };
+function viewComps() {
+  if (!isCoach()) return '';
+  const c = M.findComp(ws, state.compId);
+  if (c) return compDetail(c);
+  const all = M.compsOf(ws), live = all.filter(x => x.status !== 'archived'), gone = all.filter(x => x.status === 'archived');
+  const card = x => `<button class="pick" data-act="comp-open" data-id="${esc(x.id)}"><span class="grow"><span class="name" style="display:block">${esc(x.name)} ${compPill(x)}</span>
+    <span class="tagline">${esc([M.COMP_FORMATS[x.format], compDates(x), `${x.entries.filter(e => e.status === 'entered').length} entr${x.entries.filter(e => e.status === 'entered').length === 1 ? 'y' : 'ies'}`].join(' · '))}</span></span><span aria-hidden="true" class="chev">›</span></button>`;
+  return `<div class="sec-h"><h2>Competitions</h2><button class="btn primary sm" data-act="comp-new">${icon('plus', 18)}New</button></div>
+    <p class="muted small" style="margin-bottom:12px">Leagues, tournaments and carnivals, each kept once. Enter a team’s season in one, then link its fixtures.</p>
+    ${live.length ? `<div class="list">${live.map(card).join('')}</div>` : '<div class="empty"><p>No competitions yet.</p></div>'}
+    ${gone.length ? `<details class="more" style="margin-top:16px"><summary>Archived (${gone.length})</summary><div class="list">${gone.map(card).join('')}</div></details>` : ''}`;
+}
+function compDetail(c) {
+  const today = todayISO(), ms = M.compMatches(ws, c.id), up = ms.filter(x => x.match.date >= today && x.match.status === 'scheduled'), done = ms.filter(x => M.matchOutcome(x.match)).reverse();
+  const row = x => `<button class="pick" data-act="home-go" data-team="${esc(x.team.id)}" data-go="match-open" data-id="${esc(x.match.id)}"><span class="grow"><span class="name" style="display:block">vs ${esc(x.match.opponent || 'TBC')}${x.match.status !== 'scheduled' ? ` <span class="pill ${x.match.status === 'cancelled' ? 'bad' : 'neutral'}">${esc(M.MATCH_STATUS[x.match.status])}</span>` : ''}${M.matchOutcome(x.match) ? ` <span class="pill ${M.matchOutcome(x.match) === 'win' ? 'ok' : 'neutral'}">${esc(resultText(x.match))}</span>` : ''}</span>
+    <span class="tagline">${esc([M.teamName(x.team), fmtDay(x.match.date), x.match.start && fmtTime(x.match.start), x.match.round, x.match.field && `Field ${x.match.field}`].filter(Boolean).join(' · '))}</span></span><span aria-hidden="true" class="chev">›</span></button>`;
+  const entryRow = e => { const own = ms.filter(x => x.entry.id === e.id), rec = M.teamRecord(own.map(x => x.match), today), loose = M.unlinkedInDates(ws, c.id, e.teamId).filter(m => !e.seasonId || m.seasonId === e.seasonId);
+    return `<div class="season-row"><div class="grow"><span class="name" style="display:block">${esc(entryName(e))} ${e.status === 'withdrawn' ? '<span class="pill neutral">Withdrawn</span>' : ''}</span>
+      <span class="sub" style="display:block;white-space:normal">${esc([e.division && `Division ${e.division}`, e.pool && `Pool ${e.pool}`, `${own.length} fixture${own.length === 1 ? '' : 's'}`, rec.withResult ? `W${rec.won} D${rec.drawn} L${rec.lost}` : ''].filter(Boolean).join(' · '))}</span>
+      ${loose.length ? `<span class="tl-issue">${loose.length} match${loose.length === 1 ? '' : 'es'} in these dates not linked: <button class="link-btn inline" data-act="comp-link" data-id="${esc(c.id)}" data-entry="${esc(e.id)}">Review</button></span>` : ''}</div>
+      <div class="btn-row"><button class="btn sm" data-act="comp-entry-edit" data-id="${esc(c.id)}" data-entry="${esc(e.id)}">Edit</button>${e.status === 'entered' ? `<button class="btn sm" data-act="comp-withdraw" data-id="${esc(c.id)}" data-entry="${esc(e.id)}">Withdraw</button>` : `<button class="btn sm" data-act="comp-reenter" data-id="${esc(c.id)}" data-entry="${esc(e.id)}">Enter again</button>`}${own.length ? '' : `<button class="btn sm" data-act="comp-entry-del" data-id="${esc(c.id)}" data-entry="${esc(e.id)}">Remove</button>`}</div></div>`; };
+  const moves = { planned: [['active', 'Start'], ['archived', 'Archive']], active: [['completed', 'Complete']], completed: [['active', 'Reopen'], ['archived', 'Archive']], archived: [['completed', 'Restore']] }[c.status] || [];
+  return `<button class="link-btn" data-act="comp-back" style="padding-top:0">‹ Competitions</button>
+    <div class="sec-h"><h2>${esc(c.name)}</h2><button class="btn sm" data-act="comp-edit" data-id="${esc(c.id)}">Edit</button></div>
+    <p class="muted" style="margin:-4px 0 12px">${compPill(c)} ${esc([M.COMP_FORMATS[c.format], c.edition, compDates(c), c.venue, c.organiser && `Run by ${c.organiser}`].filter(Boolean).join(' · '))}</p>
+    ${c.description ? `<p style="margin-bottom:12px">${esc(c.description)}</p>` : ''}
+    <div class="btn-row" style="margin-bottom:16px">${moves.map(([to, l]) => `<button class="btn sm" data-act="comp-move" data-id="${esc(c.id)}" data-to="${to}">${l}</button>`).join('')}</div>
+    <div class="cols"><div class="col">
+    <section class="sec"><div class="sec-h"><h2>Teams entered</h2><button class="btn sm" data-act="comp-entry-new" data-id="${esc(c.id)}">${icon('plus', 18)}Enter a team</button></div>
+      ${c.entries.length ? `<div class="list">${c.entries.map(entryRow).join('')}</div>` : '<p class="muted small">No teams entered yet.</p>'}</section>
+    <section class="sec"><div class="sec-h"><h2>Rules</h2></div>
+      <p class="small">${c.rules && M.ruleSet(c.rules) ? `Played to ${esc(M.ruleSet(c.rules).sportName)}, ${esc(M.ruleSet(c.rules).name)} rules.` : 'Each team’s own rule set.'}</p>
+      ${c.bylaws.length ? `<ul class="rule-list bylaws">${c.bylaws.map(b => `<li><p>${esc(b.text)}</p></li>`).join('')}</ul><p class="hint">Competition by-laws: they add to or change the official rules for every team in it. A team’s own by-laws are on its Rules page.</p>` : '<p class="muted small">No competition by-laws recorded.</p>'}</section>
+    </div><div class="col">
+    <section class="sec"><div class="sec-h"><h2>Coming up</h2></div>${up.length ? `<div class="list">${up.slice(0, 10).map(row).join('')}</div>` : '<p class="muted small">No fixtures coming up.</p>'}</section>
+    <section class="sec"><div class="sec-h"><h2>Results</h2></div>${done.length ? `<div class="list">${done.slice(0, 12).map(row).join('')}</div>` : '<p class="muted small">No results entered yet.</p>'}
+      <p class="hint">Only our teams’ results are recorded here, so there’s no ladder or table.</p></section>
+    </div></div>`;
+}
+function compForm(c, forEntry = null) {
+  const isNew = !c;
+  c = c || { name: '', sport: (M.clubOf(ws, data) || {}).sport || 'Oztag', format: 'league', edition: String(new Date().getFullYear()), start: '', end: '', organiser: '', venue: '', status: 'planned', description: '', rules: '', bylaws: [] };
+  const sets = M.ruleSetList();
+  state.compFor = forEntry;
+  openSheet(isNew ? 'New competition' : `Edit ${c.name}`, `<form data-form="comp" autocomplete="off" novalidate><input type="hidden" name="id" value="${esc(isNew ? '' : c.id)}">
+    <label class="field-l"><span>Name</span><input type="text" name="name" value="${esc(c.name)}" placeholder="e.g. Winter League 2027"></label>
+    <div class="two"><label class="field-l"><span>Format</span><select name="format">${Object.entries(M.COMP_FORMATS).map(([k, l]) => `<option value="${k}" ${c.format === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="field-l"><span>Sport</span><input type="text" name="sport" list="comp-sports" value="${esc(c.sport)}"></label></div>
+    <datalist id="comp-sports">${COMP_SPORTS.map(x => `<option value="${x}">`).join('')}</datalist>
+    <div class="two"><label class="field-l"><span>Year or edition</span><input type="text" name="edition" value="${esc(c.edition)}"></label>
+      <label class="field-l"><span>Status</span><select name="status">${Object.entries(M.COMP_STATUS).map(([k, l]) => `<option value="${k}" ${c.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    <div class="two"><label class="field-l"><span>Starts</span><input type="date" name="start" value="${esc(c.start)}"></label><label class="field-l"><span>Ends</span><input type="date" name="end" value="${esc(c.end)}"></label></div>
+    <div class="two"><label class="field-l"><span>Run by</span><input type="text" name="organiser" value="${esc(c.organiser)}" placeholder="e.g. NSW Oztag"></label><label class="field-l"><span>Venue</span><input type="text" name="venue" value="${esc(c.venue)}"></label></div>
+    <label class="field-l"><span>Rules</span><select name="rules"><option value="">Each team’s own rule set</option>${sets.map(x => `<option value="${esc(x.id)}" ${c.rules === x.id ? 'selected' : ''}>${esc(x.sportName)}, ${esc(x.name)}</option>`).join('')}</select></label>
+    <label class="field-l"><span>Competition by-laws, one per line</span><textarea name="bylaws" rows="3" placeholder="e.g. Games are 2 × 15 minutes">${esc(c.bylaws.map(b => b.text).join('\n'))}</textarea></label>
+    <label class="field-l"><span>Notes</span><input type="text" name="description" value="${esc(c.description)}"></label>
+    ${forEntry ? `<p class="hint" style="margin:-4px 0 12px">${esc(entryName({ teamId: forEntry.team, seasonId: forEntry.season }))} will be entered in it.</p>` : ''}
+    <button class="btn primary block" type="submit">${isNew ? 'Create competition' : 'Save'}</button></form>`, 'comp');
+}
+function entryForm(c, e, preset = null) {
+  const opts = M.activeTeams(ws).flatMap(t => M.seasonsOf(t).filter(s => s.status !== 'archived').map(s => ({ v: `${t.id}|${s.id}`, l: `${M.teamName(t)} · ${s.name}${s.status === 'active' ? '' : ` (${M.SEASON_STATUS[s.status].toLowerCase()})`}` })));
+  const cur = e ? `${e.teamId}|${e.seasonId}` : preset ? `${preset.team}|${preset.season}` : `${data.id}|${(M.activeSeason(data) || {}).id}`;
+  openSheet(e ? 'Edit entry' : `Enter a team in ${c.name}`, `<form data-form="comp-entry" autocomplete="off" novalidate><input type="hidden" name="comp" value="${esc(c.id)}"><input type="hidden" name="entry" value="${esc(e ? e.id : '')}">
+    ${e ? `<p style="margin-bottom:12px"><b>${esc(entryName(e))}</b></p>` : `<label class="field-l"><span>Team and season</span><select name="ts">${opts.map(o => `<option value="${esc(o.v)}" ${o.v === cur ? 'selected' : ''}>${esc(o.l)}</option>`).join('')}</select></label>`}
+    <div class="two"><label class="field-l"><span>Division or grade</span><input type="text" name="division" value="${esc(e ? e.division : '')}" placeholder="e.g. Women’s Open"></label>
+      <label class="field-l"><span>Pool</span><input type="text" name="pool" value="${esc(e ? e.pool : '')}" placeholder="e.g. A"></label></div>
+    <p class="hint" style="margin:-4px 0 12px">A team can enter more than one division; the same division only once.</p>
+    <button class="btn primary block" type="submit">${e ? 'Save' : 'Enter team'}</button></form>`, 'comp-entry');
+}
+// Link a team's matches in the competition's dates, chosen one by one (never done on its own).
+function compLinkSheet(c, e) {
+  const t = M.findTeam(ws, e.teamId), loose = M.unlinkedInDates(ws, c.id, e.teamId).filter(m => !e.seasonId || m.seasonId === e.seasonId);
+  openSheet(`Link matches to ${c.name}`, `<form data-form="comp-link" novalidate><input type="hidden" name="comp" value="${esc(c.id)}"><input type="hidden" name="entry" value="${esc(e.id)}">
+    <p class="muted small" style="margin-bottom:10px">${esc(M.teamName(t))}’s matches in ${esc(compDates(c))} that aren’t in a competition. Tick the ones that belong to ${esc(c.name)}.</p>
+    ${loose.map(m => `<label class="check"><input type="checkbox" name="m" value="${esc(m.id)}"><span>vs ${esc(m.opponent || 'TBC')} · ${esc(fmtDay(m.date))}${m.start ? `, ${esc(fmtTime(m.start))}` : ''}${m.round ? ` · ${esc(m.round)}` : ''}</span></label>`).join('')}
+    <button class="btn primary block" type="submit">Link the ticked matches</button></form>`, 'comp-link');
+}
+function seasonComps(s) {
+  const list = M.teamEntries(ws, data.id, s.id);
+  return `<span class="sub" style="display:block;white-space:normal">Competitions: ${list.length ? list.map(({ comp, entry }) => `<button class="link-btn inline" data-act="comp-open" data-id="${esc(comp.id)}">${esc(comp.name)}${entry.division ? ` (${esc(entry.division)})` : ''}</button>${entry.status === 'withdrawn' ? ' (withdrawn)' : ''}`).join(', ') : 'none'}
+    ${s.status !== 'archived' ? ` · <button class="link-btn inline" data-act="comp-enter" data-season="${esc(s.id)}">Enter one</button>` : ''}</span>`;
+}
+function compEnterSheet(sid) {
+  const s = M.findSeason(data, sid), have = new Set(M.teamEntries(ws, data.id, sid).map(x => x.comp.id));
+  const list = M.compsOf(ws).filter(c => c.status !== 'archived' && c.status !== 'completed');
+  openSheet(`Enter ${data.team.name}, ${s ? s.name : ''}`, `<p class="muted small" style="margin-bottom:10px">Pick a competition that’s already here, or create a new one.</p>
+    ${list.length ? `<div class="list">${list.map(c => `<button class="pick" data-act="comp-entry-new" data-id="${esc(c.id)}" data-team="${esc(data.id)}" data-season="${esc(sid)}"><span class="grow"><span class="name" style="display:block">${esc(c.name)}${have.has(c.id) ? ' <span class="pill ok">Entered</span>' : ''}</span><span class="tagline">${esc([M.COMP_FORMATS[c.format], compDates(c)].join(' · '))}</span></span></button>`).join('')}</div>` : '<p class="muted small">No competitions yet.</p>'}
+    <button class="btn primary block" style="margin-top:12px" data-act="comp-new" data-team="${esc(data.id)}" data-season="${esc(sid)}">${icon('plus')}New competition</button>`, 'comp-enter');
+}
+
 /* ---------- Seasons ---------- */
 // A team plays season after season. The active season is the one being run; past seasons are kept as
 // they were and opened read-only (with a deliberate "make a correction" step), and the next season is
@@ -3768,7 +3912,7 @@ function seasonsSheet() {
   openSheet(`Seasons: ${data.team.name}`, `<p class="muted small" style="margin-bottom:12px">Each season keeps its own squad, numbers, training and roll calls, matches and results, tasks and messages. The team, its plays and its saved lineups carry on from season to season.</p>
     <div class="btn-row" style="margin-bottom:14px"><button class="btn primary" data-act="season-next">${icon('plus')}Create next season</button><button class="btn" data-act="season-new">Plan a season</button></div>
     <div class="list">${all.map(s => `<div class="season-row ${s.status}"><div class="grow"><span class="name" style="display:block">${esc(s.name)} ${seasonPill(s)}</span>
-      <span class="sub" style="display:block;white-space:normal">${esc(seasonDates(s))} · ${esc(counts(s))}</span></div>
+      <span class="sub" style="display:block;white-space:normal">${esc(seasonDates(s))} · ${esc(counts(s))}</span>${seasonComps(s)}</div>
       <div class="btn-row"><button class="btn sm" data-act="season-view" data-id="${esc(s.id)}">${s.status === 'active' ? 'Open' : 'Look back'}</button><button class="btn sm" data-act="season-squad" data-id="${esc(s.id)}">Squad</button><button class="btn sm" data-act="season-edit" data-id="${esc(s.id)}">Edit</button>${moves(s)}</div></div>`).join('')}</div>
     <p class="hint">Only one season can be active. Completing a season keeps it as it was; you can still correct it later, deliberately.</p>`, 'seasons');
 }
@@ -3899,7 +4043,7 @@ function libSaveReport(r) {
 
 /* ---------- Backups and importing ---------- */
 function importBody(raw) {
-  // A whole copy: several teams, or (since seasons) any copy with its clubs.
+  // A whole copy: several teams, or (since seasons) any copy with its clubs and competitions.
   const many = Number(raw.schema) >= 3 && Array.isArray(raw.teams) && raw.teams.length > 0;
   const isWs = many || (Number(raw.schema) >= 4 && Array.isArray(raw.teams));
   const teams = isWs ? [raw, ...raw.teams] : [raw];
@@ -3907,7 +4051,7 @@ function importBody(raw) {
   return `<p style="margin-bottom:10px">This backup has ${teams.length === 1 ? 'one team' : `${teams.length} teams`}:</p>
     <ul class="diff-list">${teams.map(t => `<li>${sum(t)}</li>`).join('')}</ul>
     <div class="list" style="margin-top:12px">
-      ${isWs ? `<button class="pick" data-act="import-do" data-m="all"><span class="grow"><span class="name" style="display:block">Replace everything with it</span><span class="tagline">Every team, its seasons, the clubs and library on this phone are replaced.</span></span></button>` : ''}
+      ${isWs ? `<button class="pick" data-act="import-do" data-m="all"><span class="grow"><span class="name" style="display:block">Replace everything with it</span><span class="tagline">Every team, its seasons, the clubs, competitions and library on this phone are replaced.</span></span></button>` : ''}
       ${many ? '' : `<button class="pick" data-act="import-do" data-m="team"><span class="grow"><span class="name" style="display:block">Replace ${esc(data.team.name)} with it</span><span class="tagline">${S.trial ? '' : 'Its team password stays the same, so invite links keep working.'}</span></span></button>
       <button class="pick" data-act="import-do" data-m="add"><span class="grow"><span class="name" style="display:block">Add it as a new team</span><span class="tagline">Your teams stay as they are.</span></span></button>`}
     </div>
@@ -3953,7 +4097,7 @@ function backupSection() {
   <div class="btn-row"><button class="btn" data-act="export">Export backup</button><button class="btn" data-act="import">Import backup</button></div>
   <details class="more"><summary>Going back to the previous version of the app</summary>
     <p class="muted small" style="margin-bottom:10px">The previous version only knew one team. It still opens the first team (${esc(M.teamName(ws))}) as it is. To take another team back to it, export that team on its own.</p>
-    <p class="muted small" style="margin-bottom:10px">Seasons came later. An earlier version still opens this copy, but shows every season’s training, matches and tasks together and ignores seasons; nothing is lost, and this version sorts it out again when it next opens the copy.</p>
+    <p class="muted small" style="margin-bottom:10px">Seasons and competitions came later. An earlier version still opens this copy, but shows every season’s training, matches and tasks together and ignores seasons and competitions; nothing is lost, and this version sorts it out again when it next opens the copy.</p>
     <div class="btn-row"><button class="btn" data-act="export-legacy">Export ${esc(data.team.name)} on its own</button>${pre ? `<button class="btn" data-act="export-pre">Copy from before the upgrade (${esc(fmtStamp(pre.at))})</button>` : ''}${preS ? `<button class="btn" data-act="export-pre-seasons">Copy from before seasons (${esc(fmtStamp(preS.at))})</button>` : ''}</div>
   </details>`;
 }
@@ -3966,6 +4110,7 @@ function viewMore() {
     ${coach ? item('tab', 'data-tab="messages"', 'Messages and noticeboard', 'WhatsApp messages, the message log and notices', 'chat') : item('tab', 'data-tab="notices"', 'Notices', 'Everything the coach has posted', 'clip')}
     ${coach ? item('tab', 'data-tab="reports"', 'Reports', 'Attendance, results, volunteering and loose ends', 'chart') : ''}
     ${item('tab', 'data-tab="club"', curClub() ? esc(curClub().name) : 'Club', coach ? 'Club details, officials and team staff' : 'Club contacts, ground and links', 'team')}
+    ${coach ? item('tab', 'data-tab="comps"', 'Competitions', `${M.compsOf(ws).filter(c => c.status !== 'archived').length} competitions and tournaments, entries, fixtures and results`, 'chart') : ''}
     ${coach ? item('tab', 'data-tab="teams"', 'Clubs and teams', `${M.activeTeams(ws).length} active${M.teamsOf(ws).length > M.activeTeams(ws).length ? `, ${M.teamsOf(ws).length - M.activeTeams(ws).length} archived` : ''}`, 'team') : ''}
     ${item('settings', '', 'Settings', coach ? 'Team, field, team contact, publishing, backups, screen layout' : 'Screen layout, updates, sign out', 'cog')}
   </div>
@@ -4039,10 +4184,24 @@ function viewRules() {
     ${bylaws.length || coach ? `<section class="sec"><div class="sec-h"><h2>Our by-laws</h2>${coach ? `<button class="btn sm" data-act="bylaw-add">${icon('plus', 18)}Add</button>` : ''}</div>
       ${bylaws.length ? `<ul class="rule-list bylaws">${bylaws.map(b => { const r = b.replaces && ruleOf(b.replaces); return `<li><p>${esc(b.text)}</p><span class="ref">${esc(b.topic)}${r ? ` · in place of ${esc(r.ref)}` : ''}</span>${coach ? `<button class="btn sm" data-act="bylaw-edit" data-id="${esc(b.id)}" aria-label="Edit by-law: ${esc(b.text.slice(0, 40))}">Edit</button>` : ''}</li>`; }).join('')}</ul>`
         : '<p class="muted small">Add your competition’s own rules: game length, kicking limits, points. They’re yours: rule updates never change them.</p>'}</section>` : ''}
+    ${compBylaws()}
     ${topics.map(tp => `<section class="sec"><div class="sec-h"><h2>${esc(tp)}</h2></div><ul class="rule-list">${rs.rules.filter(r => r.topic === tp).map(r => { const b = replaced.get(r.id);
       return `<li class="${b ? 'replaced' : ''}"><p>${esc(r.text)}</p><span class="ref">Rule ${esc(r.ref)}</span>${fresh.has(r.id) ? ' <span class="pill ok">Updated</span>' : ''}${b ? ' <span class="pill neutral">Our by-law applies instead</span>' : ''}</li>`; }).join('')}</ul></section>`).join('')}
     ${coach ? rulesWatchPanel() : ''}
     <p class="hint">Rule set version ${M.RULES.pack}, ${esc(fmtLong(M.RULES.updated))}. The app’s owner keeps the official rules up to date; check anything that matters on the day with your competition.</p>`;
+}
+// By-laws of the competitions this season is entered in: they sit between the official rules and the
+// team's own variations.
+function compBylaws() {
+  const list = S.role === 'coach' && !state.preview
+    ? (V.viewSeason ? M.teamEntries(ws, data.id, V.viewSeason.id).filter(x => x.entry.status === 'entered').map(({ comp, entry }) => ({ name: comp.name, division: entry.division, id: comp.id, bylaws: comp.bylaws })) : [])
+    : arr(V.competitions).filter(c => c.entryStatus !== 'withdrawn').map(c => ({ name: c.name, division: c.division, bylaws: arr(c.bylaws) }));
+  const withRules = list.filter(c => c.bylaws.length);
+  if (!withRules.length) return '';
+  return `<section class="sec"><div class="sec-h"><h2>Competition by-laws</h2></div>
+    ${withRules.map(c => `<h3 class="ag-date">${esc(c.name)}${c.division ? ` · ${esc(c.division)}` : ''}${c.id && isCoach() ? ` <button class="link-btn inline" data-act="comp-open" data-id="${esc(c.id)}">Edit</button>` : ''}</h3>
+      <ul class="rule-list bylaws">${c.bylaws.map(b => `<li><p>${esc(b.text)}</p></li>`).join('')}</ul>`).join('')}
+    <p class="hint">These apply to every team in the competition. Our own by-laws come on top.</p></section>`;
 }
 function rulesWatchPanel() {
   const w = S.watch, alerts = M.sourceAlerts(w), failed = w ? Object.entries(w.sources || {}).filter(([, x]) => x.error).map(([k]) => (M.RULES.sources[k] || {}).title || k) : [];
@@ -4408,6 +4567,9 @@ function loadSample() {
   const liftTask = data.tasks.find(x => x.kind === 'lift');
   if (liftTask) { liftTask.title = 'Lifts to the Hills game'; liftTask.date = sat(0); liftTask.matchId = data.matches[1].id; }
   data.tasks.filter(x => x.kind === 'firstaid').forEach(x => { x.date = sat(0); x.matchId = data.matches[1].id; x.place = 'Hills Sports Park'; });
+  // The tournament's matches go in its competition entry for this season.
+  const cup = M.findComp(ws, data.team.eventCompId), sid = (M.activeSeason(data) || {}).id, en = cup && cup.entries.find(e => e.teamId === data.id && e.seasonId === sid);
+  if (en) data.matches.filter(m => m.tournament).forEach(m => { m.seasonId = sid; M.linkMatch(ws, data, m, en.id); });
   save(); state.msgDraft = null; render(); toast('Sample squad loaded');
 }
 
@@ -4780,6 +4942,32 @@ const actions = {
   'team-switch': coachOnly(() => teamSwitcher()),
   'team-pick': coachOnly(el => switchTeam(el.dataset.id)),
   'season-pick': coachOnly(() => seasonPicker()),
+  'comp-open': coachOnly(el => { state.compId = el.dataset.id; closeSheet(); state.tab = 'comps'; history.replaceState(null, '', '#comps'); render(); window.scrollTo(0, 0); }),
+  'comp-back': () => { state.compId = null; render(); window.scrollTo(0, 0); },
+  'comp-new': coachOnly(el => compForm(null, el.dataset.team ? { team: el.dataset.team, season: el.dataset.season } : null)),
+  'comp-edit': coachOnly(el => { const c = M.findComp(ws, el.dataset.id); if (c) compForm(c); }),
+  'comp-move': coachOnly(el => {
+    const c = M.findComp(ws, el.dataset.id); if (!c) return;
+    if (el.dataset.to === 'archived' && !confirm(`Archive ${c.name}? Its entries, fixtures and results are kept, and it can be restored.`)) return;
+    c.status = el.dataset.to; save(); render(); toast(`${c.name}: ${M.COMP_STATUS[c.status].toLowerCase()}`);
+  }),
+  'comp-enter': coachOnly(el => compEnterSheet(el.dataset.season)),
+  'comp-entry-new': coachOnly(el => { const c = M.findComp(ws, el.dataset.id); if (c) entryForm(c, null, el.dataset.team ? { team: el.dataset.team, season: el.dataset.season } : null); }),
+  'comp-entry-edit': coachOnly(el => { const c = M.findComp(ws, el.dataset.id), e = c && c.entries.find(x => x.id === el.dataset.entry); if (e) entryForm(c, e); }),
+  'comp-withdraw': coachOnly(el => {
+    const c = M.findComp(ws, el.dataset.id), e = c && c.entries.find(x => x.id === el.dataset.entry); if (!e) return;
+    if (!confirm(`Withdraw ${entryName(e)} from ${c.name}? Its fixtures and results are kept.`)) return;
+    M.withdrawEntry(ws, c.id, e.id); save(); render(); toast('Withdrawn');
+  }),
+  'comp-reenter': coachOnly(el => { const c = M.findComp(ws, el.dataset.id), e = c && c.entries.find(x => x.id === el.dataset.entry); if (!e) return; e.status = 'entered'; save(); render(); toast('Entered again'); }),
+  'comp-entry-del': coachOnly(el => {
+    const c = M.findComp(ws, el.dataset.id); if (!c) return;
+    if (!confirm('Remove this entry? It has no fixtures.')) return;
+    const err = M.removeEntry(ws, c.id, el.dataset.entry);
+    if (err) { toast('It has fixtures now, so withdraw it instead'); return; }
+    save(); render(); toast('Entry removed');
+  }),
+  'comp-link': coachOnly(el => { const c = M.findComp(ws, el.dataset.id), e = c && c.entries.find(x => x.id === el.dataset.entry); if (e) compLinkSheet(c, e); }),
   'season-view': coachOnly(el => {
     const s = M.findSeason(data, el.dataset.id); if (!s) return;
     if (s.status === 'active') delete state.viewSeason[data.id]; else state.viewSeason[data.id] = s.id;
@@ -5097,11 +5285,13 @@ document.addEventListener('submit', async e => {
     const fields = { date, start: str('start'), opponent: str('opponent'), venue: str('venue'), field: str('field'), round: str('round'), notes: str('notes'), coachNotes: str('coachNotes') };
     if (f.get('tournament')) fields.tournament = true;
     if (!id) {
-      const m = { id: uid(), ...fields, status: 'scheduled', rsvp: {}, result: {}, lineupId: '' };
+      const m = { id: uid(), ...fields, status: 'scheduled', rsvp: {}, result: {}, lineupId: '', seasonId: editingSeasonId() || (M.activeSeason(data) || {}).id || '' };
+      setEntry(m, str('entry'));
       data.matches.push(m); save(); closeSheet(); render(); openMatch(m.id); toast('Match added');
       return;
     }
     const m = matchById(id); if (!m) return;
+    setEntry(m, str('entry'));
     const status = M.MATCH_STATUS[str('status')] ? str('status') : m.status;
     const before = { date: m.date, start: m.start, end: '', place: matchWhere(m) }, after = { date, start: fields.start, end: '', place: matchWhere(fields) };
     const linked = M.linkedTasks(data, 'match', id), off = s => s === 'cancelled' || s === 'postponed';
@@ -5117,7 +5307,8 @@ document.addEventListener('submit', async e => {
     const date = str('date'); if (!date) { fieldError(form, 'date', 'Pick a date'); return; }
     const lines = str('lines').split(/\n+/).map(l => l.trim()).filter(Boolean);
     if (!lines.length) { fieldError(form, 'lines', 'Add at least one match, one per line'); return; }
-    const made = lines.map(l => ({ id: uid(), date, venue: str('venue'), ...parseMatchLine(l), status: 'scheduled', rsvp: {}, result: {}, lineupId: '', notes: '', coachNotes: '', ...(f.get('tournament') ? { tournament: true } : {}) }));
+    const made = lines.map(l => ({ id: uid(), date, venue: str('venue'), ...parseMatchLine(l), status: 'scheduled', rsvp: {}, result: {}, lineupId: '', notes: '', coachNotes: '', seasonId: editingSeasonId() || (M.activeSeason(data) || {}).id || '', ...(f.get('tournament') ? { tournament: true } : {}) }));
+    made.forEach(m => setEntry(m, str('entry')));
     data.matches.push(...made); state.tab = 'matches'; history.replaceState(null, '', '#matches'); save(); closeSheet(); render();
     toast(`${made.length} match${made.length === 1 ? '' : 'es'} added for ${fmtDay(date)}`);
     return;
@@ -5260,6 +5451,48 @@ document.addEventListener('submit', async e => {
     dates.forEach(dt => data.sessions.push({ id: uid(), date: dt, ...fields, cancelled: false, attendance: {} }));
     save(); closeSheet(); render(); toast(dates.length > 1 ? `${dates.length} sessions added` : 'Training added');
   }
+  if (kind === 'comp') {
+    if (!str('name')) { fieldError(form, 'name', 'Give the competition a name'); return; }
+    if (str('start') && str('end') && str('end') < str('start')) { fieldError(form, 'end', 'The end is before the start'); return; }
+    let c = M.findComp(ws, str('id')), isNew = !c;
+    const fields = { name: str('name'), format: str('format'), sport: str('sport'), edition: str('edition'), status: str('status'), start: str('start'), end: str('end'), organiser: str('organiser'), venue: str('venue'),
+      description: str('description'), rules: M.ruleSet(str('rules')) ? str('rules') : '' };
+    const lines = raw('bylaws').split(/\n+/).map(x => x.trim()).filter(Boolean);
+    if (isNew) { c = M.normComp({ ...fields, id: uid(), entries: [], bylaws: lines.map((text, i) => ({ id: `b${i + 1}`, text })) }); ws.competitions = M.compsOf(ws); ws.competitions.push(c); }
+    else {
+      const old = new Map(c.bylaws.map(b => [b.text, b]));
+      Object.assign(c, M.normComp({ ...c, ...fields, bylaws: lines.map((text, i) => old.get(text) || { id: `b${Date.now().toString(36)}${i}`, text }) }));
+    }
+    const fe = state.compFor; state.compFor = null;
+    if (isNew && fe) M.addEntry(ws, c.id, fe.team, fe.season, {});
+    state.compId = c.id; state.tab = 'comps'; history.replaceState(null, '', '#comps');
+    save(); closeSheet(); render(); toast(isNew ? `${c.name} created${fe ? ' and entered' : ''}` : 'Saved');
+    return;
+  }
+  if (kind === 'comp-entry') {
+    const c = M.findComp(ws, str('comp')); if (!c) return;
+    const e = c.entries.find(x => x.id === str('entry'));
+    if (e) {
+      const clash = c.entries.find(x => x !== e && x.teamId === e.teamId && x.seasonId === e.seasonId && x.division.trim().toLowerCase() === str('division').toLowerCase());
+      if (clash) { fieldError(form, 'division', 'That team and season is already entered in this division'); return; }
+      e.division = str('division'); e.pool = str('pool');
+    } else {
+      const [teamId, seasonId] = str('ts').split('|');
+      const r = M.addEntry(ws, c.id, teamId, seasonId, { division: str('division'), pool: str('pool') });
+      if (r.error === 'duplicate') { fieldError(form, 'division', 'That team and season is already entered in this division'); return; }
+      if (r.error) { toast('Pick a team and season'); return; }
+    }
+    state.compId = c.id; state.tab = 'comps'; history.replaceState(null, '', '#comps');
+    save(); closeSheet(); render(); toast(e ? 'Entry saved' : 'Team entered');
+    return;
+  }
+  if (kind === 'comp-link') {
+    const c = M.findComp(ws, str('comp')), f2 = c && M.findEntry(ws, str('entry')); if (!f2) return;
+    const t = M.findTeam(ws, f2.entry.teamId); let n = 0;
+    f.getAll('m').forEach(id => { const m = arr(t.matches).find(x => x.id === id); if (m && !M.linkMatch(ws, t, m, f2.entry.id)) n++; });
+    save(); closeSheet(); render(); toast(`${n} match${n === 1 ? '' : 'es'} linked to ${c.name}`);
+    return;
+  }
   if (kind === 'season') {
     if (!str('name')) { fieldError(form, 'name', 'Give the season a name'); return; }
     if (str('start') && str('end') && str('end') < str('start')) { fieldError(form, 'end', 'The end is before the start'); return; }
@@ -5316,7 +5549,10 @@ document.addEventListener('submit', async e => {
   if (kind === 'settings') {
     const T = data.team;
     T.name = str('name') || T.name; T.event = str('event'); T.eventStart = str('eventStart'); T.eventEnd = str('eventEnd');
-    T.venue = str('venue'); T.maxMales = str('maxMales') === '' ? '' : clamp(Math.round(Number(str('maxMales'))) || 0, 0, 8);
+    T.venue = str('venue');
+    const ec = M.findComp(ws, T.eventCompId);   // the tournament is a competition: keep them the same
+    if (ec) Object.assign(ec, { name: T.event || ec.name, start: T.eventStart, end: T.eventEnd, venue: T.venue });
+    T.maxMales = str('maxMales') === '' ? '' : clamp(Math.round(Number(str('maxMales'))) || 0, 0, 8);
     T.rules = M.ruleSet(str('rules')) ? str('rules') : '';
     T.clubId = arr(ws.clubs).some(c => c.id === str('clubId')) ? str('clubId') : '';
     T.division = str('division'); T.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
