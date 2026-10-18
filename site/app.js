@@ -536,7 +536,14 @@ async function publish(auto = false, force = false) {
   } finally {
     S.publishing = false;
     renderStatus();
-    if (S.again) { S.again = false; if (S.dirty) schedulePublish(); }
+    if (S.again) {
+      S.again = false;
+      // A manual Publish clicked while another request is running must not vanish when
+      // automatic publishing is switched off. Once the first request succeeds, publish
+      // whatever changed while it was in flight; never loop after a conflict or error.
+      if (S.dirty && S.pub === 'ok') queueMicrotask(() => publish(false));
+      else if (S.dirty && gh.autoPublish && S.pub !== 'conflict') schedulePublish();
+    }
   }
 }
 
