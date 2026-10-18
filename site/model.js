@@ -383,7 +383,11 @@ export function compsForPlayers(ws, t) {
 // its officials. A team names its club (team.clubId) and keeps its own division, category, season and
 // staff. The club's public details go into each of its teams' players' copies; officials' phone
 // numbers and email addresses stay in the coach's copy.
-export const CLUB_PUBLIC = ['id', 'name', 'shortName', 'sport', 'governingBody', 'founded', 'website', 'email', 'phone', 'postal', 'facebook', 'instagram', 'colours', 'homeGround', 'homeAddress', 'nights', 'registration', 'conduct', 'juniorBrand'];
+export const CLUB_PUBLIC = ['id', 'name', 'shortName', 'sport', 'governingBody', 'founded', 'website', 'email', 'phone', 'postal', 'facebook', 'instagram', 'colours', 'homeGround', 'homeAddress', 'nights', 'registration', 'conduct', 'juniorBrand', 'logo'];
+// A club's logo is a small picture kept with the club (the app shrinks it to a 160 px badge): PNG, JPEG
+// or WebP as a data URL, nothing else, and nothing big.
+export const LOGO_MAX = 120000;
+export const validLogo = v => typeof v === 'string' && v.length <= LOGO_MAX && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(v);
 export const CLUB_ROLES = ['President', 'Vice-president', 'Secretary', 'Treasurer', 'Registrar', 'Representative coordinator', 'Member protection officer', 'Referee coordinator', 'Other'];
 export const TEAM_ROLES = ['Head coach', 'Assistant coach', 'Team manager', 'Trainer', 'First aid', 'Other'];
 export const TEAM_CATEGORIES = { mixed: 'Mixed', men: 'Men', women: 'Women', boys: 'Boys', girls: 'Girls', open: 'Open (any)' };
@@ -392,6 +396,7 @@ export function normClub(c) {
   if (!out.id || typeof out.id !== 'string') out.id = uid();
   CLUB_PUBLIC.forEach(k => { if (k !== 'id' && typeof out[k] !== 'string') out[k] = out[k] == null ? '' : String(out[k]); });
   if (!out.sport) out.sport = 'Oztag';
+  if (!validLogo(out.logo)) out.logo = '';
   out.officials = arr(out.officials).filter(isObj).map(o => ({ role: String(o.role || 'Other'), name: String(o.name || ''), phone: String(o.phone || ''), email: String(o.email || '') }));
   out.notes = String(out.notes || '');
   return out;
@@ -937,7 +942,7 @@ const byTime = (a, b) => a.at - b.at || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.
 // Clubs with active teams, then "No club" for teams without one. Archived teams are left out.
 export function homeClubs(ws) {
   const teams = activeTeams(ws).sort((a, b) => teamName(a).localeCompare(teamName(b)));
-  const out = arr(ws && ws.clubs).map(c => ({ id: c.id, name: c.name || 'Club', short: c.shortName || c.name || 'Club', colours: c.colours || '', teams: teams.filter(t => t.team.clubId === c.id) }))
+  const out = arr(ws && ws.clubs).map(c => ({ id: c.id, name: c.name || 'Club', short: c.shortName || c.name || 'Club', colours: c.colours || '', logo: validLogo(c.logo) ? c.logo : '', teams: teams.filter(t => t.team.clubId === c.id) }))
     .filter(c => c.teams.length).sort((a, b) => a.name.localeCompare(b.name));
   const none = teams.filter(t => !clubOf(ws, t));
   if (none.length) out.push({ id: NO_CLUB, name: 'No club', short: 'No club', colours: '', teams: none });

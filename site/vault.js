@@ -116,7 +116,7 @@ function taskForTeam(t) {
 }
 
 // The club's details players may see (the coach's copy also has its officials and notes).
-const CLUB_PUBLIC = ['id', 'name', 'shortName', 'sport', 'governingBody', 'founded', 'website', 'email', 'phone', 'postal', 'facebook', 'instagram', 'colours', 'homeGround', 'homeAddress', 'nights', 'registration', 'conduct', 'juniorBrand'];
+const CLUB_PUBLIC = ['id', 'name', 'shortName', 'sport', 'governingBody', 'founded', 'website', 'email', 'phone', 'postal', 'facebook', 'instagram', 'colours', 'homeGround', 'homeAddress', 'nights', 'registration', 'conduct', 'juniorBrand', 'logo'];
 
 // The players' copy. Anything not listed here stays in the coach's file only. `club` is the team's
 // club, if it has one.

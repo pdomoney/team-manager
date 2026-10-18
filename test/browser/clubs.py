@@ -1,5 +1,5 @@
 # Clubs: St George Oztag set up for DragonTag, club details, team details and staff, the players' view.
-import sys; from harness import *
+import sys, base64; from harness import *
 from playwright.sync_api import sync_playwright
 build(); srv, url = serve()
 c = Check()
@@ -18,8 +18,13 @@ with sync_playwright() as p:
     pg.click('[data-act=club-edit]'); pg.wait_for_selector('#sheet form[data-form=club]')
     pg.fill('#sheet input[name=homeGround]', 'Kogarah Park'); pg.fill('#sheet input[name=nights]', 'Tuesday mixed')
     pg.locator('#sheet input[name=o-name]').first.fill('Pat President'); pg.locator('#sheet input[name=o-phone]').first.fill('0400 111 999')
+    logo = os.path.join(WORK, 'logo.png')
+    open(logo, 'wb').write(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='))
+    pg.set_input_files('#sheet input[data-change=club-logo]', logo); pg.wait_for_function("document.querySelector('#sheet input[name=logo]').value.startsWith('data:image/')")
+    c.ok(pg.locator('#sheet .logo-prev img').count() == 1, 'logo previewed in the club form')
     pg.click('#sheet form[data-form=club] button[type=submit]'); pg.wait_for_timeout(150)
     c.ok(W("W.clubs[0].homeGround") == 'Kogarah Park' and W("W.clubs[0].officials.length") == 1, 'club saved with an official')
+    c.ok(W("W.clubs[0].logo").startswith('data:image/') and pg.locator('#view .club-title img').count() == 1, 'club logo saved and shown on the club page')
     # team details and staff in Settings
     pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#sheet input[name=division]')
     pg.fill('#sheet input[name=division]', 'Mixed 20s')
@@ -40,12 +45,29 @@ with sync_playwright() as p:
     pg.goto(url + '#teams'); pg.wait_for_timeout(100)
     txt = pg.inner_text('#view')
     c.ok(txt.index('Hills Oztag') < txt.index('Hills Women') and 'St George Oztag' in txt, 'teams grouped under their clubs')
+    pg.goto(url + '#home'); pg.wait_for_timeout(150)
+    c.ok(pg.locator('.scope-club[data-id=stgeorge] .crest img').count() == 1 and pg.locator(f'.scope-club[data-id="{hills}"] .crest img').count() == 0, 'Home: St George shows its logo, a club without one its initials')
+    # More: no menu item of its own for one club; every club is under Clubs and teams
+    pg.goto(url + '#more'); pg.wait_for_timeout(100)
+    txt = pg.inner_text('#view')
+    c.ok(pg.locator('.more-item[data-tab=club]').count() == 0 and '2 clubs · 2 active teams' in txt, 'coach More: one Clubs and teams entry for every club')
+    pg.click('.more-item[data-tab=teams]'); pg.wait_for_timeout(100)
+    pg.click('[data-act=club-open][data-id=stgeorge]'); pg.wait_for_timeout(100)
+    c.ok(pg.inner_text('#view .club-title > span:last-child') == 'St George Oztag' and pg.locator('[data-act=tab][data-tab=teams]').count() >= 1, 'St George opens from the club list like any club, with a way back')
+    pg.click('#view .link-btn[data-tab=teams]'); pg.wait_for_timeout(100)
+    pg.click(f'[data-act=club-open][data-id="{hills}"]'); pg.wait_for_timeout(100)
+    c.ok(pg.inner_text('#view .club-title > span:last-child') == 'Hills Oztag', 'and so does the new club')
     # back to DragonTag; the players' view
     pg.click('.team-btn'); pg.click('#sheet [data-act=team-pick][data-id=team1]'); pg.wait_for_timeout(100)
-    pg.evaluate(act, ['preview-on', {}]); pg.goto(url + '#club'); pg.wait_for_timeout(150)
+    pg.evaluate(act, ['preview-on', {}]); pg.goto(url + '#more'); pg.wait_for_timeout(150)
+    c.ok(pg.locator('.more-item[data-tab=club]').count() == 1 and 'Clubs and teams' not in pg.inner_text('#view'), 'players’ More: their own club only')
+    pg.goto(url + '#club'); pg.wait_for_timeout(150)
     txt = pg.inner_text('#view')
     c.ok('Kogarah Park' in txt and 'Paul Coach' in txt, 'players see the club and staff names')
     c.ok('Pat President' not in txt and '0400 111 999' not in txt and '0411 222 333' not in txt, 'players see no officials or staff phones')
+    c.ok(pg.locator('#view .club-title img').count() == 1, 'players see the club logo')
+    pg.goto(url + '#home'); pg.wait_for_timeout(150)
+    c.ok(pg.locator('.scope .crest img').count() == 1, 'the logo is the club badge on Home')
     c.ok('Pat President' not in str(pg.evaluate("JSON.stringify(window.__team.M.clubForPlayers(window.__team.ws.clubs[0]))")), 'officials left out of the players’ copy')
     pg.screenshot(path=shot('club.png'), full_page=True)
     ok = c.done(errs); b.close()

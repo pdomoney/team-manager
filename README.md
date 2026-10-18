@@ -89,6 +89,8 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 ### Clubs and teams
 
 **More → Clubs and teams** (or the team name in the header) creates clubs and teams, and switches, archives and restores teams.
+- Every club, the team's own included, is listed and opened here (players get their own club under More).
+- A club can have a **logo**: choose an image in the club form and it's shrunk to a small badge, kept with the club (encrypted like everything else) and shown on Home, the club pages and the players' view. Without one, the badge shows the club's initials.
 - A **club** holds what its teams share: contacts, website and social pages, home ground, nights played, colours, registration and code-of-conduct links, and its officials (coaches only).
 - Each team names its club and has its own division, category (mixed turns on the males-on-field check), age group, season and staff (players see staff names and roles, not their numbers).
 - St George Oztag is set up with DragonTag Mixed 20s in it.
