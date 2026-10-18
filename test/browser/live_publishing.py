@@ -24,7 +24,12 @@ with sync_playwright() as p:
     u16 = W(d1, 'D.id')
     d1.evaluate(act, ['go-live', {}]); d1.fill('#sheet input[name=coach]', 'coach password one'); d1.fill('#sheet input[name=coach2]', 'coach password one')
     d1.fill('#sheet input[name=team]', 'team password one'); d1.fill('#sheet input[name=team2]', 'team password one'); d1.click('#sheet button[type=submit]')
-    d1.wait_for_function('window.__team.S.trial === false', timeout=20000); wait_pub(d1, 40000)
+    d1.wait_for_function('window.__team.S.trial === false', timeout=20000)
+    # Go Live flips trial off before the first async encryption/publish starts. Waiting
+    # merely for !publishing can return during that gap, falsely reporting no files.
+    # Require a terminal publication status before examining the mocked GitHub branch.
+    d1.wait_for_function("['ok', 'error', 'conflict'].includes(window.__team.S.pub)", timeout=40000)
+    wait_pub(d1, 40000)
     files = gh.files()
     c.ok(sorted(files) == sorted(['coach.enc.json', 'team.enc.json', f'team-{u16}.enc.json']), f'one players’ file per team: {sorted(files)}')
     c.ok(all('Mia Tuala' not in v and 'Ava Young' not in v and set(json.loads(v)) <= {'format','version','role','kdf','salt','iv','data'} for v in files.values()), 'nothing readable in the published files')
