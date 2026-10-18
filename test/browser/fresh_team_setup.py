@@ -72,6 +72,14 @@ with sync_playwright() as p:
     c.ok(W("M.teamsOf(W).length") == count and pg.locator('#sheet [aria-invalid=true]').count() > 0,
          'copying setup across clubs is rejected atomically')
     pg.select_option('#sheet select[name=clubId]', club)
+    # Even within one club, copying League/Touch/Netball setup across different
+    # sports must require the coach to start fresh, not import incompatible rules.
+    pg.select_option('#sheet select[name=teamSport]', 'League tag')
+    pg.click('#sheet form[data-form=team-new] button[type=submit]')
+    pg.wait_for_timeout(80)
+    c.ok(W("M.teamsOf(W).length") == count and pg.locator('#sheet select[name=teamSport][aria-invalid=true]').count() == 1,
+         'copying setup across sports within the same club is rejected atomically')
+    pg.select_option('#sheet select[name=teamSport]', '')
     pg.click('#sheet form[data-form=team-new] button[type=submit]')
     pg.wait_for_timeout(160)
     c.ok(W("D.team.trainingVenue") == 'Titans Oval' and W("D.team.trainingStart") == '17:15',
