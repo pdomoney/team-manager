@@ -3748,7 +3748,7 @@ function viewTeams() {
   const sortT = ts => ts.slice().sort((a, b) => (a.archived - b.archived) || M.teamName(a).localeCompare(M.teamName(b)));
   const clubs = arr(ws.clubs).slice().sort((a, b) => a.name.localeCompare(b.name));
   const loose = sortT(all.filter(t => !M.clubOf(ws, t)));
-  return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus', 18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button></div></div>
+  return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus', 18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button><button class="btn sm" data-act="team-template-choose">Use existing setup</button></div></div>
     ${clubs.map(c => { const ts = sortT(M.clubTeams(ws, c.id)); return `<section class="sec club-group">
       <div class="club-head">${crest(clubBadge(c))}<span class="grow"><span class="name" style="display:block">${esc(c.name)}</span><span class="sub">${esc([c.sport, c.governingBody, `${ts.length} team${ts.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</span></span>
         <button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
@@ -3841,11 +3841,12 @@ function refreshTeamSportGuide(form) {
     input.value = positions.join(', ');
     input.dataset.lastDefault = input.value;
   }
-  const sourceSport = M.teamSport(data.team, M.clubOf(ws, data));
+  const source = M.findTeam(ws, (form.querySelector('[name=sourceTeamId]') || {}).value || '');
+  const sourceSport = source ? M.teamSport(source.team, M.clubOf(ws, source)) : '';
   const copy = form.querySelector('[name=copySettings]');
-  const copiedCustom = !input && copy && copy.checked && data.team.positionsCustom === true && sport === sourceSport;
+  const copiedCustom = !input && source && copy && copy.checked && source.team.positionsCustom === true && sport === sourceSport;
   const chosen = input ? input.value.split(',').map(x => x.trim()).filter(Boolean)
-    : copiedCustom ? arr(data.team.positions) : positions;
+    : copiedCustom ? arr(source.team.positions) : positions;
   const custom = input ? (input.dataset.autoPositions === 'false' || input.value !== positions.join(', ')) : !!copiedCustom;
   const guide = form.querySelector('[data-sport-guide]');
   if (guide) guide.textContent = `New players for this team will see ${sport} positions (${explicit ? 'team override' : 'club default'}): ${chosen.join(', ') || 'no positions set'}.${custom ? ' This is a custom team position list.' : ''}`;
@@ -3871,28 +3872,31 @@ function teamDetailsFields(T) {
 }
 const peopleRows = (f, p) => f.getAll(p + '-name').map((name, i) => ({ role: String(f.getAll(p + '-role')[i] || 'Other'), name: String(name).trim(), phone: String(f.getAll(p + '-phone')[i] || '').trim(), email: String(f.getAll(p + '-email')[i] || '').trim() })).filter(x => x.name);
 function teamForm() {
-  const T = data.team;
+  const source = M.findTeam(ws, state.teamTemplateSource || '');
+  const T = source && !source.archived ? source.team : {
+    name: '', clubId: state.newTeamClub || '', category: 'mixed', sport: '',
+    event: '', eventStart: '', eventEnd: ''
+  };
   return `<form data-form="team-new" autocomplete="off">
-    <label class="field-l"><span>Team name</span><input type="text" name="name" required placeholder="e.g. DragonTag Under 16s"></label>
-    <div class="two"><label class="field-l"><span>Club</span><select name="clubId" data-change="team-context"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${(state.newTeamClub || T.clubId) === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+    <label class="field-l"><span>Team name</span><input type="text" name="name" required placeholder="e.g. Titans Under 16 Boys"></label>
+    <div class="two"><label class="field-l"><span>Club</span><select name="clubId" data-change="team-context"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${T.clubId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
       <label class="field-l"><span>Division</span><input type="text" name="division" placeholder="e.g. Women's Open"></label></div>
     <div class="two"><label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${k === (T.category || 'mixed') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="field-l"><span>First season</span><input type="text" name="season" value="${esc(String(new Date().getFullYear()))}" placeholder="e.g. Winter 2027"></label></div>
-    <label class="field-l"><span>Team sport</span>${sportSelect('teamSport', '', 'Use club default', 'team-context')}<small>Choose this team's sport, or inherit the club default. For example, a Rugby League club can have League Tag and Netball teams.</small></label>
+    <label class="field-l"><span>Team sport</span>${sportSelect('teamSport', source ? T.sport || '' : '', 'Use club default', 'team-context')}<small>Choose this team's sport, or inherit the club default. For example, a Rugby League club can have League Tag and Netball teams.</small></label>
     <p class="hint team-sport-guide" data-sport-guide role="status" aria-live="polite">The new player's preferred positions follow this team's sport.</p>
     <label class="field-l"><span>Tournament or season</span><input type="text" name="event" value="${esc(T.event)}"></label>
     <div class="two">
       <label class="field-l"><span>Starts</span><input type="date" name="eventStart" value="${esc(T.eventStart)}"></label>
       <label class="field-l"><span>Ends</span><input type="date" name="eventEnd" value="${esc(T.eventEnd)}"></label>
     </div>
-    <label class="check"><input type="checkbox" name="copySettings" data-change="team-context" checked><span>Copy ${esc(T.name)}’s training times, venue, field, rule set and by-laws</span></label>
-    ${M.libItems(ws, 'plays').length || Object.keys(ws.library.systems).length ? `<label class="check"><input type="checkbox" name="withLibrary" checked><span>Add everything in the library</span></label>` : ''}
+    ${source && !source.archived ? `<input type="hidden" name="sourceTeamId" value="${esc(source.id)}"><label class="check"><input type="checkbox" name="copySettings" data-change="team-context" checked><span>Reuse ${esc(T.name)}’s training times, venue, field setup, rule selection and by-laws</span></label><p class="hint">Only possible for the same club and sport. It will never copy players, coach contact details, staff, passwords, matches or history. Untick to start fresh.</p>${M.libItems(ws, 'plays').length || Object.keys(ws.library.systems).length ? `<label class="check"><input type="checkbox" name="withLibrary"><span>Also add shared tactics-library items</span></label>` : ''}` : '<p class="hint">Fresh setup: no existing team, coach or shared library settings will be copied.</p>'}
     ${S.trial ? '' : `<h3 class="form-sec">Team password</h3>
       <p class="muted small" style="margin-bottom:10px">For this team’s players only, different from every other password. Leave it blank and one is made for you; you can see it in Settings.</p>
       <div class="two"><label class="field-l"><span>Team password</span><input type="password" name="p1" minlength="8" autocomplete="new-password"></label>
       <label class="field-l"><span>Type it again</span><input type="password" name="p2" autocomplete="new-password"></label></div>`}
     <button class="btn primary block" type="submit">Create team</button>
-    <p class="hint">The new team starts with the starter plays, one empty lineup and no players.</p>
+    <p class="hint">Starts with no players, matches or scheduled activities. Built-in starter plays are supplied by the app, not copied from another team.</p>
   </form>`;
 }
 // Is this team password safe to use: long enough, not another team's, not the coach's?
