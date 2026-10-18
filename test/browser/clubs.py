@@ -1,0 +1,52 @@
+# Clubs: St George Oztag set up for DragonTag, club details, team details and staff, the players' view.
+import sys; from harness import *
+from playwright.sync_api import sync_playwright
+build(); srv, url = serve()
+c = Check()
+act = "([a, ds]) => { const b = document.createElement('button'); b.dataset.act = a; Object.assign(b.dataset, ds || {}); document.body.appendChild(b); b.click(); b.remove(); }"
+with sync_playwright() as p:
+    b = p.chromium.launch()
+    ctx, pg, errs = page(b, url + '#home', width=1280, height=900)
+    pg.wait_for_selector('text=Load a sample squad')
+    W = lambda js: pg.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M; return {js}; }})()')
+    c.ok(W('W.clubs.map(c => c.id)') == ['stgeorge'] and W('D.team.clubId') == 'stgeorge', 'St George Oztag set up with DragonTag in it')
+    c.ok('St George Oztag' in pg.inner_text('.hero'), 'club shown on Home')
+    pg.goto(url + '#club'); pg.wait_for_timeout(150)
+    txt = pg.inner_text('#view')
+    c.ok('stgeorgeoztag@oztag.com' in txt and 'nswoztag.au' in txt and 'Club officials' in txt, 'club page: contacts and officials section')
+    # edit the club: home ground and an official
+    pg.click('[data-act=club-edit]'); pg.wait_for_selector('#sheet form[data-form=club]')
+    pg.fill('#sheet input[name=homeGround]', 'Kogarah Park'); pg.fill('#sheet input[name=nights]', 'Tuesday mixed')
+    pg.locator('#sheet input[name=o-name]').first.fill('Pat President'); pg.locator('#sheet input[name=o-phone]').first.fill('0400 111 999')
+    pg.click('#sheet form[data-form=club] button[type=submit]'); pg.wait_for_timeout(150)
+    c.ok(W("W.clubs[0].homeGround") == 'Kogarah Park' and W("W.clubs[0].officials.length") == 1, 'club saved with an official')
+    # team details and staff in Settings
+    pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#sheet input[name=division]')
+    pg.fill('#sheet input[name=division]', 'Mixed 20s'); pg.fill('#sheet input[name=season]', '2026–27')
+    pg.locator('#sheet input[name=st-name]').first.fill('Paul Coach'); pg.locator('#sheet input[name=st-phone]').first.fill('0411 222 333')
+    pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(150)
+    c.ok(W("D.team.division") == 'Mixed 20s' and W("D.team.staff[0].name") == 'Paul Coach', 'division and staff saved')
+    pg.keyboard.press('Escape')
+    # a new club and a team in it
+    pg.goto(url + '#teams'); pg.wait_for_timeout(100)
+    pg.click('[data-act=club-new]'); pg.fill('#sheet input[name=name]', 'Hills Oztag'); pg.click('#sheet form[data-form=club] button[type=submit]'); pg.wait_for_timeout(150)
+    hills = W("W.clubs.find(c => c.name === 'Hills Oztag').id")
+    pg.goto(url + '#teams'); pg.wait_for_timeout(100)
+    pg.click('[data-act=team-new]'); pg.fill('#sheet input[name=name]', 'Hills Women'); pg.select_option('#sheet select[name=clubId]', hills)
+    pg.select_option('#sheet select[name=category]', 'women'); pg.click('#sheet form[data-form=team-new] button[type=submit]'); pg.wait_for_timeout(200)
+    c.ok(W("D.team.clubId") == hills and W("D.team.category") == 'women', 'team created in the new club')
+    pg.goto(url + '#field'); pg.wait_for_timeout(100)
+    c.ok('males max' not in pg.inner_text('#view'), 'no mixed check for a women’s team')
+    pg.goto(url + '#teams'); pg.wait_for_timeout(100)
+    txt = pg.inner_text('#view')
+    c.ok(txt.index('Hills Oztag') < txt.index('Hills Women') and 'St George Oztag' in txt, 'teams grouped under their clubs')
+    # back to DragonTag; the players' view
+    pg.click('.team-btn'); pg.click('#sheet [data-act=team-pick][data-id=team1]'); pg.wait_for_timeout(100)
+    pg.evaluate(act, ['preview-on', {}]); pg.goto(url + '#club'); pg.wait_for_timeout(150)
+    txt = pg.inner_text('#view')
+    c.ok('Kogarah Park' in txt and 'Paul Coach' in txt, 'players see the club and staff names')
+    c.ok('Pat President' not in txt and '0400 111 999' not in txt and '0411 222 333' not in txt, 'players see no officials or staff phones')
+    c.ok('Pat President' not in str(pg.evaluate("JSON.stringify(window.__team.M.clubForPlayers(window.__team.ws.clubs[0]))")), 'officials left out of the players’ copy')
+    pg.screenshot(path=shot('club.png'), full_page=True)
+    ok = c.done(errs); b.close()
+srv.shutdown(); sys.exit(0 if ok else 1)

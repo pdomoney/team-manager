@@ -380,3 +380,47 @@ test('agenda lists sessions, matches and tasks in order', () => {
   t.matches.push({ id: 'm2', date: '2027-03-20', start: '08:00' }, { id: 'm3', date: '2027-03-19', start: '10:00' }, { id: 'm4', date: '2026-12-01', tournament: true });
   assert.deepEqual(M.tournamentDays(t).map(d => [d.date, d.matches.map(m => m.id)]), [['2026-12-01', ['m4']], ['2027-03-19', ['m3']], ['2027-03-20', ['m2']]]);
 });
+
+test('clubs: St George Oztag is added once on upgrade, with DragonTag in it', () => {
+  const old = { version: 2, ...team() };
+  const ws = M.migrateWorkspace(JSON.parse(JSON.stringify(old)));
+  assert.deepEqual(ws.clubs.map(c => c.id), ['stgeorge']);
+  assert.equal(ws.team.clubId, 'stgeorge');
+  assert.equal(M.clubOf(ws, ws).name, 'St George Oztag');
+  assert.deepEqual(M.migrateWorkspace(JSON.parse(JSON.stringify(ws))), ws, 'upgrading again changes nothing');
+  // a coach who deleted every club doesn't get it back
+  M.removeClub(ws, 'stgeorge');
+  assert.equal(ws.team.clubId, '');
+  assert.deepEqual(M.migrateWorkspace(JSON.parse(JSON.stringify(ws))).clubs, []);
+  // a team that isn't DragonTag isn't put in the club
+  const other = M.migrateWorkspace({ ...team(), team: { name: 'Hills Hornets' } });
+  assert.equal(other.team.clubId || '', '');
+});
+
+test('clubs: links to a missing club are cleared, and the players see the public details only', () => {
+  const ws = M.migrateWorkspace({ ...team(), team: { name: 'U16', clubId: 'gone' }, clubs: [] });
+  assert.equal(ws.team.clubId, '');
+  const c = M.normClub({ name: 'St George Oztag', email: 'club@x', officials: [{ role: 'President', name: 'Pat', phone: '0400 000 000' }], notes: 'private' });
+  const pub = M.clubForPlayers(c);
+  assert.equal(pub.name, 'St George Oztag');
+  assert.ok(!('officials' in pub) && !('notes' in pub));
+});
+
+test('clubs merge record by record', () => {
+  const base = M.migrateWorkspace({ ...team(), team: { name: 'DragonTag Mixed 20s' } });
+  const local = JSON.parse(JSON.stringify(base)), remote = JSON.parse(JSON.stringify(base));
+  local.clubs[0].homeGround = 'Kogarah Park';
+  remote.clubs.push(M.normClub({ id: 'hills', name: 'Hills Oztag' }));
+  const r = M.merge3(base, local, remote);
+  assert.deepEqual(r.merged.clubs.map(c => c.id).sort(), ['hills', 'stgeorge']);
+  assert.equal(r.merged.clubs.find(c => c.id === 'stgeorge').homeGround, 'Kogarah Park');
+});
+
+test('the males-on-field check only applies to mixed teams', () => {
+  const t = team();
+  t.players = Array.from({ length: 8 }, (_, i) => ({ id: 'm' + i, name: 'M' + i, gender: 'M', status: 'available' }));
+  const lu = { slots: t.players.map((p, i) => ({ id: 'S' + i, playerId: p.id })) };
+  assert.ok(M.lineupCheck(t, lu).issues.some(x => x.includes('males')));
+  t.team.category = 'men';
+  assert.equal(M.lineupCheck(t, lu).ready, true);
+});

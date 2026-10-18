@@ -115,10 +115,17 @@ function taskForTeam(t) {
   return { ...base, spots: people.filter(p => p.role !== 'rider' && p.status !== 'no').map(p => p.status === 'done' ? 'done' : p.status === 'yes' ? 'confirmed' : 'invited') };
 }
 
-// The players' copy. Anything not listed here stays in the coach's file only.
-export function teamView(d) {
+// The club's details players may see (the coach's copy also has its officials and notes).
+const CLUB_PUBLIC = ['id', 'name', 'shortName', 'sport', 'governingBody', 'founded', 'website', 'email', 'phone', 'postal', 'facebook', 'instagram', 'colours', 'homeGround', 'homeAddress', 'nights', 'registration', 'conduct', 'juniorBrand'];
+
+// The players' copy. Anything not listed here stays in the coach's file only. `club` is the team's
+// club, if it has one.
+export function teamView(d, club = null) {
   return {
-    team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field', 'tasksContact']),
+    team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field', 'tasksContact', 'clubId', 'division', 'category', 'ageGroup', 'season', 'colours']),
+    club: club && typeof club === 'object' ? pick(club, CLUB_PUBLIC) : null,
+    // Team staff: who they are; their phone numbers and email addresses stay with the coach.
+    staff: ((d.team && d.team.staff) || []).filter(x => x && x.name).map(x => pick(x, ['role', 'name'])),
     players: (d.players || []).map(p => pick(p, ['id', 'name', 'gender', 'number', 'positions'])),
     sessions: (d.sessions || []).map(s => pick(s, ['id', 'date', 'start', 'end', 'venue', 'focus', 'notes', 'cancelled'])),
     lineups: (d.lineups || []).map(l => ({
