@@ -86,7 +86,10 @@ test('PR8 port: conflicting simultaneous jersey edits are surfaced, not silently
 test('PR8 port: coach-only jersey corrections and photos never enter a player projection', () => {
   const ws = make(), amy = p(ws,'a');
   amy.photo = 'data:image/png;base64,'+'A'.repeat(1000);
+  amy.phone = '0488 123 987';
   M.removeLoan(amy,amy.jerseys[0].id);
   const publicCopy = JSON.stringify(teamView(M.activeLens(ws),M.clubOf(ws,ws)));
-  for (const key of ['jerseyCorrections','jerseys','data:image/png','phone']) assert.ok(!publicCopy.includes(key), key);
+  for (const key of ['jerseyCorrections','jerseys','data:image/png','0488 123 987']) assert.ok(!publicCopy.includes(key), key);
+  // Public team contact fields may legitimately be named "phone"; the private
+  // PLAYER'S actual phone value must not appear in the player projection.
 });
