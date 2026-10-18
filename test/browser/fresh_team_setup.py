@@ -49,7 +49,7 @@ with sync_playwright() as p:
          'new team does not copy players, matches or sessions')
     c.ok(W("M.teamSport(D.team,M.clubOf(W,D))") == 'Rugby league', 'new team inherits Titans club sport')
     # Deliberate setup reuse: separate picker, explicit source, same club and sport.
-    W("(D.team.trainingVenue='Titans Oval',D.team.trainingStart='17:15',D.team.venue='Titans Ground',D.team.bylaws=[{id:'u16rule',topic:'Other',text:'U16 restriction'}],D.team.tasksContact={name:'Private Coach',phone:'0400 111 777'},D.team.staff=[{name:'Secret Assistant',role:'Assistant coach'}],1)")
+    W("(D.team.trainingVenue='Titans Oval',D.team.trainingStart='17:15',D.team.venue='Titans Ground',D.team.event='U16 Secret Cup',D.team.eventStart='2027-03-11',D.team.eventEnd='2027-03-13',D.team.bylaws=[{id:'u16rule',topic:'Other',text:'U16 restriction'}],D.team.tasksContact={name:'Private Coach',phone:'0400 111 777'},D.team.staff=[{name:'Secret Assistant',role:'Assistant coach'}],1)")
     original = W("D.id")
     pg.goto(url + '#teams')
     pg.wait_for_selector('[data-act=team-template-choose]')
@@ -60,6 +60,8 @@ with sync_playwright() as p:
     pg.wait_for_selector('#sheet form[data-form=team-new]')
     c.ok(pg.input_value('#sheet input[name=sourceTeamId]') == original, 'explicit source team chosen by ID')
     c.ok(pg.is_checked('#sheet input[name=copySettings]'), 'source-specific copy deliberately enabled')
+    c.ok(pg.input_value('#sheet input[name=event]') == '' and pg.input_value('#sheet input[name=eventStart]') == '',
+         'even an explicit setup source does not prefill previous competition or dates')
     c.ok(pg.locator('#sheet input[name=withLibrary]:checked').count() == 0, 'shared library copy opt-in not automatic')
     pg.fill('#sheet input[name=name]', 'Titans Under 15 Boys')
     # Wrong club is rejected before constructing the target team.
@@ -75,6 +77,8 @@ with sync_playwright() as p:
     c.ok(W("D.team.trainingVenue") == 'Titans Oval' and W("D.team.trainingStart") == '17:15',
          'only explicit template copies training setup')
     c.ok(W("D.team.bylaws.some(x=>x.id==='u16rule')"), 'deliberate same-sport template may copy by-laws')
+    c.ok(W("D.team.event") == '' and W("D.team.eventStart") == '',
+         'new season does not inherit the source competition identity')
     c.ok(W("D.team.tasksContact.phone") == '' and W("D.team.staff.length") == 0,
          'even explicit template does not transfer coach contact or staff')
     c.ok(W("D.players.length") == 0 and W("D.matches.length") == 0 and W("D.sessions.length") == 0,
