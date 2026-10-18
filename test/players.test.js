@@ -20,7 +20,8 @@ test('sports: a list to pick from, positions for each, rule sets only where the 
   assert.equal(M.defaultRuleSet({ category: 'mixed' }, null), 'oztag/mixed', 'no sport at all: Oztag, as before');
   assert.deepEqual(M.positionsFor({}, { sport: 'Netball' }), M.SPORT_POSITIONS.Netball);
   assert.deepEqual(M.positionsFor({ sport: 'Rugby union' }, { sport: 'Oztag' }), M.SPORT_POSITIONS['Rugby union'], 'the team’s own sport first');
-  assert.deepEqual(M.positionsFor({ positions: ['A', 'B'] }, null), ['A', 'B'], 'a team’s own list wins');
+  assert.deepEqual(M.positionsFor({ positions: ['A', 'B'], positionsCustom: true }, null), ['A', 'B'], 'a team’s own list wins');
+  assert.deepEqual(M.positionsFor({ positions: M.SPORT_POSITIONS.Oztag }, { sport: 'Netball' }), M.SPORT_POSITIONS.Netball, 'a stale list that isn’t the team’s own doesn’t');
 });
 
 test('a team made with the Oztag positions in a rugby league club gets league positions', () => {

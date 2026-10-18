@@ -445,6 +445,7 @@ function save() {
   M.claimRecords(data, editingSeasonId());   // new records join the season being worked on
   M.syncJerseys(data, todayISO());            // a number given out is a jersey given out
   M.syncEvents(ws);
+  M.syncPositions(ws);                         // teams that follow their sport have its positions
   data.updatedAt = ws.updatedAt = new Date().toISOString();
   if (S.trial) { if (!store.set(KEYS.trial, JSON.stringify(ws))) S.storageFull = true; renderStatus(); return; }
   S.dirty = true;
@@ -963,9 +964,10 @@ function playerForm(p) {
       <label class="field-l"><span>Status</span><select name="status">${Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>
     <label class="field-l"><span>Mobile</span><input type="tel" name="phone" placeholder="04xx xxx xxx" value="${esc(p.phone)}"><small>Coach only. For messaging them directly on WhatsApp.</small></label>
-    <div class="field-l"><span>Preferred positions</span><div class="opts">
-      ${[...new Set([...M.positionsFor(data.team, M.clubOf(ws, data)), ...arr(p.positions)])].map(x => `<label class="opt"><input type="checkbox" name="positions" value="${esc(x)}" ${p.positions.includes(x) ? 'checked' : ''}><span>${esc(x)}</span></label>`).join('')}
-    </div><small>${esc(M.teamSport(data.team, M.clubOf(ws, data)))} positions. Change the list in Settings › Team.</small></div>
+    ${(() => { const club = M.clubOf(ws, data), sport = M.teamSport(data.team, club), list = M.positionsFor(data.team, club), extra = arr(p.positions).filter(x => !list.includes(x));
+      return `<div class="field-l" id="player-positions" data-sport="${esc(sport)}"><span>Preferred positions · ${esc(sport)}</span><div class="opts">
+      ${[...list, ...extra].map(x => `<label class="opt"><input type="checkbox" name="positions" value="${esc(x)}" ${arr(p.positions).includes(x) ? 'checked' : ''}><span>${esc(x)}</span></label>`).join('')}
+    </div><small>${data.team.positionsCustom ? 'This team’s own list. ' : ''}Pick any, or none.${extra.length ? ` ${esc(extra.join(', '))} ${extra.length === 1 ? 'is' : 'are'} from before and kept unless you untick ${extra.length === 1 ? 'it' : 'them'}.` : ''} Change the list in Settings › Team.</small></div>`; })()}
     <label class="field-l"><span>Notes</span><input type="text" name="notes" value="${esc(p.notes)}" placeholder="Coach only, e.g. works Thursdays"></label>
     ${isNew ? '' : jerseyBlock(p)}
     ${st && st.total ? `<p class="note" style="background:var(--ok-soft)">Training: ${st.att} of ${st.total} sessions (${st.pct}%)${st.late ? `, ${st.late} late` : ''}${st.apol ? `, ${st.apol} apolog${st.apol === 1 ? 'y' : 'ies'}` : ''}.</p>` : ''}
@@ -3778,11 +3780,11 @@ function clubForm(c) {
 function teamDetailsFields(T) {
   const staff = [...arr(T.staff), { role: 'Head coach', name: '', phone: '', email: '' }];
   return `<h3 class="form-sec">Team details</h3>
-    <div class="two"><label class="field-l"><span>Club</span><select name="clubId"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${T.clubId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select><small><button type="button" class="link-btn inline" data-act="club-new">New club</button></small></label>
+    <div class="two"><label class="field-l"><span>Club</span><select name="clubId" data-change="team-sport"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${T.clubId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select><small><button type="button" class="link-btn inline" data-act="club-new">New club</button></small></label>
       <label class="field-l"><span>Division</span><input type="text" name="division" value="${esc(T.division)}" placeholder="e.g. Mixed 20s"></label></div>
     <div class="two"><label class="field-l"><span>Category</span><select name="category">${Object.entries(M.TEAM_CATEGORIES).map(([k, l]) => `<option value="${k}" ${T.category === k ? 'selected' : ''}>${l}</option>`).join('')}</select><small>Mixed turns on the males-on-field check.</small></label>
       <label class="field-l"><span>Age group</span><input type="text" name="ageGroup" value="${esc(T.ageGroup)}" placeholder="e.g. 20 and over, Under 16"></label></div>
-    <label class="field-l"><span>Sport</span>${sportSelect('teamSport', T.sport || '', `Club’s sport (${(M.clubOf(ws, data) || {}).sport || 'Oztag'})`)}<small>Sets the positions players can pick and the official rules. Most teams play their club’s sport.</small></label>
+    <label class="field-l"><span>Sport</span>${sportSelect('teamSport', T.sport || '', `Club’s sport (${(M.clubOf(ws, data) || {}).sport || 'Oztag'})`, 'data-change="team-sport"')}<small>Sets the positions players can pick and the official rules. Most teams play their club’s sport.</small></label>
     ${ruleSetField(T)}
     <div class="two"><div class="field-l"><span>Season</span><p class="field-static">${esc((M.activeSeason(data) || {}).name || 'No active season')} <button type="button" class="link-btn inline" data-act="season-open">Seasons</button></p></div>
       <label class="field-l"><span>Team colours</span><input type="text" name="colours" value="${esc(T.colours)}" placeholder="Blank: the club’s"></label></div>
@@ -3845,7 +3847,25 @@ function teamSwitcher() {
 // its seasons. Matches belong to an entry, or are friendlies, or aren't linked to anything yet. No
 // tables or standings are worked out: only this app's own teams' results are recorded.
 // A sport picked from the list (a name typed before the list existed is kept as an option).
-const sportSelect = (name, cur, blank = '') => `<select name="${name}">${blank ? `<option value="">${esc(blank)}</option>` : ''}${[...new Set([...M.SPORTS, ...(cur ? [cur] : [])])].map(x => `<option value="${esc(x)}" ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
+const sportSelect = (name, cur, blank = '', attrs = '') => `<select name="${name}" ${attrs}>${blank ? `<option value="">${esc(blank)}</option>` : ''}${[...new Set([...M.SPORTS, ...(cur ? [cur] : [])])].map(x => `<option value="${esc(x)}" ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
+const applyTeamPositions = (T, before, submitted, shown) => M.applyPositions(T, M.clubOf(ws, data), before, submitted, shown);
+// Settings › Team: the sport the form says the team plays (its own, or the club picked in the form).
+function formSport(form) {
+  const v = n => (form.querySelector(`[name=${n}]`) || {}).value || '';
+  return M.teamSport({ sport: v('teamSport') }, arr(ws.clubs).find(c => c.id === v('clubId')) || null);
+}
+const posHint = (sport, custom) => `${custom ? 'This team has its own list. ' : 'These follow the team’s sport. '}${esc(sport)}’s are: ${esc((M.SPORT_POSITIONS[sport] || []).join(', ') || 'none set')}.`;
+// When the club or sport changes in the form, a list that was the old sport's becomes the new one's.
+function refreshTeamSport(form) {
+  const inp = form.querySelector('[name=positions]'), sel = form.querySelector('[name=teamSport]'), club = arr(ws.clubs).find(c => c.id === (form.querySelector('[name=clubId]') || {}).value);
+  if (sel && sel.options[0] && sel.options[0].value === '') sel.options[0].textContent = `Club’s sport (${(club && club.sport) || 'Oztag'})`;
+  if (!inp) return;
+  const was = form.dataset.sport || M.teamSport(data.team, M.clubOf(ws, data)), sp = formSport(form), list = inp.value.split(',').map(x => x.trim()).filter(Boolean);
+  if (!list.length || M.samePositions(list, M.SPORT_POSITIONS[was] || [])) inp.value = (M.SPORT_POSITIONS[sp] || []).join(', ');
+  const own = list.length && !M.isAppList(list);
+  const hint = form.querySelector('.pos-hint'); if (hint) hint.innerHTML = posHint(sp, own);
+  form.dataset.sport = sp;
+}
 // The competition a match is in, for showing beside it ('' when none).
 function matchCompLabel(m) {
   if (S.role === 'coach' && !state.preview) {
@@ -4465,7 +4485,8 @@ function settingsBody() {
       <label class="field-l"><span>Red middle channel (m)</span><input type="number" name="fieldMiddle" min="4" max="20" step="0.5" value="${esc(T.field.middle)}"></label>
     </div>
     <p class="hint" style="margin-top:-6px;margin-bottom:14px">The two outside channels share the rest of the 50 m width: ${esc(fieldDims(T.field).outside)} m each now.</p>
-    <label class="field-l"><span>Positions</span><input type="text" name="positions" value="${esc(M.positionsFor(T, M.clubOf(ws, data)).join(', '))}"><small>What players can pick as preferred positions, separated by commas. ${esc(M.teamSport(T, M.clubOf(ws, data)))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, M.clubOf(ws, data))] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>
+    ${(() => { const shown = M.positionsFor(T, M.clubOf(ws, data)).join(', ');
+      return `<label class="field-l"><span>Positions</span><input type="text" name="positions" value="${esc(shown)}"><input type="hidden" name="positionsShown" value="${esc(shown)}"><small>What players can pick as preferred positions, separated by commas. <span class="pos-hint">${posHint(M.teamSport(T, M.clubOf(ws, data)), !!T.positionsCustom)}</span> <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>`; })()}
     <label class="check"><input type="checkbox" name="jerseyLoan" ${T.jerseyLoan ? 'checked' : ''}><span>Jerseys are lent to players and must be handed back</span></label>
     <button class="btn primary block" type="submit">Save settings</button>
   </form>
@@ -5229,8 +5250,9 @@ const actions = {
   }),
   'positions-default': coachOnly(el => {
     const form = el.closest('form'), inp = form && form.querySelector('[name=positions]'); if (!inp) return;
-    const sel = form.querySelector('[name=teamSport]'), sp = (sel && sel.value) || M.teamSport({}, M.clubOf(ws, data));
+    const sp = formSport(form);
     inp.value = (M.SPORT_POSITIONS[sp] || []).join(', ');
+    const hint = form.querySelector('.pos-hint'); if (hint) hint.innerHTML = posHint(sp, false);
   }),
   'club-logo-clear': coachOnly(el => {
     const form = el.closest('form'); if (!form) return;
@@ -5322,6 +5344,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
+  if (k === 'team-sport') refreshTeamSport(e.target.closest('form'));
   if (k === 'player-photo') {
     const inp = e.target, form = inp.closest('form');
     readPhoto(inp.files && inp.files[0]).then(d => {
@@ -5556,9 +5579,12 @@ document.addEventListener('submit', async e => {
     t.team.season = str('season') || String(new Date().getFullYear());   // names the team's first season
     t.team.sport = M.SPORTS.includes(str('teamSport')) ? str('teamSport') : '';
     t.team.clubId = str('clubId'); t.team.division = str('division'); t.team.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
-    if (f.get('copySettings')) ['venue', 'trainingVenue', 'trainingStart', 'trainingEnd', 'maxMales', 'positions', 'field', 'tasksContact', 'rules', 'bylaws'].forEach(k => { t.team[k] = clone(data.team[k]); });
+    if (f.get('copySettings')) ['venue', 'trainingVenue', 'trainingStart', 'trainingEnd', 'maxMales', 'field', 'tasksContact', 'rules', 'bylaws'].forEach(k => { t.team[k] = clone(data.team[k]); });
     t.team.rulesSeen = M.RULES.pack;
-    { const sp = M.teamSport(t.team, M.clubOf(ws, t)); if (!(f.get('copySettings') && sp === M.teamSport(data.team, M.clubOf(ws, data)))) t.team.positions = (M.SPORT_POSITIONS[sp] || []).slice(); }
+    // The new team's sport's positions; a team copied from one of the same sport keeps that team's own list.
+    const copyOwn = !!f.get('copySettings') && !!data.team.positionsCustom && M.teamSport(t.team, M.clubOf(ws, t)) === M.teamSport(data.team, M.clubOf(ws, data));
+    if (copyOwn) M.setTeamPositions(t.team, M.clubOf(ws, t), data.team.positions);
+    else { t.team.positionsCustom = false; t.team.positions = (M.SPORT_POSITIONS[M.teamSport(t.team, M.clubOf(ws, t))] || []).slice(); }
     t.teamPass = pass; t.teamSalt = '';
     M.addTeam(ws, t);
     if (f.get('withLibrary')) ['plays', 'systems', 'playerSets'].forEach(k => M.libItems(ws, k).forEach(li => M.libAdd(ws, t, k, li.id)));
@@ -5748,6 +5774,8 @@ document.addEventListener('submit', async e => {
   }
   if (kind === 'settings') {
     const T = data.team;
+    // What the team was before anything changes: its club and sport, and whether its positions were its own.
+    const before = { clubId: T.clubId || '', sport: M.teamSport(T, M.clubOf(ws, data)), custom: !!T.positionsCustom, positions: arr(T.positions).slice() };
     T.name = str('name') || T.name; T.event = str('event'); T.eventStart = str('eventStart'); T.eventEnd = str('eventEnd');
     T.venue = str('venue');
     const ec = M.findComp(ws, T.eventCompId);   // the tournament is a competition: keep them the same
@@ -5760,13 +5788,9 @@ document.addEventListener('submit', async e => {
     T.staff = peopleRows(f, 'st');
     T.tasksContact = { name: str('tasksName'), phone: str('tasksPhone') };
     T.trainingVenue = str('trainingVenue'); T.trainingStart = str('trainingStart'); T.trainingEnd = str('trainingEnd');
-    const oldSport = M.teamSport(T, M.clubOf(ws, data)), sp = str('teamSport');
+    const sp = str('teamSport');
     T.sport = M.SPORTS.includes(sp) || sp === T.sport ? sp : '';
-    const newSport = M.teamSport(T, M.clubOf(ws, data));
-    let pos = str('positions').split(',').map(x => x.trim()).filter(Boolean);
-    // Changing the sport brings its positions, unless the team had its own list.
-    if (oldSport !== newSport && pos.join('|') === (M.SPORT_POSITIONS[oldSport] || []).join('|')) pos = (M.SPORT_POSITIONS[newSport] || []).slice();
-    T.positions = pos;
+    applyTeamPositions(T, before, str('positions'), f.has('positionsShown') ? str('positionsShown') : null);
     T.jerseyLoan = !!f.get('jerseyLoan');
     const zone = Number(str('fieldZone')), touch = Number(str('fieldTouch')), middle = Number(str('fieldMiddle'));
     const fits = zone >= 5 && zone <= 30 && touch >= 2 && middle >= 4 && (50 - middle - 2 * touch) / 2 >= 3;

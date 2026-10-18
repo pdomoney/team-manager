@@ -84,7 +84,7 @@ export function migrateWorkspace(raw, normTeam = t => t) {
   ws.competitions = src.competitions === undefined ? seedCompetitions(ws) : arr(src.competitions).filter(isObj).map(normComp);
   repairCompetitions(ws);
   syncEvents(ws);
-  fixDefaultPositions(ws);
+  syncPositions(ws);
   teamsOf(ws).forEach(t => repairTeam(t));
   return ws;
 }
@@ -528,13 +528,41 @@ const SPORT_OF = [[/league\s*tag/i, 'league-tag'], [/rugby\s*league|^\s*league\s
 export const sportOf = name => (SPORT_OF.find(([re]) => re.test(name || '')) || [, ''])[1];
 // A team plays its own sport if it has one set, otherwise its club's.
 export const teamSport = (team, club) => (team && team.sport) || (club && club.sport) || 'Oztag';
-export const positionsFor = (team, club) => arr(team && team.positions).length ? team.positions : (SPORT_POSITIONS[teamSport(team, club)] || []);
+// The positions players can pick: the team's sport's list, unless the coach made the team its own list
+// (team.positionsCustom). team.positions always holds the list in use, for older versions of the app.
+export const positionsFor = (team, club) => team && team.positionsCustom && arr(team.positions).length ? team.positions : (SPORT_POSITIONS[teamSport(team, club)] || []);
 const sameList = (a, b) => arr(a).join('|') === arr(b).join('|');
-// A team in a club of another sport that still has the Oztag positions it was made with gets its sport's.
-function fixDefaultPositions(ws) {
+export const samePositions = sameList;
+// Lists the app itself has ever filled in: each sport's list, and Oztag's from before "Rover".
+const APP_LISTS = [...Object.values(SPORT_POSITIONS).filter(l => l.length), ['Wing', 'Link', 'Middle', 'Half']];
+export const isAppList = l => arr(l).length > 0 && APP_LISTS.some(d => sameList(d, l));
+// Set a team's positions from what the coach entered: empty, or exactly the sport's list, follows the
+// sport from now on; anything else is the team's own.
+export function setTeamPositions(T, club, list) {
+  const own = arr(list).map(x => String(x).trim()).filter(Boolean), def = SPORT_POSITIONS[teamSport(T, club)] || [];
+  if (!own.length || sameList(own, def)) { T.positionsCustom = false; T.positions = def.slice(); }
+  else { T.positionsCustom = true; T.positions = own; }
+}
+// Settings › Team saved. `before` is the team as it was ({ sport, custom, positions }), `shown` the list
+// the form opened with. A list the coach left as it was stays the team's own if it was, and otherwise
+// follows the (possibly new) sport; a list the coach changed is applied as entered.
+const splitList = v => (Array.isArray(v) ? v : String(v || '').split(',')).map(x => String(x).trim()).filter(Boolean);
+export function applyPositions(T, club, before, submitted, shown = null) {
+  const list = splitList(submitted), was = shown === null ? (before.custom ? before.positions : SPORT_POSITIONS[before.sport] || []) : splitList(shown);
+  if (!sameList(list, was)) return setTeamPositions(T, club, list);
+  if (before.custom) { T.positionsCustom = true; T.positions = splitList(before.positions); }
+  else { T.positionsCustom = false; T.positions = (SPORT_POSITIONS[teamSport(T, club)] || []).slice(); }
+}
+// Data from before this was recorded: a list identical to one of the app's own lists (in full and in
+// order) was the app's default, so it follows the sport; any other list is kept as the coach's own.
+// Then every team that follows its sport has that sport's list (after a club or sport change too).
+export function syncPositions(ws) {
   teamsOf(ws).forEach(t => {
-    const T = t.team || {}, c = clubOf(ws, t), sp = teamSport(T, c);
-    if (!T.sport && sp !== 'Oztag' && sameList(T.positions, SPORT_POSITIONS.Oztag) && arr(SPORT_POSITIONS[sp]).length) T.positions = SPORT_POSITIONS[sp].slice();
+    const T = t.team; if (!T) return;
+    // No record yet (older data), or a list someone typed in on a version of the app that didn't record it.
+    if (typeof T.positionsCustom !== 'boolean' || (!T.positionsCustom && arr(T.positions).length && !isAppList(T.positions)))
+      T.positionsCustom = arr(T.positions).length > 0 && !isAppList(T.positions);
+    if (!T.positionsCustom) T.positions = (SPORT_POSITIONS[teamSport(T, clubOf(ws, t))] || []).slice();
   });
 }
 export function ruleSetList(R = RULES) {

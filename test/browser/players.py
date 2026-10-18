@@ -31,7 +31,7 @@ with sync_playwright() as p:
     pid = W("D.players.find(p => p.name === 'Mia Tuala').id")
     pg.evaluate(act, ['edit-player', {'id': pid}]); pg.wait_for_selector('#sheet form[data-form=player]')
     pos = pg.eval_on_selector_all('#sheet input[name=positions]', 'xs => xs.map(x => x.value)')
-    c.ok('Halfback' in pos and 'Fullback' in pos and 'Rugby league positions' in pg.inner_text('#sheet'), 'the player form offers rugby league positions')
+    c.ok('Halfback' in pos and 'Fullback' in pos and 'Preferred positions · Rugby league' in pg.inner_text('#sheet'), 'the player form offers rugby league positions')
     c.ok('Middle' in pos, 'a position the player already had stays ticked-able')
     # photo
     pg.set_input_files('#sheet input[data-change=player-photo]', PHOTO); pg.wait_for_function("document.querySelector('#sheet input[name=photo]').value.startsWith('data:image/')")
