@@ -1,10 +1,10 @@
-# Players, Sports & Jerseys — Corrective Candidate / Multi-LLM Handoff
+# Players, Sports & Jerseys — Accepted Corrective History / Multi-LLM Handoff
 
-**Status update (18 October 2026):** PR #9 **was merged** into `main` at `1f9f7e7`, although its post-merge Chromium CI had a publishing regression. PR #8 remains **unmerged with conflicts**. The corrective/stabilisation follow-up is **draft PR #10**, not yet merged. See [merge reconciliation](merge-reconciliation-20261018.md). Historical notes below describe the PR9 development candidate and should not be mistaken for current acceptance evidence.
+**Final status (18 October 2026):** PR #9 and its publishing follow-up PR #10 are **merged**. PR #11 selectively brought forward compatible additional qualification and storage-recovery work. PR #8 is **closed without merging**. The authoritative, automated-test-passing development baseline is [`main` at `960212fdb3c6`](https://github.com/pdomoney/team-manager/commit/960212fdb3c6bfcf73bbb3c2160aa21ac2ea07e6). See [completed merge reconciliation](merge-reconciliation-20261018.md) and [current release record](release-record.md). The detailed development notes below preserve historical context; they are not outstanding merge instructions.
 **Repository:** `pdomoney/team-manager`
 **Baseline main:** `f1822a84224195a485fc275c21b617ebc28a1fc8` (PR #7, Players and Sports)
 **Development branch:** `corrective/players-jerseys-sports-20261018`
-**Authoritative candidate SHA:** inspect the latest branch HEAD; do not assume this document contains its final SHA.
+**Historical branch:** The listed corrective branch is a reference to the original PR9 development work, not the authoritative live baseline. Always verify latest `main` before new changes.
 **Scope:** Additive corrective work only; no auth, server, schema replacement, or full UI redesign.
 
 ## Problem statement
@@ -57,18 +57,16 @@ Review of PR #7 confirmed that forms, sport lists, photographs, return-tracking 
 - A previous issue deliberately deleted is **not** reissued automatically in that season. An explicit new issue is required.
 - These changes do not add sport-specific tactics field diagrams beyond current support.
 
-## Verified CI evidence and parallel development
+## Historical CI evidence and final acceptance
 
-- PR: **[#9](https://github.com/pdomoney/team-manager/pull/9)** (**merged**; the qualification results below predate the additional UI tests and the post-merge `main` regression). See **[#10](https://github.com/pdomoney/team-manager/pull/10)** for the pending publishing-stabilisation candidate.
-- Successful source regression at `d27bb67f72d3a563d6e19293b078482d2138e864`:
-  - GitHub Actions unit tests: **97 passed, 0 failed, 0 skipped**.
-  - GitHub Actions Playwright Chromium browser suites: **490 checks passed across 13 suites**. GitHub publishing was simulated; WhatsApp was stubbed.
-- A subsequent **presentation-only wording correction** clarifies “No issue this season” instead of inaccurately saying “No jersey”. Validate the latest branch HEAD's CI before final acceptance.
-- **Parallel candidate warning:** [PR #8](https://github.com/pdomoney/team-manager/pull/8) from another development chat covers overlapping corrective work, including a more extensive photo capacity harness. **Do not merge both PRs independently.** Compare their implementations, select the preferred candidate, reconcile any unique tests, and qualify the consolidated result on a separate reviewed branch if necessary.
+- [PR #9](https://github.com/pdomoney/team-manager/pull/9) merged the initial corrective work. An earlier candidate at `d27bb67f72d3a563d6e19293b078482d2138e864` passed **97 unit tests and 490 browser checks**; those counts are historical, not the latest merged-baseline counts.
+- [PR #10](https://github.com/pdomoney/team-manager/pull/10) resolved the subsequently discovered queued manual-publish regression. [PR #11](https://github.com/pdomoney/team-manager/pull/11) added compatible photo capacity/regression qualification and storage recovery; [PR #8](https://github.com/pdomoney/team-manager/pull/8) was closed without merging.
+- The actual merged `main` commit `960212fdb3c6` passed **103/103 unit** and **491/491 standard Chromium checks** in [run 39112283528](https://github.com/pdomoney/team-manager/actions/runs/39112283528). [Pages publishing](https://github.com/pdomoney/team-manager/actions/runs/39112283502) succeeded in **test mode**.
+- The fuller **30/60/100-photo** synthetic qualification passed **30/30 checks** as part of [PR #11's 521/521 browser run](https://github.com/pdomoney/team-manager/actions/runs/39108841423). The main push intentionally skips this slower capacity suite; see [qualification details](pr8-selective-qualification-20261018.md).
 
 ## Outstanding qualification / limitations
 
-- CI unit and Chromium browser results MUST be read from the candidate commit checks. Do not substitute previously passed `main` checks.
+- For subsequent changes, qualify against the **new exact commit**, not historical PR9/PR11 candidate results. The merged baseline is documented above.
 - Safari on iOS/macOS, real-photo uploads, real device quota, production GitHub API/publishing, and real WhatsApp remain **manual acceptance** unless independently run and evidenced.
 - The synthetic 30/60/100-photo tests validate serialized data/projection and target size, not real iOS Safari quota. Do not claim actual storage capacity is guaranteed on all phones.
 - Existing 80 KB photos are not retroactively recompressed. Teams with many legacy large photos may still exceed storage; export a backup and reduce photos if warned.
@@ -77,7 +75,7 @@ Review of PR #7 confirmed that forms, sport lists, photographs, return-tracking 
 
 ## Acceptance checklist for another development chat
 
-1. Check current branch HEAD; compare with `f1822a8` and inspect only changed files.
+1. Check current `main` HEAD; `f1822a8` was a historical pre-correction baseline, not the current source.
 2. Review `syncJerseys` + correction-tombstone semantics, especially save/delete/reissue and cross-device conflicts.
 3. Confirm season report vs current inventory counts for old, new and returned jerseys.
 4. Confirm new Rugby League, League tag, Netball and Oztag player forms use correct positions from team OR club sport, with custom overrides preserved.
@@ -85,8 +83,8 @@ Review of PR #7 confirmed that forms, sport lists, photographs, return-tracking 
 6. Check multi-photo storage, backup/restore, empty full-storage warnings, and coach-only projection.
 7. Verify active Home competition guidance and existing Home prioritisation unchanged.
 8. Check Chromium CI tests, then physically inspect iPhone Safari and Mac Safari.
-9. Document exact pass/fail/not-run status and candidate SHA. **Do not merge or deploy until approved.**
+9. For any new candidate, document exact pass/fail/not-run status and source SHA. Obtain explicit approval before any new merge or deployment.
 
 ## Recovery
 
-The starting commit `f1822a84224195a485fc275c21b617ebc28a1fc8` is untouched on `main` until explicit merge approval. Corrective commits live on a separate branch. No destructive data migration, bulk deletion or production data mutation is authorised by this document.
+The historical starting commit `f1822a84224195a485fc275c21b617ebc28a1fc8` remains available in Git history; PRs #9, #10 and #11 are now merged into `main` at `960212fdb3c6`. No destructive data migration, bulk deletion or production data mutation is authorised by this record. For recovery, use verified encrypted backups and a specifically approved rollback procedure.
