@@ -435,9 +435,17 @@ function persistDraft() {
     const file = await seal(snapshot, S.coachLock, 'coach');
     if (base && sealedBase.of !== base) sealedBase = { of: base, file: await seal(base, S.coachLock, 'coach') };
     const at = new Date().toISOString();
-    if (base && store.set(KEYS.draft, JSON.stringify({ file, baseFile: sealedBase.file, ...meta, at }))) return;
-    if (!store.set(KEYS.draft, JSON.stringify({ file, ...meta, at }))) S.storageFull = true;
-  }).catch(() => {});
+    if (base && store.set(KEYS.draft, JSON.stringify({ file, baseFile: sealedBase.file, ...meta, at }))) return storageResult(true);
+    storageResult(store.set(KEYS.draft, JSON.stringify({ file, ...meta, at })));
+  }).catch(() => storageResult(false));
+}
+// Could this phone keep the latest change? If not, the copy it kept last stays as it was (a failed
+// write changes nothing), the change stays on screen, and the coach is told at once, with a backup.
+function storageResult(ok) {
+  const was = S.storageFull;
+  S.storageFull = !ok;
+  if (was !== S.storageFull) renderStatus();
+  if (!ok) setTimeout(() => toast('Not saved on this phone: its storage for the app is full. Export a backup now.'), 0);
 }
 
 // Every change: keep it (encrypted) on this phone, then publish shortly after.
@@ -447,7 +455,7 @@ function save() {
   M.syncEvents(ws);
   M.syncPositions(ws);                         // teams that follow their sport have its positions
   data.updatedAt = ws.updatedAt = new Date().toISOString();
-  if (S.trial) { if (!store.set(KEYS.trial, JSON.stringify(ws))) S.storageFull = true; renderStatus(); return; }
+  if (S.trial) { storageResult(store.set(KEYS.trial, JSON.stringify(ws))); renderStatus(); return; }
   S.dirty = true;
   persistDraft();
   schedulePublish();
@@ -650,7 +658,7 @@ function renderStatus() {
   el.hidden = false;
   let cls = 'ok', text = '', btn = '';
   if (state.preview) { cls = 'info'; text = 'You are seeing what players see.'; btn = `<button data-act="preview-off">Back to coach view</button>`; }
-  else if (S.storageFull) { cls = 'bad'; text = 'This phone’s storage for the app is full, so the latest changes may not be kept. Export a backup now.'; btn = `<button data-act="settings">Settings</button>`; }
+  else if (S.storageFull) { cls = 'bad'; text = `This phone’s storage for the app is full: your latest changes aren’t saved on this phone${S.trial ? '' : ' (publishing still keeps them online)'}. Export a backup now.`; btn = `<button data-act="export">Export backup</button>`; }
   else if (S.trial) { cls = 'warn'; text = 'Test mode. Saved on this phone only; nothing is shared.'; btn = `<button data-act="go-live">Go live</button>`; }
   else if (!online() && S.dirty) { cls = 'warn'; text = 'Offline. Changes are saved on this phone and will publish when you’re back online.'; }
   else if (!online()) { cls = 'warn'; text = 'Offline. Everything here is saved on this phone.'; }
@@ -3920,7 +3928,8 @@ function compDetail(c) {
     <div class="sec-h"><h2>${esc(c.name)}</h2><button class="btn sm" data-act="comp-edit" data-id="${esc(c.id)}">Edit</button></div>
     <p class="muted" style="margin:-4px 0 12px">${compPill(c)} ${esc([M.COMP_FORMATS[c.format], c.edition, compDates(c), c.venue, c.organiser && `Run by ${c.organiser}`].filter(Boolean).join(' · '))}</p>
     ${c.description ? `<p style="margin-bottom:12px">${esc(c.description)}</p>` : ''}
-    <div class="btn-row" style="margin-bottom:16px">${moves.map(([to, l]) => `<button class="btn sm" data-act="comp-move" data-id="${esc(c.id)}" data-to="${to}">${l}</button>`).join('')}</div>
+    <div class="btn-row" style="margin-bottom:${c.status === 'archived' ? 16 : 8}px">${moves.map(([to, l]) => `<button class="btn sm" data-act="comp-move" data-id="${esc(c.id)}" data-to="${to}">${l}</button>`).join('')}</div>
+    ${compHomeNote(c)}
     <div class="cols"><div class="col">
     <section class="sec"><div class="sec-h"><h2>Teams entered</h2><button class="btn sm" data-act="comp-entry-new" data-id="${esc(c.id)}">${icon('plus', 18)}Enter a team</button></div>
       ${c.entries.length ? `<div class="list">${c.entries.map(entryRow).join('')}</div>` : '<p class="muted small">No teams entered yet.</p>'}</section>
@@ -3932,6 +3941,18 @@ function compDetail(c) {
     <section class="sec"><div class="sec-h"><h2>Results</h2></div>${done.length ? `<div class="list">${done.slice(0, 12).map(row).join('')}</div>` : '<p class="muted small">No results entered yet.</p>'}
       <p class="hint">Only our teams’ results are recorded here, so there’s no ladder or table.</p></section>
     </div></div>`;
+}
+// Why a competition is or isn't on Home, and the step that puts it there.
+function compHomeNote(c) {
+  if (c.status === 'archived' || c.status === 'completed') return '';
+  const home = M.homeEntries(ws, c), act = M.activeSeason(data);
+  const enter = act && !c.entries.some(e => e.teamId === data.id && e.seasonId === act.id)
+    ? `<button class="link-btn inline" data-act="comp-entry-new" data-id="${esc(c.id)}" data-team="${esc(data.id)}" data-season="${esc(act.id)}">Enter ${esc(M.teamName(data))}</button>` : '';
+  const rule = 'A competition appears on Home when it’s active and a team is entered in it for that team’s active season.';
+  if (c.status === 'active') return home.length
+    ? `<p class="small" id="comp-home" style="margin-bottom:16px">On Home for ${home.map(e => `<b>${esc(entryName(e))}</b>`).join(', ')}.</p>`
+    : `<p class="note small" id="comp-home" style="margin-bottom:16px">Not on Home yet. ${rule} ${enter}</p>`;
+  return `<p class="hint" id="comp-home" style="margin:0 0 16px">${rule} ${home.length ? 'Start it to show it there.' : `Enter a team and start it. ${enter}`}</p>`;
 }
 function compForm(c, forEntry = null) {
   const isNew = !c;
@@ -3986,22 +4007,35 @@ function compEnterSheet(sid) {
 // A club logo from the phone: any image, shrunk to fit 160 px and kept as a small WebP (or PNG, or
 // JPEG if it's still too big) with the club.
 const readLogo = file => readImage(file, 160, M.LOGO_MAX, M.validLogo);
-const readPhoto = file => readImage(file, 240, M.PHOTO_MAX, M.validPhoto);
-function readImage(file, px, max, valid) {
+const readPhoto = file => readImage(file, 192, M.PHOTO_MAX, M.validPhoto, true);
+// Photos (square) are cropped to the square they're shown in and kept as the smaller of WebP and JPEG
+// (Safari can't make WebP); logos keep their shape and any transparency.
+function readImage(file, px, max, valid, square = false) {
   return new Promise((resolve, reject) => {
     if (!file || !/^image\//.test(file.type)) { reject(new Error('Pick an image file')); return; }
     if (file.size > 15e6) { reject(new Error('That image is too big. Try one under 15 MB.')); return; }
     const url = URL.createObjectURL(file), img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const W0 = img.naturalWidth || px, H0 = img.naturalHeight || px, k = Math.min(1, px / Math.max(W0, H0));
-      const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(W0 * k)); cv.height = Math.max(1, Math.round(H0 * k));
-      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      const W0 = img.naturalWidth || px, H0 = img.naturalHeight || px, cv = document.createElement('canvas'), g = cv.getContext('2d');
+      if (square) {
+        const m = Math.min(W0, H0), k = Math.min(1, px / m);
+        cv.width = cv.height = Math.max(1, Math.round(m * k));
+        g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+        g.drawImage(img, (W0 - m) / 2, (H0 - m) / 2, m, m, 0, 0, cv.width, cv.height);
+      } else {
+        const k = Math.min(1, px / Math.max(W0, H0));
+        cv.width = Math.max(1, Math.round(W0 * k)); cv.height = Math.max(1, Math.round(H0 * k));
+        g.drawImage(img, 0, 0, cv.width, cv.height);
+      }
       let out = '';
       try {
-        out = cv.toDataURL('image/webp', 0.85);
-        if (!/^data:image\/(webp|png)/.test(out)) out = cv.toDataURL('image/png');
-        if (out.length > max) out = cv.toDataURL('image/jpeg', 0.8);
+        if (square) out = [cv.toDataURL('image/webp', 0.8), cv.toDataURL('image/jpeg', 0.75)].filter(d => /^data:image\/(webp|jpeg)/.test(d)).sort((a, b) => a.length - b.length)[0] || cv.toDataURL('image/png');
+        else {
+          out = cv.toDataURL('image/webp', 0.85);
+          if (!/^data:image\/(webp|png)/.test(out)) out = cv.toDataURL('image/png');
+          if (out.length > max) out = cv.toDataURL('image/jpeg', 0.8);
+        }
       } catch (e) { reject(new Error('That image can’t be used. Try a PNG or JPEG.')); return; }
       if (!valid(out)) { reject(new Error('That image can’t be used. Try a smaller PNG or JPEG.')); return; }
       resolve(out);
@@ -4372,7 +4406,8 @@ function rulesWatchPanel() {
 function ruleSetField(T) {
   const club = M.clubOf(ws, data), auto = M.ruleSet(M.defaultRuleSet(T, club)), sets = M.ruleSetList();
   const groups = [...new Set(sets.map(x => x.sportName))];
-  return `<label class="field-l"><span>Rule set</span><select name="rules"><option value="">Automatic: ${esc(auto.sportName)}, ${esc(auto.name)}</option>
+  // A sport the app has no rule book for (netball, say) has no automatic rule set.
+  return `<label class="field-l"><span>Rule set</span><select name="rules"><option value="">${auto ? `Automatic: ${esc(auto.sportName)}, ${esc(auto.name)}` : `None: no ${esc(M.teamSport(T, club))} rule book in the app`}</option>
     ${groups.map(g => `<optgroup label="${esc(g)}">${sets.filter(x => x.sportName === g).map(x => `<option value="${esc(x.id)}" ${T.rules === x.id ? 'selected' : ''}>${esc(g)}, ${esc(x.name)}</option>`).join('')}</optgroup>`).join('')}</select>
     <small>The official rules this team plays to. Automatic follows the club’s sport and the category. Add your competition’s by-laws in Tactics › Rules.</small></label>`;
 }
@@ -5109,7 +5144,8 @@ const actions = {
   'comp-move': coachOnly(el => {
     const c = M.findComp(ws, el.dataset.id); if (!c) return;
     if (el.dataset.to === 'archived' && !confirm(`Archive ${c.name}? Its entries, fixtures and results are kept, and it can be restored.`)) return;
-    c.status = el.dataset.to; save(); render(); toast(`${c.name}: ${M.COMP_STATUS[c.status].toLowerCase()}`);
+    c.status = el.dataset.to; save(); render();
+    toast(c.status === 'active' ? `${c.name} started. ${M.homeEntries(ws, c).length ? 'It’s on Home now.' : 'Enter a team for its active season to show it on Home.'}` : `${c.name}: ${M.COMP_STATUS[c.status].toLowerCase()}`);
   }),
   'comp-enter': coachOnly(el => compEnterSheet(el.dataset.season)),
   'comp-entry-new': coachOnly(el => { const c = M.findComp(ws, el.dataset.id); if (c) entryForm(c, null, el.dataset.team ? { team: el.dataset.team, season: el.dataset.season } : null); }),

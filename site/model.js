@@ -1225,6 +1225,12 @@ export function liveComps(ws, teams, now) {
     return rows.length ? { comp, phase: compPhase(comp, now), rows } : null;
   }).filter(Boolean);
 }
+// The entries that put an active competition on Home: entered, for a team that isn't archived, in that
+// team's active season (what liveComps shows).
+export const homeEntries = (ws, comp) => arr(comp && comp.entries).filter(e => {
+  const t = findTeam(ws, e.teamId), s = t && !t.archived && activeSeason(t);
+  return !!s && e.seasonId === s.id && e.status === 'entered';
+});
 // The same for a players' copy: its own competitions and matches only.
 export function liveCompsForTeam(t, now) {
   return arr(t.competitions).filter(c => c.status === 'active' && c.entryStatus !== 'withdrawn')

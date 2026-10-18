@@ -89,8 +89,11 @@ test('active competitions for Home: where they’re up to and our results', () =
   assert.deepEqual(live[0].phase, { kind: 'day', n: 2, of: 3 });
   const r = live[0].rows[0];
   assert.deepEqual([r.record.won, r.record.lost, r.today.map(m => m.id), r.next.id, r.last.id], [1, 1, ['x2', 'x3'], 'x3', 'x2']);
+  assert.deepEqual(M.homeEntries(ws, ws.competitions[0]).map(x => x.id), [e.id], 'the entry that puts it on Home');
   ws.competitions[0].status = 'planned';
   assert.equal(M.liveComps(ws, [ws], NOW).length, 0, 'only active competitions');
+  e.status = 'withdrawn'; assert.deepEqual(M.homeEntries(ws, ws.competitions[0]), [], 'a withdrawn entry doesn’t');
+  e.status = 'entered'; e.seasonId = 'another-season'; assert.deepEqual(M.homeEntries(ws, ws.competitions[0]), [], 'nor one for a season that isn’t active');
   assert.deepEqual(M.compPhase({ start: '2026-04-01', end: '2026-09-30' }, new Date(2026, 4, 1)), { kind: 'week', n: 5, of: 27 });
   assert.equal(M.compPhase({ start: '2026-11-01' }, NOW).kind, 'before');
 });
