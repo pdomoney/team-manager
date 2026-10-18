@@ -3885,7 +3885,7 @@ function teamForm() {
       <label class="field-l"><span>Starts</span><input type="date" name="eventStart" value="${esc(T.eventStart)}"></label>
       <label class="field-l"><span>Ends</span><input type="date" name="eventEnd" value="${esc(T.eventEnd)}"></label>
     </div>
-    <label class="check"><input type="checkbox" name="copySettings" checked><span>Copy ${esc(T.name)}’s training times, venue, field, rule set and by-laws</span></label>
+    <label class="check"><input type="checkbox" name="copySettings" data-change="team-context" checked><span>Copy ${esc(T.name)}’s training times, venue, field, rule set and by-laws</span></label>
     ${M.libItems(ws, 'plays').length || Object.keys(ws.library.systems).length ? `<label class="check"><input type="checkbox" name="withLibrary" checked><span>Add everything in the library</span></label>` : ''}
     ${S.trial ? '' : `<h3 class="form-sec">Team password</h3>
       <p class="muted small" style="margin-bottom:10px">For this team’s players only, different from every other password. Leave it blank and one is made for you; you can see it in Settings.</p>
