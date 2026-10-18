@@ -40,6 +40,10 @@ test('cross-team: same person keeps independent player IDs, positions, kits and 
   assert.equal(M.jerseyReport(net(w), M.activeSeason(net(w)).id).returned, 1);
   assert.equal(M.jerseyReport(w, M.activeSeason(w).id).out, 1);
   assert.equal(M.personTeams(w, 'team1', 'amy').length, 2);
+  const linkedKit = M.personTeams(w, 'team1', 'amy').find(x => x.teamId === 'team2');
+  assert.equal(linkedKit.jerseyStatus, 'Returned', 'linked team's jersey return visible to coach');
+  assert.equal(M.personTeams(w, 'team1', 'amy').find(x => x.teamId === 'team1').jerseyStatus, 'With player',
+    'source team's issued jersey still outstanding');
   const restored = roundTrip(w);
   assert.equal(M.stable(roundTrip(restored)), M.stable(restored), 'linked data migrates idempotently');
   assert.equal(M.personTeams(restored, 'team1', 'amy').length, 2);
