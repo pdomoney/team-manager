@@ -1,16 +1,18 @@
-# Release record: upgrade to milestones 0, 2, 3, 4, 5 and usability
+# Release record — current status and historical milestones
 
-> **Qualification programme (unmerged):** `qualification/pr8-selective-photo-regression-20261018` is a selective follow-on to accepted `main` `7eb1976fdd5e`. It ports PR8's browser capacity test, structured JSON runner, retained CI artifacts, adapted regression cases and a direct encrypted-backup action for full storage. No alternate jersey `void` record model or replacement of accepted app/model architecture is included. See [release qualification details](pr8-selective-qualification-20261018.md). **The candidate is not an accepted release** until its exact-commit checks and manual acceptance gates are reviewed. The code at `8b7b00d20537` passed **103/103 unit tests, 521/521 browser checks across 14 suites**, including 30/30 photo-capacity checks, in [GitHub Actions run 39108441274](https://github.com/pdomoney/team-manager/actions/runs/39108441274). Synthetic CI photo storage was 9.7% / 23.3% / 38.9% of the Chromium quota at 30 / 60 / 100 players. Real Safari, device quota and production publishing remain untested. Later documentation-only commits require fresh head checks.
+## Current merged baseline — 18 October 2026
 
+- **Authoritative `main`:** [`960212fdb3c6`](https://github.com/pdomoney/team-manager/commit/960212fdb3c6bfcf73bbb3c2160aa21ac2ea07e6). [PR #9](https://github.com/pdomoney/team-manager/pull/9), [PR #10](https://github.com/pdomoney/team-manager/pull/10) and [PR #11](https://github.com/pdomoney/team-manager/pull/11) are **merged**.
+- **Superseded alternative:** [PR #8](https://github.com/pdomoney/team-manager/pull/8) is **closed without merging**. The accepted jersey history and sport-position models were retained; additional compatible PR8 test and resilience improvements were selectively integrated via PR #11.
+- **On merged `main`:** [Tests run 39112283528](https://github.com/pdomoney/team-manager/actions/runs/39112283528) passed **103 unit tests and 491 Chromium checks across 13 browser suites**; [Publish run 39112283502](https://github.com/pdomoney/team-manager/actions/runs/39112283502) succeeded.
+- **Full capacity qualification:** [PR #11 run 39108841423](https://github.com/pdomoney/team-manager/actions/runs/39108841423) passed **521/521 browser checks across 14 suites**, including **30/30 synthetic-photo capacity checks**. Main-branch pushes omit the slower capacity suite by design. The [capacity and evidence record](pr8-selective-qualification-20261018.md) retains test measurements and limitations.
+- **Outstanding manual acceptance:** Real iOS/macOS Safari photo/forms, physical-device quota and backup recovery, and authenticated GitHub data-branch publishing. The successful Pages deploy was in **test mode**, with no data branch yet.
+- **Repository release status:** Automated development baseline accepted; operational/live-team acceptance **not** established.
 
-> **Historical record — not current release status.** This section documents the original M0/M2–M5 milestone upgrade, now merged. Subsequent clubs, rules, Home, seasons, competitions, and Players/Sports PRs have also been merged into `main` at baseline `f1822a8`. The ongoing **unmerged corrective candidate** for jerseys, sport positions, storage, form validation and competition activation is documented in [corrective-players-sports-jerseys.md](corrective-players-sports-jerseys.md). Refer to that document and the latest branch commit/CI checks for acceptance; do not treat the historical pass counts or "not deployed" text below as current.
+## Historical milestone record (not current release status)
 
+The material below documents the earlier milestone upgrades and their historical results. Those historical commit/test counts must not be used in place of the current release evidence above.
 
-| | |
-| --- | --- |
-| Baseline | `main` at `6415a60` (Volunteer tasks, helpers, and the plan for roles and logins) |
-| Branch | `upgrade/milestones-0-5` (not merged, not deployed) |
-| Out of scope | Milestone 1 (individual logins, Supabase, accounts). The shared coach and team passwords, GitHub publishing and WhatsApp hand-off are unchanged in kind. |
 
 ## Status
 
