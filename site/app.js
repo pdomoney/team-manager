@@ -976,31 +976,51 @@ function playerForm(p) {
     ${!isNew ? `<div class="btn-row" style="margin-top:10px">${p.phone ? `<button type="button" class="btn wa" data-act="wa-player" data-id="${p.id}">${icon('chat', 18)}WhatsApp</button>` : ''}<button type="button" class="btn danger" data-act="delete-player" data-id="${p.id}">Remove from squad</button></div>` : ''}
   </form>`;
 }
-// The jerseys this player has been given, and (where jerseys are lent) whether each came back.
+// The jerseys this player has been given, and (where jerseys are lent) whether each came back. A
+// record removed as a mistake stays hidden; "Issue jersey" hands out another on purpose.
+const issueSeason = () => editingSeasonId() || (M.activeSeason(data) || {}).id || '';
 function jerseyBlock(p) {
-  const loans = arr(p.jerseys), lend = !!data.team.jerseyLoan, season = id => (M.findSeason(data, id) || {}).name || 'an earlier season';
-  if (!loans.length) return `<div class="jersey-block"><p class="hint" style="margin:-4px 0 14px">${p.number ? 'Save to record their jersey as given out.' : 'Give them a number and their jersey is recorded as given out.'}</p></div>`;
+  const loans = M.liveLoans(p), lend = !!data.team.jerseyLoan, season = id => (M.findSeason(data, id) || {}).name || 'Season not recorded';
+  const num = String(p.number || '').trim(), sid = issueSeason();
+  const issue = num && sid ? `<button type="button" class="btn sm" data-act="jersey-issue" data-player="${esc(p.id)}">Issue jersey #${esc(num)}</button>` : '';
+  if (!loans.length) return `<div class="jersey-block"><p class="hint" style="margin:-4px 0 14px">${num ? (arr(p.jerseys).length ? 'No jersey on record.' : 'Save to record their jersey as given out.') : 'Give them a number and their jersey is recorded as given out.'}</p>${arr(p.jerseys).length && issue ? `<div class="btn-row" style="margin:-6px 0 14px">${issue}</div>` : ''}</div>`;
   return `<div class="field-l jersey-block"><span>Jerseys</span><div class="list jersey-list">${loans.slice().reverse().map(j => `<div class="row">
       <span class="jersey">${esc(j.number || '?')}</span><span class="grow"><span class="name" style="display:block">${j.back ? `Returned ${esc(fmtDay(j.back))}` : lend ? 'With the player' : 'Given out'}</span>
-      <span class="tagline">${esc(season(j.seasonId))} · ${j.out ? `out ${esc(fmtDay(j.out))}` : 'date out not recorded'}</span></span>
+      <span class="tagline">${esc(season(j.seasonId))} · ${j.out ? `out ${esc(fmtDay(j.out))}` : 'date out not recorded'}${j.manual ? ' · issued by hand' : ''}</span></span>
       ${lend && !j.back ? `<button type="button" class="btn sm" data-act="jersey-back" data-player="${esc(p.id)}" data-id="${esc(j.id)}">Returned</button>` : ''}
       ${j.back ? `<button type="button" class="btn sm" data-act="jersey-undo" data-player="${esc(p.id)}" data-id="${esc(j.id)}">Undo</button>` : ''}
       <button type="button" class="icon-btn" data-act="jersey-del" data-player="${esc(p.id)}" data-id="${esc(j.id)}" aria-label="Remove the jersey ${esc(j.number)} record">${icon('close', 18)}</button></div>`).join('')}</div>
-    <small>${lend ? 'Jerseys are lent: mark each one when it comes back. ' : ''}Remove a record only if it was a mistake.</small></div>`;
+    ${issue ? `<div class="btn-row" style="margin-top:8px">${issue}</div>` : ''}
+    <small>${lend ? 'Jerseys are lent: mark each one when it comes back. ' : ''}Remove a record only if it was a mistake; it won’t come back by itself. Issue a jersey for a replacement or a second one.</small></div>`;
 }
-// Jerseys for the season on screen: who has one and, where they're lent, who's handed theirs back.
+// Jerseys in Reports: what happened in the season on screen, and (where jerseys are lent) every jersey
+// out today, whichever season it went out in.
+const jerseyWhen = j => j.out ? `out ${fmtDM(j.out)}` : 'date out not recorded';
 function jerseyReportHtml() {
   if (!V.viewSeason) return '';
-  const r = M.jerseyReport(data, V.viewSeason.id), lend = !!data.team.jerseyLoan;
-  if (!r.rows.length) return '';
-  const status = x => x.status === 'out' ? (lend ? `<span class="pill neutral">With player</span>` : `<span class="pill ok">Given out</span>`) : x.status === 'returned' ? '<span class="pill ok">Returned</span>' : '<span class="pill neutral">No jersey</span>';
-  return `<section class="sec"><div class="sec-h"><h2>Jerseys</h2>${lend && r.out ? `<button class="btn sm" data-act="jersey-share">${icon('copy', 18)}Copy list</button>` : ''}</div>
-    <p class="small" style="margin-bottom:8px">${lend ? `<b>${r.out}</b> still out · <b>${r.returned}</b> returned` : `<b>${r.out}</b> given out`} · ${r.none} without a jersey${r.gone ? ` · ${r.gone} no longer in the squad but still holding one` : ''}.</p>
-    <div class="table-wrap"><table class="rtable"><thead><tr><th scope="col">Player</th><th scope="col">Jersey</th><th scope="col">Status</th>${lend ? '<th scope="col"><span class="sr-only">Actions</span></th>' : ''}</tr></thead><tbody>
-    ${r.rows.map(x => { const j = x.open[0] || x.season[x.season.length - 1];
-      return `<tr><th scope="row">${esc(x.name)}${x.inSquad ? '' : '<small class="muted" style="display:block">Left the squad</small>'}</th><td>${esc(x.open.map(o => '#' + o.number).join(', ') || (j ? '#' + j.number : x.number ? '#' + x.number : '–'))}${j && j.out && x.status === 'out' ? `<small class="muted" style="display:block">since ${esc(fmtDM(j.out))}</small>` : ''}</td><td>${status(x)}</td>
-      ${lend ? `<td>${x.open.map(o => `<button class="btn sm" data-act="jersey-back" data-player="${esc(x.id)}" data-id="${esc(o.id)}" aria-label="${esc(x.name)} returned jersey ${esc(o.number)}">Returned</button>`).join(' ')}${x.open.length && (data.players.find(p => p.id === x.id) || {}).phone ? ` <button class="btn sm" data-act="jersey-remind" data-player="${esc(x.id)}" aria-label="Remind ${esc(x.name)} to return their jersey">${icon('chat', 16)}</button>` : ''}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>
-    <p class="hint">${esc(V.viewSeason.name)}. A number given out counts as a jersey received${lend ? '; returns are marked here or on the player' : '. Turn on lent jerseys in Settings › Team to track returns'}.</p></section>`;
+  const r = M.seasonJerseys(data, V.viewSeason.id), lend = !!data.team.jerseyLoan, inv = lend ? M.jerseyInventory(data) : null;
+  if (!r.rows.length && !(inv && inv.rows.length)) return '';
+  const act = !V.readOnly || correcting(), phone = id => (data.players.find(p => p.id === id) || {}).phone;
+  const status = x => x.status === 'out' ? (lend ? '<span class="pill neutral">Still out</span>' : '<span class="pill ok">Given out</span>')
+    : x.status === 'returned' ? `<span class="pill ok">Returned</span><small class="muted" style="display:block">${x.loan.back && /^\d{4}-/.test(x.loan.back) ? esc(fmtDM(x.loan.back)) : 'date not recorded'}</small>`
+    : x.status === 'carried' ? `<span class="pill neutral">${x.loan.back ? 'Returned' : 'Still out'}</span><small class="muted" style="display:block">From ${esc((M.findSeason(data, x.loan.seasonId) || {}).name || 'an earlier season')}</small>`
+    : '<span class="pill neutral">No jersey</span>';
+  const btns = (x, j) => lend && act && j && !j.back ? `<button class="btn sm" data-act="jersey-back" data-player="${esc(x.playerId)}" data-id="${esc(j.id)}" aria-label="${esc(x.name)} returned jersey ${esc(j.number)}">Returned</button>${phone(x.playerId) ? ` <button class="btn sm" data-act="jersey-remind" data-player="${esc(x.playerId)}" aria-label="Remind ${esc(x.name)} to return their jersey">${icon('chat', 16)}</button>` : ''}` : '';
+  const head = `<thead><tr><th scope="col">Player</th><th scope="col">Jersey</th><th scope="col">Status</th>${lend && act ? '<th scope="col"><span class="sr-only">Actions</span></th>' : ''}</tr></thead>`;
+  const left = x => x.inSquad ? '' : '<small class="muted" style="display:block">Not in the squad</small>';
+  const sum = [lend ? `<b>${r.issued}</b> given out this season: <b>${r.out}</b> still out, <b>${r.returned}</b> returned` : `<b>${r.issued}</b> given out this season`,
+    r.carried ? `${r.carried} held from an earlier season` : '', `${r.none} without a jersey`].filter(Boolean).join(' · ');
+  const season = r.rows.length ? `<div class="sec-h"><h2>Jerseys · ${esc(V.viewSeason.name)}</h2></div>
+    <p class="small" id="jersey-season-sum" style="margin-bottom:8px">${sum}.</p>
+    <div class="table-wrap"><table class="rtable" id="jersey-season">${head}<tbody>
+    ${r.rows.map(x => `<tr data-status="${x.status}"><th scope="row">${esc(x.name)}${left(x)}</th><td>${x.loan ? '#' + esc(x.loan.number) : '–'}${x.loan && x.status !== 'returned' ? `<small class="muted" style="display:block">${esc(jerseyWhen(x.loan))}</small>` : ''}</td><td>${status(x)}</td>${lend && act ? `<td>${btns(x, x.loan)}</td>` : ''}</tr>`).join('')}</tbody></table></div>
+    <p class="hint">Only jerseys given out in ${esc(V.viewSeason.name)}${r.carried ? ', and jerseys its players still had from before' : ''}. A number given out counts as a jersey received${lend ? '' : '. Turn on lent jerseys in Settings › Team to track returns'}.</p>` : '';
+  const now = inv ? `<div class="sec-h" style="margin-top:18px"><h2>Jerseys out now</h2>${inv.out ? `<button class="btn sm" data-act="jersey-share">${icon('copy', 18)}Copy list</button>` : ''}</div>
+    <p class="small" id="jersey-now-sum" style="margin-bottom:8px">${inv.out ? `<b>${inv.out}</b> still to come back${inv.gone ? ` · <b>${inv.gone}</b> with people no longer in the squad` : ''}.` : 'Every jersey has come back.'}</p>
+    ${inv.out ? `<div class="table-wrap"><table class="rtable" id="jersey-now">${head}<tbody>
+    ${inv.rows.map(x => `<tr><th scope="row">${esc(x.name)}${left(x)}</th><td>#${esc(x.loan.number)}<small class="muted" style="display:block">${esc(x.season || 'Season not recorded')} · ${esc(jerseyWhen(x.loan))}</small></td><td><span class="pill neutral">Still out</span></td>${act ? `<td>${btns(x, x.loan)}</td>` : ''}</tr>`).join('')}</tbody></table></div>` : ''}
+    <p class="hint">Every season, today. Returns are marked here or on the player.</p>` : '';
+  return `<section class="sec" id="jerseys">${season}${now}</section>`;
 }
 function bulkForm() {
   return `<form data-form="bulk">
@@ -5188,7 +5208,14 @@ const actions = {
   'jersey-del': coachOnly(el => {
     const p = data.players.find(x => x.id === el.dataset.player); if (!p) return;
     if (!confirm('Remove this jersey record? Only do this if it was recorded by mistake.')) return;
-    M.removeLoan(p, el.dataset.id); save(); afterJersey(p, 'Jersey record removed');
+    if (!M.removeLoan(p, el.dataset.id, todayISO())) return;
+    save(); afterJersey(p, 'Jersey record removed');
+  }),
+  'jersey-issue': coachOnly(el => {
+    const p = data.players.find(x => x.id === el.dataset.player), sid = issueSeason(); if (!p || !sid) return;
+    if (!String(p.number || '').trim()) { toast('Give them a jersey number first'); return; }
+    if (!confirm(`Issue ${p.name} another jersey #${p.number}? Use this for a replacement or a second jersey.`)) return;
+    M.issueJersey(p, p.number, sid, todayISO()); save(); afterJersey(p, `Jersey #${p.number} issued`);
   }),
   'jersey-remind': coachOnly(el => {
     const p = data.players.find(x => x.id === el.dataset.player); if (!p || !p.phone) return;
@@ -5196,8 +5223,9 @@ const actions = {
     sendWa(`Hi ${firstName(p)}, a reminder from ${data.team.name}: please hand back your jersey (${nums}) at training or to the team manager. Thanks!`, { to: p.name, phone: p.phone, ref: 'jersey:' + p.id });
   }),
   'jersey-share': coachOnly(() => {
-    const r = M.jerseyReport(data, V.viewSeason.id), out = r.rows.filter(x => x.status === 'out');
-    copyText(`👕 *Jerseys still out — ${data.team.name}*\n${out.map(x => `• ${x.name}: ${x.open.map(o => '#' + o.number).join(', ')}`).join('\n')}`);
+    const inv = M.jerseyInventory(data), by = new Map();
+    inv.rows.forEach(x => by.set(x.name, [...(by.get(x.name) || []), '#' + x.loan.number + (x.season ? ` (${x.season})` : '')]));
+    copyText(`👕 *Jerseys still out — ${data.team.name}*\n${[...by].map(([n, l]) => `• ${n}: ${l.join(', ')}`).join('\n')}`);
   }),
   'positions-default': coachOnly(el => {
     const form = el.closest('form'), inp = form && form.querySelector('[name=positions]'); if (!inp) return;

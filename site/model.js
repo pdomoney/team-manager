@@ -385,20 +385,34 @@ export function compsForPlayers(ws, t) {
 // as a loan: its number, the season, the day it went out and the day it came back. Where jerseys are
 // lent (team.jerseyLoan) the coach marks them returned. Loans stay with the person, so a player who
 // leaves while still holding a jersey still shows up.
-export const normLoan = j => ({ id: String(j.id || uid()), number: String(j.number || ''), seasonId: String(j.seasonId || ''), out: String(j.out || ''), back: String(j.back || '') });
-export const openLoans = p => arr(p && p.jerseys).filter(j => !j.back);
-// Anyone in the active season with a number has that jersey, unless they still have it from before or
-// already handed this season's back.
+// A record removed as a mistake is kept, marked void, so it's never made again automatically (and
+// never counted); `manual` marks one the coach issued deliberately (a replacement).
+export const normLoan = j => ({ id: String(j.id || uid()), number: String(j.number || ''), seasonId: String(j.seasonId || ''), out: String(j.out || ''), back: String(j.back || ''),
+  ...(j.void ? { void: String(j.void) } : {}), ...(j.manual ? { manual: true } : {}) });
+export const liveLoans = p => arr(p && p.jerseys).filter(j => !j.void);
+export const openLoans = p => liveLoans(p).filter(j => !j.back);
+// Anyone in the active season with a number has that jersey, unless there's already a record of it:
+// one still out (from any season), or any record of that number this season (given out, returned, or
+// removed as a mistake). So saving again, a return, or a correction never makes another.
 export function syncJerseys(t, today) {
   const s = activeSeason(t); if (!s) return 0;
   let n = 0;
   seasonLens(t, s.id).players.forEach(p => {
     const num = String(p.number || '').trim(); if (!num) return;
     if (!Array.isArray(p.jerseys)) p.jerseys = [];
-    if (p.jerseys.some(j => j.number === num && (!j.back || j.seasonId === s.id))) return;   // has it, or handed this season's back
-    p.jerseys.push({ id: uid(), number: num, seasonId: s.id, out: today, back: '' }); n++;
+    if (p.jerseys.some(j => j.number === num && (j.seasonId === s.id || (!j.back && !j.void)))) return;
+    // The same id for the same player, season and number, so two phones recording it agree.
+    p.jerseys.push({ id: `j-${p.id}-${s.id}-${num}`, number: num, seasonId: s.id, out: today, back: '' }); n++;
   });
   return n;
+}
+// The coach hands out a jersey on purpose: a replacement, or one after a return or a correction.
+export function issueJersey(p, number, seasonId, today) {
+  const num = String(number || '').trim(); if (!num) return null;
+  if (!Array.isArray(p.jerseys)) p.jerseys = [];
+  const j = { id: uid(), number: num, seasonId: String(seasonId || ''), out: today, back: '', manual: true };
+  p.jerseys.push(j);
+  return j;
 }
 // From before jerseys were tracked: a player in the active season with a number has their jersey (the
 // day isn't known). Always the same, so two phones upgrading agree.
@@ -411,20 +425,36 @@ function ensureJerseys(t) {
     p.jerseys = num && live.has(p.id) ? [{ id: `j-${p.id}`, number: num, seasonId: s.id, out: '', back: '' }] : [];
   });
 }
-const loanOf = (p, id) => arr(p && p.jerseys).find(j => j.id === id);
+const loanOf = (p, id) => liveLoans(p).find(j => j.id === id);
 export function returnJersey(p, id, today) { const j = loanOf(p, id); if (!j || j.back) return false; j.back = today; return true; }
 export function undoReturn(p, id) { const j = loanOf(p, id); if (!j || !j.back) return false; j.back = ''; return true; }
-export function removeLoan(p, id) { const n = arr(p.jerseys).length; p.jerseys = arr(p.jerseys).filter(j => j.id !== id); return p.jerseys.length < n; }
-// Who has a jersey and who's given it back, for a season: its squad, plus anyone else still holding one.
-export function jerseyReport(t, sid) {
-  const L = seasonLens(t, sid), squad = new Map(L.players.map(p => [p.id, p]));
-  const rows = arr(t.players).filter(p => squad.has(p.id) || openLoans(p).length).map(p => {
-    const season = arr(p.jerseys).filter(j => j.seasonId === sid), open = openLoans(p), sp = squad.get(p.id);
-    return { id: p.id, name: p.name, inSquad: !!sp, number: sp ? sp.number : '', season, open,
-      status: open.length ? 'out' : season.some(j => j.back) ? 'returned' : 'none' };
-  }).sort((a, b) => ['out', 'returned', 'none'].indexOf(a.status) - ['out', 'returned', 'none'].indexOf(b.status) || a.name.localeCompare(b.name));
-  return { rows, out: rows.filter(r => r.status === 'out').length, returned: rows.filter(r => r.status === 'returned').length,
-    none: rows.filter(r => r.status === 'none').length, gone: rows.filter(r => !r.inSquad).length };
+// Remove a record made by mistake: it stays, marked void, so it isn't recreated or counted.
+export function removeLoan(p, id, today = '') { const j = loanOf(p, id); if (!j) return false; j.void = today || 'removed'; return true; }
+const STATUS_ORDER = ['out', 'carried', 'returned', 'none'];
+// One season's jerseys, as that season saw them: a row for each jersey given out in it (still out, or
+// returned and when), a row for anyone in its squad still holding a jersey from an earlier season, and
+// anyone in its squad who had none. A jersey given out in a later season isn't part of it.
+export function seasonJerseys(t, sid) {
+  const L = seasonLens(t, sid), squad = new Set(L.players.map(p => p.id)), order = seasonsOf(t).map(s => s.id), at = order.indexOf(sid);
+  const rows = [];
+  arr(t.players).forEach(p => liveLoans(p).filter(j => j.seasonId === sid).forEach(j => rows.push({ playerId: p.id, name: p.name, inSquad: squad.has(p.id), loan: j, status: j.back ? 'returned' : 'out' })));
+  L.players.forEach(p => {
+    if (rows.some(r => r.playerId === p.id)) return;
+    // Still out, or (where the season's start is recorded) handed back only once it had started.
+    const s = findSeason(t, sid), earlier = liveLoans(p).filter(j => j.seasonId !== sid && order.indexOf(j.seasonId) < at && (!j.back || (s.start && j.back >= s.start)));
+    if (earlier.length) earlier.forEach(j => rows.push({ playerId: p.id, name: p.name, inSquad: true, loan: j, status: 'carried' }));
+    else rows.push({ playerId: p.id, name: p.name, inSquad: true, loan: null, status: 'none' });
+  });
+  rows.sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status) || a.name.localeCompare(b.name) || String(a.loan && a.loan.number).localeCompare(String(b.loan && b.loan.number)));
+  const n = k => rows.filter(r => r.status === k).length;
+  return { rows, issued: n('out') + n('returned'), out: n('out'), returned: n('returned'), carried: n('carried'), none: n('none') };
+}
+// Every jersey out today, whichever season it went out in, and whether its holder is still in the squad.
+export function jerseyInventory(t) {
+  const act = activeSeason(t), squad = new Set(act ? seasonLens(t, act.id).players.map(p => p.id) : []);
+  const rows = arr(t.players).flatMap(p => openLoans(p).map(j => ({ playerId: p.id, name: p.name, inSquad: squad.has(p.id), loan: j, season: (findSeason(t, j.seasonId) || {}).name || '' })))
+    .sort((a, b) => a.inSquad - b.inSquad || a.name.localeCompare(b.name));
+  return { rows, out: rows.length, gone: rows.filter(r => !r.inSquad).length };
 }
 
 /* ---------- Clubs ---------- */

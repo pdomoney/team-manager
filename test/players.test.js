@@ -53,7 +53,8 @@ test('jerseys: a number given out is a jersey out; returns, undo, remove', () =>
   assert.ok(!M.returnJersey(bea, bea.jerseys[0].id, '2026-10-22'), 'already back');
   assert.deepEqual(M.openLoans(bea).map(j => j.number), ['19']);
   assert.ok(M.undoReturn(bea, bea.jerseys[0].id)); assert.equal(M.openLoans(bea).length, 2);
-  assert.ok(M.removeLoan(bea, bea.jerseys[0].id)); assert.equal(bea.jerseys.length, 1);
+  assert.ok(M.removeLoan(bea, bea.jerseys[0].id, TODAY)); assert.equal(M.liveLoans(bea).length, 1);
+  assert.equal(bea.jerseys.length, 2, 'the removed record is kept, marked void, so it isn’t made again');
 });
 
 test('the jersey report: who has one, who gave it back, and anyone who left still holding one', () => {
@@ -64,14 +65,14 @@ test('the jersey report: who has one, who gave it back, and anyone who left stil
   const r = M.rollover(ws, { name: 'Winter 2027', activate: true, carry: [{ playerId: 'a', number: '4' }, { playerId: 'b', number: '' }] }, NOW);
   M.syncJerseys(ws, '2027-04-01');
   assert.equal(ws.players.find(p => p.id === 'a').jerseys.length, 1, 'same number, same jersey: still the one she had');
-  const rep = M.jerseyReport(ws, r.season.id);
-  const row = id => rep.rows.find(x => x.id === id);
-  assert.equal(row('a').status, 'out'); assert.equal(row('b').status, 'none');
-  assert.equal(row('c').status, 'out'); assert.equal(row('c').inSquad, false, 'Cat left but still has jersey 12');
-  assert.deepEqual([rep.out, rep.returned, rep.none, rep.gone], [2, 0, 1, 1]);
+  const rep = M.seasonJerseys(ws, r.season.id), inv = M.jerseyInventory(ws);
+  const row = id => rep.rows.find(x => x.playerId === id);
+  assert.equal(row('a').status, 'carried', 'Amy still has last season’s #4'); assert.equal(row('b').status, 'none');
+  assert.ok(!row('c'), 'Cat isn’t in this season and got nothing in it');
+  assert.deepEqual(inv.rows.map(x => [x.playerId, x.inSquad]), [['c', false], ['a', true]], 'out now: Cat left still holding #12, and Amy');
   const cat = ws.players.find(p => p.id === 'c'); M.returnJersey(cat, cat.jerseys[0].id, '2027-04-02');
-  assert.ok(!M.jerseyReport(ws, r.season.id).rows.some(x => x.id === 'c'), 'once it’s back she drops off this season’s list');
-  assert.equal(M.jerseyReport(ws, s1).rows.find(x => x.id === 'c').status, 'returned', 'last season shows it came back');
+  assert.ok(!M.jerseyInventory(ws).rows.some(x => x.playerId === 'c'), 'once it’s back she drops off the list of jerseys out');
+  assert.equal(M.seasonJerseys(ws, s1).rows.find(x => x.playerId === 'c').status, 'returned', 'last season shows it came back');
 });
 
 test('active competitions for Home: where they’re up to and our results', () => {
