@@ -99,6 +99,12 @@ for suite in suites:
     res['browserSuites'].append(row)
     print('{}: {}/{}{} ({:.1f}s)'.format(suite[:-3], passed, total,
           '' if row['ok'] else ' FAILED', row['seconds']), flush=True)
+    if not row['ok']:
+        # Surface the small set of failures directly in CI as well as JSON evidence,
+        # so reviewers can diagnose one failed assertion without downloading artifacts.
+        for failure in failures[:12]:
+            print('  FAIL ' + failure, flush=True)
+        print('  Diagnostic tail:\n' + row['tail'][-1800:], flush=True)
 
 rows = res['browserSuites']
 res['browserTotals'] = {
