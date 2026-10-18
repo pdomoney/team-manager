@@ -46,9 +46,29 @@ npm run test:browser
 6. Confirm PR #8 remains unchanged; it must not be merged wholesale. Close it as superseded **only after explicit owner approval**.
 7. **No merge, branch deletion or deployment** under this qualification task.
 
-## Test evidence — pending
+## Verified automated test evidence — candidate (not merged)
 
-Record exact-commit outcomes (pass/fail/not executed), and link the relevant CI runs in the new draft PR. No passing claim is made in this document until the tests actually complete.
+- **Tested source commit:** `8b7b00d20537e8219f1421fd5bca8dceea856d47`.
+- **Actions run:** [39108441274](https://github.com/pdomoney/team-manager/actions/runs/39108441274).
+- **Unit tests:** 103 passed, 0 failed, 0 skipped.
+- **Chromium browser qualification:** 521/521 checks in 14/14 suites; no failing suite.
+- **Adapted photo-capacity suite:** 30/30 checks, including synthetic photo upload, simulated encrypted publication, another-device reload, encrypted backup/restore, storage-full warnings, recovery and export.
+- **Machine-readable evidence:** [Actions artifact 12129660937](https://github.com/pdomoney/team-manager/actions/runs/39108441274/artifacts/12129660937), with `qualification.json`.
+- **CI environment quota:** approximately 5,242,859 localStorage characters (Chromium runner; not guaranteed elsewhere).
+
+| Players / photos | Workspace JSON chars | Encrypted coach file chars | LocalStorage chars | CI quota used | Second-device / reload / publish |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 30 | 325,326 | 434,087 | 508,585 | 9.7% | Pass |
+| 60 | 589,196 | 785,915 | 1,219,625 | 23.3% | Pass |
+| 100 | 941,398 | 1,255,515 | 2,041,772 | 38.9% | Pass |
+
+Source synthetic JPEGs ranged from 538,602 to 541,141 bytes, and after browser processing averaged about 8,541 **encoded characters** per new avatar. The 100-photo encrypted backup contained 1,255,515 characters. Photos did **not** appear in published team-player copies. After deliberate quota exhaustion, the last successful draft remained intact, the UI said the latest change was **not saved locally**, the **Export backup** action worked, and saving recovered once space was freed.
+
+**Important:** The reported head is the tested source commit. A later *documentation-only* commit will naturally trigger new pull-request checks; verify the latest PR head passes before merging. The recorded run remains valid evidence for the exact code tested.
+
+**Capacity projection only (not a verified real-device limit):** Under that Chromium runner quota, retaining both encrypted draft and conflict base is estimated to fit approximately 219 photos at the measured average size, but only **23 photos** at the legacy 80,000-character photo maximum. The estimates are not guarantees: browsers and iOS devices have different quotas.
+
+**Not tested:** real iOS/macOS Safari, actual physical-device camera/photos, real token-authenticated GitHub publishing, third-party WhatsApp delivery, and actual iPhone storage capacity. Those remain manual acceptance gates.
 
 ### Known limitations
 
