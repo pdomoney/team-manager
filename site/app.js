@@ -436,8 +436,13 @@ function persistDraft() {
     if (base && sealedBase.of !== base) sealedBase = { of: base, file: await seal(base, S.coachLock, 'coach') };
     const at = new Date().toISOString();
     if (base && store.set(KEYS.draft, JSON.stringify({ file, baseFile: sealedBase.file, ...meta, at }))) return;
-    if (!store.set(KEYS.draft, JSON.stringify({ file, ...meta, at }))) S.storageFull = true;
-  }).catch(() => {});
+    if (store.set(KEYS.draft, JSON.stringify({ file, ...meta, at }))) {
+      if (!S.storageWarned) { S.storageWarned = true; toast('Storage getting full. Export a backup from Settings.'); }
+      return;
+    }
+    S.storageFull = true; renderStatus();
+    if (!S.storageWarned) { S.storageWarned = true; toast('Changes could not be stored on this phone. Export a backup immediately.'); }
+  }).catch(() => { S.storageFull = true; renderStatus(); });
 }
 
 // Every change: keep it (encrypted) on this phone, then publish shortly after.
@@ -979,28 +984,36 @@ function playerForm(p) {
 // The jerseys this player has been given, and (where jerseys are lent) whether each came back.
 function jerseyBlock(p) {
   const loans = arr(p.jerseys), lend = !!data.team.jerseyLoan, season = id => (M.findSeason(data, id) || {}).name || 'an earlier season';
-  if (!loans.length) return `<div class="jersey-block"><p class="hint" style="margin:-4px 0 14px">${p.number ? 'Save to record their jersey as given out.' : 'Give them a number and their jersey is recorded as given out.'}</p></div>`;
+  const active = M.activeSeason(data), corrected = active && p.number && M.correctedJersey(p, active.id, p.number);
+  const reissue = corrected ? `<button type="button" class="btn sm" data-act="jersey-issue" data-player="${esc(p.id)}">Issue jersey #${esc(p.number)} again</button><small>Previous issue was removed as a mistake; only this action will issue it again.</small>` : '';
+  if (!loans.length) return `<div class="jersey-block"><p class="hint" style="margin:-4px 0 14px">${corrected ? 'This issue was corrected and will not reappear on save.' : p.number ? 'Save to record their jersey as given out.' : 'Give them a number and their jersey is recorded as given out.'}</p>${reissue}</div>`;
   return `<div class="field-l jersey-block"><span>Jerseys</span><div class="list jersey-list">${loans.slice().reverse().map(j => `<div class="row">
       <span class="jersey">${esc(j.number || '?')}</span><span class="grow"><span class="name" style="display:block">${j.back ? `Returned ${esc(fmtDay(j.back))}` : lend ? 'With the player' : 'Given out'}</span>
       <span class="tagline">${esc(season(j.seasonId))} · ${j.out ? `out ${esc(fmtDay(j.out))}` : 'date out not recorded'}</span></span>
       ${lend && !j.back ? `<button type="button" class="btn sm" data-act="jersey-back" data-player="${esc(p.id)}" data-id="${esc(j.id)}">Returned</button>` : ''}
       ${j.back ? `<button type="button" class="btn sm" data-act="jersey-undo" data-player="${esc(p.id)}" data-id="${esc(j.id)}">Undo</button>` : ''}
       <button type="button" class="icon-btn" data-act="jersey-del" data-player="${esc(p.id)}" data-id="${esc(j.id)}" aria-label="Remove the jersey ${esc(j.number)} record">${icon('close', 18)}</button></div>`).join('')}</div>
-    <small>${lend ? 'Jerseys are lent: mark each one when it comes back. ' : ''}Remove a record only if it was a mistake.</small></div>`;
+    ${reissue}<small>${lend ? 'Jerseys are lent: mark each one when it comes back. ' : ''}Remove a record only if it was a mistake.</small></div>`;
 }
 // Jerseys for the season on screen: who has one and, where they're lent, who's handed theirs back.
 function jerseyReportHtml() {
   if (!V.viewSeason) return '';
-  const r = M.jerseyReport(data, V.viewSeason.id), lend = !!data.team.jerseyLoan;
-  if (!r.rows.length) return '';
+  const r = M.jerseyReport(data, V.viewSeason.id), inventory = M.jerseyInventory(data), lend = !!data.team.jerseyLoan;
+  if (!r.rows.length && !inventory.rows.length) return '';
   const status = x => x.status === 'out' ? (lend ? `<span class="pill neutral">With player</span>` : `<span class="pill ok">Given out</span>`) : x.status === 'returned' ? '<span class="pill ok">Returned</span>' : '<span class="pill neutral">No jersey</span>';
-  return `<section class="sec"><div class="sec-h"><h2>Jerseys</h2>${lend && r.out ? `<button class="btn sm" data-act="jersey-share">${icon('copy', 18)}Copy list</button>` : ''}</div>
-    <p class="small" style="margin-bottom:8px">${lend ? `<b>${r.out}</b> still out · <b>${r.returned}</b> returned` : `<b>${r.out}</b> given out`} · ${r.none} without a jersey${r.gone ? ` · ${r.gone} no longer in the squad but still holding one` : ''}.</p>
-    <div class="table-wrap"><table class="rtable"><thead><tr><th scope="col">Player</th><th scope="col">Jersey</th><th scope="col">Status</th>${lend ? '<th scope="col"><span class="sr-only">Actions</span></th>' : ''}</tr></thead><tbody>
+  const seasonTable = r.rows.length ? `<div class="table-wrap"><table class="rtable"><thead><tr><th scope="col">Player</th><th scope="col">Jersey</th><th scope="col">Status</th>${lend ? '<th scope="col"><span class="sr-only">Actions</span></th>' : ''}</tr></thead><tbody>
     ${r.rows.map(x => { const j = x.open[0] || x.season[x.season.length - 1];
-      return `<tr><th scope="row">${esc(x.name)}${x.inSquad ? '' : '<small class="muted" style="display:block">Left the squad</small>'}</th><td>${esc(x.open.map(o => '#' + o.number).join(', ') || (j ? '#' + j.number : x.number ? '#' + x.number : '–'))}${j && j.out && x.status === 'out' ? `<small class="muted" style="display:block">since ${esc(fmtDM(j.out))}</small>` : ''}</td><td>${status(x)}</td>
-      ${lend ? `<td>${x.open.map(o => `<button class="btn sm" data-act="jersey-back" data-player="${esc(x.id)}" data-id="${esc(o.id)}" aria-label="${esc(x.name)} returned jersey ${esc(o.number)}">Returned</button>`).join(' ')}${x.open.length && (data.players.find(p => p.id === x.id) || {}).phone ? ` <button class="btn sm" data-act="jersey-remind" data-player="${esc(x.id)}" aria-label="Remind ${esc(x.name)} to return their jersey">${icon('chat', 16)}</button>` : ''}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>
-    <p class="hint">${esc(V.viewSeason.name)}. A number given out counts as a jersey received${lend ? '; returns are marked here or on the player' : '. Turn on lent jerseys in Settings › Team to track returns'}.</p></section>`;
+      return `<tr><th scope="row">${esc(x.name)}${x.inSquad ? '' : '<small class="muted" style="display:block">Left this squad</small>'}</th><td>${esc(x.open.map(o => '#' + o.number).join(', ') || (j ? '#' + j.number : x.number ? '#' + x.number : '–'))}${j && j.out && x.status === 'out' ? `<small class="muted" style="display:block">since ${esc(fmtDM(j.out))}</small>` : ''}</td><td>${status(x)}</td>
+      ${lend ? `<td>${x.open.map(o => `<button class="btn sm" data-act="jersey-back" data-player="${esc(x.id)}" data-id="${esc(o.id)}" aria-label="${esc(x.name)} returned jersey ${esc(o.number)}">Returned</button>`).join(' ')}${x.open.length && (data.players.find(p => p.id === x.id) || {}).phone ? ` <button class="btn sm" data-act="jersey-remind" data-player="${esc(x.id)}" data-season="${esc(V.viewSeason.id)}" aria-label="Remind ${esc(x.name)} to return their jersey">${icon('chat', 16)}</button>` : ''}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>` : '<p class="muted small">No jersey issues recorded for this season.</p>';
+  const outstanding = inventory.rows.map(x => `<div class="row"><span class="grow"><span class="name">${esc(x.name)}${x.inSquad ? '' : ' · Former squad member'}</span><span class="sub" style="display:block">${esc(x.open.map(o => '#' + o.number + ' (' + ((M.findSeason(data, o.seasonId) || {}).name || 'earlier season') + ')').join(', '))}</span></span>${lend && (data.players.find(p => p.id === x.id) || {}).phone ? `<button class="btn sm" data-act="jersey-remind" data-player="${esc(x.id)}">Remind</button>` : ''}</div>`).join('');
+  return `<section class="sec"><div class="sec-h"><h2>Jerseys · ${esc(V.viewSeason.name)}</h2>${lend && r.out ? `<button class="btn sm" data-act="jersey-share">${icon('copy', 18)}Copy list</button>` : ''}</div>
+    <p class="small" style="margin-bottom:8px">${lend ? `<b>${r.out}</b> still out · <b>${r.returned}</b> returned` : `<b>${r.out}</b> given out`} · ${r.none} without a jersey${r.gone ? ` · ${r.gone} former squad member${r.gone === 1 ? '' : 's'} still holding a jersey issued in this season` : ''}.</p>
+    ${seasonTable}
+    <p class="hint">This season only: return status belongs to the season in which the jersey was issued.</p>
+    <details class="more"><summary>Currently outstanding across all seasons (${inventory.outstanding} jersey${inventory.outstanding === 1 ? '' : 's'}${inventory.formerPlayers ? `, ${inventory.formerPlayers} former player${inventory.formerPlayers === 1 ? '' : 's'}` : ''})</summary>
+      <div class="list">${outstanding || '<p class="muted small">All issued jerseys have been returned.</p>'}</div>
+    </details>
+    <p class="hint">${lend ? 'Returns may be marked on a player card or against a season issue.' : 'Turn on lent jerseys in Settings › Team to track returns.'}</p></section>`;
 }
 function bulkForm() {
   return `<form data-form="bulk">
@@ -3881,6 +3894,7 @@ function compDetail(c) {
     <p class="muted" style="margin:-4px 0 12px">${compPill(c)} ${esc([M.COMP_FORMATS[c.format], c.edition, compDates(c), c.venue, c.organiser && `Run by ${c.organiser}`].filter(Boolean).join(' · '))}</p>
     ${c.description ? `<p style="margin-bottom:12px">${esc(c.description)}</p>` : ''}
     <div class="btn-row" style="margin-bottom:16px">${moves.map(([to, l]) => `<button class="btn sm" data-act="comp-move" data-id="${esc(c.id)}" data-to="${to}">${l}</button>`).join('')}</div>
+    ${c.status === 'active' ? `<p class="hint" role="status" style="margin-bottom:12px">Active competitions appear on Home only for teams entered in them for their active season. ${c.entries.some(e => e.status === 'entered' && M.activeTeams(ws).some(t => t.id === e.teamId && (M.activeSeason(t) || {}).id === e.seasonId)) ? 'At least one active-season team is entered.' : 'No active-season team is entered yet. Use Enter a team below to show this competition on Home.'}</p>` : ''}
     <div class="cols"><div class="col">
     <section class="sec"><div class="sec-h"><h2>Teams entered</h2><button class="btn sm" data-act="comp-entry-new" data-id="${esc(c.id)}">${icon('plus', 18)}Enter a team</button></div>
       ${c.entries.length ? `<div class="list">${c.entries.map(entryRow).join('')}</div>` : '<p class="muted small">No teams entered yet.</p>'}</section>
@@ -3946,8 +3960,10 @@ function compEnterSheet(sid) {
 // A club logo from the phone: any image, shrunk to fit 160 px and kept as a small WebP (or PNG, or
 // JPEG if it's still too big) with the club.
 const readLogo = file => readImage(file, 160, M.LOGO_MAX, M.validLogo);
-const readPhoto = file => readImage(file, 240, M.PHOTO_MAX, M.validPhoto);
-function readImage(file, px, max, valid) {
+// Preserve existing photos up to PHOTO_MAX, but aim for much smaller new avatars so
+// multi-team encrypted drafts (including their base snapshots) fit mobile storage.
+const readPhoto = file => readImage(file, 180, M.PHOTO_MAX, M.validPhoto, 12000);
+function readImage(file, px, max, valid, target = max) {
   return new Promise((resolve, reject) => {
     if (!file || !/^image\//.test(file.type)) { reject(new Error('Pick an image file')); return; }
     if (file.size > 15e6) { reject(new Error('That image is too big. Try one under 15 MB.')); return; }
@@ -3963,7 +3979,15 @@ function readImage(file, px, max, valid) {
         if (!/^data:image\/(webp|png)/.test(out)) out = cv.toDataURL('image/png');
         if (out.length > max) out = cv.toDataURL('image/jpeg', 0.8);
       } catch (e) { reject(new Error('That image can’t be used. Try a PNG or JPEG.')); return; }
-      if (!valid(out)) { reject(new Error('That image can’t be used. Try a smaller PNG or JPEG.')); return; }
+      if (out.length > target) {
+        for (const quality of [0.7, 0.5, 0.35]) {
+          const smaller = cv.toDataURL('image/webp', quality);
+          if (valid(smaller) && smaller.length <= target) { out = smaller; break; }
+          const jpeg = cv.toDataURL('image/jpeg', quality);
+          if (valid(jpeg) && jpeg.length <= target) { out = jpeg; break; }
+        }
+      }
+      if (!valid(out) || out.length > target) { reject(new Error('That image cannot fit the phone storage target. Try a simpler or smaller PNG/JPEG.')); return; }
       resolve(out);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That image can’t be read. Try a PNG or JPEG.')); };
@@ -5187,12 +5211,19 @@ const actions = {
   'jersey-undo': coachOnly(el => { const p = data.players.find(x => x.id === el.dataset.player); if (!p || !M.undoReturn(p, el.dataset.id)) return; save(); afterJersey(p, 'Marked as still out'); }),
   'jersey-del': coachOnly(el => {
     const p = data.players.find(x => x.id === el.dataset.player); if (!p) return;
-    if (!confirm('Remove this jersey record? Only do this if it was recorded by mistake.')) return;
-    M.removeLoan(p, el.dataset.id); save(); afterJersey(p, 'Jersey record removed');
+    if (!confirm('Remove this jersey issue as a recording mistake? It will not be reissued automatically.')) return;
+    if (!M.removeLoan(p, el.dataset.id)) return;
+    save(); afterJersey(p, 'Erroneous issue removed; automatic reissue suppressed');
+  }),
+  'jersey-issue': coachOnly(el => {
+    const p = data.players.find(x => x.id === el.dataset.player), active = M.activeSeason(data);
+    if (!p || !active || !M.issueJersey(p, p.number, active.id, todayISO())) return;
+    save(); afterJersey(p, 'Jersey explicitly issued again');
   }),
   'jersey-remind': coachOnly(el => {
     const p = data.players.find(x => x.id === el.dataset.player); if (!p || !p.phone) return;
-    const nums = M.openLoans(p).map(j => '#' + j.number).join(', ');
+    const nums = M.openLoans(p).filter(j => !el.dataset.season || j.seasonId === el.dataset.season).map(j => '#' + j.number).join(', ');
+    if (!nums) return;
     sendWa(`Hi ${firstName(p)}, a reminder from ${data.team.name}: please hand back your jersey (${nums}) at training or to the team manager. Thanks!`, { to: p.name, phone: p.phone, ref: 'jersey:' + p.id });
   }),
   'jersey-share': coachOnly(() => {
@@ -5530,7 +5561,13 @@ document.addEventListener('submit', async e => {
     t.team.clubId = str('clubId'); t.team.division = str('division'); t.team.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
     if (f.get('copySettings')) ['venue', 'trainingVenue', 'trainingStart', 'trainingEnd', 'maxMales', 'positions', 'field', 'tasksContact', 'rules', 'bylaws'].forEach(k => { t.team[k] = clone(data.team[k]); });
     t.team.rulesSeen = M.RULES.pack;
-    { const sp = M.teamSport(t.team, M.clubOf(ws, t)); if (!(f.get('copySettings') && sp === M.teamSport(data.team, M.clubOf(ws, data)))) t.team.positions = (M.SPORT_POSITIONS[sp] || []).slice(); }
+    { const sp = M.teamSport(t.team, M.clubOf(ws, t)), from = M.teamSport(data.team, M.clubOf(ws, data));
+      if (f.get('copySettings') && data.team.positionsCustom === true) {
+        t.team.positions = arr(data.team.positions).slice(); t.team.positionsCustom = true;
+      } else {
+        t.team.positions = (M.SPORT_POSITIONS[sp] || []).slice(); t.team.positionsCustom = false;
+      }
+    }
     t.teamPass = pass; t.teamSalt = '';
     M.addTeam(ws, t);
     if (f.get('withLibrary')) ['plays', 'systems', 'playerSets'].forEach(k => M.libItems(ws, k).forEach(li => M.libAdd(ws, t, k, li.id)));
@@ -5719,7 +5756,7 @@ document.addEventListener('submit', async e => {
     return;
   }
   if (kind === 'settings') {
-    const T = data.team;
+    const T = data.team, before = clone(T), oldClub = M.clubOf(ws, data);
     T.name = str('name') || T.name; T.event = str('event'); T.eventStart = str('eventStart'); T.eventEnd = str('eventEnd');
     T.venue = str('venue');
     const ec = M.findComp(ws, T.eventCompId);   // the tournament is a competition: keep them the same
@@ -5732,13 +5769,11 @@ document.addEventListener('submit', async e => {
     T.staff = peopleRows(f, 'st');
     T.tasksContact = { name: str('tasksName'), phone: str('tasksPhone') };
     T.trainingVenue = str('trainingVenue'); T.trainingStart = str('trainingStart'); T.trainingEnd = str('trainingEnd');
-    const oldSport = M.teamSport(T, M.clubOf(ws, data)), sp = str('teamSport');
-    T.sport = M.SPORTS.includes(sp) || sp === T.sport ? sp : '';
-    const newSport = M.teamSport(T, M.clubOf(ws, data));
-    let pos = str('positions').split(',').map(x => x.trim()).filter(Boolean);
-    // Changing the sport brings its positions, unless the team had its own list.
-    if (oldSport !== newSport && pos.join('|') === (M.SPORT_POSITIONS[oldSport] || []).join('|')) pos = (M.SPORT_POSITIONS[newSport] || []).slice();
-    T.positions = pos;
+    const sp = str('teamSport');
+    T.sport = M.SPORTS.includes(sp) || sp === before.sport ? sp : '';
+    const entered = str('positions').split(',').map(x => x.trim()).filter(Boolean);
+    const resolved = M.changedSportPositions(before, oldClub, T, M.clubOf(ws, data), entered);
+    T.positions = resolved.positions; T.positionsCustom = resolved.positionsCustom;
     T.jerseyLoan = !!f.get('jerseyLoan');
     const zone = Number(str('fieldZone')), touch = Number(str('fieldTouch')), middle = Number(str('fieldMiddle'));
     const fits = zone >= 5 && zone <= 30 && touch >= 2 && middle >= 4 && (50 - middle - 2 * touch) / 2 >= 3;
