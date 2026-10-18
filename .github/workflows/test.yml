@@ -18,7 +18,7 @@ jobs:
 
   browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,12 +31,23 @@ jobs:
         run: |
           python -m pip install playwright==1.55.0
           python -m playwright install --with-deps chromium
-      - name: Browser regression suites (simulated GitHub, no production data)
+      - name: Structured browser release qualification (simulated GitHub, synthetic data)
         shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
         run: |
           set -euo pipefail
-          for suite in m0_stability m2_participation m3_teams_library m4_matches m5_reports regress live_publishing clubs rules home seasons competitions players; do
-            echo "::group::${suite}"
-            python "test/browser/${suite}.py"
-            echo "::endgroup::"
-          done
+          extra=()
+          # Capacity uses 100 synthetic player photos and is heavier than normal
+          # smoke checks. Qualify it on pull requests, not on every main push.
+          if [ "${{ github.event_name }}" != "pull_request" ]; then extra+=(--skip-capacity); fi
+          python3 test/browser/run_all.py --skip-unit --out qualification.json "${extra[@]}"
+      - name: Preserve browser qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-qualification-${{ github.sha }}
+          path: qualification.json
+          if-no-files-found: warn
+          retention-days: 14

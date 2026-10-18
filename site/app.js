@@ -435,14 +435,20 @@ function persistDraft() {
     const file = await seal(snapshot, S.coachLock, 'coach');
     if (base && sealedBase.of !== base) sealedBase = { of: base, file: await seal(base, S.coachLock, 'coach') };
     const at = new Date().toISOString();
-    if (base && store.set(KEYS.draft, JSON.stringify({ file, baseFile: sealedBase.file, ...meta, at }))) return;
+    if (base && store.set(KEYS.draft, JSON.stringify({ file, baseFile: sealedBase.file, ...meta, at }))) {
+      S.storageFull = false; S.storageWarned = false; renderStatus(); return;
+    }
     if (store.set(KEYS.draft, JSON.stringify({ file, ...meta, at }))) {
-      if (!S.storageWarned) { S.storageWarned = true; toast('Storage getting full. Export a backup from Settings.'); }
+      S.storageFull = false; renderStatus();
+      if (!S.storageWarned) { S.storageWarned = true; toast('Storage getting full. The conflict-comparison copy was dropped; export a backup.'); }
       return;
     }
-    S.storageFull = true; renderStatus();
-    if (!S.storageWarned) { S.storageWarned = true; toast('Changes could not be stored on this phone. Export a backup immediately.'); }
-  }).catch(() => { S.storageFull = true; renderStatus(); });
+    const wasFull = S.storageFull; S.storageFull = true; renderStatus();
+    if (!wasFull) toast('Not saved on this phone: storage is full. Export an encrypted backup now.');
+  }).catch(() => {
+    const wasFull = S.storageFull; S.storageFull = true; renderStatus();
+    if (!wasFull) toast('Not saved on this phone: encrypted draft storage failed. Export an encrypted backup now.');
+  });
 }
 
 // Every change: keep it (encrypted) on this phone, then publish shortly after.
@@ -452,7 +458,13 @@ function save() {
   M.syncJerseys(data, todayISO());            // a number given out is a jersey given out
   M.syncEvents(ws);
   data.updatedAt = ws.updatedAt = new Date().toISOString();
-  if (S.trial) { if (!store.set(KEYS.trial, JSON.stringify(ws))) S.storageFull = true; renderStatus(); return; }
+  if (S.trial) {
+    const stored = store.set(KEYS.trial, JSON.stringify(ws));
+    S.storageFull = !stored;
+    if (stored) S.storageWarned = false;
+    else if (!S.storageWarned) { S.storageWarned = true; toast('Not saved on this phone: storage is full. Export a backup now.'); }
+    renderStatus(); return;
+  }
   S.dirty = true;
   persistDraft();
   schedulePublish();
@@ -662,7 +674,11 @@ function renderStatus() {
   el.hidden = false;
   let cls = 'ok', text = '', btn = '';
   if (state.preview) { cls = 'info'; text = 'You are seeing what players see.'; btn = `<button data-act="preview-off">Back to coach view</button>`; }
-  else if (S.storageFull) { cls = 'bad'; text = 'This phone’s storage for the app is full, so the latest changes may not be kept. Export a backup now.'; btn = `<button data-act="settings">Settings</button>`; }
+  else if (S.storageFull) {
+    cls = 'bad';
+    text = 'This phone’s storage is full. The latest changes are not saved locally; keep this page open and export an encrypted backup now.';
+    btn = `<button data-act="export">Export backup</button>`;
+  }
   else if (S.trial) { cls = 'warn'; text = 'Test mode. Saved on this phone only; nothing is shared.'; btn = `<button data-act="go-live">Go live</button>`; }
   else if (!online() && S.dirty) { cls = 'warn'; text = 'Offline. Changes are saved on this phone and will publish when you’re back online.'; }
   else if (!online()) { cls = 'warn'; text = 'Offline. Everything here is saved on this phone.'; }

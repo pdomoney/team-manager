@@ -98,7 +98,7 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 
 ### Players, sports and jerseys
 
-> **Corrective release status (18 October 2026):** The Players/Sports corrective changes from [PR #9](https://github.com/pdomoney/team-manager/pull/9) have been merged into `main` at `1f9f7e7`. **PR #8** is an overlapping *unmerged* alternative and cannot be merged mechanically. The follow-up [PR #10](https://github.com/pdomoney/team-manager/pull/10) is a separate *unmerged* stabilisation candidate for concurrent manual publishing and conflict reconciliation. See [the corrective handoff](docs/corrective-players-sports-jerseys.md) and [merge reconciliation record](docs/merge-reconciliation-20261018.md). Do not treat a successful Pages publish as proof of a passing browser acceptance suite.
+> **Accepted automated-test baseline (18 October 2026):** [PR #9](https://github.com/pdomoney/team-manager/pull/9) and [PR #10](https://github.com/pdomoney/team-manager/pull/10) were merged into `main` at `7eb1976fdd5e`. This baseline passed 97 unit and 491 Chromium browser checks, and Pages deployed. [PR #8](https://github.com/pdomoney/team-manager/pull/8) remains an unmerged, conflicting alternative—do not merge it wholesale. The [selective qualification candidate](docs/pr8-selective-qualification-20261018.md) incorporates only adapted tests and a storage/backup warning, on a separate branch. The tested code at `8b7b00d20537` passed **103/103 units and 521/521 Chromium checks** in [Actions run 39108441274](https://github.com/pdomoney/team-manager/actions/runs/39108441274), including 30/60/100-photo capacity qualification. This does not establish real iOS Safari or real GitHub publishing acceptance. See [the corrective handoff](docs/corrective-players-sports-jerseys.md) and [merge reconciliation record](docs/merge-reconciliation-20261018.md).
 
 
 - **Sport**: a team plays its club's sport unless it's set in Settings › Team (Oztag, touch, league tag, rugby league and union, sevens, tag rugby, AFL, netball, football, basketball, hockey, cricket). The sport sets the positions players can pick (the team can keep its own list) and the automatic rule set; the app has official rules for Oztag, rugby league and league tag only.
@@ -159,11 +159,15 @@ npm run build && npm run serve    # build into ./dist and serve on http://localh
 
 To build with real data, check out the data branch first: `git worktree add data data`.
 
-Browser checks (Python with Playwright and Chromium) walk through the app at phone and desktop sizes, with GitHub simulated and WhatsApp stubbed, so nothing goes online. **The corrective branch additionally requires these Chromium suites in pull-request CI** (Safari/iOS and production publishing remain manual acceptance checks):
+Browser checks (Python with Playwright and Chromium) run at phone and desktop sizes, with **simulated GitHub** and stubbed WhatsApp. The selective qualification candidate adds a slower photo-capacity run (30/60/100 synthetic player photos, browser quota and backup/restore), a structured JSON report and CI artifacts. **Safari/iOS, actual phone storage and production publishing remain manual checks.**
 
-```sh
-for t in test/browser/{m0_stability,m2_participation,m3_teams_library,m4_matches,m5_reports,regress,live_publishing,clubs,rules,home,seasons,competitions,players}.py; do python3 "$t"; done
+```bash
+npm test                    # Unit regression suite
+npm run test:browser        # Full unit + Chromium and capacity qualification
+npm run test:browser:smoke  # Unit + standard Chromium suites; omit slow capacity
 ```
+
+On pull requests, GitHub Actions runs unit tests separately and browser qualification sequentially with a JSON evidence artifact. On ordinary `main` pushes the slower capacity suite is omitted. The runner is `test/browser/run_all.py` and uses synthetic images only.
 
 ## Licence
 
