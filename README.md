@@ -98,7 +98,7 @@ On another device (a laptop, or an assistant coach's phone), open the site, tap 
 
 ### Players, sports and jerseys
 
-> **Corrective candidate (not merged):** The `corrective/players-jerseys-sports-20261018` branch addresses inherited sport defaults, mistaken jersey issues, cross-season jersey reports, storage warnings and Home competition activation guidance. **Full developer handoff and acceptance checklist:** [docs/corrective-players-sports-jerseys.md](docs/corrective-players-sports-jerseys.md). Changes on this branch are not live until explicitly reviewed and merged.
+> **Corrective release status (18 October 2026):** The Players/Sports corrective changes from [PR #9](https://github.com/pdomoney/team-manager/pull/9) have been merged into `main` at `1f9f7e7`. **PR #8** is an overlapping *unmerged* alternative and cannot be merged mechanically. The follow-up [PR #10](https://github.com/pdomoney/team-manager/pull/10) is a separate *unmerged* stabilisation candidate for concurrent manual publishing and conflict reconciliation. See [the corrective handoff](docs/corrective-players-sports-jerseys.md) and [merge reconciliation record](docs/merge-reconciliation-20261018.md). Do not treat a successful Pages publish as proof of a passing browser acceptance suite.
 
 
 - **Sport**: a team plays its club's sport unless it's set in Settings › Team (Oztag, touch, league tag, rugby league and union, sevens, tag rugby, AFL, netball, football, basketball, hockey, cricket). The sport sets the positions players can pick (the team can keep its own list) and the automatic rule set; the app has official rules for Oztag, rugby league and league tag only.
