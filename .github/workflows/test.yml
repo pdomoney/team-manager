@@ -15,3 +15,30 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+
+  # Release qualification in a real browser: every suite in test/browser, Chromium only, on pull
+  # requests. The results (against the branch's commit) are kept with the run as an artifact.
+  browser:
+    if: github.event_name == 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install playwright==1.56.0 && python -m playwright install --with-deps chromium
+      - run: python test/browser/run_all.py --out qualification.json
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qualification-${{ github.event.pull_request.head.sha }}
+          path: qualification.json
+          if-no-files-found: warn

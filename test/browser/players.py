@@ -8,10 +8,21 @@ act = "([a, ds]) => { const b = document.createElement('button'); b.dataset.act 
 PHOTO = os.path.join(WORK, 'player.png')
 open(PHOTO, 'wb').write(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='))
 HEIGHTS = """sel => [...document.querySelectorAll(sel)].filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().height))"""
+FORM_METRICS = """() => { const f = document.querySelector('#sheet form'), sheet = document.querySelector('#sheet').getBoundingClientRect(), vis = e => !!e.offsetParent;
+  const ctl = [...f.querySelectorAll('input[type=text],input[type=tel],input[type=email],input[type=date],input[type=time],input[type=number],input[type=password],select')].filter(vis);
+  return { heights: [...new Set(ctl.map(e => Math.round(e.getBoundingClientRect().height)))], radii: [...new Set(ctl.map(e => getComputedStyle(e).borderRadius))],
+    borders: [...new Set(ctl.map(e => getComputedStyle(e).borderTopWidth + ' ' + getComputedStyle(e).borderTopStyle))],
+    clipped: [...f.querySelectorAll('.field-l > span')].filter(vis).filter(s => s.scrollWidth > s.clientWidth + 1).map(s => s.textContent),
+    outside: ctl.filter(e => e.getBoundingClientRect().right > sheet.right + 1).map(e => e.name), scroll: document.documentElement.scrollWidth > innerWidth }; }"""
+# A big synthetic "phone photo": gradients and shapes, no person
+SYN = os.path.join(WORK, 'synthetic-photo.jpg')
 with sync_playwright() as p:
     b = p.chromium.launch()
     ctx, pg, errs = page(b, url + '#home', width=390, height=844)
     W = lambda js: pg.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M; return {js}; }})()')
+    open(SYN, 'wb').write(base64.b64decode(pg.evaluate("""() => { const cv = document.createElement('canvas'); cv.width = 1200; cv.height = 1600; const g = cv.getContext('2d');
+      const gr = g.createLinearGradient(0, 0, 1200, 1600); gr.addColorStop(0, '#7fb3d5'); gr.addColorStop(1, '#2e4053'); g.fillStyle = gr; g.fillRect(0, 0, 1200, 1600);
+      g.fillStyle = '#f0b27a'; g.beginPath(); g.ellipse(600, 700, 300, 380, 0, 0, 7); g.fill(); return cv.toDataURL('image/jpeg', 0.9).split(',')[1]; }""")))
     pg.wait_for_selector('text=Load a sample squad'); pg.click('[data-act=sample]'); pg.wait_for_timeout(300)
     # competition form: one field height, sport is a drop-down
     pg.goto(url + '#comps'); pg.wait_for_timeout(100); pg.click('[data-act=comp-new]'); pg.wait_for_selector('#sheet form[data-form=comp]')
@@ -76,5 +87,168 @@ with sync_playwright() as p:
     for w in (390, 1280):
         pg.set_viewport_size({'width': w, 'height': 900}); pg.goto(url + '#home'); pg.wait_for_timeout(200)
         c.ok(pg.evaluate('document.documentElement.scrollWidth <= innerWidth'), f'[{w}] Home with the live card: no sideways scroll')
-    ok = c.done(errs); b.close()
+    ctx.close()
+
+    # ---- Corrective release: the 20-step scenario, on a fresh phone in test mode, through the real forms ----
+    ctx, pg, errs2 = page(b, url + '#home', width=390, height=844)
+    W = lambda js: pg.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M; return {js}; }})()')
+    RL, NB = W("M.SPORT_POSITIONS['Rugby league']"), W('M.SPORT_POSITIONS.Netball')
+    form_pos = lambda: pg.eval_on_selector_all('#sheet form[data-form=player] input[name=positions]', 'xs => xs.map(x => x.value)')
+    def settings(): pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#sheet form[data-form=settings] select[name=teamSport]')
+    def save_settings(): pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(200); pg.keyboard.press('Escape')
+    def open_player(pid): pg.evaluate(act, ['edit-player', {'id': pid}]); pg.wait_for_selector('#sheet form[data-form=player]')
+    loans = lambda pid: W(f"M.liveLoans(D.players.find(p => p.id === '{pid}')).map(j => j.number + (j.back ? ':back' : ':out'))")
+    pg.wait_for_selector('text=Load a sample squad'); pg.click('[data-act=sample]'); pg.wait_for_timeout(300)
+    # 1. a rugby league club
+    pg.goto(url + '#teams'); pg.wait_for_timeout(100)
+    pg.click('[data-act=club-new]'); pg.wait_for_selector('#sheet form[data-form=club]')
+    pg.fill('#sheet input[name=name]', 'Southern League Club'); pg.select_option('#sheet form[data-form=club] select[name=sport]', 'Rugby league')
+    pg.click('#sheet form[data-form=club] button[type=submit]'); pg.wait_for_timeout(150)
+    club = W("W.clubs.find(c => c.name === 'Southern League Club').id")
+    c.ok(W(f"W.clubs.find(c => c.id === '{club}').sport") == 'Rugby league', '1. rugby league club created')
+    # 2. a team in it (made from the Oztag team, copying its settings)
+    pg.goto(url + '#teams'); pg.wait_for_timeout(100)
+    pg.click('[data-act=team-new]'); pg.wait_for_selector('#sheet form[data-form=team-new]')
+    pg.fill('#sheet input[name=name]', 'League Women'); pg.select_option('#sheet form[data-form=team-new] select[name=clubId]', club)
+    c.ok(pg.is_checked('#sheet input[name=copySettings]'), '2. copying the Oztag team’s settings')
+    pg.click('#sheet form[data-form=team-new] button[type=submit]'); pg.wait_for_timeout(250)
+    c.ok(W('D.team.name') == 'League Women' and W('D.team.clubId') == club, '2. team created in the club and on screen')
+    # 3–4. a new player sees rugby league positions, not Oztag's; several or none can be picked
+    pg.evaluate(act, ['add-player', {}]); pg.wait_for_selector('#sheet form[data-form=player]')
+    c.ok(form_pos() == RL and 'Rover' not in form_pos() and 'Preferred positions · Rugby league' in pg.inner_text('#sheet'), f'3–4. new player: rugby league positions {form_pos()}')
+    pg.fill('#sheet input[name=name]', 'Test Player One'); pg.check('#sheet input[name=positions][value=Halfback]'); pg.check('#sheet input[name=positions][value=Lock]')
+    pg.click('#sheet button[value=another]'); pg.wait_for_timeout(200)
+    pg.fill('#sheet input[name=name]', 'Test Player Two'); pg.click('#sheet button[value=save]'); pg.wait_for_timeout(200)
+    one, two = W("D.players.find(p => p.name === 'Test Player One').id"), W("D.players.find(p => p.name === 'Test Player Two').id")
+    c.ok(W(f"D.players.find(p => p.id === '{one}').positions") == ['Halfback', 'Lock'] and W(f"D.players.find(p => p.id === '{two}').positions") == [], '3. two positions for one player, none for another')
+    # 5. the team switches to netball in Settings: the list follows straight away and on save
+    settings(); pg.select_option('#sheet select[name=teamSport]', 'Netball')
+    c.ok(pg.input_value('#sheet input[name=positions]') == ', '.join(NB), '5. the positions field follows the sport as it’s picked')
+    save_settings()
+    c.ok(W('D.team.sport') == 'Netball' and W('M.positionsFor(D.team, M.clubOf(W, D))') == NB and W('D.team.positionsCustom') is False, '5. saved: netball positions')
+    settings(); c.ok('no Netball rule book' in pg.inner_text('#sheet select[name=rules] option >> nth=0'), '5. Settings opens for a sport with no rule book in the app'); pg.keyboard.press('Escape')
+    # 6. Add Player shows netball; an existing player keeps the positions they had
+    pg.evaluate(act, ['add-player', {}]); pg.wait_for_selector('#sheet form[data-form=player]')
+    c.ok(form_pos() == NB and 'Preferred positions · Netball' in pg.inner_text('#sheet'), '6. new player: netball positions'); pg.keyboard.press('Escape')
+    open_player(one)
+    checked = pg.eval_on_selector_all('#sheet input[name=positions]:checked', 'xs => xs.map(x => x.value)')
+    c.ok(form_pos()[:len(NB)] == NB and checked == ['Halfback', 'Lock'] and 'from before' in pg.inner_text('#sheet'), f'6. existing player: netball list, earlier positions kept and ticked {checked}')
+    pg.keyboard.press('Escape')
+    # 7. a list of the team's own stays through a sport change
+    settings(); pg.fill('#sheet input[name=positions]', 'Attack, Centre court, Defence'); save_settings()
+    c.ok(W('D.team.positionsCustom') is True, '7. own list saved')
+    settings(); pg.select_option('#sheet select[name=teamSport]', '')
+    c.ok(pg.input_value('#sheet input[name=positions]') == 'Attack, Centre court, Defence', '7. changing the sport in the form leaves the team’s own list')
+    save_settings()
+    pg.evaluate(act, ['add-player', {}]); pg.wait_for_selector('#sheet form[data-form=player]')
+    c.ok(W('M.teamSport(D.team, M.clubOf(W, D))') == 'Rugby league' and form_pos() == ['Attack', 'Centre court', 'Defence'] and 'This team’s own list' in pg.inner_text('#sheet'),
+         '7. back to the club’s rugby league, and the own list is still what players pick from')
+    pg.keyboard.press('Escape')
+    # 8–9. a number is a jersey given out (jerseys lent)
+    settings(); pg.check('#sheet input[name=jerseyLoan]'); save_settings()
+    open_player(one); pg.fill('#sheet input[name=number]', '7'); pg.click('#sheet button[value=save]'); pg.wait_for_timeout(200)
+    c.ok(loans(one) == ['7:out'], f'8–9. jersey #7 recorded once {loans(one)}')
+    open_player(one)
+    c.ok('With the player' in pg.inner_text('#sheet .jersey-block'), '9. shown on the player')
+    # 10–11. returned, then undone: the same record
+    pg.click('#sheet [data-act=jersey-back]'); pg.wait_for_timeout(150)
+    c.ok(loans(one) == ['7:back'] and 'Returned' in pg.inner_text('#sheet .jersey-block'), '10. returned')
+    pg.click('#sheet [data-act=jersey-undo]'); pg.wait_for_timeout(150)
+    c.ok(loans(one) == ['7:out'] and W(f"D.players.find(p => p.id === '{one}').jerseys.length") == 1, '11. undo: the same record is out again, no new one')
+    # 12. removed as a mistake, then the player saved
+    pg.click('#sheet [data-act=jersey-del]'); pg.wait_for_timeout(150)
+    c.ok('No jersey on record' in pg.inner_text('#sheet .jersey-block') and pg.locator('#sheet [data-act=jersey-issue]').count() == 1, '12. removed; Issue jersey offered')
+    pg.click('#sheet button[value=save]'); pg.wait_for_timeout(200)
+    c.ok(loans(one) == [], f'12. saving the player doesn’t give it back {loans(one)}')
+    # 13. reload: still not re-issued
+    league = W('D.id')
+    pg.reload(); pg.wait_for_function('window.__team && window.__team.ws'); pg.wait_for_timeout(200)
+    if W('D.id') != league: pg.evaluate(act, ['team-pick', {'id': league}]); pg.wait_for_timeout(150)
+    open_player(one); pg.click('#sheet button[value=save]'); pg.wait_for_timeout(200)
+    c.ok(loans(one) == [] and W(f"D.players.find(p => p.id === '{one}').jerseys.length") == 1, '13. after reload and another save: not re-issued, the removal kept')
+    # issue a replacement on purpose, and hand it back: this season's #7 is returned
+    open_player(one); pg.click('#sheet [data-act=jersey-issue]'); pg.wait_for_timeout(150)
+    c.ok(loans(one) == ['7:out'], '9 (replacement). issued deliberately')
+    pg.click('#sheet [data-act=jersey-back]'); pg.wait_for_timeout(150); pg.keyboard.press('Escape')
+    s1 = W('M.activeSeason(D).name')
+    # 14. complete the season and start the next: Player One carried with #12
+    pg.evaluate(act, ['season-open', {}]); pg.wait_for_selector('#sheet [data-act=season-next]')
+    pg.click('#sheet [data-act=season-next]'); pg.wait_for_selector('#sheet form[data-form=season-next]')
+    s2 = pg.input_value('#sheet input[name=name]')
+    pg.check(f'#sheet input[name=carry][value="{one}"]'); pg.fill(f'#sheet input[name="num-{one}"]', '12'); pg.check('#sheet input[name=when][value=now]')
+    pg.click('#sheet form[data-form=season-next] button[type=submit]'); pg.wait_for_selector('#sheet [data-act=season-next-go]')
+    pg.click('#sheet [data-act=season-next-go]'); pg.wait_for_timeout(250); pg.keyboard.press('Escape')
+    c.ok(W("D.seasons.map(s => s.status).join()") == 'completed,active' and loans(one) == ['7:back', '12:out'], f'14. {s1} completed, {s2} active, #12 given out {loans(one)}')
+    # 15. the reports: this season, every jersey out now, and the past season as it was
+    pg.goto(url + '#reports'); pg.wait_for_timeout(200)
+    rows = lambda sel: pg.eval_on_selector_all(f'{sel} tbody tr', 'rs => rs.map(r => r.innerText.replace(/\\s+/g, " ").trim())')
+    cur, now = rows('#jersey-season'), rows('#jersey-now')
+    c.ok(any('Test Player One' in r and '#12' in r and 'Still out' in r for r in cur) and not any('#7' in r for r in cur), f'15. {s2}: #12 still out, no #7 {cur}')
+    c.ok(any('#12' in r for r in now) and not any('#7' in r and 'Test Player One' in r for r in now), f'15. out now: #12 {now}')
+    pg.click('[data-act=season-pick]'); pg.wait_for_selector('#sheet [data-act=season-view]')
+    pg.click(f'#sheet [data-act=season-view]:has-text("{s1}")'); pg.wait_for_timeout(200)
+    pg.goto(url + '#reports'); pg.wait_for_timeout(200)
+    past = rows('#jersey-season')
+    mine = [r for r in past if 'Test Player One' in r]
+    c.ok(mine and all('#7' in r and 'Returned' in r for r in mine) and not any('#12' in r for r in past), f'15. {s1}: #7 returned, nothing about #12 {mine}')
+    shown = pg.eval_on_selector_all('#jersey-season tbody tr[data-status]', 'rs => rs.map(r => r.dataset.status)')
+    summary = pg.inner_text('#jersey-season-sum')
+    c.ok(f'{shown.count("out") + shown.count("returned")} given out' in summary and f'{shown.count("returned")} returned' in summary, f'15. the counts are the rows shown: {summary!r} {shown}')
+    pg.click('[data-act=season-pick]'); pg.wait_for_selector('#sheet [data-act=season-view]')
+    pg.click(f'#sheet [data-act=season-view]:has-text("{s2}")'); pg.wait_for_timeout(200)
+    # 16. a photo added, removed, and added again
+    pg.goto(url + '#squad'); pg.wait_for_timeout(150)
+    open_player(one)
+    pg.set_input_files('#sheet input[data-change=player-photo]', SYN); pg.wait_for_function("document.querySelector('#sheet input[name=photo]').value.startsWith('data:image/')")
+    c.ok(pg.locator('#sheet .photo-prev img').count() == 1, '16. photo previewed')
+    pg.click('#sheet [data-act=player-photo-clear]')
+    c.ok(pg.input_value('#sheet input[name=photo]') == '' and pg.locator('#sheet .photo-prev img').count() == 0, '16. photo removed in the form')
+    pg.click('#sheet button[value=save]'); pg.wait_for_timeout(200)
+    c.ok(W(f"D.players.find(p => p.id === '{one}').photo || ''") == '', '16. saved without a photo')
+    open_player(one); pg.set_input_files('#sheet input[data-change=player-photo]', SYN); pg.wait_for_function("document.querySelector('#sheet input[name=photo]').value.startsWith('data:image/')")
+    pg.click('#sheet button[value=save]'); pg.wait_for_timeout(200)
+    dims = pg.evaluate(f"""() => new Promise(r => {{ const i = new Image(); i.onload = () => r([i.width, i.height]); i.src = window.__team.data.players.find(p => p.id === '{one}').photo; }})""")
+    c.ok(dims == [192, 192] and W(f"M.validPhoto(D.players.find(p => p.id === '{one}').photo)"), f'16. a big phone photo is kept as a small square {dims}, {W(f"D.players.find(p => p.id === {one!r}).photo.length")} characters')
+    # 17. coach only
+    view = pg.evaluate("async () => { const V = await import('./vault.js'), T = window.__team; return JSON.stringify(V.teamView(T.M.activeLens(T.data), T.M.clubOf(T.ws, T.data), [])); }")
+    c.ok('data:image/' not in view.replace(W("JSON.stringify(W.clubs.map(c => c.logo).filter(Boolean))"), '') and 'jerseys' not in view and 'positionsCustom' not in view, '17. the players’ copy has no photos, jersey records or settings flags')
+    pg.evaluate(act, ['preview-on', {}]); pg.goto(url + '#squad'); pg.wait_for_timeout(150)
+    c.ok(pg.locator('.pphoto img').count() == 0, '17. players don’t see photos'); pg.evaluate(act, ['preview-off', {}]); pg.wait_for_timeout(100)
+    # 18. competition: why it isn't on Home yet, and the step that puts it there
+    pg.goto(url + '#comps'); pg.wait_for_timeout(150)
+    pg.click('[data-act=comp-new]'); pg.wait_for_selector('#sheet form[data-form=comp]')
+    pg.fill('#sheet input[name=name]', 'League Cup'); pg.fill('#sheet input[name=start]', W('M.addDays(M.isoDay(new Date()), -1)')); pg.fill('#sheet input[name=end]', W('M.addDays(M.isoDay(new Date()), 30)'))
+    pg.click('#sheet form[data-form=comp] button[type=submit]'); pg.wait_for_timeout(200)
+    note = pg.inner_text('#comp-home')
+    c.ok('appears on Home when it’s active and a team is entered in it for that team’s active season' in note and pg.locator('#comp-home [data-act=comp-entry-new]').count() == 1, f'18. planned: the rule and Enter League Women {note!r}')
+    pg.click('[data-act=comp-move][data-to=active]'); pg.wait_for_timeout(200)
+    c.ok('Not on Home yet' in pg.inner_text('#comp-home') and 'Enter a team' in pg.inner_text('#toast'), '18. started with no team: says why it isn’t on Home')
+    pg.goto(url + '#home'); pg.wait_for_timeout(200)
+    c.ok('League Cup' not in ' '.join(pg.locator('.comp-live').all_inner_texts()), '18. not on Home without an entry')
+    pg.goto(url + '#comps'); pg.wait_for_timeout(150)
+    if pg.locator('#comp-home').count() == 0: pg.click('text=League Cup'); pg.wait_for_timeout(150)
+    pg.click('#comp-home [data-act=comp-entry-new]'); pg.wait_for_selector('#sheet form[data-form=comp-entry]')
+    c.ok(pg.input_value('#sheet select[name=ts]').startswith(league + '|'), '18. the entry form starts with this team and its active season')
+    pg.click('#sheet form[data-form=comp-entry] button[type=submit]'); pg.wait_for_timeout(200)
+    c.ok('On Home for' in pg.inner_text('#comp-home') and 'League Women' in pg.inner_text('#comp-home'), '18. entered: on Home for League Women')
+    pg.goto(url + '#home'); pg.wait_for_timeout(250)
+    c.ok('League Cup' in ' '.join(pg.locator('.comp-live').all_inner_texts()), '18. on Home now')
+    # 19. mobile and desktop: the same control heights, borders and corners; no clipped labels; no sideways scroll; focus ring
+    for w in (390, 1280):
+        pg.set_viewport_size({'width': w, 'height': 900}); pg.wait_for_timeout(150)
+        for name, a, ds in [('settings', 'settings', {}), ('player', 'edit-player', {'id': one}), ('training', 'add-session', {}), ('match', 'match-new', {}), ('competition', 'comp-new', {}), ('team', 'team-new', {})]:
+            pg.evaluate(act, [a, ds]); pg.wait_for_selector('#sheet form'); pg.wait_for_timeout(200)
+            m = pg.evaluate(FORM_METRICS)
+            c.ok(len(m['heights']) == 1 and m['radii'] == ['10px'] and m['borders'] == ['1px solid'], f'19. [{w}] {name}: text, date, time, number fields and drop-downs match {m["heights"]} {m["radii"]} {m["borders"]}')
+            c.ok(not m['clipped'] and not m['outside'] and not m['scroll'], f'19. [{w}] {name}: no clipped labels or fields, no sideways scroll {m["clipped"]} {m["outside"]}')
+            pg.evaluate("document.querySelector('#sheet form').querySelector('input[type=text], input[type=date], select').focus()"); pg.keyboard.press('Tab'); pg.keyboard.press('Shift+Tab')
+            c.ok(pg.evaluate("(() => { const e = document.activeElement, s = getComputedStyle(e); return /^(INPUT|SELECT)$/.test(e.tagName) && s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2; })()"), f'19. [{w}] {name}: keyboard focus is visible')
+            pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
+        # 20. the existing screens still work
+        for route in ['home', 'squad', 'reports', 'comps', 'matches', 'training', 'teams', 'club']:
+            pg.goto(url + '#' + route); pg.wait_for_timeout(150)
+            c.ok(pg.evaluate('document.documentElement.scrollWidth <= innerWidth') and len(pg.inner_text('#view')) > 20, f'20. [{w}] {route} shows, no sideways scroll')
+    pg.evaluate(act, ['season-open', {}]); pg.wait_for_selector('#sheet [data-act=season-next]')
+    c.ok(s1 in pg.inner_text('#sheet') and s2 in pg.inner_text('#sheet'), '20. seasons still list both'); pg.keyboard.press('Escape')
+    ok = c.done(errs + errs2); b.close()
 srv.shutdown(); sys.exit(0 if ok else 1)
