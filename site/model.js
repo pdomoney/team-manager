@@ -68,7 +68,10 @@ export function personTeams(ws, teamId, playerId) {
     (t.id === teamId && x.id === playerId) || (p.personId && x.personId === key))
     .map(x => ({ teamId: t.id, playerId: x.id, teamName: teamName(t),
       sport: teamSport(t.team, clubOf(ws, t)), number: String(x.number || ''),
-      positions: arr(x.positions).slice(), archived: !!t.archived })));
+      positions: arr(x.positions).slice(), archived: !!t.archived,
+      jerseyStatus: openLoans(x).length ? 'With player' : arr(x.jerseys).some(j => j.back) ? 'Returned' :
+        arr(x.jerseys).length ? 'Issued' : 'Not issued',
+      jerseysOutstanding: openLoans(x).length })));
 }
 export function teamPlayerCandidates(ws, targetTeamId) {
   return activeTeams(ws).filter(t => t.id !== targetTeamId).flatMap(t =>
