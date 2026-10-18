@@ -419,7 +419,7 @@ function ensureJerseys(t) {
   const s = activeSeason(t), live = s ? new Set(seasonLens(t, s.id).players.map(p => p.id)) : new Set();
   arr(t.players).forEach(p => {
     if (!isObj(p)) return;
-    p.jerseyCorrections = [...new Set(arr(p.jerseyCorrections).filter(x => typeof x === 'string'))];
+    if (Array.isArray(p.jerseyCorrections)) p.jerseyCorrections = [...new Set(p.jerseyCorrections.filter(x => typeof x === 'string'))];
     if (Array.isArray(p.jerseys)) { p.jerseys = p.jerseys.filter(isObj).map(normLoan); return; }
     const num = String(p.number || '').trim();
     p.jerseys = num && live.has(p.id) ? [{ id: `j-${p.id}`, number: num, seasonId: s.id, out: '', back: '' }] : [];
