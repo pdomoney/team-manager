@@ -722,8 +722,10 @@ const COLOUR_WORDS = { red: '#C8102E', maroon: '#7A1F2B', white: '#FFFFFF', blac
 const CREST_PALETTE = ['#123D2B', '#174E87', '#B01D30', '#6E5000', '#55399A', '#2F7D4E'];
 const lum = hex => { const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
 const contrast = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+const clubBadge = c => c ? { id: c.id, name: c.name, short: c.shortName || c.short || c.name, colours: c.colours, logo: c.logo } : null;
 function crest(c, big = false) {
   if (!c) return `<span class="crest all${big ? ' big' : ''}" aria-hidden="true">All</span>`;
+  if (M.validLogo(c.logo)) return `<span class="crest logo${big ? ' big' : ''}" aria-hidden="true"><img src="${c.logo}" alt=""></span>`;
   const words = String(c.colours || '').toLowerCase().match(/[a-z]+/g) || [], cols = [...new Set(words.map(w => COLOUR_WORDS[w]).filter(Boolean))];
   const bg = cols[0] || CREST_PALETTE[[...String(c.id)].reduce((n, ch) => n + ch.charCodeAt(0), 0) % CREST_PALETTE.length];
   let fg = cols[1] || '#FFFFFF'; if (contrast(bg, fg) < 3) fg = contrast(bg, '#FFFFFF') >= 3 ? '#FFFFFF' : '#16201B';
@@ -734,7 +736,7 @@ function crest(c, big = false) {
 const urgencyDot = u => u ? `<span class="u-dot ${u}" aria-hidden="true"></span><span class="sr-only">${u === 'critical' ? ', needs attention now' : ', needs attention soon'}</span>` : '';
 function homeSelector(hv) {
   const T = data.team, club = M.clubOf(ws, data);
-  if (!hv.multi) return `<div class="scope single">${crest(club ? { id: club.id, name: club.name, short: club.shortName, colours: club.colours } : { id: M.NO_CLUB, name: 'No club' }, true)}
+  if (!hv.multi) return `<div class="scope single">${crest(club ? clubBadge(club) : { id: M.NO_CLUB, name: 'No club' }, true)}
     <span class="grow"><span class="name" style="display:block">${esc(T.name || 'Team')}</span><span class="sub" style="display:block">${esc([club && club.name, T.division, T.season].filter(Boolean).join(' · ') || 'Not in a club')}</span></span></div>`;
   const sc = hv.scope, clubOfScope = sc.kind === 'club' ? sc.id : sc.kind === 'team' ? (hv.clubs.find(c => c.teams.some(t => t.id === sc.id)) || {}).id : null;
   const clubUrg = c => c.teams.some(t => hv.urgency[t.id] === 'critical') ? 'critical' : c.teams.some(t => hv.urgency[t.id] === 'soon') ? 'soon' : '';
@@ -848,7 +850,7 @@ function viewHome() {
 // Players see their own team only: what's next, the next two weeks, notices and where help is needed.
 function playerHome() {
   const T = V.team, club = curClub(), today = todayISO();
-  const strip = `<div class="scope single">${crest(club ? { id: club.id, name: club.name, short: club.shortName, colours: club.colours } : { id: M.NO_CLUB, name: 'No club' }, true)}
+  const strip = `<div class="scope single">${crest(club ? clubBadge(club) : { id: M.NO_CLUB, name: 'No club' }, true)}
     <span class="grow"><span class="name" style="display:block">${esc(T.name || 'Team')}</span><span class="sub" style="display:block">${esc([club && club.name, T.division, T.event && countdown() && countdown().state === 'before' ? `${T.event} in ${countdown().days} days` : T.event].filter(Boolean).join(' · '))}</span></span></div>`;
   if (!V.players.length) return strip + homeNotices(10) + `<p class="muted">The squad hasn't been announced yet.</p>`;
   const items = M.agenda(V, today, 14).filter(it => !it.cancelled && it.kind !== 'task');   // tasks are under Help needed
@@ -3611,7 +3613,7 @@ function viewTeams() {
   const loose = sortT(all.filter(t => !M.clubOf(ws, t)));
   return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus', 18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button></div></div>
     ${clubs.map(c => { const ts = sortT(M.clubTeams(ws, c.id)); return `<section class="sec club-group">
-      <div class="club-head"><span class="grow"><span class="name" style="display:block">${esc(c.name)}</span><span class="sub">${esc([c.sport, c.governingBody, `${ts.length} team${ts.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</span></span>
+      <div class="club-head">${crest(clubBadge(c))}<span class="grow"><span class="name" style="display:block">${esc(c.name)}</span><span class="sub">${esc([c.sport, c.governingBody, `${ts.length} team${ts.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</span></span>
         <button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
       ${ts.length ? `<div class="list">${ts.map(row).join('')}</div>` : '<p class="muted small">No teams in this club yet.</p>'}
     </section>`; }).join('')}
@@ -3630,7 +3632,7 @@ function viewClub() {
   const line = (label, val) => val ? `<div><dt>${label}</dt><dd>${val}</dd></div>` : '';
   const teams = coach ? M.clubTeams(ws, c.id) : [];
   const staff = coach ? arr(data.team.staff) : arr(V.staff);
-  return `<div class="sec-h"><h2>${esc(c.name)}</h2>${coach ? `<button class="btn sm" data-act="club-edit" data-id="${esc(c.id)}">Edit club</button>` : ''}</div>
+  return `${coach ? '<button class="link-btn" data-act="tab" data-tab="teams" style="padding-top:0">‹ Clubs and teams</button>' : ''}<div class="sec-h"><h2 class="club-title">${crest(clubBadge(c), true)}<span>${esc(c.name)}</span></h2>${coach ? `<button class="btn sm" data-act="club-edit" data-id="${esc(c.id)}">Edit club</button>` : ''}</div>
     <p class="muted" style="margin:-4px 0 14px">${esc([c.sport, c.governingBody && `under ${c.governingBody}`, c.founded && `since ${c.founded}`].filter(Boolean).join(' · '))}</p>
     <div class="cols"><div class="col">
     <section class="sec"><div class="sec-h"><h2>Contact</h2></div><dl class="club-dl">
@@ -3658,6 +3660,12 @@ function clubForm(c) {
   const rows = [...c.officials, { role: 'President', name: '', phone: '', email: '' }, { role: 'Secretary', name: '', phone: '', email: '' }];
   return `<form data-form="club" autocomplete="off"><input type="hidden" name="id" value="${isNew ? '' : esc(c.id)}">
     <div class="two">${f('name', 'Club name', 'e.g. St George Oztag')}${f('shortName', 'Short name', 'e.g. St George')}</div>
+    <div class="field-l logo-field"><span id="club-logo-l">Logo</span>
+      <div class="logo-row"><span class="logo-prev">${crest(clubBadge(c), true)}</span>
+        <label class="btn sm file-btn"><input type="file" accept="image/*" data-change="club-logo" aria-labelledby="club-logo-l">Choose image</label>
+        <button type="button" class="btn sm" data-act="club-logo-clear" ${c.logo ? '' : 'hidden'}>Remove logo</button></div>
+      <input type="hidden" name="logo" value="${esc(c.logo)}">
+      <small>A square image works best. It’s shrunk to a small badge and kept with the club; its teams’ players see it too. Without one, the badge shows the club’s initials.</small></div>
     <div class="two"><label class="field-l"><span>Sport</span><select name="sport">${[...new Set([...CLUB_SPORTS, c.sport])].map(x => `<option ${x === c.sport ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>${f('governingBody', 'Governing body', 'e.g. Australian Oztag')}</div>
     <div class="two">${f('founded', 'Founded', 'e.g. 1992')}${f('juniorBrand', 'Junior program', 'e.g. DragonTag')}</div>
     <h3 class="form-sec">Contact</h3>
@@ -3866,6 +3874,32 @@ function compEnterSheet(sid) {
     <button class="btn primary block" style="margin-top:12px" data-act="comp-new" data-team="${esc(data.id)}" data-season="${esc(sid)}">${icon('plus')}New competition</button>`, 'comp-enter');
 }
 
+// A club logo from the phone: any image, shrunk to fit 160 px and kept as a small WebP (or PNG, or
+// JPEG if it's still too big) with the club.
+function readLogo(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type)) { reject(new Error('Pick an image file')); return; }
+    if (file.size > 15e6) { reject(new Error('That image is too big. Try one under 15 MB.')); return; }
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const W0 = img.naturalWidth || 160, H0 = img.naturalHeight || 160, k = Math.min(1, 160 / Math.max(W0, H0));
+      const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(W0 * k)); cv.height = Math.max(1, Math.round(H0 * k));
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      let out = '';
+      try {
+        out = cv.toDataURL('image/webp', 0.85);
+        if (!/^data:image\/(webp|png)/.test(out)) out = cv.toDataURL('image/png');
+        if (out.length > M.LOGO_MAX) out = cv.toDataURL('image/jpeg', 0.8);
+      } catch (e) { reject(new Error('That image can’t be used. Try a PNG or JPEG.')); return; }
+      if (!M.validLogo(out)) { reject(new Error('That image can’t be used. Try a smaller PNG or JPEG.')); return; }
+      resolve(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That image can’t be read. Try a PNG or JPEG.')); };
+    img.src = url;
+  });
+}
+
 /* ---------- Seasons ---------- */
 // A team plays season after season. The active season is the one being run; past seasons are kept as
 // they were and opened read-only (with a deliberate "make a correction" step), and the next season is
@@ -3876,7 +3910,7 @@ const SAFE_ACTS = new Set(('tab nav close-sheet settings layout layout-width loc
   + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open').split(' '));
 const pastMsg = () => V && V.viewSeason ? `${V.viewSeason.name} is read-only. Go back to the current season, or make a correction.` : 'Start a season first: Seasons, from the season under the team name.';
 function blockedInPast(act) {
-  if (!V || S.role !== 'coach' || state.preview || /^(season|comp)-/.test(act) || SAFE_ACTS.has(act)) return false;
+  if (!V || S.role !== 'coach' || state.preview || /^(season|comp|club)-/.test(act) || SAFE_ACTS.has(act)) return false;
   if (correcting()) {
     if (!['add-player', 'bulk-add', 'edit-player', 'delete-player', 'sample'].includes(act)) return false;
     toast(`Change the ${V.viewSeason.name} squad in Seasons.`); return true;
@@ -4103,15 +4137,20 @@ function backupSection() {
 }
 
 /* ---------- More ---------- */
+// "2 clubs · 1 active team (1 archived)": every club, the team's own included, lives under Clubs and teams.
+function clubsTeamsLine() {
+  const n = arr(ws.clubs).length, a = M.activeTeams(ws).length, x = M.teamsOf(ws).length - a;
+  return `${n} club${n === 1 ? '' : 's'} · ${a} active team${a === 1 ? '' : 's'}${x ? ` (${x} archived)` : ''}. Club details, officials and team staff`;
+}
 function viewMore() {
   const coach = isCoach();
   const item = (act, attrs, title, sub, ic) => `<button class="pick more-item" data-act="${act}" ${attrs}><span class="more-ic">${icon(ic, 22)}</span><span class="grow"><span class="name" style="display:block">${title}</span><span class="tagline">${sub}</span></span></button>`;
   return `<div class="sec-h"><h2>More</h2></div><div class="list">
     ${coach ? item('tab', 'data-tab="messages"', 'Messages and noticeboard', 'WhatsApp messages, the message log and notices', 'chat') : item('tab', 'data-tab="notices"', 'Notices', 'Everything the coach has posted', 'clip')}
     ${coach ? item('tab', 'data-tab="reports"', 'Reports', 'Attendance, results, volunteering and loose ends', 'chart') : ''}
-    ${item('tab', 'data-tab="club"', curClub() ? esc(curClub().name) : 'Club', coach ? 'Club details, officials and team staff' : 'Club contacts, ground and links', 'team')}
-    ${coach ? item('tab', 'data-tab="comps"', 'Competitions', `${M.compsOf(ws).filter(c => c.status !== 'archived').length} competitions and tournaments, entries, fixtures and results`, 'chart') : ''}
-    ${coach ? item('tab', 'data-tab="teams"', 'Clubs and teams', `${M.activeTeams(ws).length} active${M.teamsOf(ws).length > M.activeTeams(ws).length ? `, ${M.teamsOf(ws).length - M.activeTeams(ws).length} archived` : ''}`, 'team') : ''}
+    ${coach ? '' : item('tab', 'data-tab="club"', curClub() ? esc(curClub().name) : 'Club', 'Club contacts, ground and links', 'team')}
+    ${coach ? item('tab', 'data-tab="comps"', 'Competitions', (n => `${n} competition${n === 1 ? '' : 's'}: entries, fixtures and results`)(M.compsOf(ws).filter(c => c.status !== 'archived').length), 'chart') : ''}
+    ${coach ? item('tab', 'data-tab="teams"', 'Clubs and teams', esc(clubsTeamsLine()), 'team') : ''}
     ${item('settings', '', 'Settings', coach ? 'Team, field, team contact, publishing, backups, screen layout' : 'Screen layout, updates, sign out', 'cog')}
   </div>
   ${coach ? '' : `<p class="hint">${S.fromCache ? 'No connection: you’re seeing the copy saved on this phone. ' : ''}The coach keeps everything up to date. Use Settings › Check for updates to get the latest.</p>`}`;
@@ -5058,6 +5097,13 @@ const actions = {
       toast(e.status === 403 || e.status === 404 ? 'Your GitHub token can’t start the Rules watch. Run it from the repository’s Actions tab, or give the token Actions: Read and write.' : (e.message || 'Couldn’t start the check'));
     } finally { el.disabled = false; }
   }),
+  'club-logo-clear': coachOnly(el => {
+    const form = el.closest('form'); if (!form) return;
+    form.querySelector('[name=logo]').value = '';
+    const v = n => (form.querySelector(`[name=${n}]`) || {}).value || '';
+    form.querySelector('.logo-prev').innerHTML = crest({ id: v('id') || 'new', name: v('name'), short: v('shortName'), colours: v('colours') }, true);
+    el.hidden = true;
+  }),
   'club-del': coachOnly(el => {
     const c = arr(ws.clubs).find(x => x.id === el.dataset.id); if (!c) return;
     const n = M.clubTeams(ws, c.id).length;
@@ -5141,6 +5187,14 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
+  if (k === 'club-logo') {
+    const inp = e.target, form = inp.closest('form');
+    readLogo(inp.files && inp.files[0]).then(d => {
+      form.querySelector('[name=logo]').value = d;
+      form.querySelector('.logo-prev').innerHTML = crest({ id: 'logo', logo: d }, true);
+      form.querySelector('[data-act=club-logo-clear]').hidden = false;
+    }).catch(err => toast(err.message)).finally(() => { inp.value = ''; });
+  }
   if (k === 'msg-session') { state.msgSession = e.target.value; state.msgDraft = buildTemplate(state.msgTpl); render(); }
   if (k === 'post-notice') state.postNotice = e.target.checked;
   if (k === 'ped-list' && state.ped) { pedSetList(e.target.value); refreshPlayEditor(); toast(`Showing ${getSet(e.target.value).name} labels`); }

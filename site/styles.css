@@ -434,7 +434,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px
 .field-l{display:block;margin-bottom:14px}
 .field-l > span{display:block;font-size:14px;font-weight:600;margin-bottom:5px}
 .field-l small{display:block;color:var(--muted);font-size:13px;margin-top:4px}
-input[type=text],input[type=tel],input[type=date],input[type=time],input[type=number],input[type=password],select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--paper);min-height:46px;font-size:16px}
+input[type=text],input[type=tel],input[type=email],input[type=url],input[type=date],input[type=time],input[type=number],input[type=password],select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--paper);min-height:46px;font-size:16px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .opts{display:flex;gap:8px;flex-wrap:wrap}
 .opt{position:relative}
@@ -855,3 +855,13 @@ ul.plain{margin:0 0 6px;padding-left:18px}
 
 /* Competitions */
 .comp-tag{display:inline-block;margin-top:4px;font:600 12px/1.3 var(--font-b);color:var(--sky-ink);background:var(--sky-soft);padding:2px 7px;border-radius:5px}
+
+/* Club logos */
+.crest.logo{background:#fff;border-color:var(--line);overflow:hidden;padding:2px}
+.crest.logo img{width:100%;height:100%;object-fit:contain;display:block}
+.club-title{display:flex;align-items:center;gap:10px;min-width:0}
+.club-title span{min-width:0;overflow-wrap:anywhere}
+.logo-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 6px}
+.file-btn{position:relative;overflow:hidden}
+.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.file-btn:focus-within{outline:2px solid var(--sky);outline-offset:2px}

@@ -424,3 +424,14 @@ test('the males-on-field check only applies to mixed teams', () => {
   t.team.category = 'men';
   assert.equal(M.lineupCheck(t, lu).ready, true);
 });
+
+test('club logos: a small PNG, JPEG or WebP image kept with the club, nothing else', () => {
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
+  assert.equal(M.normClub({ name: 'A', logo: png }).logo, png);
+  for (const bad of ['data:image/svg+xml;base64,PHN2Zz4=', 'javascript:alert(1)', 'https://example.com/logo.png', 'data:image/png;base64,' + 'A'.repeat(M.LOGO_MAX), 'data:image/png;base64,abc"onerror=x']) {
+    assert.equal(M.normClub({ name: 'A', logo: bad }).logo, '', bad.slice(0, 30));
+  }
+  assert.ok(M.CLUB_PUBLIC.includes('logo'), 'players see their club’s logo');
+  const ws = M.migrateWorkspace({ team: { name: 'T', clubId: 'c1' }, players: [], clubs: [{ id: 'c1', name: 'Club', logo: png }] });
+  assert.equal(M.homeClubs(ws)[0].logo, png);
+});
