@@ -561,6 +561,9 @@ function fixDefaultPositions(ws) {
     } else T.positionsCustom = true;
   });
 }
+// Called on every save as well as migration: changing a club's sport updates
+// inherited team defaults before the players' encrypted projection is produced.
+export const syncSportPositions = ws => fixDefaultPositions(ws);
 export function ruleSetList(R = RULES) {
   return Object.entries(R.sports).flatMap(([sid, s]) => s.grades.map(g => ({ id: `${sid}/${g.id}`, sport: sid, sportName: s.name, name: g.name })));
 }
