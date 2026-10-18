@@ -121,11 +121,13 @@ const CLUB_PUBLIC = ['id', 'name', 'shortName', 'sport', 'governingBody', 'found
 // The players' copy. Anything not listed here stays in the coach's file only. `club` is the team's
 // club, if it has one.
 // `d` is the team as of its active season (model.js activeLens), so past seasons' squads, matches and
-// notices never reach the players' file.
-export function teamView(d, club = null) {
+// notices never reach the players' file; `comps` is what the players see of its competitions.
+export function teamView(d, club = null, comps = []) {
   const season = d.viewSeason && typeof d.viewSeason === 'object' ? pick(d.viewSeason, ['id', 'name', 'start', 'end', 'status']) : null;
   return {
     season,
+    competitions: (comps || []).filter(c => c && typeof c === 'object').map(c => ({ ...pick(c, ['id', 'name', 'sport', 'format', 'edition', 'start', 'end', 'organiser', 'venue', 'status', 'description', 'entryId', 'division', 'pool', 'entryStatus']),
+      bylaws: (c.bylaws || []).map(b => pick(b, ['topic', 'text'])) })),
     team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field', 'tasksContact', 'clubId', 'division', 'category', 'ageGroup', 'season', 'colours', 'rules', 'bylaws']),
     club: club && typeof club === 'object' ? pick(club, CLUB_PUBLIC) : null,
     // Team staff: who they are; their phone numbers and email addresses stay with the coach.
@@ -145,7 +147,7 @@ export function teamView(d, club = null) {
     // Matches: when, where, who against, the status and the score. Availability, the coach's notes
     // and the result notes stay in the coach's file.
     matches: (d.matches || []).filter(m => m && typeof m === 'object').map(m => ({
-      ...pick(m, ['id', 'date', 'start', 'opponent', 'venue', 'field', 'round', 'tournament', 'status', 'notes', 'lineupId']),
+      ...pick(m, ['id', 'date', 'start', 'opponent', 'venue', 'field', 'round', 'tournament', 'status', 'notes', 'lineupId', 'entryId', 'friendly']),
       result: pick(m.result || {}, ['us', 'them', 'forfeit'])
     })),
     // The coach's changes to the game systems on the Lineup page (where players stand, the words).

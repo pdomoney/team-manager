@@ -63,6 +63,22 @@ test('an older single-team backup (schema 2) upgrades too', () => {
   assert.equal(ws.schema, 4); assert.equal(ws.seasons[0].status, 'active'); assert.equal(ws.clubs.length >= 0, true);
 });
 
+test('the tournament becomes a competition; only matches marked as tournament matches are linked', () => {
+  const ws = migrate(schema3());
+  assert.equal(ws.competitions.length, 1);
+  const c = ws.competitions[0];
+  assert.deepEqual([c.name, c.start, c.end, c.format, c.status], ['NSW State Cup', '2027-03-19', '2027-03-21', 'other', 'planned']);
+  assert.deepEqual(c.entries.map(e => [e.teamId, e.seasonId, e.division]), [['team1', 'season1', 'Mixed 20s']]);
+  assert.equal(ws.team.eventCompId, c.id);
+  assert.equal(ws.matches.find(m => m.id === 'm2').entryId, c.entries[0].id);
+  assert.equal(ws.matches.find(m => m.id === 'm3').entryId, undefined, 'in the dates but not marked: left for the coach');
+  assert.deepEqual(M.unlinkedInDates(ws, c.id, 'team1').map(m => m.id), ['m3'], 'offered to link');
+  // two teams at the same event share one competition
+  const raw = schema3(); raw.teams = [{ id: 'u16abc', team: { name: 'U16', event: 'NSW State Cup', eventStart: '2027-03-19', eventEnd: '2027-03-21' }, players: [] }];
+  const two = migrate(raw);
+  assert.equal(two.competitions.length, 1); assert.equal(two.competitions[0].entries.length, 2);
+});
+
 function rolled() {
   const ws = migrate(schema3());
   ws.seasons[0].name = 'Winter 2026';
@@ -148,25 +164,72 @@ test('new records join the season being worked on; leaving a squad keeps the his
 
 test('the players’ copy has this season only: its squad, its records, no past players', () => {
   const { ws } = rolled();
-  const v = teamView(M.activeLens(ws), null);
+  const v = teamView(M.activeLens(ws), null, M.compsForPlayers(ws, ws));
   const text = JSON.stringify(v);
   assert.deepEqual(v.players.map(p => p.id).sort(), ['p1', 'p2', v.players.find(p => p.name === 'Tom New').id].sort());
   assert.ok(!text.includes('Ava Kelleher'), 'a player who left isn’t in it');
   assert.ok(!text.includes('Northern Beaches') && !text.includes('Welcome'), 'no past matches or notices');
   assert.ok(!text.includes('0400 000'), 'no phone numbers');
+  assert.deepEqual(v.competitions, [], 'last season’s competition entry isn’t this season’s');
 });
 
-test('seasons are records when two phones’ changes are merged', () => {
+test('seasons and competitions are records when two phones’ changes are merged', () => {
   const base = migrate(schema3());
   const a = JSON.parse(JSON.stringify(base)), b = JSON.parse(JSON.stringify(base));
   M.rollover(a, { name: 'Winter 2027', carry: [], activate: false }, NOW);
-  b.team.division = 'Mixed 20s A';
+  b.competitions[0].name = 'NSW State Cup 2027';
   const r = M.merge3(base, a, b);
   assert.equal(r.changes.both.length, 0, 'no clash: different records');
   assert.equal(r.merged.seasons.length, 2);
-  assert.equal(r.merged.team.division, 'Mixed 20s A');
+  assert.equal(r.merged.competitions[0].name, 'NSW State Cup 2027');
   const keys = [...M.records(base).keys()];
-  assert.ok(keys.includes('t/team1/seasons/season1'));
+  assert.ok(keys.includes('t/team1/seasons/season1') && keys.some(k => k.startsWith('comp/')));
+});
+
+test('competitions: one record, entries for several teams and seasons, no duplicates', () => {
+  const raw = schema3(); raw.teams = [{ id: 'men111', team: { name: 'Men’s Open' }, players: [], matches: [] }];
+  const ws = migrate(raw);
+  ws.competitions.push(M.normComp({ id: 'wl27', name: 'Winter League 2027', format: 'league', start: '2027-04-10', end: '2027-08-28', status: 'planned' }));
+  const s1 = ws.seasons[0].id, s2 = ws.teams[0].seasons[0].id;
+  const e1 = M.addEntry(ws, 'wl27', 'team1', s1, { division: 'Women’s Open' }).entry;
+  const e2 = M.addEntry(ws, 'wl27', 'men111', s2, {}).entry;
+  assert.ok(e1 && e2);
+  assert.equal(M.addEntry(ws, 'wl27', 'team1', s1, { division: 'women’s open ' }).error, 'duplicate');
+  assert.ok(M.addEntry(ws, 'wl27', 'team1', s1, { division: 'Over 30s' }).entry, 'a second division is a separate entry');
+  assert.equal(M.addEntry(ws, 'wl27', 'team1', 'nope').error, 'no-season');
+  assert.equal(ws.competitions.filter(c => c.id === 'wl27').length, 1);
+  assert.equal(M.teamEntries(ws, 'team1', s1).length, 3, 'the State Cup and two Winter League divisions in the same season');
+  // fixtures
+  const m = { id: 'w1', date: '2027-04-10', start: '09:00', opponent: 'Como', status: 'scheduled', seasonId: s1, rsvp: {}, result: {} };
+  ws.matches.push(m);
+  assert.equal(M.linkMatch(ws, ws.teams[0], m, e1.id), 'wrong-team');
+  assert.equal(M.linkMatch(ws, ws, m, e1.id), '');
+  assert.deepEqual([m.entryId, m.compId], [e1.id, 'wl27']);
+  assert.equal(M.matchKind(ws, m).kind, 'competition');
+  assert.equal(M.matchKind(ws, ws.matches.find(x => x.id === 'm2')).kind, 'competition', 'format “other” is a competition, not a tournament');
+  assert.equal(M.matchKind(ws, { ...m, entryId: '', friendly: true }).kind, 'friendly');
+  ws.teams[0].matches.push({ id: 'w2', date: '2027-04-10', start: '11:00', opponent: 'Gymea', status: 'played', seasonId: s2, entryId: e2.id, compId: 'wl27', result: { us: 3, them: 1 } });
+  assert.deepEqual(M.compMatches(ws, 'wl27').map(x => [x.team.id, x.match.id]), [['team1', 'w1'], ['men111', 'w2']]);
+  assert.equal(M.removeEntry(ws, 'wl27', e1.id), 'has-fixtures');
+  assert.ok(M.withdrawEntry(ws, 'wl27', e1.id));
+  assert.equal(m.entryId, e1.id, 'withdrawing keeps the fixtures');
+  assert.equal(M.addEntry(ws, 'wl27', 'team1', s1, { division: 'Women’s Open' }).entry.id, e1.id, 'entering again brings the entry back');
+  // archive the team: its entry and results stay
+  M.setArchived(ws, 'men111', true);
+  const again = M.migrateWorkspace(JSON.parse(JSON.stringify(ws)));
+  assert.equal(again.competitions.find(c => c.id === 'wl27').entries.length, 3);
+  // a season that's gone takes its entry with it, and its match is unlinked
+  const gone = JSON.parse(JSON.stringify(ws)); gone.teams[0].seasons = [{ id: 'other', name: 'X', status: 'active' }];
+  const fixed = M.migrateWorkspace(gone);
+  assert.equal(fixed.competitions.find(c => c.id === 'wl27').entries.length, 2);
+  assert.equal(fixed.teams[0].matches[0].entryId, '');
+});
+
+test('the team’s tournament settings follow its competition', () => {
+  const ws = migrate(schema3());
+  ws.competitions[0].start = '2027-03-26'; ws.competitions[0].end = '2027-03-28';
+  M.syncEvents(ws);
+  assert.deepEqual([ws.team.eventStart, ws.team.eventEnd], ['2027-03-26', '2027-03-28']);
 });
 
 test('Home: only the active season raises anything', () => {
@@ -197,7 +260,7 @@ test('an encrypted coach copy from before seasons opens and upgrades', async () 
   const file = await seal(schema3(), lock, 'coach');
   const { value } = await openFile(file, 'coach pass', 'coach');
   const ws = M.migrateWorkspace(value);
-  assert.equal(ws.schema, 4); assert.equal(ws.seasons[0].squad.length, 3);
+  assert.equal(ws.schema, 4); assert.equal(ws.seasons[0].squad.length, 3); assert.equal(ws.competitions.length, 1);
   const again = await openFile(await seal(ws, lock, 'coach'), 'coach pass', 'coach');
   assert.equal(M.stable(M.migrateWorkspace(again.value)), M.stable(ws), 'sealed again and reopened: unchanged');
 });

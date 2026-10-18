@@ -21,11 +21,11 @@ import { RULES } from './rules.js';
 export { RULES };
 
 // Schema 4 adds seasons (team.seasons, and a seasonId on training, matches, tasks, messages and
-// notices). It's an addition: an earlier app still opens a schema 4 copy, showing every season's
-// records together.
+// notices) and competitions (ws.competitions, with entries for a team's season). Both are additions:
+// an earlier app still opens a schema 4 copy, showing every season's records together.
 export const SCHEMA = 4;
 export const PRIMARY_ID = 'team1';
-const WS_KEYS = ['schema', 'teams', 'library', 'clubs'];
+const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions'];
 const TEAM_ID = /^[a-z0-9]{3,32}$/;
 
 export const arr = v => Array.isArray(v) ? v : [];
@@ -81,6 +81,9 @@ export function migrateWorkspace(raw, normTeam = t => t) {
   ws.schema = SCHEMA;
   ws.updatedAt = src.updatedAt || null;
   teamsOf(ws).forEach(t => ensureSeasons(t));
+  ws.competitions = src.competitions === undefined ? seedCompetitions(ws) : arr(src.competitions).filter(isObj).map(normComp);
+  repairCompetitions(ws);
+  syncEvents(ws);
   teamsOf(ws).forEach(t => repairTeam(t));
   return ws;
 }
@@ -244,6 +247,135 @@ export function seasonStats(t, today) {
     const dates = SEASON_KINDS.slice(0, 3).flatMap(k => L[k].map(x => x.date)).filter(Boolean).sort();
     return { id: s.id, name: s.name, status: s.status, start: s.start || dates[0] || '', end: s.end || dates[dates.length - 1] || '', squad: L.players.length, ...sum };
   });
+}
+
+/* ---------- Competitions ---------- */
+// A competition is an organised event, kept once in the coach's copy: a league, a tournament, a
+// championship. A team takes part through an entry for one of its seasons (with an optional division
+// or pool). A match can belong to an entry; one that doesn't is a friendly or simply not linked yet.
+export const COMP_FORMATS = { league: 'League', knockout: 'Knockout tournament', roundrobin: 'Round-robin tournament', championship: 'Championship', carnival: 'Carnival or festival', other: 'Other' };
+export const TOURNAMENT_FORMATS = ['knockout', 'roundrobin', 'championship', 'carnival'];
+export const COMP_STATUS = { planned: 'Planned', active: 'Active', completed: 'Completed', archived: 'Archived' };
+export const ENTRY_STATUS = { entered: 'Entered', withdrawn: 'Withdrawn' };
+export const COMP_PUBLIC = ['id', 'name', 'sport', 'format', 'edition', 'start', 'end', 'organiser', 'venue', 'status', 'description'];
+export function normComp(c) {
+  const x = obj(c), out = { id: String(x.id || uid()) };
+  COMP_PUBLIC.slice(1).forEach(k => { out[k] = String(x[k] == null ? '' : x[k]); });
+  if (!COMP_FORMATS[out.format]) out.format = 'other';
+  if (!COMP_STATUS[out.status]) out.status = 'planned';
+  out.rules = String(x.rules || '');
+  out.bylaws = arr(x.bylaws).filter(isObj).map((b, i) => ({ ...normBylaw(b), id: String(b.id || `b${i + 1}`) })).filter(b => b.text);
+  out.entries = arr(x.entries).filter(e => isObj(e) && e.teamId).map(e => ({ id: String(e.id || uid()), teamId: String(e.teamId), seasonId: String(e.seasonId || ''),
+    status: ENTRY_STATUS[e.status] ? e.status : 'entered', division: String(e.division || ''), pool: String(e.pool || '') }));
+  return out;
+}
+export const compsOf = ws => arr(ws && ws.competitions);
+export const findComp = (ws, id) => (id && compsOf(ws).find(c => c.id === id)) || null;
+export function findEntry(ws, entryId) {
+  for (const comp of compsOf(ws)) { const entry = comp.entries.find(e => e.id === entryId); if (entry) return { comp, entry }; }
+  return null;
+}
+// A team's entries, for one season or all of them.
+export const teamEntries = (ws, teamId, seasonId) => compsOf(ws).flatMap(comp => comp.entries.filter(e => e.teamId === teamId && (!seasonId || e.seasonId === seasonId)).map(entry => ({ comp, entry })));
+const sameDiv = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+// Enter a team's season. The same team, season and division can only be entered once (entering again
+// after withdrawing brings the entry back); a different division is a separate entry.
+export function addEntry(ws, compId, teamId, seasonId, { division = '', pool = '' } = {}) {
+  const comp = findComp(ws, compId), t = findTeam(ws, teamId);
+  if (!comp) return { error: 'no-competition' };
+  if (!t || !findSeason(t, seasonId)) return { error: 'no-season' };
+  const same = comp.entries.find(e => e.teamId === teamId && e.seasonId === seasonId && sameDiv(e.division, division));
+  if (same) { if (same.status === 'entered') return { error: 'duplicate', entry: same }; same.status = 'entered'; same.pool = pool; return { entry: same }; }
+  const entry = { id: uid(), teamId, seasonId, status: 'entered', division: String(division).trim(), pool: String(pool).trim() };
+  comp.entries.push(entry);
+  return { entry };
+}
+// Withdrawing keeps the entry and its fixtures and results; removing is only for an entry with no
+// matches (made by mistake).
+export function withdrawEntry(ws, compId, entryId) { const e = (findComp(ws, compId) || { entries: [] }).entries.find(x => x.id === entryId); if (!e) return false; e.status = 'withdrawn'; return true; }
+export function removeEntry(ws, compId, entryId) {
+  const comp = findComp(ws, compId); if (!comp) return 'missing';
+  if (teamsOf(ws).some(t => arr(t.matches).some(m => m.entryId === entryId))) return 'has-fixtures';
+  comp.entries = comp.entries.filter(e => e.id !== entryId);
+  return '';
+}
+// Link a match to an entry of its own team and season (or unlink it with '').
+export function linkMatch(ws, t, m, entryId) {
+  if (!entryId) { m.entryId = ''; m.compId = ''; return ''; }
+  const f = findEntry(ws, entryId);
+  if (!f || f.entry.teamId !== t.id) return 'wrong-team';
+  if (m.seasonId && f.entry.seasonId !== m.seasonId) return 'wrong-season';
+  m.entryId = entryId; m.compId = f.comp.id;
+  if (TOURNAMENT_FORMATS.includes(f.comp.format) || t.team.eventCompId === f.comp.id) m.tournament = true;
+  return '';
+}
+// What a match is: part of a competition (a tournament format counts as a tournament), a friendly,
+// or not linked to anything (matches from before competitions).
+export function matchKind(ws, m) {
+  const f = m && m.entryId && findEntry(ws, m.entryId);
+  if (f) return { kind: TOURNAMENT_FORMATS.includes(f.comp.format) ? 'tournament' : 'competition', comp: f.comp, entry: f.entry };
+  return { kind: m && m.friendly ? 'friendly' : 'none', comp: null, entry: null };
+}
+// Every match in a competition, across its teams, with the team and entry it belongs to.
+export function compMatches(ws, compId) {
+  const comp = findComp(ws, compId); if (!comp) return [];
+  const entries = new Map(comp.entries.map(e => [e.id, e]));
+  return teamsOf(ws).flatMap(t => arr(t.matches).filter(m => entries.has(m.entryId)).map(m => ({ team: t, entry: entries.get(m.entryId), match: m })))
+    .sort((a, b) => byWhen(a.match, b.match) || a.team.id.localeCompare(b.team.id));
+}
+// Matches of the team in the competition's dates that aren't linked to anything: offered to the coach
+// to link, never linked on their own.
+export function unlinkedInDates(ws, compId, teamId) {
+  const comp = findComp(ws, compId), t = findTeam(ws, teamId);
+  if (!comp || !t || !comp.start) return [];
+  const to = comp.end || comp.start;
+  return arr(t.matches).filter(m => !m.entryId && !m.friendly && m.date >= comp.start && m.date <= to).sort(byWhen);
+}
+// The team's tournament (team.event and its dates) becomes a competition when the copy is upgraded:
+// one per distinct event, entered by each team with it, for that team's active season. Only matches
+// already marked as tournament matches are linked to it.
+function seedCompetitions(ws) {
+  const comps = new Map();
+  teamsOf(ws).forEach(t => {
+    const T = obj(t.team);
+    if (!T.event || !validDay(T.eventStart)) return;
+    const end = validDay(T.eventEnd) ? T.eventEnd : T.eventStart;
+    const key = `${T.event.trim().toLowerCase()}|${T.eventStart}|${end}`;
+    if (!comps.has(key)) comps.set(key, normComp({ id: `c${T.eventStart.replace(/-/g, '')}${T.event.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 20)}`, name: T.event, format: 'other',
+      edition: T.eventStart.slice(0, 4), start: T.eventStart, end, venue: T.venue || '', sport: '', status: 'planned', entries: [] }));
+    const comp = comps.get(key), s = activeSeason(t);
+    if (!s) return;
+    const entry = { id: `${t.id}-${s.id}`, teamId: t.id, seasonId: s.id, status: 'entered', division: T.division || '', pool: '' };
+    comp.entries.push(entry);
+    T.eventCompId = comp.id;
+    arr(t.matches).forEach(m => { if (m.tournament && !m.entryId && (!m.seasonId || m.seasonId === s.id)) { m.entryId = entry.id; m.compId = comp.id; } });
+  });
+  return [...comps.values()];
+}
+// Entries for teams or seasons that no longer exist are dropped; a match whose entry is gone is
+// unlinked (it keeps everything else).
+export function repairCompetitions(ws) {
+  const teams = new Map(teamsOf(ws).map(t => [t.id, t]));
+  compsOf(ws).forEach(c => { c.entries = c.entries.filter(e => { const t = teams.get(e.teamId); return t && findSeason(t, e.seasonId); }); });
+  const entries = new Map(compsOf(ws).flatMap(c => c.entries.map(e => [e.id, c.id])));
+  teamsOf(ws).forEach(t => arr(t.matches).forEach(m => {
+    if (m.entryId && !entries.has(m.entryId)) { m.entryId = ''; m.compId = ''; }
+    else if (m.entryId) m.compId = entries.get(m.entryId);
+  }));
+  teamsOf(ws).forEach(t => { if (t.team && t.team.eventCompId && !findComp(ws, t.team.eventCompId)) t.team.eventCompId = ''; });
+}
+// A team's tournament settings follow the competition they were made into.
+export function syncEvents(ws) {
+  teamsOf(ws).forEach(t => {
+    const c = t.team && findComp(ws, t.team.eventCompId); if (!c) return;
+    Object.assign(t.team, { event: c.name, eventStart: c.start, eventEnd: c.end, venue: c.venue || t.team.venue || '' });
+  });
+}
+// What a team's players see of its competitions this season.
+export function compsForPlayers(ws, t) {
+  const s = activeSeason(t); if (!s) return [];
+  return teamEntries(ws, t.id, s.id).map(({ comp, entry }) => ({ ...Object.fromEntries(COMP_PUBLIC.map(k => [k, comp[k]])), entryId: entry.id, division: entry.division, pool: entry.pool,
+    entryStatus: entry.status, bylaws: comp.bylaws.map(b => ({ topic: b.topic, text: b.text })) }));
 }
 
 /* ---------- Clubs ---------- */
@@ -846,7 +978,8 @@ export function homeItems(ws, team, now, coach = true) {
       if (short) issues.push(`${yes} of ${need} players confirmed`);
     }
     const level = (lineup || short) && within(e, 24) ? 1 : within(e, 72) ? 2 : within(e, 168) ? 3 : 4;
-    add({ kind: 'match', id: m.id, ...e, level, issues, act: 'match-open', title: `vs ${m.opponent || 'TBC'}`, round: m.round || '',
+    const mk = ws ? matchKind(ws, m) : { comp: null, entry: null };
+    add({ kind: 'match', id: m.id, ...e, level, issues, act: 'match-open', title: `vs ${m.opponent || 'TBC'}`, round: m.round || '', comp: mk.comp ? mk.comp.name : '', compId: mk.comp ? mk.comp.id : '',
       place: [m.venue, m.field ? `Field ${m.field}` : ''].filter(Boolean).join(' · '),
       label: level === 1 ? (lineup ? 'Lineup incomplete' : 'Availability not in') : `Match ${dayWord(e)}` });
   });
@@ -877,7 +1010,8 @@ export function homeItems(ws, team, now, coach = true) {
       label: issues.length ? (lift ? 'Transport needs confirmation' : 'Volunteers needed') : `${lift ? 'Lifts' : x.title || 'Task'} ${dayWord(e)}` });
   });
   const ev = validDay(T.eventStart) && eventTime(T.eventStart, '', '', now);
-  if (ev && ev.days >= 0) add({ kind: 'tournament', id: 'event', ...ev, level: within(ev, 72) ? 2 : within(ev, 168) ? 3 : 4, act: 'tab', tab: 'matches',
+  const evComp = ws && findComp(ws, T.eventCompId);
+  if (ev && ev.days >= 0) add({ kind: 'tournament', ...ev, level: within(ev, 72) ? 2 : within(ev, 168) ? 3 : 4, ...(evComp ? { id: evComp.id, act: 'comp-open', compId: evComp.id } : { id: 'event', act: 'tab', tab: 'matches' }),
     title: T.event || 'Tournament', place: T.venue || '', label: ev.days === 0 ? 'Tournament today' : `Tournament starts ${dayWord(ev)}` });
   if (coach) {
     const later = { at: Infinity, date: '', start: '', timed: false, days: null, over: false };
@@ -1116,6 +1250,7 @@ export function records(ws) {
     Object.entries(obj(t.systems)).forEach(([id, v]) => put(`${tk}/systems/${id}`, v, `${pre}Game system: ${id}`));
   });
   arr(ws.clubs).forEach(c => { if (c && c.id) put(`club/${c.id}`, c, `Club: ${c.name || '?'}`); });
+  compsOf(ws).forEach(c => { if (c && c.id) put(`comp/${c.id}`, c, `Competition: ${c.name || '?'}`); });
   const L = normLibrary(ws.library);
   ['plays', 'playerSets'].forEach(c => L[c].forEach(x => { if (x.id) put(`lib/${c}/${x.id}`, x, `Library · ${LABEL[c](x)}`); }));
   Object.entries(L.systems).forEach(([id, v]) => put(`lib/systems/${id}`, v, `Library · Game system: ${id}`));
