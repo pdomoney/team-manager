@@ -15,3 +15,28 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install browser test runner
+        run: |
+          python -m pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Browser regression suites (simulated GitHub, no production data)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for suite in m0_stability m2_participation m3_teams_library m4_matches m5_reports regress live_publishing clubs rules home seasons competitions players; do
+            echo "::group::${suite}"
+            python "test/browser/${suite}.py"
+            echo "::endgroup::"
+          done

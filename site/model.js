@@ -387,6 +387,18 @@ export function compsForPlayers(ws, t) {
 // leaves while still holding a jersey still shows up.
 export const normLoan = j => ({ id: String(j.id || uid()), number: String(j.number || ''), seasonId: String(j.seasonId || ''), out: String(j.out || ''), back: String(j.back || '') });
 export const openLoans = p => arr(p && p.jerseys).filter(j => !j.back);
+// An explicit correction is a tombstone for the automatic issue rule. It is kept with the
+// player so saving or syncing on another device cannot resurrect a deleted, mistaken issue.
+const correctionKey = (sid, number) => JSON.stringify([String(sid || ''), String(number || '').trim()]);
+export const correctedJersey = (p, sid, number) => arr(p && p.jerseyCorrections).includes(correctionKey(sid, number));
+export function issueJersey(p, number, sid, today) {
+  const num = String(number || '').trim(); if (!num || !sid) return false;
+  p.jerseys = arr(p.jerseys);
+  p.jerseyCorrections = arr(p.jerseyCorrections).filter(k => k !== correctionKey(sid, num));
+  if (p.jerseys.some(j => j.number === num && !j.back)) return false;
+  p.jerseys.push({ id: uid(), number: num, seasonId: sid, out: today, back: '' });
+  return true;
+}
 // Anyone in the active season with a number has that jersey, unless they still have it from before or
 // already handed this season's back.
 export function syncJerseys(t, today) {
@@ -395,8 +407,9 @@ export function syncJerseys(t, today) {
   seasonLens(t, s.id).players.forEach(p => {
     const num = String(p.number || '').trim(); if (!num) return;
     if (!Array.isArray(p.jerseys)) p.jerseys = [];
+    if (correctedJersey(p, s.id, num)) return;  // explicitly removed as a mistake
     if (p.jerseys.some(j => j.number === num && (!j.back || j.seasonId === s.id))) return;   // has it, or handed this season's back
-    p.jerseys.push({ id: uid(), number: num, seasonId: s.id, out: today, back: '' }); n++;
+    if (issueJersey(p, num, s.id, today)) n++;
   });
   return n;
 }
@@ -406,6 +419,7 @@ function ensureJerseys(t) {
   const s = activeSeason(t), live = s ? new Set(seasonLens(t, s.id).players.map(p => p.id)) : new Set();
   arr(t.players).forEach(p => {
     if (!isObj(p)) return;
+    if (Array.isArray(p.jerseyCorrections)) p.jerseyCorrections = [...new Set(p.jerseyCorrections.filter(x => typeof x === 'string'))];
     if (Array.isArray(p.jerseys)) { p.jerseys = p.jerseys.filter(isObj).map(normLoan); return; }
     const num = String(p.number || '').trim();
     p.jerseys = num && live.has(p.id) ? [{ id: `j-${p.id}`, number: num, seasonId: s.id, out: '', back: '' }] : [];
@@ -414,17 +428,32 @@ function ensureJerseys(t) {
 const loanOf = (p, id) => arr(p && p.jerseys).find(j => j.id === id);
 export function returnJersey(p, id, today) { const j = loanOf(p, id); if (!j || j.back) return false; j.back = today; return true; }
 export function undoReturn(p, id) { const j = loanOf(p, id); if (!j || !j.back) return false; j.back = ''; return true; }
-export function removeLoan(p, id) { const n = arr(p.jerseys).length; p.jerseys = arr(p.jerseys).filter(j => j.id !== id); return p.jerseys.length < n; }
-// Who has a jersey and who's given it back, for a season: its squad, plus anyone else still holding one.
+export function removeLoan(p, id) {
+  const loan = loanOf(p, id); if (!loan) return false;
+  const key = correctionKey(loan.seasonId, loan.number);
+  p.jerseys = arr(p.jerseys).filter(j => j.id !== id);
+  p.jerseyCorrections = [...new Set([...arr(p.jerseyCorrections), key])];
+  return true;
+}
+// Historical activity is scoped to the issue's origin season; an issue from a future
+// season must never change an earlier season's return status.
 export function jerseyReport(t, sid) {
   const L = seasonLens(t, sid), squad = new Map(L.players.map(p => [p.id, p]));
-  const rows = arr(t.players).filter(p => squad.has(p.id) || openLoans(p).length).map(p => {
-    const season = arr(p.jerseys).filter(j => j.seasonId === sid), open = openLoans(p), sp = squad.get(p.id);
+  const rows = arr(t.players).filter(p => squad.has(p.id) || arr(p.jerseys).some(j => j.seasonId === sid)).map(p => {
+    const season = arr(p.jerseys).filter(j => j.seasonId === sid), open = season.filter(j => !j.back), sp = squad.get(p.id);
     return { id: p.id, name: p.name, inSquad: !!sp, number: sp ? sp.number : '', season, open,
       status: open.length ? 'out' : season.some(j => j.back) ? 'returned' : 'none' };
   }).sort((a, b) => ['out', 'returned', 'none'].indexOf(a.status) - ['out', 'returned', 'none'].indexOf(b.status) || a.name.localeCompare(b.name));
   return { rows, out: rows.filter(r => r.status === 'out').length, returned: rows.filter(r => r.status === 'returned').length,
-    none: rows.filter(r => r.status === 'none').length, gone: rows.filter(r => !r.inSquad).length };
+    none: rows.filter(r => r.status === 'none').length, gone: rows.filter(r => !r.inSquad && r.status === 'out').length };
+}
+// Equipment still outstanding now, including jerseys issued in older seasons and
+// held by people who no longer belong to the current squad.
+export function jerseyInventory(t) {
+  const active = activeSeason(t), ids = new Set(active ? seasonLens(t, active.id).players.map(p => p.id) : []);
+  const rows = arr(t.players).map(p => ({ id: p.id, name: p.name, inSquad: ids.has(p.id), open: openLoans(p) }))
+    .filter(p => p.open.length).sort((a,b) => a.name.localeCompare(b.name));
+  return { rows, outstanding: rows.reduce((n,p) => n + p.open.length,0), formerPlayers: rows.filter(p => !p.inSquad).length };
 }
 
 /* ---------- Clubs ---------- */
@@ -498,15 +527,43 @@ const SPORT_OF = [[/league\s*tag/i, 'league-tag'], [/rugby\s*league|^\s*league\s
 export const sportOf = name => (SPORT_OF.find(([re]) => re.test(name || '')) || [, ''])[1];
 // A team plays its own sport if it has one set, otherwise its club's.
 export const teamSport = (team, club) => (team && team.sport) || (club && club.sport) || 'Oztag';
-export const positionsFor = (team, club) => arr(team && team.positions).length ? team.positions : (SPORT_POSITIONS[teamSport(team, club)] || []);
 const sameList = (a, b) => arr(a).join('|') === arr(b).join('|');
-// A team in a club of another sport that still has the Oztag positions it was made with gets its sport's.
+const isKnownDefault = positions => Object.values(SPORT_POSITIONS).some(p => p.length && sameList(positions, p));
+// A known default inherited from another sport is not an intentional custom list.
+// Explicit customisation, including an empty custom list, always wins.
+export function positionsFor(team, club) {
+  const t = obj(team), saved = arr(t.positions), defaults = SPORT_POSITIONS[teamSport(t, club)] || [];
+  if (t.positionsCustom === true) return saved;
+  if (t.positionsCustom === false || !saved.length || isKnownDefault(saved)) return defaults.slice();
+  return saved;
+}
+// Resolve defaults BEFORE mutating the club/sport. A coach-edited list survives
+// a switch; a recognised prior sport default follows the new sport.
+export function changedSportPositions(oldTeam, oldClub, newTeam, newClub, entered) {
+  const previous = teamSport(oldTeam, oldClub), next = teamSport(newTeam, newClub);
+  const prevDefaults = SPORT_POSITIONS[previous] || [], nextDefaults = SPORT_POSITIONS[next] || [];
+  const value = arr(entered).map(String);
+  if (sameList(value, nextDefaults)) return { positions: nextDefaults.slice(), positionsCustom: false };
+  const wasDefault = oldTeam.positionsCustom !== true && (sameList(value, prevDefaults) ||
+    (oldTeam.positionsCustom === false && sameList(value, positionsFor(oldTeam, oldClub))));
+  if (previous !== next && wasDefault) return { positions: nextDefaults.slice(), positionsCustom: false };
+  return { positions: value, positionsCustom: true };
+}
+// Deterministically distinguish recognised legacy defaults from genuine custom
+// lists. Preserve legacy edits even when the team is moved to a new club.
 function fixDefaultPositions(ws) {
   teamsOf(ws).forEach(t => {
-    const T = t.team || {}, c = clubOf(ws, t), sp = teamSport(T, c);
-    if (!T.sport && sp !== 'Oztag' && sameList(T.positions, SPORT_POSITIONS.Oztag) && arr(SPORT_POSITIONS[sp]).length) T.positions = SPORT_POSITIONS[sp].slice();
+    const T = t.team || {}, club = clubOf(ws, t);
+    if (T.positionsCustom === true) return;
+    if (T.positionsCustom === false || !arr(T.positions).length || isKnownDefault(T.positions)) {
+      T.positions = (SPORT_POSITIONS[teamSport(T, club)] || []).slice();
+      T.positionsCustom = false;
+    } else T.positionsCustom = true;
   });
 }
+// Called on every save as well as migration: changing a club's sport updates
+// inherited team defaults before the players' encrypted projection is produced.
+export const syncSportPositions = ws => fixDefaultPositions(ws);
 export function ruleSetList(R = RULES) {
   return Object.entries(R.sports).flatMap(([sid, s]) => s.grades.map(g => ({ id: `${sid}/${g.id}`, sport: sid, sportName: s.name, name: g.name })));
 }
