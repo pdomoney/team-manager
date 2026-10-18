@@ -1,5 +1,8 @@
 # Release record: upgrade to milestones 0, 2, 3, 4, 5 and usability
 
+> **Qualification programme (unmerged):** `qualification/pr8-selective-photo-regression-20261018` is a selective follow-on to accepted `main` `7eb1976fdd5e`. It ports PR8's browser capacity test, structured JSON runner, retained CI artifacts, adapted regression cases and a direct encrypted-backup action for full storage. No alternate jersey `void` record model or replacement of accepted app/model architecture is included. See [release qualification details](pr8-selective-qualification-20261018.md). **The candidate is not an accepted release** until its exact-commit checks and manual acceptance gates are reviewed.
+
+
 > **Historical record — not current release status.** This section documents the original M0/M2–M5 milestone upgrade, now merged. Subsequent clubs, rules, Home, seasons, competitions, and Players/Sports PRs have also been merged into `main` at baseline `f1822a8`. The ongoing **unmerged corrective candidate** for jerseys, sport positions, storage, form validation and competition activation is documented in [corrective-players-sports-jerseys.md](corrective-players-sports-jerseys.md). Refer to that document and the latest branch commit/CI checks for acceptance; do not treat the historical pass counts or "not deployed" text below as current.
 
 
