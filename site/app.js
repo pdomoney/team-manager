@@ -5563,7 +5563,7 @@ document.addEventListener('submit', async e => {
     if (f.get('copySettings')) ['venue', 'trainingVenue', 'trainingStart', 'trainingEnd', 'maxMales', 'positions', 'field', 'tasksContact', 'rules', 'bylaws'].forEach(k => { t.team[k] = clone(data.team[k]); });
     t.team.rulesSeen = M.RULES.pack;
     { const sp = M.teamSport(t.team, M.clubOf(ws, t)), from = M.teamSport(data.team, M.clubOf(ws, data));
-      if (f.get('copySettings') && data.team.positionsCustom === true) {
+      if (f.get('copySettings') && data.team.positionsCustom === true && sp === from) {
         t.team.positions = arr(data.team.positions).slice(); t.team.positionsCustom = true;
       } else {
         t.team.positions = (M.SPORT_POSITIONS[sp] || []).slice(); t.team.positionsCustom = false;
