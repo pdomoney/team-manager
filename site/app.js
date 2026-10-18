@@ -1014,8 +1014,8 @@ function playerOtherTeams(p) {
     !linked.some(x => x.teamId === t.id));
   return `<section class="sec" style="padding:12px;margin:10px 0">
     <div class="sec-h"><h3>Other teams</h3>${remaining ? `<button type="button" class="btn sm" data-act="player-link-out" data-player="${esc(p.id)}">Add to a team</button>` : ''}</div>
-    ${linked.length ? `<div class="list">${linked.map(x => `<div class="row"><span class="grow"><b>${esc(x.teamName)}</b><small class="sub" style="display:block">${esc(x.sport)} · ${x.number ? `Jersey #${esc(x.number)}` : 'No jersey'} · ${esc(x.positions.join(', ') || 'Positions not selected')}${x.archived ? ' · Archived' : ''}</small></span></div>`).join('')}</div>` : '<p class="hint">Not linked to any other team.</p>'}
-    <p class="hint">Linked players keep separate positions, jersey issues and returns, availability and season history on each team. Contact details are copied only when creating the new team record; later changes remain local to each team.</p>
+    ${linked.length ? `<div class="list">${linked.map(x => `<div class="row"><span class="grow"><b>${esc(x.teamName)}</b><small class="sub" style="display:block">${esc(x.sport)} · ${x.number ? `Jersey #${esc(x.number)}` : 'No jersey'} · ${esc(x.jerseyStatus)}${x.jerseysOutstanding > 1 ? ` (${x.jerseysOutstanding} outstanding)` : ''} · ${esc(x.positions.join(', ') || 'Positions not selected')}${x.archived ? ' · Archived' : ''}</small></span></div>`).join('')}</div>` : '<p class="hint">Not linked to any other team.</p>'}
+    <p class="hint">Linked players keep separate positions, jersey issues and returns, availability and season history on each team. Contact details are copied only when creating the new team record; later changes remain local to each team. Switch to the other team's Player card or jersey report to record its jersey return.</p>
     </section>`;
 }
 function playerImportForm() {
