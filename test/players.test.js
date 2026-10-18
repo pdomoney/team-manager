@@ -54,6 +54,16 @@ test('jerseys: a number given out is a jersey out; returns, undo, remove', () =>
   assert.deepEqual(M.openLoans(bea).map(j => j.number), ['19']);
   assert.ok(M.undoReturn(bea, bea.jerseys[0].id)); assert.equal(M.openLoans(bea).length, 2);
   assert.ok(M.removeLoan(bea, bea.jerseys[0].id)); assert.equal(bea.jerseys.length, 1);
+  assert.ok(M.correctedJersey(bea, ws.seasons[0].id, '9'), 'removal persisted as correction');
+  const mistaken = bea.jerseys[0].id; assert.ok(M.removeLoan(bea, mistaken));
+  M.syncJerseys(ws, '2026-10-22');
+  assert.equal(bea.jerseys.length, 0, 'save must not recreate the removed current issue');
+  const restored = M.migrateWorkspace(JSON.parse(JSON.stringify(ws)));
+  M.syncJerseys(restored, '2026-10-23');
+  assert.equal(restored.players.find(p => p.id === 'b').jerseys.length, 0, 'reload and migration preserve correction');
+  assert.ok(M.issueJersey(bea, '19', ws.seasons[0].id, '2026-10-24'), 'deliberate reissue is possible');
+  M.syncJerseys(ws, '2026-10-24');
+  assert.equal(bea.jerseys.length, 1, 'explicit reissue is not duplicated');
 });
 
 test('the jersey report: who has one, who gave it back, and anyone who left still holding one', () => {
@@ -66,12 +76,15 @@ test('the jersey report: who has one, who gave it back, and anyone who left stil
   assert.equal(ws.players.find(p => p.id === 'a').jerseys.length, 1, 'same number, same jersey: still the one she had');
   const rep = M.jerseyReport(ws, r.season.id);
   const row = id => rep.rows.find(x => x.id === id);
-  assert.equal(row('a').status, 'out'); assert.equal(row('b').status, 'none');
-  assert.equal(row('c').status, 'out'); assert.equal(row('c').inSquad, false, 'Cat left but still has jersey 12');
-  assert.deepEqual([rep.out, rep.returned, rep.none, rep.gone], [2, 0, 1, 1]);
+  assert.equal(row('a').status, 'none', '2026 outstanding loan is not presented as a 2027 jersey issue');
+  assert.equal(row('b').status, 'none');
+  assert.ok(!row('c'), 'former player with a 2026 jersey is not counted as a 2027 issue');
+  assert.deepEqual([rep.out, rep.returned, rep.none, rep.gone], [0, 0, 2, 0]);
+  const inventory = M.jerseyInventory(ws);
+  assert.deepEqual([inventory.outstanding, inventory.formerPlayers], [2, 1], 'current inventory includes old loans and departed players');
   const cat = ws.players.find(p => p.id === 'c'); M.returnJersey(cat, cat.jerseys[0].id, '2027-04-02');
-  assert.ok(!M.jerseyReport(ws, r.season.id).rows.some(x => x.id === 'c'), 'once it’s back she drops off this season’s list');
-  assert.equal(M.jerseyReport(ws, s1).rows.find(x => x.id === 'c').status, 'returned', 'last season shows it came back');
+  assert.ok(!M.jerseyInventory(ws).rows.some(x => x.id === 'c'), 'returned player leaves current outstanding inventory');
+  assert.equal(M.jerseyReport(ws, s1).rows.find(x => x.id === 'c').status, 'returned', 'historical season shows its actual return');
 });
 
 test('active competitions for Home: where they’re up to and our results', () => {
@@ -91,4 +104,47 @@ test('active competitions for Home: where they’re up to and our results', () =
   assert.equal(M.liveComps(ws, [ws], NOW).length, 0, 'only active competitions');
   assert.deepEqual(M.compPhase({ start: '2026-04-01', end: '2026-09-30' }, new Date(2026, 4, 1)), { kind: 'week', n: 5, of: 27 });
   assert.equal(M.compPhase({ start: '2026-11-01' }, NOW).kind, 'before');
+});
+
+test('historical returns remain correct when new season issues are outstanding', () => {
+  const ws = ws0(), amy = ws.players[0], s2026 = ws.seasons[0].id;
+  assert.ok(M.returnJersey(amy, amy.jerseys[0].id, '2026-10-19'));
+  const next = M.rollover(ws, { name: 'Winter 2027', activate: true, carry: [{ playerId: 'a', number: '12' }] }, NOW);
+  M.syncJerseys(ws, '2027-01-04');
+  assert.equal(M.jerseyReport(ws, s2026).rows.find(x => x.id === 'a').status, 'returned');
+  const current = M.jerseyReport(ws, next.season.id).rows.find(x => x.id === 'a');
+  assert.equal(current.status, 'out');
+  assert.deepEqual(current.open.map(j => j.number), ['12']);
+  assert.deepEqual(M.jerseyInventory(ws).rows.find(x => x.id === 'a').open.map(j => j.number), ['12']);
+});
+
+test('new player positions follow effective sport, club changes and recognised legacy defaults', () => {
+  const oz = { sport: 'Oztag' }, league = { sport: 'Rugby league' }, netball = { sport: 'Netball' };
+  const legacy = { positions: M.SPORT_POSITIONS.Oztag.slice(), sport: '' };
+  assert.deepEqual(M.positionsFor(legacy, league), M.SPORT_POSITIONS['Rugby league']);
+  assert.deepEqual(M.positionsFor(legacy, netball), M.SPORT_POSITIONS.Netball);
+  const moved = M.changedSportPositions(legacy, oz, { ...legacy, sport: '' }, league, M.positionsFor(legacy, oz));
+  assert.deepEqual(moved, { positions: M.SPORT_POSITIONS['Rugby league'], positionsCustom: false });
+  const selected = M.changedSportPositions({ ...legacy, positionsCustom: false }, oz, { sport: 'Netball' }, league, M.SPORT_POSITIONS.Oztag);
+  assert.deepEqual(selected, { positions: M.SPORT_POSITIONS.Netball, positionsCustom: false });
+  const custom = { sport: 'Oztag', positions: ['Left', 'Right', 'Utility'], positionsCustom: true };
+  assert.deepEqual(M.changedSportPositions(custom, oz, { sport: 'Rugby league' }, league, custom.positions),
+    { positions: custom.positions, positionsCustom: true }, 'custom list retained');
+  assert.deepEqual(M.positionsFor({ sport: 'Rugby league', positions: custom.positions, positionsCustom: true }, league), custom.positions);
+  const ws = ws0(); ws.team.sport = 'Netball'; ws.team.positions = M.SPORT_POSITIONS.Oztag.slice(); ws.team.positionsCustom = false;
+  const restored = M.migrateWorkspace(JSON.parse(JSON.stringify(ws)));
+  assert.deepEqual(M.positionsFor(restored.team, league), M.SPORT_POSITIONS.Netball);
+  assert.equal(M.stable(M.migrateWorkspace(JSON.parse(JSON.stringify(restored)))), M.stable(restored), 'migration idempotent');
+});
+
+test('photo dataset sizes and public projection at 30, 60 and 100 players', () => {
+  const png = 'data:image/png;base64,' + 'A'.repeat(10000);
+  assert.ok(M.validPhoto(png), 'valid synthetic avatar within current new-photo target');
+  for (const n of [30, 60, 100]) {
+    const ws = ws0(); ws.players = Array.from({ length: n }, (_, i) => ({ id: 'p'+i, name: 'Synthetic '+i, number: String(i + 1), photo: png, positions: [] }));
+    const json = JSON.stringify(ws), view = JSON.stringify(teamView(M.activeLens(ws), null));
+    assert.ok(json.length >= n * 10000, 'private workspace includes each photo');
+    assert.ok(!view.includes('data:image'), 'team copy excludes photos');
+    assert.ok(json.length < n * 11000 + 20000, 'encoded avatar budget remains bounded');
+  }
 });
