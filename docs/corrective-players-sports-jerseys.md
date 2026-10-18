@@ -28,6 +28,7 @@ Review of PR #7 confirmed that forms, sport lists, photographs, return-tracking 
 - `jerseyReport(t, sid)` now reports issues **originating in the selected season**. `jerseyInventory(t)` independently reports everything outstanding today and identifies former squad members.
 - `positionsFor()` recognises sport-default lists inherited from other sports. `positionsCustom` makes explicit overrides stable; recognised legacy defaults migrate deterministically, ambiguous custom lists are preserved.
 - `changedSportPositions(oldTeam, oldClub, newTeam, newClub, entered)` resolves the previous effective sport **before mutations**, and preserves deliberate position customisations.
+- `syncSportPositions(ws)` is called from `save()` so editing a club's sport refreshes inheriting teams' stored default positions **before the public team copy is encrypted/published**, without touching custom position lists.
 
 ### Interface: `site/app.js`
 
@@ -41,7 +42,7 @@ Review of PR #7 confirmed that forms, sport lists, photographs, return-tracking 
 
 ### Regression qualification
 
-- `test/players.test.js`: durable jersey corrections, explicit reissue, cross-season status and inventory, sport defaults/migration, private photo projection, synthetic datasets of 30/60/100 players.
+- `test/players.test.js`: durable jersey corrections, explicit reissue, cross-season status and inventory, sport defaults/migration **including the published projection after club-only changes**, private photo projection, synthetic datasets of 30/60/100 players.
 - `test/browser/players.py`: new-player rugby league positions, real Settings club-switch to netball, mistaken jersey issue correction through UI and repeated save, existing photo, Home and width checks.
 - `.github/workflows/test.yml`: unit test job retained; **Chromium Playwright suite job** added on PR to run all existing browser regression suites with simulated GitHub and stubbed WhatsApp.
 - Browser CI is not a real GitHub publishing or actual WhatsApp integration test.
