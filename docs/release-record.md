@@ -1,5 +1,8 @@
 # Release record: upgrade to milestones 0, 2, 3, 4, 5 and usability
 
+> **Historical record — not current release status.** This section documents the original M0/M2–M5 milestone upgrade, now merged. Subsequent clubs, rules, Home, seasons, competitions, and Players/Sports PRs have also been merged into `main` at baseline `f1822a8`. The ongoing **unmerged corrective candidate** for jerseys, sport positions, storage, form validation and competition activation is documented in [corrective-players-sports-jerseys.md](corrective-players-sports-jerseys.md). Refer to that document and the latest branch commit/CI checks for acceptance; do not treat the historical pass counts or "not deployed" text below as current.
+
+
 | | |
 | --- | --- |
 | Baseline | `main` at `6415a60` (Volunteer tasks, helpers, and the plan for roles and logins) |
