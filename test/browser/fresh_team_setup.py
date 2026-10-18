@@ -98,7 +98,19 @@ with sync_playwright() as p:
     pg.wait_for_selector('#sheet form[data-form=team-new]')
     c.ok(pg.locator('#sheet input[name=sourceTeamId], #sheet input[name=copySettings]').count() == 0,
          'normal New Team remains fresh after previously using a source template')
-    pg.keyboard.press('Escape')
+    pg.fill('#sheet input[name=name]', 'Titans Under 14 Girls')
+    pg.select_option('#sheet select[name=clubId]', club)
+    pg.select_option('#sheet select[name=teamSport]', 'League tag')
+    pg.click('#sheet form[data-form=team-new] button[type=submit]')
+    pg.wait_for_timeout(150)
+    c.ok(W("D.team.name") == 'Titans Under 14 Girls' and W("D.team.clubId") == '" + club + "',
+         'new squad created in same club as other existing squads')
+    c.ok(W("D.team.trainingVenue") == '' and W("D.team.trainingStart") == '' and W("D.team.venue") == '',
+         'same-club fresh team does not inherit another team venue or training times')
+    c.ok(W("D.team.staff.length") == 0 and W("D.team.bylaws.length") == 0 and W("D.team.tasksContact.phone") == '',
+         'same-club fresh team does not inherit another team staff, contacts or by-laws')
+    c.ok(W("D.players.length") == 0 and W("D.team.event") == '' and W("D.team.eventStart") == '',
+         'same-club fresh team has no players or borrowed competition identity')
     for width in (390, 1280):
         pg.set_viewport_size({'width': width, 'height': 900})
         pg.goto(url + '#teams')
