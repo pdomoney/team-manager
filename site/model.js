@@ -528,7 +528,11 @@ export const sportOf = name => (SPORT_OF.find(([re]) => re.test(name || '')) || 
 // A team plays its own sport if it has one set, otherwise its club's.
 export const teamSport = (team, club) => (team && team.sport) || (club && club.sport) || 'Oztag';
 const sameList = (a, b) => arr(a).join('|') === arr(b).join('|');
-const isKnownDefault = positions => Object.values(SPORT_POSITIONS).some(p => p.length && sameList(positions, p));
+// Recognise the early Oztag four-position default during migration as an app-generated
+// list. Genuine customised/reordered subsets remain untouched.
+const LEGACY_POSITION_DEFAULTS = [['Wing', 'Link', 'Middle', 'Half']];
+const isKnownDefault = positions => [...Object.values(SPORT_POSITIONS), ...LEGACY_POSITION_DEFAULTS]
+  .some(p => p.length && sameList(positions, p));
 // A known default inherited from another sport is not an intentional custom list.
 // Explicit customisation, including an empty custom list, always wins.
 export function positionsFor(team, club) {
