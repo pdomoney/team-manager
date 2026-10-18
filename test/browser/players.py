@@ -95,6 +95,15 @@ with sync_playwright() as p:
     net_pos = pg.eval_on_selector_all('#sheet input[name=positions]', 'xs => xs.map(x => x.value)')
     c.ok('GS' in net_pos and 'GK' in net_pos and 'Link' not in net_pos, 'Netball new-player positions follow the newly selected club')
     pg.keyboard.press('Escape')
+    # Copying settings into a DIFFERENT sport must not carry an unrelated custom position list.
+    W("(D.team.positions = ['Custom left', 'Custom right'], D.team.positionsCustom = true, 1)")
+    pg.evaluate(act, ['team-new', {}]); pg.wait_for_selector('#sheet form[data-form=team-new]')
+    pg.fill('#sheet form[data-form=team-new] input[name=name]', 'League Team Next')
+    pg.select_option('#sheet form[data-form=team-new] select[name=clubId]', 'tp')
+    pg.select_option('#sheet form[data-form=team-new] select[name=teamSport]', 'Rugby league')
+    pg.click('#sheet form[data-form=team-new] button[type=submit]'); pg.wait_for_timeout(200)
+    c.ok(W("D.team.positions.join('|')") == W("M.SPORT_POSITIONS['Rugby league'].join('|')"),
+         'new rugby league team does not inherit unrelated custom netball positions when copying settings')
     for w in (390, 1280):
         pg.set_viewport_size({'width': w, 'height': 900}); pg.goto(url + '#home'); pg.wait_for_timeout(200)
         c.ok(pg.evaluate('document.documentElement.scrollWidth <= innerWidth'), f'[{w}] Home with the live card: no sideways scroll')
