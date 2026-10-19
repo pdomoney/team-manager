@@ -9,10 +9,11 @@ srv, url = serve()
 checks, allerrs = Check(), []
 act = "([a, ds]) => { const b = document.createElement('button'); b.dataset.act = a; Object.assign(b.dataset, ds || {}); document.body.appendChild(b); b.click(); b.remove(); }"
 
+page_helper = page
 with sync_playwright() as p:
     browser = p.chromium.launch()
     for width in (390, 1280):
-        ctx, page, errs = globals()['page'](browser, url + '#home', width=width, height=865, errors=allerrs)
+        ctx, page, errs = page_helper(browser, url + '#home', width=width, height=865, errors=allerrs)
         page.get_by_text('Load a sample squad').click()
         page.goto(url + '#plays')
         page.wait_for_selector('.play-row')
