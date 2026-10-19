@@ -85,6 +85,13 @@ test('coach-authored teaching cues reach only the intended encrypted players cop
   assert.equal(JSON.stringify(v).includes('private coach note'), false);
 });
 
+test('private match staff and game-day qualifications never enter players’ copies', () => {
+  const person = { id: 'v1', name: 'Private Trainer', clubId: 'c1', roles: ['orange'], registration: {trainer:'2026'}, wwccStatus: 'checked', wwccExpiry: '2028-01-01', personalId: 'PRIVATE-ID' };
+  const ws = { ...sample, matchOfficials: [person], matches: [{id:'m1',date:'2026-11-01',crew:[{personId:'v1',role:'orange',confirmed:true}]}],team:{...sample.team,crewPolicy:{source:'private policy',year:'2026',rows:[{role:'level2',min:1}]}} };
+  const text = JSON.stringify(teamView(ws));
+  for (const secret of ['Private Trainer','PRIVATE-ID','matchOfficials','crewPolicy','wwccExpiry','orange','crew']) assert.ok(!text.includes(secret), 'Player copy leaked ' + secret);
+});
+
 test('players get the coach’s changes to the game systems, and nothing else from them', () => {
   const systems = { slide: { pos: { LR: [24, 47] }, points: ['Talk to the sweeper.'], jobs: { Wings: 'Stay home.' }, note: 'coach only' }, bad: null };
   const v = teamView({ ...sample, systems });
