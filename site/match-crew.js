@@ -71,10 +71,32 @@ export function matchCrewCheck(people, team, match, policy) {
     return { ...a, name: person?.name || 'Unknown person', valid: !issue && a.confirmed === true && !duplicates.includes(a.personId),
       issue: duplicates.includes(a.personId) ? 'One person assigned twice' : issue || (a.confirmed === true ? '' : 'Not confirmed for this match') };
   });
-  const shortages = rules.rows.map(r => {
-    const n = slots.filter(a => a.valid && MATCHING[r.role].includes(a.role)).length;
-    return { ...r, name: REQUIREMENT_ROLES[r.role], have: n, missing: Math.max(0, r.min - n) };
-  });
+  // Solve distinct staffing slots across ALL configured requirements. For example,
+  // one blue trainer must not simultaneously satisfy "one Level 1" AND "one first responder".
+  // Standard augmenting-path matching reassigns eligible people to avoid false shortages.
+  const demand = rules.rows.flatMap((r, index) =>
+    Array.from({ length: r.min }, () => ({ role: r.role, index, eligible: MATCHING[r.role] })));
+  demand.sort((a, b) => a.eligible.length - b.eligible.length);
+  const byPerson = new Map();
+  const allocate = (d, seen) => {
+    for (const a of slots) {
+      if (!a.valid || !demand[d].eligible.includes(a.role) || seen.has(a.personId)) continue;
+      seen.add(a.personId);
+      const previous = byPerson.get(a.personId);
+      if (previous === undefined || allocate(previous, seen)) {
+        byPerson.set(a.personId, d);
+        return true;
+      }
+    }
+    return false;
+  };
+  demand.forEach((_, i) => allocate(i, new Set()));
+  const covered = rules.rows.map(() => 0);
+  byPerson.forEach(i => { covered[demand[i].index]++; });
+  const shortages = rules.rows.map((r, i) => ({
+    ...r, name: REQUIREMENT_ROLES[r.role],
+    have: covered[i], missing: Math.max(0, r.min - covered[i])
+  }));
   const configured = !!rules.source && rules.year === words(match?.date).slice(0, 4) && !!rules.rows.length;
   return {
     configured, source: rules.source, slots, shortages,
