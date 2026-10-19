@@ -28,6 +28,7 @@ import { studyCards, cueRoles } from './play-study.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
+import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
 import * as M from './model.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
@@ -286,7 +287,7 @@ const state = {
   layers: { zones: true, channels: true, ...(readJson('tm-field-layers') || {}) },
   system: null, sysFlip: false,
   playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
-  taskFilter: 'up', taskPick: null,
+  taskFilter: 'up', taskPick: null, crewClubId: '',
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
@@ -3420,7 +3421,7 @@ function checklistBody() {
 // This is an independently maintained roster: registrations are manually checked
 // against MySideline and accreditation/WWCC records, never queried or verified here.
 const crewPool = () => arr(ws.matchOfficials).filter(p =>
-  p.teamIds?.includes(data.id) || (p.clubId && p.clubId === data.team.clubId)).sort((a,b) => a.name.localeCompare(b.name));
+  inTeamPool(p, data)).sort((a,b) => a.name.localeCompare(b.name));
 const crewPerson = id => arr(ws.matchOfficials).find(p => p.id === id);
 const crewPolicy = (m = null) => normCrewRules(m?.crewPolicy || data.team.crewPolicy);
 const crewStatus = m => {
@@ -3434,12 +3435,20 @@ const crewName = key => CREW_ROLES[key] || REQUIREMENT_ROLES[key] || key;
 const crewField = (name,label,value='',type='text',extra='') =>
   `<label class="field-l"><span>${label}</span><input type="${type}" name="${name}" value="${esc(value)}" ${extra}></label>`;
 function viewCrew() {
-  const pool = crewPool(), club = M.clubOf(ws, data), rules = crewPolicy(), isClub = !!data.team.clubId;
-  const sport = M.teamSport(data.team, club), profile = crewProfile(sport);
+  const club = M.clubOf(ws, data), rules = crewPolicy(), sport = M.teamSport(data.team, club), profile = crewProfile(sport);
+  const selectedId = intakeClubId();
+  const directoryClub = arr(ws.clubs).find(c => c.id === selectedId);
+  const pool = selectedId ? localClubDirectory(arr(ws.matchOfficials),selectedId,M.activeTeams(ws)) : crewPool();
   return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add person</button></div>
     <div class="crew-context"><span class="sub">Team: <strong>${esc(data.team.name)}</strong> · ${esc(sport)} · ${esc(profile.provider)}</span>
     <button class="btn sm" data-act="crew-switch">Change team</button></div>
-    <p class="hint">Club and team officials, coaches and accredited trainers. Separate from general helpers for lifts, events and BBQs. Records and checks stay in the encrypted coach workspace.</p>
+    <p class="hint">A person can appear in more than one club. Club membership, registration and accreditation are reviewed separately. These records stay in the encrypted coach workspace, not a global member directory.</p>
+    <form class="crew-directory-picker" data-form="crew-directory">
+      <label class="field-l"><span>Volunteer directory for club</span><select name="clubId">
+      <option value="" ${!selectedId?'selected':''}>Current team without a club</option>
+      ${arr(ws.clubs).map(c=>'<option value="'+esc(c.id)+'" '+(c.id===selectedId?'selected':'')+'>'+esc(c.name)+'</option>').join('')}</select></label>
+      <button class="btn sm" type="submit">View directory</button>
+    </form>
     <section class="sec crew-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">Configure</button></div>
       <p class="hint">Match staffing differs by sport, competition, age group and season. Verify requirements against this team’s official competition rules; no minimums are pre-approved.</p>
       ${rules.source && rules.rows.length && rules.sport === sport ? `<div class="crew-status"><strong>Season ${esc(rules.year || 'not set')}</strong>
@@ -3447,16 +3456,94 @@ function viewCrew() {
         <ul class="crew-req">${rules.rows.map(r => `<li>${r.min} × ${esc(REQUIREMENT_ROLES[r.role])}</li>`).join('')}</ul>`
         : `<p class="crew-notready">${rules.source && rules.sport !== sport ? 'Existing staffing rules belong to another sport. Review these for '+esc(sport)+'.' : 'No reviewed rules configured for '+esc(sport)+' — staffing cannot be marked ready.'}</p>`}
     </section>
-    <section class="sec crew-section"><h3>Available ${isClub ? esc(club?.name || 'club') : 'team'} personnel (${pool.length})</h3>
-      ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="crew-edit" data-id="${esc(p.id)}">
-        <span class="grow"><span class="name">${esc(p.name)}</span><span class="sub" style="display:block">${crewRolesForSport(p,sport).map(r=>esc(CREW_ROLES[r])).join(' · ') || `No ${esc(sport)} roles recorded; other sport qualifications kept`}</span>
+    <section class="sec crew-section"><h3>${esc(directoryClub?.name || 'Current team')} volunteer directory (${pool.length})</h3>
+      ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="${inTeamPool(p,data) ? 'crew-edit' : 'crew-basic'}" data-id="${esc(p.id)}">
+        <span class="grow"><span class="name">${esc(p.name)}</span><span class="sub" style="display:block">${inTeamPool(p,data) ? (crewRolesForSport(p,sport).map(r=>esc(CREW_ROLES[r])).join(' · ') || 'No roles reviewed for this team sport') : 'Member of this club. Select its team to review eligible roles.'}</span>
         <span class="sub" style="display:block">${p.active ? 'Available for selection' : 'Inactive'} · ${p.wwccStatus === 'checked' ? 'WWCC details manually checked' : 'WWCC unverified'}</span></span>
         ${icon('chevron-right', 18)}
       </button>`).join('')}</div>`
-        : '<div class="empty"><p>Start with a coach and manager and then add any qualified support roles your competition requires.</p></div>'}
-      <p class="hint">Entries are coach-recorded, not verified by the governing organisation. Never enter WWCC numbers, documents, dates of birth or registration passwords here.</p>
+        : '<div class="empty"><p>No volunteers are recorded for this club. Add someone manually, link an existing workspace record or prepare an email invitation.</p></div>'}
+      <p class="hint">Club directory records are entered by the coach, not verified by a governing body. Club-wide membership never automatically grants a match-day role. Do not store WWCC numbers, identity documents or registration passwords.</p>
     </section>`;
 }
+
+function intakeClubId() {
+  const clubs = arr(ws.clubs);
+  return clubs.some(c => c.id === state.crewClubId) ? state.crewClubId
+    : clubs.some(c => c.id === data.team.clubId) ? data.team.clubId : (clubs[0]?.id || '');
+}
+function intakeClubTeams(clubId) {
+  return clubTeamChoices(M.activeTeams(ws), clubId);
+}
+function intakeTeamOptions(clubId, selectedId = '') {
+  return '<option value="">No team assignment yet</option>' +
+    intakeClubTeams(clubId).map(t => '<option value="' + esc(t.id) + '" ' +
+      (t.id === selectedId ? 'selected' : '') + '>' + esc(M.teamName(t)) + ' · ' +
+      esc(M.teamSport(t.team,M.clubOf(ws,t))) + '</option>').join('');
+}
+function intakeClubLabel(clubId) {
+  return arr(ws.clubs).find(c=>c.id===clubId)?.name || 'Team without a club';
+}
+function crewIntakeStartForm() {
+  const selected = intakeClubId();
+  return '<form data-form="crew-intake-start" autocomplete="off">' +
+    '<p class="hint">Start with the club, then choose how to add the volunteer. ' +
+    'Only clubs in this encrypted coach workspace are available; individual account permissions are not yet implemented.</p>' +
+    '<label class="field-l"><span>Club</span><select name="clubId">' +
+    arr(ws.clubs).map(c=>'<option value="'+esc(c.id)+'" '+(c.id===selected?'selected':'')+'>'+esc(c.name)+'</option>').join('') +
+    '<option value="" '+(!arr(ws.clubs).length?'selected':'')+'>No club / current team only</option></select></label>' +
+    '<fieldset class="crew-entry-choices"><legend>How would you like to add a volunteer?</legend>' +
+    '<label class="opt"><input type="radio" name="method" value="existing"><span><strong>Existing volunteer</strong><small>Link someone already in this coach workspace, without duplicating their record</small></span></label>' +
+    '<label class="opt"><input type="radio" name="method" value="invite"><span><strong>Email invitation</strong><small>Prepare an email in your mail app; online enrolment is not available yet</small></span></label>' +
+    '<label class="opt"><input type="radio" name="method" value="manual" checked><span><strong>Add manually</strong><small>Record personal details now; assign a team and check accreditation later</small></span></label>' +
+    '</fieldset><button class="btn primary block" type="submit">Continue</button></form>';
+}
+function crewManualForm(clubId) {
+  return '<form data-form="crew-manual" autocomplete="off"><input type="hidden" name="clubId" value="' + esc(clubId) + '">' +
+    '<p class="hint">Adding to ' + esc(intakeClubLabel(clubId)) + '. This creates a local coach-recorded directory entry, not an account. Qualifications are not verified automatically.</p>' +
+    crewField('name','Full name','','text','required maxlength="120"') +
+    crewField('email','Email (optional)','','email','maxlength="254" placeholder="volunteer@example.com"') +
+    '<label class="field-l"><span>Team assignment (optional)</span><select name="teamId">' +
+    intakeTeamOptions(clubId) + '</select><small>Club membership comes first. You can add a team and enter the sport-specific qualifications later.</small></label>' +
+    '<button class="btn primary block" type="submit">Save volunteer record</button>' +
+    '<button class="btn block" type="button" data-act="crew-intake-back">Back</button></form>';
+}
+function crewExistingForm(clubId) {
+  // The shared coach workspace is NOT a global account directory.
+  const pool = arr(ws.matchOfficials).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  return '<form data-form="crew-existing" autocomplete="off"><input type="hidden" name="clubId" value="' + esc(clubId) + '">' +
+    '<p class="hint">Choose a volunteer previously entered in this workspace and associate them with ' +
+    esc(intakeClubLabel(clubId)) + '. Existing registration and accreditation checks do not transfer to this club or another sport.</p>' +
+    (pool.length ? '<label class="field-l"><span>Existing person</span><select name="personId" required><option value="">Choose a person</option>' +
+      pool.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name) +
+        (p.email ? ' · '+esc(p.email) : '') + (memberOfClub(p,clubId) ? ' · already at this club' : '') + '</option>').join('') +
+      '</select></label>' : '<p class="crew-notready">No existing volunteers are recorded in this workspace. Use manual entry.</p>') +
+    '<label class="field-l"><span>Team assignment (optional)</span><select name="teamId">' +
+    intakeTeamOptions(clubId) + '</select><small>No team assignment or clearance is assumed.</small></label>' +
+    '<button class="btn primary block" type="submit" '+(!pool.length?'disabled':'')+'>Link volunteer to club</button>' +
+    '<button class="btn block" type="button" data-act="crew-intake-back">Back</button></form>';
+}
+function crewInviteForm(clubId) {
+  return '<form data-form="crew-invite-draft" autocomplete="off"><input type="hidden" name="clubId" value="' + esc(clubId) + '">' +
+    '<p class="hint">Prepare an invitation from ' + esc(intakeClubLabel(clubId)) +
+    '. Team Manager does not yet provide user accounts, an enrolment URL or automated invitations. Your email app will open a draft for you to review and send.</p>' +
+    crewField('email','Recipient email','','email','required maxlength="254" placeholder="volunteer@example.com"') +
+    '<label class="field-l"><span>Team (optional)</span><select name="teamId">' + intakeTeamOptions(clubId) +
+    '</select></label><button class="btn primary block" type="submit">Open email draft</button>' +
+    '<button class="btn block" type="button" data-act="crew-intake-back">Back</button></form>';
+}
+function crewBasicForm(person) {
+  const p=normCrewPerson(person);
+  return '<form data-form="crew-basic" autocomplete="off"><input type="hidden" name="id" value="'+esc(p.id)+'">' +
+    '<p class="hint">Edit the directory profile. Registration and qualifications must be reviewed for each team and sport separately.</p>' +
+    crewField('name','Full name',p.name,'text','required maxlength="120"') +
+    crewField('email','Email (optional)',p.email,'email','maxlength="254"') +
+    '<label class="check"><input type="checkbox" name="active" '+(p.active?'checked':'')+'><span>Available for consideration</span></label>' +
+    '<button class="btn primary block" type="submit">Save profile</button>' +
+    (inTeamPool(p,data) ? '<button class="btn block" type="button" data-act="crew-edit" data-id="'+esc(p.id)+'">Review roles for current team</button>' : '') +
+    '</form>';
+}
+
 function crewChooseTeamForm(view=false) {
   return `<form data-form="${view?'crew-pick-view':'crew-pick-team'}">
     <p class="hint">Choose a team in this workspace. The staff roles and registration checks will follow that team's sport, not the club default.</p>
@@ -5380,7 +5467,9 @@ const actions = {
     if (!t.cancelled && !confirm(`Mark “${t.title}” on ${fmtDay(t.date)} as cancelled? Everyone stays on it in case it’s back on.`)) return;
     t.cancelled = !t.cancelled; delete t.cancelledWith; save(); refreshTask(t.id); toast(t.cancelled ? 'Task cancelled' : 'Task back on');
   }),
-  'crew-new': coachOnly(() => M.activeTeams(ws).length>1 ? openSheet('Choose team and sport',crewChooseTeamForm(),'crew-pick-team') : openSheet('Add match-day staff',crewPersonForm(null),'crew-person')),
+  'crew-new': coachOnly(() => openSheet('Add a volunteer',crewIntakeStartForm(),'crew-intake-start')),
+  'crew-intake-back': coachOnly(() => openSheet('Add a volunteer',crewIntakeStartForm(),'crew-intake-start')),
+  'crew-basic': coachOnly(el => { const p = crewPerson(el.dataset.id); if(p) openSheet('Volunteer profile',crewBasicForm(p),'crew-basic'); }),
   'crew-switch': coachOnly(() => openSheet('Change match-day staff team',crewChooseTeamForm(true),'crew-pick-view')),
   'crew-reassign': coachOnly(() => openSheet('Choose team and sport',crewChooseTeamForm(),'crew-pick-team')),
   'crew-edit': coachOnly(el => { const p = crewPerson(el.dataset.id); if (p) openSheet(p.name, crewPersonForm(p), 'crew-person'); }),
@@ -6211,6 +6300,62 @@ document.addEventListener('submit', async e => {
     toast(`Cleared: ${Object.entries(n).map(([k, v]) => `${v} ${k === 'squad' ? 'players' : k === 'training' ? 'sessions' : k}`).join(', ')}`);
     return;
   }
+  if (kind === 'crew-directory') {
+    const id = str('clubId');
+    if (id && !arr(ws.clubs).some(c=>c.id===id)) { toast('Choose a club in this workspace'); return; }
+    state.crewClubId=id; render(); return;
+  }
+  if (kind === 'crew-intake-start') {
+    const clubId=str('clubId'), method=str('method');
+    if (clubId && !arr(ws.clubs).some(c=>c.id===clubId)) { toast('Choose a club in this workspace'); return; }
+    state.crewClubId=clubId;
+    if(method==='manual') openSheet('Add volunteer manually',crewManualForm(clubId),'crew-manual');
+    else if(method==='existing') openSheet('Existing workspace volunteer',crewExistingForm(clubId),'crew-existing');
+    else if(method==='invite') openSheet('Prepare volunteer invitation',crewInviteForm(clubId),'crew-invite-draft');
+    else toast('Choose an entry method');
+    return;
+  }
+  if (kind === 'crew-manual' || kind === 'crew-existing' || kind === 'crew-invite-draft') {
+    const clubId=str('clubId'), teamId=str('teamId');
+    if (clubId && !arr(ws.clubs).some(c=>c.id===clubId)) { toast('Club no longer exists'); return; }
+    const chosenTeam=teamId ? intakeClubTeams(clubId).find(t=>t.id===teamId) : null;
+    if (teamId && !chosenTeam) { toast('Choose a team belonging to this club'); return; }
+    state.crewClubId=clubId;
+    if (kind==='crew-invite-draft') {
+      if (!validEmail(str('email'))) { fieldError(form,'email','Enter a valid recipient email address');return; }
+      const draft=invitationMessage(intakeClubLabel(clubId),str('email'),chosenTeam?.team?.name || '');
+      const url='mailto:'+encodeURIComponent(draft.to)+'?subject='+encodeURIComponent(draft.subject)+'&body='+encodeURIComponent(draft.body);
+      window.location.href=url;
+      toast('Email draft prepared. Review and send it in your mail app; no Team Manager invitation was sent.');
+      return;
+    }
+    if(kind==='crew-manual') {
+      const problem=validateManualVolunteer({name:str('name'),email:str('email')},arr(ws.matchOfficials));
+      if(problem){fieldError(form,problem.includes('email')?'email':'name',problem);return;}
+      const p=normCrewPerson(withClubAssociation({
+        id:uid(),name:str('name'),email:str('email'),roles:[],active:true,
+        registrationBySport:{},rolesBySport:{},wwccStatus:'unverified'
+      },clubId,teamId));
+      ws.matchOfficials=arr(ws.matchOfficials);ws.matchOfficials.push(p);save();
+      if(chosenTeam){pickTeam(chosenTeam.id);openSheet('Review sport roles and registration',crewPersonForm(p),'crew-person');}
+      else{closeSheet();render();toast('Volunteer saved in this club directory. No team or accreditation has been assumed.');}
+      return;
+    }
+    const p=crewPerson(str('personId'));
+    if(!p){fieldError(form,'personId','Choose an existing volunteer');return;}
+    const joined=normCrewPerson(withClubAssociation(p,clubId,teamId));
+    Object.assign(p,joined);save();
+    if(chosenTeam){pickTeam(chosenTeam.id);openSheet('Review sport roles and registration',crewPersonForm(p),'crew-person');}
+    else{closeSheet();render();toast('Existing person linked to this club. Team eligibility still requires review.');}
+    return;
+  }
+  if (kind === 'crew-basic') {
+    const p=crewPerson(str('id')); if(!p){toast('Volunteer no longer exists');return;}
+    const problem=validateManualVolunteer({name:str('name'),email:str('email')},arr(ws.matchOfficials).filter(x=>x.id!==p.id));
+    if(problem){fieldError(form,problem.includes('email')?'email':'name',problem);return;}
+    const saved=normCrewPerson({...p,name:str('name'),email:str('email'),active:!!f.get('active')});
+    Object.assign(p,saved);save();closeSheet();render();toast('Volunteer profile updated');return;
+  }
   if (kind === 'crew-pick-team' || kind === 'crew-pick-view') {
     const target=M.activeTeams(ws).find(t=>t.id===str('teamId'));
     if(!target){toast('Choose a team that exists in this workspace.');return;}
@@ -6230,8 +6375,10 @@ document.addEventListener('submit', async e => {
     const scope = str('scope');
     const saved = normCrewPerson({
       ...(p || {}), id: id || uid(), name: str('name'),
-      clubId: scope === 'club' ? data.team.clubId : '',
-      teamIds: scope === 'club' ? [] : [...new Set([...(p?.teamIds || []), data.id])],
+      clubId: p?.clubId || (scope === 'club' ? data.team.clubId : ''),
+      clubIds: [...new Set([...(p?.clubIds || []), ...(scope === 'club' && data.team.clubId ? [data.team.clubId] : [])])],
+      email: p?.email || '',
+      teamIds: scope === 'club' ? [...(p?.teamIds || [])] : [...new Set([...(p?.teamIds || []), data.id])],
       roles, rolesBySport: { ...(p?.rolesBySport || {}), [sport]: rolesSelected }, active: !!f.get('active'),
       registrationBySport: { ...(p?.registrationBySport||{}), [sport]: Object.fromEntries(['coach','volunteer','trainer'].map(k=>[k,str('reg-'+k)])) },
       registration: p?.registration || {},
