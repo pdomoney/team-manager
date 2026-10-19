@@ -55,6 +55,17 @@ with sync_playwright() as p:
         pg.wait_for_timeout(60)
         c.ok('All configured roles covered' in pg.inner_text('#sheet'),
              f'[{width}] confirmed registered eligible staff meet three distinct roles')
+        pg.locator('#sheet [data-act=crew-policy-open]').click()
+        c.ok(pg.locator('#sheet input[name=matchId]').input_value() == info['id'],
+             f'[{width}] match requirements can override team-wide rules')
+        pg.fill('#sheet input[name=min-leagueSafe]', '1')
+        pg.locator('#sheet form[data-form=crew-policy] button[type=submit]').click()
+        c.ok('needs attention' in pg.inner_text('#sheet') and 'LeagueSafe' in pg.inner_text('#sheet'),
+             f'[{width}] a match-specific trainer minimum blocks coverage until filled')
+        pg.locator('#sheet [data-act=crew-policy-open]').click()
+        pg.locator('#sheet [data-act=crew-policy-reset]').click()
+        c.ok('All configured roles covered' in pg.inner_text('#sheet'),
+             f'[{width}] removing a game override returns to team rules without losing assignments')
         pg.locator('#sheet [data-act=crew-match-open]').click()
         pg.locator('#sheet .crew-assign-row').nth(2).locator('input[type=checkbox]').uncheck()
         pg.locator('#sheet form[data-form=crew-match] button[type=submit]').click()
