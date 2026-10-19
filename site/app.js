@@ -3440,7 +3440,10 @@ function viewCrew() {
   const directoryClub = arr(ws.clubs).find(c => c.id === selectedId);
   const pool = selectedId ? localClubDirectory(arr(ws.matchOfficials),selectedId,M.activeTeams(ws)) : crewPool();
   const context = crewPolicyContext({team:{...data.team,sport}});
-  const contextValid = policyFitsContext(rules,{team:{...data.team,sport}}) && !rules.competitionId;
+  const selectedPolicyEntry = rules.competitionId ? M.teamEntries(ws,data.id,(M.activeSeason(data)||{}).id)
+    .find(({comp})=>comp.id===rules.competitionId) : null;
+  const contextValid = policyFitsContext(rules,{team:{...data.team,sport}},selectedPolicyEntry);
+  const policyScope = selectedPolicyEntry?.comp?.name || 'Friendly / unlinked matches';
   return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div>
     <div class="crew-context"><span class="sub">Team: <strong>${esc(data.team.name)}</strong> · ${esc(sport)} · ${esc(profile.provider)}</span>
     <button class="btn sm" data-act="crew-switch">Change team</button></div>
@@ -3454,7 +3457,8 @@ function viewCrew() {
     <section class="sec crew-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">Configure</button></div>
       <p class="hint">Current team: <strong>${esc(sport)}</strong> · ${esc(M.TEAM_CATEGORIES[context.category] || 'Category unrecorded')} · ${esc(context.ageGroup || 'Age group unrecorded')} · ${esc(context.division || 'Division unrecorded')}. Requirements can differ between competitions, age groups and categories. Record only the current official competition rules.</p>
       ${rules.source && rules.rows.length && contextValid ? `<div class="crew-status"><strong>Season ${esc(rules.year || 'not set')}</strong>
-        <span class="sub">${esc(rules.source)}</span></div>
+        <span class="sub">${esc(policyScope)} · ${esc(rules.source)}${rules.reviewedAt ? ' · recorded '+esc(rules.reviewedAt):''}</span></div>
+        ${rules.sourceUrl ? `<p class="hint"><a href="${esc(rules.sourceUrl)}" target="_blank" rel="noopener noreferrer">Open recorded competition rule reference</a></p>` : ''}
         <ul class="crew-req">${rules.rows.map(r => `<li>${r.min} × ${esc(REQUIREMENT_ROLES[r.role])}</li>`).join('')}</ul>`
         : `<p class="crew-notready">${rules.source ? 'Existing requirements were reviewed for another age group, category, division or competition. Configure the current context before marking staffing ready.' : 'No reviewed staffing requirements configured. Staffing cannot be marked ready.'}</p>`}
     </section>
@@ -3607,7 +3611,7 @@ function crewPersonForm(person) {
     ${crewField('squad-year','Team association confirmed for this season', p.squadYears?.[data.id] || '', 'number','min="2020" max="2100" placeholder="2026"')}
     <h3 class="form-sec">Sport-specific accreditation history</h3>
     <p class="hint">Record the year first qualified and the latest confirmed expiry for each relevant ${esc(sport)} role. This is not proof of registration or currency.</p>
-    <div class="crew-qual-grid">${Object.entries(CREW_ROLES).filter(([r]) => crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r)).map(([r,label]) => `<fieldset class="crew-qual-row"><legend>${esc(label)}</legend><div class="two">${crewField('qualified-'+r,'Qualified since (year)',p.qualificationSinceBySport?.[sport]?.[r]||'','number','min="1900" max="2100" placeholder="e.g. 2018"')}${crewField('acc-'+r,'Accreditation expires',p.accreditationBySport?.[sport]?.[r]||p.accreditation[r],'date')}</div></fieldset>`).join('')}</div>
+    <div class="crew-qual-grid">${Object.entries(CREW_ROLES).filter(([r]) => crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r)).map(([r,label]) => `<fieldset class="crew-qual-row"><legend>${esc(label)}</legend><div class="two">${crewField('qualified-'+r,'Qualified since (year)',p.qualificationSinceBySport?.[sport]?.[r]||'','number','min="1900" max="2100" placeholder="e.g. 2018"')}${crewField('acc-'+r,'Accreditation expires',p.accreditationBySport?.[sport]?.[r] ?? p.accreditation[r],'date')}</div></fieldset>`).join('')}</div>
     <h3 class="form-sec">Working With Children Check</h3>
     <label class="check"><input type="checkbox" name="wwccChecked" ${p.wwccStatus === 'checked' ? 'checked' : ''}><span>Club has independently confirmed the relevant clearance</span></label>
     ${crewField('wwccExpiry', 'WWCC expiry', p.wwccExpiry, 'date')}
