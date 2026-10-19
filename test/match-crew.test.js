@@ -4,7 +4,7 @@ import { canCrewServe, matchCrewCheck, normCrewPerson, normCrewRules } from '../
 
 const team = { id: 'u12', team: { clubId: 'titans' } };
 const person = (id, roles, reg = { trainer: '2026', coach: '2026', volunteer: '2026' }) =>
- ({ id, name: id, clubId: 'titans', teamIds: [], active: true, roles, registration: reg,
+ ({ id, name: id, clubId: 'titans', teamIds: [], squadYears:{u12:'2026'}, active: true, roles, registration: reg,
     wwccStatus: 'checked', wwccExpiry: '2027-01-01',
     accreditation: Object.fromEntries(roles.map(r => [r, '2027-01-01'])) });
 const date = '2026-11-01';
