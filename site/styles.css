@@ -1071,3 +1071,18 @@ div.cl-line,p.cl-line{cursor:default}
 .crew-entry-choices .opt small{display:block;color:var(--muted);line-height:1.5}
 @media(max-width:600px){.crew-directory-picker{flex-direction:column;align-items:stretch}
 .crew-directory-picker>.btn{align-self:flex-start}.crew-entry-choices .opt{padding:11px}}
+
+/* Club match staff profile details: preserve existing common form tokens. */
+.crew-avatar{flex:none;width:44px;height:44px;border-radius:12px;background:var(--paper);
+  border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+  font-weight:600;overflow:hidden;color:var(--muted)}
+.crew-avatar img{width:100%;height:100%;object-fit:cover}
+.crew-policy-context{padding:12px 14px;border:1px solid var(--line);
+  border-radius:12px;background:var(--paper);margin:10px 0 14px}
+.crew-policy-context strong{font-weight:600}
+.crew-policy-context p{margin:4px 0 0;color:var(--muted);line-height:1.4}
+.crew-qual-grid{display:grid;gap:12px}
+.crew-qual-row{border:1px solid var(--line);border-radius:12px;padding:12px}
+.crew-qual-row legend{font-weight:600;font-size:14px;padding:0 5px}
+.crew-qual-row .field-l{margin-bottom:0}
+@media(max-width:600px){.crew-qual-row{padding:10px}.crew-qual-row .two{display:grid;grid-template-columns:1fr;gap:8px}}
