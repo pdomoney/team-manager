@@ -38,7 +38,9 @@ const roleList = v => [...new Set(arr(v).filter(x => CREW_ROLES[x]))];
 export const normCrewPerson = p => ({
   id: words(p?.id), name: words(p?.name).slice(0, 120),
   clubId: words(p?.clubId), teamIds: [...new Set(arr(p?.teamIds).filter(x => typeof x === 'string'))],
-  roles: roleList(p?.roles), registration: Object.fromEntries(['coach', 'volunteer', 'trainer']
+  roles: roleList(p?.roles), squadYears: Object.fromEntries(Object.entries(obj(p?.squadYears))
+    .filter(([teamId,year]) => typeof teamId === 'string' && /^\d{4}$/.test(String(year))).map(([id,year]) => [id,String(year)])),
+  registration: Object.fromEntries(['coach', 'volunteer', 'trainer']
     .map(k => [k, /^\d{4}$/.test(String(p?.registration?.[k] || '')) ? String(p.registration[k]) : ''])),
   accreditation: Object.fromEntries(Object.keys(CREW_ROLES).map(k => [k, ymd(p?.accreditation?.[k])])),
   wwccStatus: p?.wwccStatus === 'checked' ? 'checked' : 'unverified',
@@ -57,6 +59,7 @@ export function canCrewServe(person, team, role, date) {
   if (!p.teamIds.includes(team.id) && !(p.clubId && p.clubId === team.team?.clubId)) return 'Not in this club/team';
   const season = words(date).slice(0, 4);
   if (!ymd(date) || !season || p.registration[TYPE[role]] !== season) return 'Season registration unverified';
+  if (p.squadYears[team.id] !== season) return 'MySideline team squad allocation unverified';
   if (p.wwccStatus !== 'checked' || !p.wwccExpiry || p.wwccExpiry < date) return 'WWCC verification missing or expired';
   if (role !== 'manager' && (!p.accreditation[role] || p.accreditation[role] < date)) return 'Role accreditation unverified or expired';
   return '';
