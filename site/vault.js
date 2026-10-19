@@ -128,7 +128,8 @@ export function teamView(d, club = null, comps = []) {
     season,
     competitions: (comps || []).filter(c => c && typeof c === 'object').map(c => ({ ...pick(c, ['id', 'name', 'sport', 'format', 'edition', 'start', 'end', 'organiser', 'venue', 'status', 'description', 'entryId', 'division', 'pool', 'entryStatus']),
       bylaws: (c.bylaws || []).map(b => pick(b, ['topic', 'text'])) })),
-    team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field', 'tasksContact', 'clubId', 'division', 'category', 'ageGroup', 'season', 'colours', 'rules', 'bylaws']),
+    // The team's sport and colour style too, so players see their own sport icon and team colours.
+    team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field', 'tasksContact', 'clubId', 'division', 'category', 'ageGroup', 'season', 'colours', 'rules', 'bylaws', 'sport', 'style']),
     club: club && typeof club === 'object' ? pick(club, CLUB_PUBLIC) : null,
     // Team staff: who they are; their phone numbers and email addresses stay with the coach.
     staff: ((d.team && d.team.staff) || []).filter(x => x && x.name).map(x => pick(x, ['role', 'name'])),

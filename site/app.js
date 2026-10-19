@@ -29,6 +29,9 @@ import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.j
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
+import { TEAM_STYLES, CLASSIC, styleById, normStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
+import { sportIcon, sportMaskUrl } from './sport-icons.js';
+import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-badges.js';
 import * as M from './model.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
@@ -303,6 +306,19 @@ const playersCopy = t => teamView(M.activeLens(t), M.clubOf(ws, t), M.compsForPl
 const curView = () => S.role === 'coach' ? (state.preview ? normalizeTeam(playersCopy(data)) : M.seasonLens(data, viewSeasonId())) : teamData;
 // The club of the team on screen: from the workspace for the coach, from the players' copy otherwise.
 const curClub = () => S.role === 'coach' && !state.preview ? M.clubOf(ws, data) : (V && V.club) || null;
+// The sport of the team on screen (its own, else its club's), and of any team in the workspace.
+const curSport = () => M.teamSport(V && V.team, curClub());
+const sportOfTeam = t => M.teamSport(t && t.team, M.clubOf(ws, t));
+/* ----- Team colours: the team's style on the page (none is the classic look) ----- */
+// Sets the team's colours as CSS custom properties on the page; colours that carry meaning are
+// separate tokens and never change. `preview` shows a style before it's saved (Settings).
+function applyTeamStyle(preview) {
+  const r = resolveStyle(preview !== undefined ? preview : V && V.team && V.team.style), root = document.documentElement, vars = styleVars(r);
+  STYLE_VARS.forEach(k => { if (vars[k]) root.style.setProperty(k, vars[k]); else root.style.removeProperty(k); });
+  if (r) root.dataset.teamStyle = r.id; else delete root.dataset.teamStyle;
+  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = r ? r.dark : '#123D2B';
+  return r;
+}
 const isMixed = T => !T.category || T.category === 'mixed';
 
 const playerById = id => V.players.find(p => p.id === id);
@@ -635,7 +651,9 @@ function render() {
   renderStatus();
   const coachSeason = S.role === 'coach' && !state.preview && M.seasonsOf(data).length;
   const sName = coachSeason ? (V.viewSeason ? V.viewSeason.name : 'No active season') : (V.season && V.season.name) || '';
-  const tag = !sName ? '' : coachSeason ? `<button class="season-tag${V.readOnly ? ' past' : ''}" data-act="season-pick" aria-haspopup="dialog" aria-label="Season: ${esc(sName)}${V.readOnly ? ', looking back' : ''}. Change season">${esc(sName)}${V.readOnly ? ' · looking back' : ''}</button>` : `<span class="season-tag">${esc(sName)}</span>`;
+  applyTeamStyle();
+  const sp = curSport(), ic = sportIcon(sp, 15, 'sport-ic season-ic');
+  const tag = !sName ? '' : coachSeason ? `<button class="season-tag${V.readOnly ? ' past' : ''}" data-act="season-pick" aria-haspopup="dialog" aria-label="${esc(sp)}. Season: ${esc(sName)}${V.readOnly ? ', looking back' : ''}. Change season">${ic}${esc(sName)}${V.readOnly ? ' · looking back' : ''}</button>` : `<span class="season-tag" title="${esc(sp)}">${ic}${esc(sName)}</span>`;
   $('#team-title').classList.toggle('with-season', !!tag);
   $('#team-title').innerHTML = (multiTeam() && !state.preview ? `<button class="team-btn" data-act="team-switch" aria-haspopup="dialog" aria-label="${esc(V.team.name)}. Switch team"><span class="t-name">${esc(V.team.name || 'Team')}</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : `<span class="t-name">${esc(V.team.name || 'Team Manager')}</span>`) + tag;
   document.title = V.team.name || 'Team Manager';
@@ -779,6 +797,8 @@ const CREST_PALETTE = ['#123D2B', '#174E87', '#B01D30', '#6E5000', '#55399A', '#
 const lum = hex => { const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
 const contrast = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
 const clubBadge = c => c ? { id: c.id, name: c.name, short: c.shortName || c.short || c.name, colours: c.colours, logo: c.logo } : null;
+// A club crest with a small badge for the team's sport in the corner.
+const crestWithSport = (c, sport) => `<span class="crest-wrap">${crest(c, true)}<span class="sport-pip" title="${esc(sport)}">${sportIcon(sport, 13)}<span class="sr-only">${esc(sport)}</span></span></span>`;
 function crest(c, big = false) {
   if (!c) return `<span class="crest all${big ? ' big' : ''}" aria-hidden="true">All</span>`;
   if (M.validLogo(c.logo)) return `<span class="crest logo${big ? ' big' : ''}" aria-hidden="true"><img src="${c.logo}" alt=""></span>`;
@@ -792,13 +812,13 @@ function crest(c, big = false) {
 const urgencyDot = u => u ? `<span class="u-dot ${u}" aria-hidden="true"></span><span class="sr-only">${u === 'critical' ? ', needs attention now' : ', needs attention soon'}</span>` : '';
 function homeSelector(hv) {
   const T = data.team, club = M.clubOf(ws, data);
-  if (!hv.multi) return `<div class="scope single">${crest(club ? clubBadge(club) : { id: M.NO_CLUB, name: 'No club' }, true)}
+  if (!hv.multi) return `<div class="scope single">${crestWithSport(club ? clubBadge(club) : { id: M.NO_CLUB, name: 'No club' }, sportOfTeam(data))}
     <span class="grow"><span class="name" style="display:block">${esc(T.name || 'Team')}</span><span class="sub" style="display:block">${esc([club && club.name, T.division, T.season].filter(Boolean).join(' · ') || 'Not in a club')}</span></span></div>`;
   const sc = hv.scope, clubOfScope = sc.kind === 'club' ? sc.id : sc.kind === 'team' ? (hv.clubs.find(c => c.teams.some(t => t.id === sc.id)) || {}).id : null;
   const clubUrg = c => c.teams.some(t => hv.urgency[t.id] === 'critical') ? 'critical' : c.teams.some(t => hv.urgency[t.id] === 'soon') ? 'soon' : '';
   const clubBtn = c => `<button class="scope-club" data-act="home-scope" data-kind="club" data-id="${esc(c.id)}" aria-pressed="${sc.kind === 'club' && sc.id === c.id}" ${clubOfScope === c.id ? 'data-open="1"' : ''} title="${esc(c.name)}">${crest(c)}<span class="scope-name">${esc(c.short)}</span>${urgencyDot(clubUrg(c))}</button>`;
   const teams = clubOfScope ? (hv.clubs.find(c => c.id === clubOfScope) || { teams: [] }).teams : hv.clubs.flatMap(c => c.teams);
-  const teamBtn = t => `<button class="scope-team" data-act="home-scope" data-kind="team" data-id="${esc(t.id)}" aria-pressed="${sc.kind === 'team' && sc.id === t.id}" title="${esc(M.teamName(t))}"><span class="scope-name">${esc(M.teamName(t))}</span>${t === data ? '<span class="sr-only"> (the team you’re editing)</span>' : ''}${urgencyDot(hv.urgency[t.id])}</button>`;
+  const teamBtn = t => `<button class="scope-team" data-act="home-scope" data-kind="team" data-id="${esc(t.id)}" aria-pressed="${sc.kind === 'team' && sc.id === t.id}" title="${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}"><span class="scope-name">${sportIcon(sportOfTeam(t), 15, 'sport-ic chip-ic')}${esc(M.teamName(t))}</span>${t === data ? '<span class="sr-only"> (the team you’re editing)</span>' : ''}${urgencyDot(hv.urgency[t.id])}</button>`;
   return `<nav class="scope" aria-label="Clubs and teams on Home">
     <div class="scope-row">
       <button class="scope-club" data-act="home-scope" data-kind="all" aria-pressed="${sc.kind === 'all'}">${crest(null)}<span class="scope-name">All clubs</span></button>
@@ -819,12 +839,12 @@ function homeWhy(x) {
 const goAttrs = (x, act, id) => `data-act="home-go" data-team="${esc(x.teamId)}" data-go="${esc(act)}" data-id="${esc(id)}"${x.k ? ` data-k="${esc(x.k)}"` : ''}${x.tab ? ` data-tab="${esc(x.tab)}"` : ''}`;
 function homeSpotlight(hv) {
   const x = hv.spotlight;
-  if (!x) return `<section class="focus calm" aria-labelledby="spot-h"><h2 id="spot-h">Nothing coming up</h2>
+  if (!x) return `<section class="focus calm has-mark" style='--sport-mark:${sportMaskUrl(sportOfTeam(data))}' aria-labelledby="spot-h"><h2 id="spot-h">Nothing coming up</h2>
     <p class="spot-what">No training, matches or tasks ${hv.scope.kind === 'all' ? 'for any team' : hv.scope.kind === 'club' ? 'for this club’s teams' : 'for this team'} yet.</p>
     ${hv.scope.kind === 'team' && hv.scope.id === data.id ? `<div class="btn-row"><button class="btn primary" data-act="add-session">${icon('plus')}Add training</button><button class="btn" data-act="tab" data-tab="matches">Matches</button></div>` : ''}</section>`;
   const who = [x.team, hv.multi && x.club ? x.club : ''].filter(Boolean).join(' · ');
   const share = x.kind === 'match' ? `<button class="btn sm on-dark" data-act="home-go" data-team="${esc(x.teamId)}" data-go="day-share" data-date="${esc(x.date)}">${icon('chat', 18)}Send match day</button>` : '';
-  return `<section class="focus lvl-${x.level}" aria-labelledby="spot-h">
+  return `<section class="focus lvl-${x.level} has-mark" style='--sport-mark:${sportMaskUrl(sportOfTeam(M.findTeam(ws, x.teamId) || data))}' aria-labelledby="spot-h">
     <p class="spot-k"><span class="lvl-pill">${HOME_LEVEL[x.level]}</span>${hv.multi ? `<span>${esc(who)}</span>` : ''}</p>
     <h2 id="spot-h">${esc(x.label)}</h2>
     <p class="spot-what">${[x.kind === 'session' ? '' : `<b>${esc(x.title)}</b>`, x.comp ? esc(x.comp) : '', x.round ? esc(x.round) : '', x.date ? esc(homeWhen(x)) : '', x.place ? esc(x.place) : ''].filter(Boolean).join(' · ')}</p>
@@ -934,12 +954,12 @@ function viewHome() {
 // Players see their own team only: what's next, the next two weeks, notices and where help is needed.
 function playerHome() {
   const T = V.team, club = curClub(), today = todayISO();
-  const strip = `<div class="scope single">${crest(club ? clubBadge(club) : { id: M.NO_CLUB, name: 'No club' }, true)}
+  const strip = `<div class="scope single">${crestWithSport(club ? clubBadge(club) : { id: M.NO_CLUB, name: 'No club' }, curSport())}
     <span class="grow"><span class="name" style="display:block">${esc(T.name || 'Team')}</span><span class="sub" style="display:block">${esc([club && club.name, T.division, T.event && countdown() && countdown().state === 'before' ? `${T.event} in ${countdown().days} days` : T.event].filter(Boolean).join(' · '))}</span></span></div>`;
   if (!V.players.length) return strip + homeNotices(10) + `<p class="muted">The squad hasn't been announced yet.</p>`;
   const items = M.agenda(V, today, 14).filter(it => !it.cancelled && it.kind !== 'task');   // tasks are under Help needed
   const next = items[0], rest = items.slice(1);
-  const spot = next ? `<section class="focus lite" aria-labelledby="spot-h"><p class="spot-k"><span class="lvl-pill">Next up</span></p>
+  const spot = next ? `<section class="focus lite has-mark" style='--sport-mark:${sportMaskUrl(curSport())}' aria-labelledby="spot-h"><p class="spot-k"><span class="lvl-pill">Next up</span></p>
       <h2 id="spot-h">${next.kind === 'match' ? `Match ${next.date === today ? 'today' : next.date === M.addDays(today, 1) ? 'tomorrow' : esc(fmtDay(next.date))}` : `Training ${next.date === today ? 'today' : next.date === M.addDays(today, 1) ? 'tomorrow' : esc(fmtDay(next.date))}`}</h2>
       <p class="spot-what">${next.kind === 'match' ? `<b>vs ${esc(next.x.opponent || 'TBC')}</b> · ` : ''}${next.start ? esc(fmtTime(next.start)) : 'Time TBC'}${(next.x.venue || (next.kind === 'session' && T.trainingVenue)) ? ` · ${esc(next.x.venue || T.trainingVenue)}` : ''}${next.x.field ? ` · Field ${esc(next.x.field)}` : ''}</p>
       ${replyBtns(next.kind, next.x)}</section>`
@@ -1175,7 +1195,7 @@ function sessionRow(s) {
   const isPast = s.date < todayISO(), taken = rollTaken(s);
   const info = `<span class="t" style="display:block">${esc(fmtRange(s))}</span>
       <span class="sub" style="display:block">${esc(s.venue || V.team.trainingVenue || 'Venue TBC')}</span>
-      ${s.focus ? `<span class="focus" style="display:block">${esc(s.focus)}</span>` : ''}
+      ${s.focus ? `<span class="sess-focus" style="display:block">${esc(s.focus)}</span>` : ''}
       ${s.notes && !isCoach() ? `<span class="sub" style="display:block">${esc(s.notes)}</span>` : ''}`;
   if (!isCoach()) return `<div class="sess ${s.cancelled ? 'cancelled' : ''} ${s.date === todayISO() ? 'today' : ''}">${calBlock(s.date)}
     <div class="sess-main">${info}${s.cancelled ? '<span style="display:block;margin-top:4px"><span class="pill bad">Cancelled</span></span>' : ''}${replyBtns('session', s)}</div></div>`;
@@ -3434,6 +3454,25 @@ const crewStatus = m => {
 const crewName = key => CREW_ROLES[key] || REQUIREMENT_ROLES[key] || key;
 const crewField = (name,label,value='',type='text',extra='') =>
   `<label class="field-l"><span>${label}</span><input type="${type}" name="${name}" value="${esc(value)}" ${extra}></label>`;
+/* ----- Accreditation badges: what each volunteer holds, at a glance ----- */
+// For a match, accreditations must still be current on the day; otherwise today.
+const crewDay = m => (m && m.date && m.date > todayISO() ? m.date : todayISO());
+const badgeWords = b => { const t = b.text.slice(b.label.length + 2); return t.charAt(0).toUpperCase() + t.slice(1); };
+// A row of small badges. The words are in each badge's tooltip and in the summary beside it, so the
+// badges themselves are hidden from screen readers. `on` rings the badge for a chosen role.
+const badgeStrip = (badges, { size = 26, on = '' } = {}) => `<span class="cbadges" aria-hidden="true">${badges.map(b =>
+  `<span class="cbadge s-${b.status}${b.key === on ? ' on' : ''}" title="${esc(b.text)}">${badgeSvg(b.key, b.status, size)}</span>`).join('')}</span>`;
+// The same badges with their words, for a profile.
+const badgeList = (badges, extra = () => '') => `<ul class="cbadge-list">${badges.map(b => `<li class="s-${b.status}">${badgeSvg(b.key, b.status, 34)}
+  <span><strong>${esc(b.label)}</strong><span class="sub" style="display:block">${esc(badgeWords(b))}${extra(b)}</span></span></li>`).join('')}</ul>`;
+function badgeLegend(sport) {
+  const keys = ['wwcc', ...Object.keys(CREW_ROLES).filter(r => crewRoleAllowed(sport, r))];
+  return `<details class="cbadge-legend"><summary>What the badges mean</summary>
+    <ul class="cbadge-key">${keys.map(k => `<li>${badgeSvg(k, 'current', 26)}<span>${esc(k === 'wwcc' ? 'Working With Children Check' : CREW_ROLES[k])}</span></li>`).join('')}</ul>
+    <ul class="cbadge-key states">${[['current', 'Current'], ['expiring', 'Expires within 60 days'], ['expired', 'Expired'], ['unverified', 'Not checked, or no expiry recorded']]
+      .map(([st, w]) => `<li>${badgeSvg('coach', st, 26)}<span>${esc(w)}</span></li>`).join('')}</ul>
+    <p class="hint">Badges show what the club has recorded for ${esc(sport)}; they aren't checked with any governing body. Roles such as team manager need no accreditation, so they show as held.</p></details>`;
+}
 function viewCrew() {
   const club = M.clubOf(ws, data), rules = crewPolicy(), sport = M.teamSport(data.team, club), profile = crewProfile(sport);
   const selectedId = intakeClubId();
@@ -3464,11 +3503,14 @@ function viewCrew() {
     </section>
     <section class="sec crew-section"><h3>${esc(directoryClub?.name || 'Current team')} volunteer directory (${pool.length})</h3>
       ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="crew-basic" data-id="${esc(p.id)}">
-        <span class="crew-avatar">${M.validPhoto(p.photo) ? `<img src="${p.photo}" alt="">` : esc(initials(p)||'?')}</span><span class="grow"><span class="name">${esc(p.name)}</span><span class="sub" style="display:block">${inTeamPool(p,data) ? (crewRolesForSport(p,sport).map(r=>esc(CREW_ROLES[r])).join(' · ') || 'No roles reviewed for this team sport') : 'Member of this club. Select its team to review eligible roles.'}</span>
-        <span class="sub" style="display:block">${p.active ? 'Available for selection' : 'Inactive'} · ${p.wwccStatus === 'checked' ? 'WWCC details manually checked' : 'WWCC unverified'}</span></span>
+        <span class="crew-avatar">${M.validPhoto(p.photo) ? `<img src="${p.photo}" alt="">` : esc(initials(p)||'?')}</span><span class="grow"><span class="name">${esc(p.name)}</span>${(() => {
+          const inPool = inTeamPool(p, data), bs = crewBadges(p, sport, todayISO()), shown = inPool ? bs : bs.slice(0, 1);
+          return `${badgeStrip(shown)}<span class="sub" style="display:block">${inPool ? (bs.length > 1 ? esc(crewRolesForSport(p, sport).map(r => CREW_ROLES[r]).join(' · ')) : 'No roles reviewed for this team sport') : 'Member of this club. Select its team to review eligible roles.'}</span>
+        <span class="sub" style="display:block">${p.active ? 'Available for selection' : 'Inactive'} · ${esc(badgeSummary(shown))}</span>`; })()}</span>
         ${icon('chevron-right', 18)}
       </button>`).join('')}</div>`
         : '<div class="empty"><p>No volunteers are recorded for this club. Add someone manually, link an existing workspace record or prepare an email invitation.</p></div>'}
+      ${pool.length ? badgeLegend(sport) : ''}
       <p class="hint">Club directory records are entered by the coach, not verified by a governing body. Club-wide membership never automatically grants a match-day role. Do not store WWCC numbers, identity documents or registration passwords.</p>
     </section>`;
 }
@@ -3547,13 +3589,9 @@ function crewBasicForm(person) {
   const validYear = String(new Date().getFullYear());
   const since=p.clubSince?.[id]||'';
   const years=since ? Math.max(0,Number(validYear)-Number(since)) : null;
-  const qualifications=Object.entries(p.rolesBySport||{}).flatMap(([sport,roles])=>arr(roles).map(role=>{
-    const from=p.qualificationSinceBySport?.[sport]?.[role]||'';
-    const until=p.accreditationBySport?.[sport]?.[role]||p.accreditation?.[role]||'';
-    return '<li>'+esc(sport)+' · '+esc(CREW_ROLES[role]||role)+
-      (from?' · qualified since '+esc(from):' · qualification year not recorded')+
-      (until?' · expiry '+esc(until):' · expiry not recorded')+'</li>';
-  }));
+  const bySport = crewBadgesBySport(p, todayISO(), M.teamSport(data.team, M.clubOf(ws, data)));
+  const qualifications = bySport.map(({ sport, badges }) => '<div class="cbadge-card"><strong>' + esc(sport) + '</strong><span class="sub" style="display:block">' + esc(badgeSummary(badges)) + '</span>' +
+    badgeList(badges, b => { const from = p.qualificationSinceBySport?.[sport]?.[b.key] || ''; return from ? ' · qualified since ' + esc(from) : ''; }) + '</div>');
   const eligibleTeams=intakeClubTeams(id).filter(t=>inTeamPool(p,t));
   return '<form data-form="crew-basic" autocomplete="off"><input type="hidden" name="id" value="'+esc(p.id)+'">' +
     '<input type="hidden" name="clubId" value="'+esc(sameClub?id:'')+'">' +
@@ -3572,7 +3610,7 @@ function crewBasicForm(person) {
       '<p class="hint">'+(years===null?'Club service start has not been recorded.':esc(years)+' calendar years since first joining; this does not prove uninterrupted service.')+'</p>' : '')+
     '<h3 class="form-sec">Qualifications and accreditation</h3>' +
     '<p class="hint">Years first qualified, expiry dates, training and registration are maintained by sport and team. No qualification is assumed by having a club profile.</p>' +
-    (qualifications.length?'<ul class="crew-req">'+qualifications.join('')+'</ul>':'<p class="muted small">No accredited roles reviewed yet.</p>')+
+    (qualifications.length ? qualifications.join('') : '<div class="cbadge-card">' + badgeList(crewBadges(p, M.teamSport(data.team, M.clubOf(ws, data)), todayISO())) + '<p class="muted small">No accredited roles reviewed yet.</p></div>') +
     (eligibleTeams.length?'<label class="field-l"><span>Review qualifications for team</span><select name="reviewTeam">'+
       '<option value="">Choose a team</option>'+eligibleTeams.map(t=>'<option value="'+esc(t.id)+'">'+esc(M.teamName(t))+' · '+esc(M.teamSport(t.team,M.clubOf(ws,t)))+'</option>').join('')+'</select></label>'+
       '<button class="btn block" type="button" data-act="crew-profile-review">Review sport roles and accreditation</button>':
@@ -3599,6 +3637,7 @@ function crewPersonForm(person) {
     <input type="hidden" name="id" value="${esc(p.id)}"><input type="hidden" name="sport" value="${esc(sport)}">
     <p class="hint"><strong>${esc(data.team.name)} · ${esc(sport)}</strong>. Registration and qualification details are checked against the relevant sport’s official records. This does not register anyone. ${M.activeTeams(ws).length>1 && !p.id ? '<button class="link-btn inline" type="button" data-act="crew-reassign">Choose another team</button>' : ''}</p>
     ${crewField('name', 'Full name', p.name, 'text', 'required maxlength="120"')}
+    ${p.id ? `<div class="cbadge-card"><strong>Recorded now for ${esc(sport)}</strong>${badgeStrip(crewBadges(p, sport, todayISO()), { size: 30 })}<span class="sub" style="display:block">${esc(badgeSummary(crewBadges(p, sport, todayISO())))}</span></div>` : ''}
     <p class="hint">Club directory: ${esc(club?.name || 'No club')}. You are reviewing roles for ${esc(data.team.name)}. Club memberships are managed separately using Add volunteer → Existing volunteer; this page does not remove another club's association.</p>
     <div class="field-l"><span>Match-day roles for ${esc(sport)}</span><div class="opts crew-role-list">${roles}</div><small>A role for another sport does not establish eligibility here.</small></div>
     <h3 class="form-sec">Registration checked with ${esc(profile.provider)}</h3>
@@ -3659,20 +3698,26 @@ function crewPolicyForm(match = null) {
     '<p class="hint">An unconfigured or mismatched policy cannot mark a match ready. Recheck all sources and minima each season.</p></form>';
 }
 
-function crewAssignRow(a, i, pool) {
+function crewAssignBadges(personId, role, day) {
+  const p = crewPerson(personId); if (!p) return '';
+  const sport = M.teamSport(data.team, M.clubOf(ws, data)), bs = crewBadges(p, sport, day);
+  return `${badgeStrip(bs, { on: role })}<span class="sub">${esc(badgeSummary(bs))}</span>`;
+}
+function crewAssignRow(a, i, pool, day = todayISO()) {
   const sport = M.teamSport(data.team, M.clubOf(ws, data));
   const roleOptions = Object.entries(CREW_ROLES).filter(([r])=>crewRoleAllowed(sport,r)||r===a?.role);
   return `<fieldset class="crew-assign-row"><legend>Position ${i + 1}</legend><div class="two">
-      <label class="field-l"><span>Person</span><select name="crew-person"><option value="">Not assigned</option>
+      <label class="field-l"><span>Person</span><select name="crew-person" data-change="crew-person"><option value="">Not assigned</option>
         ${pool.map(p => `<option value="${esc(p.id)}" ${p.id === a?.personId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
-      <label class="field-l"><span>Game-day role</span><select name="crew-role">${roleOptions.map(([r,label]) => `<option value="${r}" ${r === a?.role ? 'selected' : ''}>${esc(label)}${crewRoleAllowed(sport,r) ? '' : ' (invalid for this sport)'}</option>`).join('')}</select></label>
-    </div><label class="check"><input type="checkbox" name="crew-confirm-${i}" ${a?.confirmed ? 'checked' : ''}><span>Confirmed to attend this match</span></label></fieldset>`;
+      <label class="field-l"><span>Game-day role</span><select name="crew-role" data-change="crew-person">${roleOptions.map(([r,label]) => `<option value="${r}" ${r === a?.role ? 'selected' : ''}>${esc(label)}${crewRoleAllowed(sport,r) ? '' : ' (invalid for this sport)'}</option>`).join('')}</select></label>
+    </div><div class="crew-row-badges" data-day="${esc(day)}">${a?.personId ? crewAssignBadges(a.personId, a.role, day) : ''}</div>
+    <label class="check"><input type="checkbox" name="crew-confirm-${i}" ${a?.confirmed ? 'checked' : ''}><span>Confirmed to attend this match</span></label></fieldset>`;
 }
 function crewMatchForm(m) {
   const pool = crewPool(), slots = arr(m.crew);
   return `<form data-form="crew-match" autocomplete="off"><input name="id" type="hidden" value="${esc(m.id)}">
     <p class="hint"><b>${esc(data.team.name)} vs ${esc(m.opponent || 'TBC')}</b> · ${esc(fmtDay(m.date))}. Match-day roles are for ${esc(M.teamSport(data.team,M.clubOf(ws,data)))}. Registration is verified externally, never by this app. Each person can fill only one match role.</p>
-    <div id="crew-assignments">${Array.from({length:Math.max(4,slots.length+1)},(_,i)=>crewAssignRow(slots[i],i,pool)).join('')}</div>
+    <div id="crew-assignments">${Array.from({length:Math.max(4,slots.length+1)},(_,i)=>crewAssignRow(slots[i],i,pool,crewDay(m))).join('')}</div>
     <button type="button" class="btn sm" data-act="crew-add-row">+ Add another position</button>
     <button class="btn primary block" type="submit" style="margin-top:14px">Save match-day staff</button>
     <p class="hint">Only confirmed people with checked registration, team association, safeguarding and relevant accreditation count towards reviewed minima. This is a planning check, not permission to play.</p>
@@ -3685,6 +3730,8 @@ function crewMatchSummary(m) {
   return `<section class="crew-match-summary"><h3 class="form-sec">Match-day staff</h3>
     <div class="crew-status ${c.ready ? 'crew-okay' : 'crew-alert'}"><strong>${esc(label)}</strong>
     <span class="sub">${c.configured ? esc(c.source) : 'Verify the official local competition requirements before relying on this check.'}</span></div>
+    ${c.slots.length ? `<ul class="crew-slots">${c.slots.map(a => { const p = crewPerson(a.personId), bs = p ? crewBadges(p, M.teamSport(data.team, M.clubOf(ws, data)), crewDay(m)) : [];
+      return `<li>${badgeStrip(bs.filter(b => b.key === 'wwcc' || b.key === a.role), { size: 24 })}<span><strong>${esc(a.name)}</strong> · ${esc(CREW_ROLES[a.role] || a.role)}${a.confirmed ? '' : ' · not confirmed'}<span class="sr-only">. ${esc(bs.filter(b => b.key === 'wwcc' || b.key === a.role).map(b => b.text).join('. '))}</span></span></li>`; }).join('')}</ul>` : ''}
     ${c.shortages.length ? `<ul class="crew-req">${c.shortages.map(r => `<li>${esc(r.name)}: ${r.have}/${r.min}${r.missing ? ' · ' + r.missing + ' missing' : ' · covered'}</li>`).join('')}</ul>` : ''}
     ${c.issues.length ? `<ul class="diff-list issues">${c.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
     <div class="btn-row"><button class="btn sm primary" data-act="crew-match-open" data-id="${esc(m.id)}">Assign / check staff</button>
@@ -4343,6 +4390,41 @@ function refreshTeamSportGuide(form) {
   if (guide) guide.textContent = `New players for this team will see ${sport} positions (${explicit ? 'team override' : 'club default'}): ${chosen.join(', ') || 'no positions set'}.${custom ? ' This is a custom team position list.' : ''}`;
 }
 // The team's details: its club, division, category, season and staff (part of Settings).
+// Settings › Team colours: a palette, the classic look, or the team's own colours (checked for
+// contrast and adjusted if they'd be hard to read). Picking one shows it straight away; it's kept
+// when Settings is saved.
+function teamStyleFields(T) {
+  const cur = normStyle(T.style), sel = cur ? (cur.palette || 'custom') : '', club = M.clubOf(ws, data);
+  const c = cur && cur.custom ? cur.custom : (() => { const r = resolveStyle({ palette: 'pitch' }); return { dark: r.dark, action: r.action, accent: r.accent }; })();
+  const sw = (id, name, [a, b]) => `<label class="style-sw"><input type="radio" name="teamStyle" value="${id}" ${sel === id ? 'checked' : ''} data-change="team-style"><span class="sw" aria-hidden="true"><i style="background:${a}"></i><i style="background:${b}"></i></span><span class="nm">${esc(name)}</span></label>`;
+  const hint = club && club.colours ? suggestStyle(club.colours) : '';
+  return `<h3 class="form-sec" id="team-colours">Team colours</h3>
+    <p class="muted small" style="margin-bottom:10px">The header, main cards, buttons and highlights, for you and your players. Green, orange and red keep their meaning (OK, check, problem) in every style.</p>
+    <fieldset class="style-grid"><legend class="sr-only">Colour style</legend>
+      ${sw('', CLASSIC.name, CLASSIC.swatch)}${TEAM_STYLES.map(x => sw(x.id, x.name, x.swatch)).join('')}${sw('custom', 'Your own', [c.dark, c.action])}
+    </fieldset>
+    <div class="style-custom" ${sel === 'custom' ? '' : 'hidden'}>
+      <div class="three">
+        <label class="field-l"><span>Header</span><input type="color" name="styleDark" value="${esc(c.dark.toLowerCase())}" data-change="team-style"></label>
+        <label class="field-l"><span>Buttons</span><input type="color" name="styleAction" value="${esc(c.action.toLowerCase())}" data-change="team-style"></label>
+        <label class="field-l"><span>Highlight</span><input type="color" name="styleAccent" value="${esc(c.accent.toLowerCase())}" data-change="team-style"></label>
+      </div>
+      <p class="hint style-note" role="status"></p>
+    </div>
+    ${hint ? `<p class="hint">Closest to ${esc(club.name)}’s colours (${esc(club.colours)}): <button type="button" class="link-btn inline" data-act="style-club" data-id="${esc(hint)}">${esc(styleById(hint).name)}</button></p>` : ''}`;
+}
+// The style the colours section of a form describes (null for the classic look).
+function formStyle(form) {
+  const v = n => (form.querySelector(`[name=${n}]`) || {}).value || '', pick = (form.querySelector('[name=teamStyle]:checked') || {}).value || '';
+  return pick === 'custom' ? normStyle({ custom: { dark: v('styleDark'), action: v('styleAction'), accent: v('styleAccent') } }) : pick ? normStyle({ palette: pick }) : null;
+}
+function previewTeamStyle(form) {
+  const st = formStyle(form), custom = (form.querySelector('[name=teamStyle]:checked') || {}).value === 'custom';
+  const box = form.querySelector('.style-custom'); if (box) box.hidden = !custom;
+  const r = applyTeamStyle(st); state.stylePreview = true;
+  const note = form.querySelector('.style-note');
+  if (note) note.textContent = custom && r && r.adjusted.length ? `Adjusted so it stays readable: ${r.adjusted.map(k => ({ dark: 'header made darker', action: 'buttons made darker', accent: 'highlight made lighter' })[k]).join(', ')}.` : '';
+}
 function teamDetailsFields(T) {
   const staff = [...arr(T.staff), { role: 'Head coach', name: '', phone: '', email: '' }];
   return `<h3 class="form-sec">Team details</h3>
@@ -4417,7 +4499,7 @@ function switchTeam(id) {
   toast(`Now showing ${M.teamName(t)}`);
 }
 function teamSwitcher() {
-  openSheet('Switch team', `<div class="list">${M.activeTeams(ws).map(t => `<button class="pick" data-act="team-pick" data-id="${t.id}" ${t === data ? 'aria-current="true"' : ''}><span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}</span><span class="tagline">${esc([t.team.event, `${arr(t.players).length} players`].filter(Boolean).join(' · '))}</span></span>${t === data ? icon('check') : ''}</button>`).join('')}</div>
+  openSheet('Switch team', `<div class="list">${M.activeTeams(ws).map(t => `<button class="pick" data-act="team-pick" data-id="${t.id}" ${t === data ? 'aria-current="true"' : ''}><span class="switch-ic" aria-hidden="true">${sportIcon(sportOfTeam(t), 20)}</span><span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}</span><span class="tagline">${esc([sportOfTeam(t), t.team.event, `${arr(t.players).length} players`].filter(Boolean).join(' · '))}</span></span>${t === data ? icon('check') : ''}</button>`).join('')}</div>
     <button class="btn block" style="margin-top:12px" data-act="teams">Manage teams</button>`, 'switch');
 }
 
@@ -5030,6 +5112,7 @@ function settingsBody() {
     <h3 class="form-sec">Team and tournament</h3>
     <label class="field-l"><span>Team name</span><input type="text" name="name" value="${esc(T.name)}"></label>
     ${teamDetailsFields(T)}
+    ${teamStyleFields(T)}
     <h3 class="form-sec">Tournament</h3>
     <label class="field-l"><span>Tournament</span><input type="text" name="event" value="${esc(T.event)}"></label>
     <div class="two">
@@ -5231,6 +5314,7 @@ function requestCloseSheet() {
 }
 function closeSheet() {
   const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; document.body.classList.remove('locked'); state.sheet = null;
+  if (state.stylePreview) { state.stylePreview = false; applyTeamStyle(); }
   BEHIND.forEach(q => { const el = $(q); if (el) el.inert = false; });
   if (lastFocus && document.contains(lastFocus)) try { lastFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
 }
@@ -5562,7 +5646,7 @@ const actions = {
     if (!box || !m) return;
     const i = box.querySelectorAll('.crew-assign-row').length;
     if (i >= 30) { toast('Maximum 30 positions. Contact the club if more are required.'); return; }
-    box.insertAdjacentHTML('beforeend', crewAssignRow(null, i, crewPool()));
+    box.insertAdjacentHTML('beforeend', crewAssignRow(null, i, crewPool(), crewDay(m)));
   }),
   'crew-delete': coachOnly(el => {
     const p = crewPerson(el.dataset.id); if (!p) return;
@@ -5963,6 +6047,10 @@ const actions = {
     const r = M.jerseyReport(data, V.viewSeason.id), out = r.rows.filter(x => x.status === 'out');
     copyText(`👕 *Jerseys still out — ${data.team.name}*\n${out.map(x => `• ${x.name}: ${x.open.map(o => '#' + o.number).join(', ')}`).join('\n')}`);
   }),
+  'style-club': coachOnly(el => {
+    const form = el.closest('form'), r = form && form.querySelector(`[name=teamStyle][value="${el.dataset.id}"]`); if (!r) return;
+    r.checked = true; previewTeamStyle(form);
+  }),
   'positions-default': coachOnly(el => {
     const form = el.closest('form'), inp = form && form.querySelector('[name=positions]'); if (!inp) return;
     const sel = form.querySelector('[name=teamSport]'), clubId = (form.querySelector('[name=clubId]') || {}).value;
@@ -6072,6 +6160,11 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
+  if (k === 'team-style') previewTeamStyle(e.target.closest('form'));
+  if (k === 'crew-person') {
+    const row = e.target.closest('.crew-assign-row'), box = row && row.querySelector('.crew-row-badges');
+    if (box) box.innerHTML = crewAssignBadges(row.querySelector('[name=crew-person]').value, row.querySelector('[name=crew-role]').value, box.dataset.day);
+  }
   if (k === 'study-role') { state.studyRole = e.target.value; render(); }
   if (k === 'team-context') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'crew-photo') {
@@ -6716,6 +6809,7 @@ document.addEventListener('submit', async e => {
     const resolved = M.changedSportPositions(before, oldClub, T, M.clubOf(ws, data), entered);
     T.positions = resolved.positions; T.positionsCustom = resolved.positionsCustom;
     T.jerseyLoan = !!f.get('jerseyLoan');
+    if (form.querySelector('[name=teamStyle]')) { const st = formStyle(form); if (st) T.style = st; else delete T.style; state.stylePreview = false; }
     const zone = Number(str('fieldZone')), touch = Number(str('fieldTouch')), middle = Number(str('fieldMiddle'));
     const fits = zone >= 5 && zone <= 30 && touch >= 2 && middle >= 4 && (50 - middle - 2 * touch) / 2 >= 3;
     if (fits) T.field = { zone, touch, middle };
