@@ -22,6 +22,8 @@
 
 import { ITERATIONS, makeLock, newSalt, seal, openFile, teamView, toB64, fromB64, toB64Url, fromB64Url, exportKey, importKey, isSealed } from './vault.js';
 import { GitHub, repoFromLocation } from './github.js';
+import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
+import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import * as M from './model.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
@@ -81,6 +83,12 @@ const store = {
   del(k) { try { localStorage.removeItem(k); } catch (e) { delete mem[k]; } }
 };
 const readJson = k => { try { return JSON.parse(store.get(k) || 'null'); } catch (e) { return null; } };
+// Session-only token retention works even when persistent browser storage is blocked.
+const sessionStore = {
+  get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { sessionStorage.setItem(k, v); return true; } catch (e) { return false; } },
+  del(k) { try { sessionStorage.removeItem(k); } catch (e) { /* storage disabled */ } }
+};
 
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -263,7 +271,7 @@ async function loadWs(raw, lock) {
   return pickTeam();
 }
 let V = null;         // what the current screen shows (set in render)
-let gh = { autoPublish: true, ...repoFromLocation(), ...(readJson(KEYS.github) || {}) };
+let gh = { autoPublish: true, ...repoFromLocation(), ...loadGitHubSettings(store, sessionStore) };
 
 const state = {
   tab: 'home', squadFilter: 'all', squadSearch: '', showPast: false,
@@ -332,7 +340,8 @@ const inviteLink = () => `${location.origin}${location.pathname}#join=${toB64Url
    ========================================================= */
 const ghReady = () => !!(gh.owner && gh.repo && gh.token);
 const ghClient = () => new GitHub(gh);
-const saveGh = () => store.set(KEYS.github, JSON.stringify(gh));
+const saveGh = () => saveGitHubSettings(gh, store, sessionStore);
+saveGh(); // Migrate older stored publishing tokens to session-only storage.
 const readDraft = () => { const d = readJson(KEYS.draft); return d && isSealed(d.file) ? d : null; };
 
 async function fetchSite(name) {
@@ -4622,7 +4631,10 @@ function githubSection() {
       <label class="field-l"><span>GitHub username</span><input type="text" name="owner" value="${esc(gh.owner || '')}" autocapitalize="off" spellcheck="false"></label>
       <label class="field-l"><span>Repository</span><input type="text" name="repo" value="${esc(gh.repo || '')}" autocapitalize="off" spellcheck="false"></label>
     </div>
-    <label class="field-l"><span>Access token</span><input type="password" name="token" value="${esc(gh.token || '')}" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"><small>A fine-grained token for this repository with Contents and Actions set to Read and write. It stays on this phone.</small></label>
+    <label class="field-l"><span>Access token</span><input type="password" name="token" value="" autocapitalize="off" spellcheck="false" autocomplete="off" placeholder="${gh.token ? 'Token configured (blank keeps it)' : 'github_pat_…'}"><small>Fine-grained token: Contents and Actions, Read and write. Blank keeps the current token without showing it in the page.</small></label>
+    <label class="check"><input type="checkbox" name="clearToken"> Remove the current token from this browser</label>
+    <label class="check"><input type="checkbox" name="rememberToken" ${gh.rememberToken ? 'checked' : ''}> Keep publishing token after closing the browser (trusted personal device only)</label>
+    <p class="hint">By default, the token lasts only for this browser tab session. Without a token, encrypted edits stay on this device until you reconnect. A stored token can be read by scripts running on this site, so only enable longer retention on a trusted device.</p>
     <label class="check"><input type="checkbox" name="autoPublish" ${gh.autoPublish ? 'checked' : ''}> Publish automatically after changes</label>
     <button class="btn block" type="submit">Save GitHub details</button>
   </form>
@@ -5690,12 +5702,12 @@ document.addEventListener('submit', async e => {
       { sport: M.SPORTS.includes(str('teamSport')) ? str('teamSport') : '' },
       arr(ws.clubs).find(c => c.id === clubId));
     const copySetup = !!source && !!f.get('copySettings');
-    if (copySetup && source.team.clubId !== clubId) {
-      fieldError(form, 'clubId', 'Reuse requires the same club. Untick the setup option to create a fresh team.'); return;
-    }
-    if (copySetup && M.teamSport(source.team, M.clubOf(ws, source)) !== sport) {
-      fieldError(form, 'teamSport', 'Reuse requires the same sport. Untick the setup option to create a fresh team.'); return;
-    }
+    const withLibrary = !!source && !!f.get('withLibrary');
+    const reuseIssue = setupReuseIssue({
+      source, sourceSport: source ? M.teamSport(source.team, M.clubOf(ws, source)) : '',
+      clubId, sport, copySettings, withLibrary
+    });
+    if (reuseIssue) { fieldError(form, reuseIssue.field, reuseIssue.message); return; }
     const t = normalize({ ...defaultData(), id: M.uid() });
     Object.assign(t.team, {
       name, event: str('event'), eventStart: str('eventStart'), eventEnd: str('eventEnd'),
@@ -5706,8 +5718,7 @@ document.addEventListener('submit', async e => {
       venue: '', trainingVenue: '', trainingStart: '', trainingEnd: '',
       maxMales: '', rules: '', bylaws: [], staff: [], tasksContact: { name: '', phone: '' }
     });
-    if (copySetup) ['venue', 'trainingVenue', 'trainingStart', 'trainingEnd', 'maxMales', 'field', 'rules', 'bylaws']
-      .forEach(k => { t.team[k] = clone(source.team[k]); });
+    if (copySetup) reuseTeamFields(source.team, t.team);
     t.team.rulesSeen = M.RULES.pack;
     if (copySetup && source.team.positionsCustom === true) {
       t.team.positions = arr(source.team.positions).slice(); t.team.positionsCustom = true;
@@ -5716,7 +5727,7 @@ document.addEventListener('submit', async e => {
     }
     t.teamPass = pass; t.teamSalt = '';
     M.addTeam(ws, t);
-    if (source && f.get('withLibrary')) ['plays', 'systems', 'playerSets']
+    if (withLibrary) ['plays', 'systems', 'playerSets']
       .forEach(k => M.libItems(ws, k).forEach(li => M.libAdd(ws, t, k, li.id)));
     pickTeam(t.id); Object.assign(state, { lineupId: null, playId: null, msgDraft: null, tab: 'home', newTeamClub: null, teamTemplateSource: '' });
     history.replaceState(null, '', '#home');
@@ -5943,7 +5954,9 @@ document.addEventListener('submit', async e => {
   }
   if (kind === 'github') {
     const changed = gh.owner !== str('owner') || gh.repo !== str('repo');
-    Object.assign(gh, { owner: str('owner'), repo: str('repo'), token: str('token'), autoPublish: !!f.get('autoPublish') });
+    const token = f.get('clearToken') ? '' : raw('token').trim() || gh.token;
+    Object.assign(gh, { owner: str('owner'), repo: str('repo'), token,
+      rememberToken: !!f.get('rememberToken'), autoPublish: !!f.get('autoPublish') });
     if (changed) { S.baseSha = null; delete gh.defaultBranch; }
     saveGh(); renderStatus();
     if (state.sheet === 'github') closeSheet();
