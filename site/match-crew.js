@@ -90,7 +90,9 @@ export function canCrewServe(person, team, role, date) {
   if (!ymd(date) || !season || current !== season) return 'Season registration unverified for ' + sport;
   if (p.squadYears[team.id] !== season) return crewProfile(sport).provider + ' team allocation unverified';
   if (p.wwccStatus !== 'checked' || !p.wwccExpiry || p.wwccExpiry < date) return 'WWCC verification missing or expired';
-  if (role !== 'manager' && (!p.accreditation[role] || p.accreditation[role] < date)) return 'Role accreditation unverified or expired';
+  const needsAcc = ['yellow','green','blue','orange','firstAid'].includes(role)
+    || (['coach','assistant'].includes(role) && sport !== 'Oztag');
+  if (needsAcc && (!p.accreditation[role] || p.accreditation[role] < date)) return 'Role accreditation unverified or expired';
   return '';
 }
 export function matchCrewCheck(people, team, match, policy) {
