@@ -16,7 +16,7 @@ with sync_playwright() as p:
         page.get_by_text('Load a sample squad').click()
         page.goto(url + '#plays')
         page.wait_for_selector('.play-row')
-        page.locator('.play-row').filter(has_text='Quickie Out').click()
+        page.locator('.play-row[data-id="quickie-out"]').click()
         checks.ok(page.locator('[data-act=play-mode][data-mode=watch][aria-pressed=true]').count() == 1,
                   f'[{width}] coach opens existing Watch mode without breaking the legacy workflow')
         checks.ok(page.locator('#anim-seek').count() == 1, f'[{width}] animation exposes a keyboard-operable seek control')
@@ -54,7 +54,7 @@ with sync_playwright() as p:
                   f'[{width}] learning layout does not overflow viewport')
         page.evaluate(act, ['preview-on', {}])
         page.locator('[data-act=play-back]').click()
-        page.locator('.play-row').filter(has_text='Quickie Out').click()
+        page.locator('.play-row[data-id="quickie-out"]').click()
         checks.ok(page.locator('[data-act=play-mode][data-mode=learn][aria-pressed=true]').count() == 1,
                   f'[{width}] actual player-facing preview starts in Learn mode')
         checks.ok(page.locator('[data-act=play-edit], [data-act=play-del]').count() == 0,
