@@ -19,7 +19,7 @@ Exact minimum people and combinations are **not** hard-coded, since league, age,
 ## Scope
 
 - **Team → Match staff** (coach only): club-wide directory for the current club, or team-only staff where a club has not been assigned; eligibility roles Coach, Assistant Coach, Manager, yellow (LeagueSafe), green (League First Aid), blue (Level 1), orange (Level 2).
-- Each record captures only name, team/club availability, eligible roles, which MySideline member-type registrations have been manually verified for the season, role-specific accreditation expiry, WWCC clearance checked and expiry, and active/inactive status.
+- Each record captures only name, team/club availability, eligible roles, which MySideline member-type registrations have been manually verified for the season, **per-team MySideline squad allocation confirmation**, role-specific accreditation expiry, WWCC clearance checked and expiry, and active/inactive status.
 - **No** WWCC numbers, personal account IDs, DOBs, certificates, identity scans, login credentials or registration API calls. Staff record belongs to the encrypted **coach** workspace only and is not in the published player-copy view.
 - **Match sheet → Match-day staff:** assign a specific person to one actual job for that match; mark confirmed or pending. A person's skills can span jobs but cannot be counted twice on the same match roster.
 - Configurable combination minimums including `firstResponder` (green/blue/orange), `level1` (blue/orange), individual shirt colours, coach, assistant and manager. Multiple overlapping categories require **distinct** confirmed people; the matching algorithm cannot count one person towards two minima.
