@@ -2386,7 +2386,11 @@ function playFigure(p, side, i) {
       <button type="button" class="btn sm primary" data-act="anim-play">${anim.playing ? 'Pause' : anim.done ? 'Play again' : 'Play'}</button>
       <button type="button" class="btn sm${anim.slow ? ' on' : ''}" data-act="anim-slow" aria-pressed="${!!anim.slow}">Slow</button>
       ${n > 1 ? `<span class="muted small">Phase ${i + 1} of ${n}</span>` : ''}
-    </div>`;
+      <button type="button" class="btn sm" data-act="anim-restart">Restart</button>
+    </div>
+    <div class="anim-timeline"><label for="anim-seek">Animation progress</label>
+      <input id="anim-seek" data-input="anim-seek" type="range" min="0" max="100" step="1" value="0" aria-label="Seek within this phase">
+      <output id="anim-pct" for="anim-seek">0%</output></div>`;
 }
 
 // What the labels mean, when they aren't Oztag's: "7 Halfback · 9 Hooker ..."
@@ -2553,6 +2557,24 @@ function animStop(keepDone) {
 }
 function animButtons() {
   const b = $('[data-act="anim-play"]'); if (b) b.textContent = anim.playing ? 'Pause' : anim.done ? 'Play again' : 'Play';
+  const r = $('#anim-seek'), out = $('#anim-pct');
+  const pct = anim.plan && anim.plan.T ? clamp(Math.round(100 * anim.t / anim.plan.T), 0, 100) : 0;
+  if (r) r.value = String(pct);
+  if (out) out.textContent = pct + '%';
+}
+function animSeek(pct) {
+  if (state.playMode !== 'watch') return;
+  const p = playById(state.playId); if (!p) return;
+  animStop();
+  if (!anim.plan || anim.planFor !== `${p.id}/${state.playSide}/${state.playPhase}`) {
+    animShowPhase(p, state.playPhase);
+    anim.planFor = `${p.id}/${state.playSide}/${state.playPhase}`;
+  }
+  anim.t = anim.plan.T * clamp(Number(pct) / 100 || 0, 0, 1);
+  const svg = $('#play-fig svg');
+  if (svg) animFrame(svg, anim.plan, anim.t);
+  anim.done = anim.t >= anim.plan.T;
+  animButtons();
 }
 function animShowPhase(p, i) {
   state.playPhase = i;
@@ -2585,6 +2607,7 @@ function animStart() {
     } else {
       anim.t = Math.min(anim.plan.T, anim.t + dt);
       animFrame(svg, anim.plan, anim.t);
+      animButtons();
       if (anim.t >= anim.plan.T) {
         if (state.playPhase < phaseCount(p) - 1) anim.hold = 0.9;
         else { anim.playing = false; anim.done = true; anim.raf = 0; animButtons(); return; }
@@ -4172,7 +4195,7 @@ function afterJersey(p, msg) {
 // they were and opened read-only (with a deliberate "make a correction" step), and the next season is
 // set up by picking who carries over. Nothing from one season's schedule is copied into the next.
 const SAFE_ACTS = new Set(('tab nav close-sheet settings layout layout-width lock-mode refresh sign-out squad-filter train-view report-range toggle-past attendance '
-  + 'lineup-menu layer system sys-side sys-play task-view task-filter task-waiting play-open play-phase anim-play anim-slow play-back play-side plays-view psets '
+  + 'lineup-menu layer system sys-side sys-play task-view task-filter task-waiting play-open play-phase anim-play anim-slow anim-restart play-back play-side play-mode study-prev study-next plays-view psets '
   + 'preview-on preview-off teams team-switch team-pick home-scope home-days home-more home-go updates rules-open rules-seen review-system review-play club-open '
   + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open').split(' '));
 const pastMsg = () => V && V.viewSeason ? `${V.viewSeason.name} is read-only. Go back to the current season, or make a correction.` : 'Start a season first: Seasons, from the season under the team name.';
@@ -5107,12 +5130,26 @@ const actions = {
   }),
   'wa-helper': coachOnly(el => { const h = data.helpers.find(x => x.id === el.dataset.id); if (!h || !h.phone) return; sendWa(`Hi ${firstName(h)}, `, { to: h.name, phone: h.phone, ref: 'helper:' + h.id }); }),
   'sys-share': coachOnly(() => { const sys = curSystem(); if (!sys) return; sendWa(systemShareText(sys, curLineup()), { ref: 'system:' + sys.id }); }),
-  'play-open': el => { state.playId = el.dataset.id; state.playPhase = 0; render(); window.scrollTo(0, 0); },
+  'play-open': el => {
+    animStop(); state.playId = el.dataset.id; state.playPhase = 0;
+    state.studyIndex = 0; state.studyRole = 'all'; state.playMode = isCoach() ? 'watch' : 'learn';
+    render(); window.scrollTo(0, 0);
+  },
+  'play-mode': el => {
+    animStop(); state.playMode = el.dataset.mode === 'watch' ? 'watch' : 'learn';
+    state.playPhase = 0; state.studyIndex = 0; render();
+  },
+  'study-prev': () => { animStop(); state.studyIndex = Math.max(0, state.studyIndex - 1); render(); },
+  'study-next': () => {
+    const p = playById(state.playId); if (!p) return;
+    animStop(); state.studyIndex = Math.min(studySequence(p, state.playSide).length - 1, state.studyIndex + 1); render();
+  },
   'play-phase': el => { const p = playById(state.playId); if (!p) return; animStop(); animShowPhase(p, Number(el.dataset.i)); anim.planFor = null; },
   'anim-play': () => animStart(),
   'anim-slow': el => { anim.slow = !anim.slow; el.classList.toggle('on', anim.slow); el.setAttribute('aria-pressed', String(anim.slow)); },
-  'play-back': () => { state.playId = null; render(); window.scrollTo(0, 0); },
-  'play-side': el => { state.playSide = el.dataset.side; render(); },
+  'anim-restart': () => { animSeek(0); },
+  'play-back': () => { animStop(); state.playId = null; state.playMode = null; render(); window.scrollTo(0, 0); },
+  'play-side': el => { animStop(); state.playSide = el.dataset.side; render(); },
   'play-new': coachOnly(() => openPlayEditor(null)),
   'play-edit': coachOnly(el => { const p = playById(el.dataset.id); if (p) openPlayEditor(p); }),
   'play-dup': coachOnly(el => {
@@ -5508,6 +5545,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('input', e => {
   const k = e.target.dataset.input; if (!k) return;
   if (k === 'squad-search') { state.squadSearch = e.target.value; const l = $('#squad-list'); if (l) l.innerHTML = squadList(); }
+  if (k === 'anim-seek') animSeek(e.target.value);
   if (k === 'team-positions') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'msg') state.msgDraft = e.target.value;
   if (k === 'ped-ptitle' && state.ped) { pedCur(state.ped).title = e.target.value; state.ped.dirty = true; }
@@ -5523,6 +5561,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
+  if (k === 'study-role') { state.studyRole = e.target.value; render(); }
   if (k === 'team-context') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'player-photo') {
     const inp = e.target, form = inp.closest('form');
