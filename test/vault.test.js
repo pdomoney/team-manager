@@ -75,6 +75,16 @@ test('players get the whole play drawing, including its notes and labels', () =>
   assert.deepEqual(v.plays[0], play);
 });
 
+test('coach-authored teaching cues reach only the intended encrypted players copy', () => {
+  const play = { id: 't1', name: 'Teach me', moves: [{ t: 'run', pts: [[25,46],[25,40]] }], study: [
+    { title: 'First action', text: 'RM runs', roles: ['RM'], moves: [0] }
+  ], phases: [{ title: 'Next', study: [{ title: 'Second action', text: 'LM passes', moves: [], roles: ['LM'] }] }], coachDraft: 'private coach note' };
+  const v = teamView({ ...sample, plays: [play] });
+  assert.deepEqual(v.plays[0].study, play.study);
+  assert.deepEqual(v.plays[0].phases[0].study, play.phases[0].study);
+  assert.equal(JSON.stringify(v).includes('private coach note'), false);
+});
+
 test('players get the coach’s changes to the game systems, and nothing else from them', () => {
   const systems = { slide: { pos: { LR: [24, 47] }, points: ['Talk to the sweeper.'], jobs: { Wings: 'Stay home.' }, note: 'coach only' }, bad: null };
   const v = teamView({ ...sample, systems });

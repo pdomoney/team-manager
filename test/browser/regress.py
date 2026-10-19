@@ -80,7 +80,7 @@ with sync_playwright() as p:
         pg.click('[data-act=anim-play]'); pg.wait_for_timeout(400)
         c.ok(pg.evaluate('window.__team.anim.playing || window.__team.anim.done'), W + ' animation runs')
         pg.click('[data-act=play-edit]'); pg.wait_for_selector('#sheet form[data-form=play]')
-        pg.fill('#sheet input[name=name]', 'Edited play'); pg.click('#sheet [data-act=ped-tool][data-t=run]')
+        pg.fill('#sheet input[name=name]', 'Edited play'); pg.click('#sheet [data-act=ped-tab][data-tab=diagram]'); pg.click('#sheet [data-act=ped-tool][data-t=run]')
         pg.click('#sheet form[data-form=play] button[type=submit]'); pg.wait_for_timeout(150)
         c.ok(d("D.plays.some(p => p.name === 'Edited play')"), W + ' play edited and saved')
         pg.click('[data-act=play-dup]'); pg.wait_for_timeout(100)
