@@ -27,7 +27,7 @@ import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
-import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
+import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
 import * as M from './model.js';
 
@@ -3426,7 +3426,7 @@ const crewPerson = id => arr(ws.matchOfficials).find(p => p.id === id);
 const crewPolicy = (m = null) => normCrewRules(m?.crewPolicy || data.team.crewPolicy);
 const crewStatus = m => {
   const scoped={...data,team:{...data.team,sport:M.teamSport(data.team,M.clubOf(ws,data))}};
-  const report = matchCrewCheck(arr(ws.matchOfficials), scoped, m, crewPolicy(m));
+  const report = matchCrewCheck(arr(ws.matchOfficials), scoped, m, crewPolicy(m), m ? M.matchKind(ws,m) : null);
   const clashes = crewScheduleClashes(M.teamsOf(ws), data.id, m);
   return { ...report, ready: report.ready && !clashes.length,
     issues: [...report.issues, ...clashes.map(c => `${crewPerson(c.personId)?.name || 'Staff member'} may be double-booked vs ${c.opponent} (${c.start || 'time TBC'}). Check this before relying on coverage.`)] };
@@ -3439,6 +3439,11 @@ function viewCrew() {
   const selectedId = intakeClubId();
   const directoryClub = arr(ws.clubs).find(c => c.id === selectedId);
   const pool = selectedId ? localClubDirectory(arr(ws.matchOfficials),selectedId,M.activeTeams(ws)) : crewPool();
+  const context = crewPolicyContext({team:{...data.team,sport}});
+  const selectedPolicyEntry = rules.competitionId ? M.teamEntries(ws,data.id,(M.activeSeason(data)||{}).id)
+    .find(({comp})=>comp.id===rules.competitionId) : null;
+  const contextValid = policyFitsContext(rules,{team:{...data.team,sport}},selectedPolicyEntry);
+  const policyScope = selectedPolicyEntry?.comp?.name || 'Friendly / unlinked matches';
   return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div>
     <div class="crew-context"><span class="sub">Team: <strong>${esc(data.team.name)}</strong> · ${esc(sport)} · ${esc(profile.provider)}</span>
     <button class="btn sm" data-act="crew-switch">Change team</button></div>
@@ -3450,15 +3455,16 @@ function viewCrew() {
       <button class="btn sm" type="submit">View directory</button>
     </form>
     <section class="sec crew-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">Configure</button></div>
-      <p class="hint">Match staffing differs by sport, competition, age group and season. Verify requirements against this team’s official competition rules; no minimums are pre-approved.</p>
-      ${rules.source && rules.rows.length && rules.sport === sport ? `<div class="crew-status"><strong>Season ${esc(rules.year || 'not set')}</strong>
-        <span class="sub">${esc(rules.source)}</span></div>
+      <p class="hint">Current team: <strong>${esc(sport)}</strong> · ${esc(M.TEAM_CATEGORIES[context.category] || 'Category unrecorded')} · ${esc(context.ageGroup || 'Age group unrecorded')} · ${esc(context.division || 'Division unrecorded')}. Requirements can differ between competitions, age groups and categories. Record only the current official competition rules.</p>
+      ${rules.source && rules.rows.length && contextValid ? `<div class="crew-status"><strong>Season ${esc(rules.year || 'not set')}</strong>
+        <span class="sub">${esc(policyScope)} · ${esc(rules.source)}${rules.reviewedAt ? ' · recorded '+esc(rules.reviewedAt):''}</span></div>
+        ${rules.sourceUrl ? `<p class="hint"><a href="${esc(rules.sourceUrl)}" target="_blank" rel="noopener noreferrer">Open recorded competition rule reference</a></p>` : ''}
         <ul class="crew-req">${rules.rows.map(r => `<li>${r.min} × ${esc(REQUIREMENT_ROLES[r.role])}</li>`).join('')}</ul>`
-        : `<p class="crew-notready">${rules.source && rules.sport !== sport ? 'Existing staffing rules belong to another sport. Review these for '+esc(sport)+'.' : 'No reviewed rules configured for '+esc(sport)+' — staffing cannot be marked ready.'}</p>`}
+        : `<p class="crew-notready">${rules.source ? 'Existing requirements were reviewed for another age group, category, division or competition. Configure the current context before marking staffing ready.' : 'No reviewed staffing requirements configured. Staffing cannot be marked ready.'}</p>`}
     </section>
     <section class="sec crew-section"><h3>${esc(directoryClub?.name || 'Current team')} volunteer directory (${pool.length})</h3>
-      ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="${inTeamPool(p,data) ? 'crew-edit' : 'crew-basic'}" data-id="${esc(p.id)}">
-        <span class="grow"><span class="name">${esc(p.name)}</span><span class="sub" style="display:block">${inTeamPool(p,data) ? (crewRolesForSport(p,sport).map(r=>esc(CREW_ROLES[r])).join(' · ') || 'No roles reviewed for this team sport') : 'Member of this club. Select its team to review eligible roles.'}</span>
+      ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="crew-basic" data-id="${esc(p.id)}">
+        <span class="crew-avatar">${M.validPhoto(p.photo) ? `<img src="${p.photo}" alt="">` : esc(initials(p)||'?')}</span><span class="grow"><span class="name">${esc(p.name)}</span><span class="sub" style="display:block">${inTeamPool(p,data) ? (crewRolesForSport(p,sport).map(r=>esc(CREW_ROLES[r])).join(' · ') || 'No roles reviewed for this team sport') : 'Member of this club. Select its team to review eligible roles.'}</span>
         <span class="sub" style="display:block">${p.active ? 'Available for selection' : 'Inactive'} · ${p.wwccStatus === 'checked' ? 'WWCC details manually checked' : 'WWCC unverified'}</span></span>
         ${icon('chevron-right', 18)}
       </button>`).join('')}</div>`
@@ -3503,6 +3509,8 @@ function crewManualForm(clubId) {
     '<p class="hint">Adding to ' + esc(intakeClubLabel(clubId)) + '. This creates a local coach-recorded directory entry, not an account. Qualifications are not verified automatically.</p>' +
     crewField('name','Full name','','text','required maxlength="120"') +
     crewField('email','Email (optional)','','email','maxlength="254" placeholder="volunteer@example.com"') +
+    crewField('phone','Mobile / contact number (optional)','','tel','maxlength="40"') +
+    (clubId ? crewField('joined','First joined club (year, optional)','','number','min="1900" max="'+String(new Date().getFullYear())+'"') : '') +
     '<label class="field-l"><span>Team assignment (optional)</span><select name="teamId">' +
     intakeTeamOptions(clubId) + '</select><small>Club membership comes first. You can add a team and enter the sport-specific qualifications later.</small></label>' +
     '<button class="btn primary block" type="submit">Save volunteer record</button>' +
@@ -3533,15 +3541,44 @@ function crewInviteForm(clubId) {
     '<button class="btn block" type="button" data-act="crew-intake-back">Back</button></form>';
 }
 function crewBasicForm(person) {
-  const p=normCrewPerson(person);
+  const p=normCrewPerson(person), id=intakeClubId();
+  const selected = arr(ws.clubs).find(c=>c.id===id);
+  const sameClub = !!selected && (memberOfClub(p,id) || intakeClubTeams(id).some(t=>p.teamIds.includes(t.id)));
+  const validYear = String(new Date().getFullYear());
+  const since=p.clubSince?.[id]||'';
+  const years=since ? Math.max(0,Number(validYear)-Number(since)) : null;
+  const qualifications=Object.entries(p.rolesBySport||{}).flatMap(([sport,roles])=>arr(roles).map(role=>{
+    const from=p.qualificationSinceBySport?.[sport]?.[role]||'';
+    const until=p.accreditationBySport?.[sport]?.[role]||p.accreditation?.[role]||'';
+    return '<li>'+esc(sport)+' · '+esc(CREW_ROLES[role]||role)+
+      (from?' · qualified since '+esc(from):' · qualification year not recorded')+
+      (until?' · expiry '+esc(until):' · expiry not recorded')+'</li>';
+  }));
+  const eligibleTeams=intakeClubTeams(id).filter(t=>inTeamPool(p,t));
   return '<form data-form="crew-basic" autocomplete="off"><input type="hidden" name="id" value="'+esc(p.id)+'">' +
-    '<p class="hint">Edit the directory profile. Registration and qualifications must be reviewed for each team and sport separately.</p>' +
+    '<input type="hidden" name="clubId" value="'+esc(sameClub?id:'')+'">' +
+    '<p class="hint">Private club personnel record. Registration and accreditation are checked separately for every sport and team, not verified automatically.</p>' +
+    '<div class="photo-row"><span class="photo-prev">'+(M.validPhoto(p.photo)
+      ? '<span class="pphoto big"><img src="'+p.photo+'" alt=""></span>'
+      : '<span class="pphoto big none" aria-hidden="true">'+esc(initials(p)||'?')+'</span>')+'</span>' +
+    '<div><label class="btn sm file-btn"><input type="file" accept="image/*" data-change="crew-photo" aria-label="Choose volunteer photo">Choose photo</label>' +
+    '<button class="btn sm" type="button" data-act="crew-photo-clear" '+(!p.photo?'hidden':'')+'>Remove photo</button></div></div>' +
+    '<input type="hidden" name="photo" value="'+esc(p.photo)+'">' +
+    '<p class="hint">Photo remains in the encrypted coach workspace only. Keep photos small and obtain the volunteer’s permission.</p>' +
     crewField('name','Full name',p.name,'text','required maxlength="120"') +
-    crewField('email','Email (optional)',p.email,'email','maxlength="254"') +
-    '<label class="check"><input type="checkbox" name="active" '+(p.active?'checked':'')+'><span>Available for consideration</span></label>' +
-    '<button class="btn primary block" type="submit">Save profile</button>' +
-    (inTeamPool(p,data) ? '<button class="btn block" type="button" data-act="crew-edit" data-id="'+esc(p.id)+'">Review roles for current team</button>' : '') +
-    '</form>';
+    '<div class="two">'+crewField('email','Email (optional)',p.email,'email','maxlength="254"')+
+    crewField('phone','Mobile / contact phone (optional)',p.phone,'tel','maxlength="40"')+'</div>' +
+    (sameClub ? crewField('joined','First joined '+esc(selected.name)+' (year)',since,'number','min="1900" max="'+validYear+'" placeholder="e.g. 2020"')+
+      '<p class="hint">'+(years===null?'Club service start has not been recorded.':esc(years)+' calendar years since first joining; this does not prove uninterrupted service.')+'</p>' : '')+
+    '<h3 class="form-sec">Qualifications and accreditation</h3>' +
+    '<p class="hint">Years first qualified, expiry dates, training and registration are maintained by sport and team. No qualification is assumed by having a club profile.</p>' +
+    (qualifications.length?'<ul class="crew-req">'+qualifications.join('')+'</ul>':'<p class="muted small">No accredited roles reviewed yet.</p>')+
+    (eligibleTeams.length?'<label class="field-l"><span>Review qualifications for team</span><select name="reviewTeam">'+
+      '<option value="">Choose a team</option>'+eligibleTeams.map(t=>'<option value="'+esc(t.id)+'">'+esc(M.teamName(t))+' · '+esc(M.teamSport(t.team,M.clubOf(ws,t)))+'</option>').join('')+'</select></label>'+
+      '<button class="btn block" type="button" data-act="crew-profile-review">Review sport roles and accreditation</button>':
+      '<p class="hint">Link this person to a team using Add volunteer → Existing volunteer before editing team-specific qualifications.</p>')+
+    '<label class="check"><input type="checkbox" name="active" '+(p.active?'checked':'')+'><span>Available for consideration</span></label>'+
+    '<button class="btn primary block" type="submit">Save volunteer profile</button></form>';
 }
 
 function crewChooseTeamForm(view=false) {
@@ -3572,9 +3609,9 @@ function crewPersonForm(person) {
     <h3 class="form-sec">Team association verified</h3>
     <p class="hint">Check this person’s association with ${esc(data.team.name)} in ${esc(profile.provider)} or authorised club records. Club-wide availability is not team eligibility.</p>
     ${crewField('squad-year','Team association confirmed for this season', p.squadYears?.[data.id] || '', 'number','min="2020" max="2100" placeholder="2026"')}
-    <h3 class="form-sec">Accreditation expiry (confirmed)</h3>
-    <p class="hint">Record role-specific training and expiry when verified. General first aid and sports trainer qualifications are not automatically interchangeable.</p>
-    <div class="two">${Object.entries(CREW_ROLES).filter(([r]) => crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r)).map(([r,label]) => crewField('acc-' + r, label, p.accreditation[r], 'date')).join('')}</div>
+    <h3 class="form-sec">Sport-specific accreditation history</h3>
+    <p class="hint">Record the year first qualified and the latest confirmed expiry for each relevant ${esc(sport)} role. This is not proof of registration or currency.</p>
+    <div class="crew-qual-grid">${Object.entries(CREW_ROLES).filter(([r]) => crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r)).map(([r,label]) => `<fieldset class="crew-qual-row"><legend>${esc(label)}</legend><div class="two">${crewField('qualified-'+r,'Qualified since (year)',p.qualificationSinceBySport?.[sport]?.[r]||'','number','min="1900" max="2100" placeholder="e.g. 2018"')}${crewField('acc-'+r,'Accreditation expires',p.accreditationBySport?.[sport]?.[r] ?? p.accreditation[r],'date')}</div></fieldset>`).join('')}</div>
     <h3 class="form-sec">Working With Children Check</h3>
     <label class="check"><input type="checkbox" name="wwccChecked" ${p.wwccStatus === 'checked' ? 'checked' : ''}><span>Club has independently confirmed the relevant clearance</span></label>
     ${crewField('wwccExpiry', 'WWCC expiry', p.wwccExpiry, 'date')}
@@ -3584,21 +3621,44 @@ function crewPersonForm(person) {
   </form>`;
 }
 function crewPolicyForm(match = null) {
-  const p = crewPolicy(match), sport = M.teamSport(data.team, M.clubOf(ws,data));
-  const existingRows = p.sport === sport ? p.rows : [];
-  return `<form data-form="crew-policy" autocomplete="off">
-    <input type="hidden" name="matchId" value="${esc(match?.id || '')}">
-    <p class="hint">${match ? 'These requirements override the team defaults for this match only. ' : 'These are team-wide defaults. '}These are not national defaults. Confirm the current ${esc(sport)} age-group and competition requirements. The rugby league shirt rules must not be applied to other sports.</p>
-    ${crewField('year','Applicable season', p.year || String(new Date().getFullYear()), 'number','required min="2020" max="2100"')}
-    ${crewField('source','Official competition / policy reference', p.sport === sport ? p.source : '', 'text', 'required maxlength="250" placeholder="Sport, competition and official rule/year"')}
-    <h3 class="form-sec">Minimum distinct people by role</h3>
-    <p class="hint">Only enter requirements verified for ${esc(sport)}. One person cannot fulfil two separate match-day jobs simultaneously.</p>
-    <div class="crew-rule-grid">${Object.entries(REQUIREMENT_ROLES).filter(([r]) => crewRequirementAllowed(sport,r)).map(([r,label]) => `<label class="field-l"><span>${esc(label)}</span><input type="number" name="min-${r}" inputmode="numeric" min="0" max="12" value="${existingRows.find(x => x.role === r)?.min || 0}"></label>`).join('')}</div>
-    <button class="btn primary block" type="submit">Save reviewed ${match ? 'match' : 'team'} requirements</button>
-    ${match?.crewPolicy ? `<button class="btn block" type="button" data-act="crew-policy-reset" data-id="${esc(match.id)}">Use team requirements instead</button>` : ''}
-    <p class="hint">A rule set with no required roles is treated as unconfigured. Recheck the reference for each new season.</p>
-  </form>`;
+  const p = crewPolicy(match), sport=M.teamSport(data.team,M.clubOf(ws,data));
+  const sid=(M.activeSeason(data)||{}).id;
+  const entries=M.teamEntries(ws,data.id,sid).filter(({entry})=>entry.status==='entered');
+  const matchCompetition=match ? M.matchKind(ws,match) : null;
+  const initial=match ? matchCompetition : entries.find(({comp})=>comp.id===p.competitionId)||null;
+  const scoped={...data,team:{...data.team,sport}};
+  const ctx=crewPolicyContext(scoped,initial);
+  const exact=policyFitsContext(p,scoped,initial);
+  const existingRows=exact ? p.rows : [];
+  const year=match?.date?.slice(0,4) || String(new Date().getFullYear());
+  const contextSummary = [sport, M.TEAM_CATEGORIES[ctx.category] || 'Unspecified category',ctx.ageGroup || 'Unspecified age group',
+    ctx.division || 'Unspecified division'].join(' · ');
+  return '<form data-form="crew-policy" autocomplete="off">' +
+    '<input type="hidden" name="matchId" value="'+esc(match?.id||'')+'">' +
+    '<p class="hint">These requirements apply only to the sport, gender/category, age group, division, competition and season that were actually reviewed. Other teams or competitions must not inherit them automatically.</p>' +
+    '<div class="crew-policy-context"><strong>Current team context</strong><p>'+esc(contextSummary)+'</p></div>'+
+    (match ? '<p class="hint">Match competition: '+esc(matchCompetition?.comp?.name||'Friendly / not linked')+
+      (matchCompetition?.entry?.division?' · '+esc(matchCompetition.entry.division):'')+'</p>' :
+      '<label class="field-l"><span>Competition this policy applies to</span><select name="competitionId">'+
+      '<option value="">Friendly / unlinked games only</option>'+
+      entries.map(({comp,entry})=>'<option value="'+esc(comp.id)+'" '+(comp.id===p.competitionId?'selected':'')+'>'+
+        esc(comp.name)+(entry.division?' · '+esc(entry.division):'')+'</option>').join('')+
+      '</select><small>Different competitions may have different official staffing requirements. A mismatch prevents a match being marked ready.</small></label>')+
+    crewField('year','Applicable season',exact?p.year||year:year,'number','required min="2020" max="2100"')+
+    crewField('source','Official competition / policy reference',exact?p.source:'','text',
+      'required maxlength="250" placeholder="Association, rule, edition and year"')+
+    crewField('sourceUrl','Official reference URL (optional)',exact?p.sourceUrl:'','url',
+      'maxlength="500" placeholder="https://…"')+
+    '<h3 class="form-sec">Minimum distinct people by role</h3>'+
+    '<p class="hint">Only enter numbers verified in the official requirements for this specific age and gender/category. Zero means the role is not required; no defaults have been assumed.</p>'+
+    '<div class="crew-rule-grid">'+Object.entries(REQUIREMENT_ROLES).filter(([r])=>crewRequirementAllowed(sport,r))
+      .map(([r,label])=>'<label class="field-l"><span>'+esc(label)+'</span><input type="number" name="min-'+r+
+        '" inputmode="numeric" min="0" max="12" value="'+(existingRows.find(x=>x.role===r)?.min||0)+'"></label>').join('')+'</div>'+
+    '<button class="btn primary block" type="submit">Save reviewed '+(match?'match':'team')+' requirements</button>'+
+    (match?.crewPolicy?'<button class="btn block" type="button" data-act="crew-policy-reset" data-id="'+esc(match.id)+'">Use team requirements instead</button>':'')+
+    '<p class="hint">An unconfigured or mismatched policy cannot mark a match ready. Recheck all sources and minima each season.</p></form>';
 }
+
 function crewAssignRow(a, i, pool) {
   const sport = M.teamSport(data.team, M.clubOf(ws, data));
   const roleOptions = Object.entries(CREW_ROLES).filter(([r])=>crewRoleAllowed(sport,r)||r===a?.role);
@@ -5466,6 +5526,21 @@ const actions = {
   'crew-new': coachOnly(() => openSheet('Add a volunteer',crewIntakeStartForm(),'crew-intake-start')),
   'crew-intake-back': coachOnly(() => openSheet('Add a volunteer',crewIntakeStartForm(),'crew-intake-start')),
   'crew-basic': coachOnly(el => { const p = crewPerson(el.dataset.id); if(p) openSheet('Volunteer profile',crewBasicForm(p),'crew-basic'); }),
+  'crew-profile-review': coachOnly(el => {
+    const form=el.closest('form'), p=crewPerson(form?.querySelector('[name=id]')?.value);
+    const teamId=form?.querySelector('[name=reviewTeam]')?.value;
+    const chosen=M.activeTeams(ws).find(t=>t.id===teamId);
+    if(!p||!chosen||!inTeamPool(p,chosen)){toast('Choose a team for which this volunteer is available');return;}
+    pickTeam(chosen.id); state.crewClubId=chosen.team?.clubId||'';
+    openSheet('Review sport qualifications',crewPersonForm(p),'crew-person');
+  }),
+  'crew-photo-clear': coachOnly(el => {
+    const form=el.closest('form');if(!form)return;
+    form.querySelector('[name=photo]').value='';
+    const name=form.querySelector('[name=name]')?.value||'';
+    form.querySelector('.photo-prev').innerHTML='<span class="pphoto big none" aria-hidden="true">'+esc(initials({name})||'?')+'</span>';
+    el.hidden=true;
+  }),
   'crew-switch': coachOnly(() => openSheet('Change match-day staff team',crewChooseTeamForm(true),'crew-pick-view')),
   'crew-reassign': coachOnly(() => openSheet('Choose team and sport',crewChooseTeamForm(),'crew-pick-team')),
   'crew-edit': coachOnly(el => { const p = crewPerson(el.dataset.id); if (p) openSheet(p.name, crewPersonForm(p), 'crew-person'); }),
@@ -5999,6 +6074,15 @@ document.addEventListener('change', e => {
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
   if (k === 'study-role') { state.studyRole = e.target.value; render(); }
   if (k === 'team-context') refreshTeamSportGuide(e.target.closest('form'));
+  if (k === 'crew-photo') {
+    const inp=e.target,form=inp.closest('form');
+    if(!form)return;
+    readPhoto(inp.files&&inp.files[0]).then(photo=>{
+      form.querySelector('[name=photo]').value=photo;
+      form.querySelector('.photo-prev').innerHTML='<span class="pphoto big"><img src="'+photo+'" alt=""></span>';
+      form.querySelector('[data-act=crew-photo-clear]').hidden=false;
+    }).catch(err=>toast(err.message)).finally(()=>{inp.value='';});
+  }
   if (k === 'player-photo') {
     const inp = e.target, form = inp.closest('form');
     readPhoto(inp.files && inp.files[0]).then(d => {
@@ -6330,7 +6414,9 @@ document.addEventListener('submit', async e => {
       const problem=validateManualVolunteer({name:str('name'),email:str('email')},arr(ws.matchOfficials));
       if(problem){fieldError(form,problem.includes('email')?'email':'name',problem);return;}
       const p=normCrewPerson(withClubAssociation({
-        id:uid(),name:str('name'),email:str('email'),roles:[],active:true,
+        id:uid(),name:str('name'),email:str('email'),phone:str('phone'),
+        clubSince: clubId && /^(?:19|20)\d{2}$/.test(str('joined')) ? { [clubId]:str('joined') } : {},
+        roles:[],active:true,
         registrationBySport:{},rolesBySport:{},wwccStatus:'unverified'
       },clubId,teamId));
       ws.matchOfficials=arr(ws.matchOfficials);ws.matchOfficials.push(p);save();
@@ -6350,7 +6436,14 @@ document.addEventListener('submit', async e => {
     const p=crewPerson(str('id')); if(!p){toast('Volunteer no longer exists');return;}
     const problem=validateManualVolunteer({name:str('name'),email:str('email')},arr(ws.matchOfficials).filter(x=>x.id!==p.id));
     if(problem){fieldError(form,problem.includes('email')?'email':'name',problem);return;}
-    const saved=normCrewPerson({...p,name:str('name'),email:str('email'),active:!!f.get('active')});
+    const clubId=str('clubId'), joined=str('joined');
+    if (joined && (!/^(?:19|20)\d{2}$/.test(joined) || Number(joined)>new Date().getFullYear())) {
+      fieldError(form,'joined','Enter a valid year no later than this year');return;
+    }
+    const saved=normCrewPerson({...p,name:str('name'),email:str('email'),phone:str('phone'),
+      photo:str('photo'),clubSince:clubId ?
+        {...p.clubSince,[clubId]:joined} : p.clubSince,
+      active:!!f.get('active')});
     Object.assign(p,saved);save();closeSheet();render();toast('Volunteer profile updated');return;
   }
   if (kind === 'crew-pick-team' || kind === 'crew-pick-view') {
@@ -6380,7 +6473,15 @@ document.addEventListener('submit', async e => {
       registrationBySport: { ...(p?.registrationBySport||{}), [sport]: Object.fromEntries(['coach','volunteer','trainer'].map(k=>[k,str('reg-'+k)])) },
       registration: p?.registration || {},
       squadYears: { ...(p?.squadYears || {}), [data.id]: str('squad-year') },
-      accreditation: { ...(p?.accreditation||{}), ...Object.fromEntries(Object.keys(CREW_ROLES).filter(r=>crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r)).map(k=>[k,str('acc-'+k)])) },
+      accreditation: p?.accreditation || {},
+      qualificationSinceBySport: { ...(p?.qualificationSinceBySport||{}),
+        [sport]: { ...(p?.qualificationSinceBySport?.[sport]||{}),
+          ...Object.fromEntries(Object.keys(CREW_ROLES).filter(r=>crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r))
+            .map(r=>[r,str('qualified-'+r)])) } },
+      accreditationBySport: { ...(p?.accreditationBySport||{}),
+        [sport]: { ...(p?.accreditationBySport?.[sport]||{}),
+          ...Object.fromEntries(Object.keys(CREW_ROLES).filter(r=>crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r))
+            .map(r=>[r,str('acc-'+r)])) } },
       wwccStatus: f.get('wwccChecked') ? 'checked' : 'unverified',
       wwccExpiry: str('wwccExpiry')
     });
@@ -6398,8 +6499,16 @@ document.addEventListener('submit', async e => {
     if (rows.some(r => !Number.isInteger(r.min) || r.min > 12)) { toast('Each minimum must be a whole number from 0 to 12.'); return; }
     const match = str('matchId') ? matchById(str('matchId')) : null;
     if (str('matchId') && !match) { toast('That match is no longer available'); return; }
-    if (match) match.crewPolicy = normCrewRules({ sport, year, source, rows });
-    else data.team.crewPolicy = normCrewRules({ sport, year, source, rows });
+    const selected=match ? M.matchKind(ws,match) :
+      M.teamEntries(ws,data.id,(M.activeSeason(data)||{}).id).find(({comp})=>comp.id===str('competitionId')) || null;
+    if (!match && str('competitionId') && !selected) { fieldError(form,'competitionId','Select a competition for this team');return; }
+    if (match && match.entryId && !selected?.comp) { toast('This match has no valid competition entry. Correct the fixture link first.');return; }
+    const ctx=crewPolicyContext({team:{...data.team,sport}},selected);
+    const sourceUrl=str('sourceUrl');
+    if(sourceUrl && !/^https:\/\/\S+$/i.test(sourceUrl)){fieldError(form,'sourceUrl','Use an official https:// reference URL');return;}
+    const policy=normCrewRules({...ctx,year,source,sourceUrl,rows,reviewedAt:todayISO()});
+    if (match) match.crewPolicy=policy;
+    else data.team.crewPolicy=policy;
     save(); if (match) openMatch(match.id); else { closeSheet(); render(); }
     toast('Requirements recorded. Check each game’s assigned and confirmed staff.');
     return;

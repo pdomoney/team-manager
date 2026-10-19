@@ -63,7 +63,21 @@ const roleList = v => [...new Set(arr(v).filter(x => CREW_ROLES[x]))];
 export const normCrewPerson = p => ({
   id: words(p?.id), name: words(p?.name).slice(0, 120),
   clubId: words(p?.clubId), clubIds: [...new Set(arr(p?.clubIds).filter(x => typeof x === 'string' && x.trim()))],
-  email: words(p?.email).toLowerCase().slice(0, 254), teamIds: [...new Set(arr(p?.teamIds).filter(x => typeof x === 'string'))],
+  email: words(p?.email).toLowerCase().slice(0, 254),
+  phone: words(p?.phone).slice(0, 40),
+  photo: /^data:image\/(?:webp|jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(words(p?.photo)) && words(p?.photo).length <= 80000 ? words(p.photo) : '',
+  clubSince: Object.fromEntries(Object.entries(obj(p?.clubSince)).filter(([club,year]) =>
+    typeof club === 'string' && /^(?:19|20)\d{2}$/.test(String(year))).map(([club,year])=>[club,String(year)])),
+  qualificationSinceBySport: Object.fromEntries(Object.entries(obj(p?.qualificationSinceBySport))
+    .filter(([sport])=>typeof sport==='string' && sport.trim())
+    .map(([sport,dates])=>[sport,Object.fromEntries(Object.entries(obj(dates))
+      .filter(([role,year])=>CREW_ROLES[role] && /^(?:19|20)\d{2}$/.test(String(year)))
+      .map(([role,year])=>[role,String(year)]))])),
+  accreditationBySport: Object.fromEntries(Object.entries(obj(p?.accreditationBySport))
+    .filter(([sport])=>typeof sport==='string' && sport.trim())
+    .map(([sport,dates])=>[sport,Object.fromEntries(Object.entries(obj(dates))
+      .filter(([role])=>CREW_ROLES[role]).map(([role,date])=>[role,ymd(date)]))])),
+  teamIds: [...new Set(arr(p?.teamIds).filter(x => typeof x === 'string'))],
   roles: roleList(p?.roles),
   // Sport assignments are independent; unmodified legacy records remain readable.
   rolesBySport: Object.fromEntries(Object.entries(obj(p?.rolesBySport))
@@ -88,9 +102,31 @@ export function crewRolesForSport(person, sport) {
     ? (p.rolesBySport[sport] || []).filter(role => crewRoleAllowed(sport, role))
     : p.roles.filter(role => crewRoleAllowed(sport, role));
 }
+// A match-day staffing policy is only authoritative for the exact team and
+// competition context that the coach explicitly reviewed. Never infer minimums.
+export const crewPolicyContext = (team, competition = null) => {
+  const t = obj(team?.team);
+  return {
+    sport: crewSport(team),
+    ageGroup: words(t.ageGroup),
+    category: words(t.category),
+    division: words(competition?.entry?.division || t.division),
+    competitionId: words(competition?.comp?.id)
+  };
+};
+export const policyFitsContext = (rule, team, competition = null) => {
+  const p = normCrewRules(rule), ctx = crewPolicyContext(team, competition);
+  return ['sport','ageGroup','category','division','competitionId'].every(k=>p[k]===ctx[k]);
+};
 export const normCrewRules = p => ({
   source: words(p?.source).slice(0, 250),
   sport: words(p?.sport || 'Rugby league'), // legacy reviewed policies were rugby league only
+  ageGroup: words(p?.ageGroup).slice(0,80),
+  category: words(p?.category).slice(0,40),
+  division: words(p?.division).slice(0,120),
+  competitionId: words(p?.competitionId).slice(0,80),
+  sourceUrl: /^https:\/\/\S+$/i.test(words(p?.sourceUrl)) ? words(p.sourceUrl).slice(0,500) : '',
+  reviewedAt: ymd(p?.reviewedAt),
   year: /^\d{4}$/.test(String(p?.year || '')) ? String(p.year) : '',
   rows: arr(p?.rows).filter(r => REQUIREMENT_ROLES[r?.role] && Number.isInteger(+r.min) && +r.min >= 1 && +r.min <= 12)
     .map(r => ({ role: r.role, min: Number(r.min) }))
@@ -108,10 +144,14 @@ export function canCrewServe(person, team, role, date) {
   if (p.wwccStatus !== 'checked' || !p.wwccExpiry || p.wwccExpiry < date) return 'WWCC verification missing or expired';
   const needsAcc = ['yellow','green','blue','orange','firstAid'].includes(role)
     || (['coach','assistant'].includes(role) && sport !== 'Oztag');
-  if (needsAcc && (!p.accreditation[role] || p.accreditation[role] < date)) return 'Role accreditation unverified or expired';
+  const perSport = p.accreditationBySport[sport] || {};
+  // An explicitly cleared sport expiry must not revive an old generic clearance.
+  const accreditationExpiry = Object.prototype.hasOwnProperty.call(perSport,role)
+    ? perSport[role] : p.accreditation[role];
+  if (needsAcc && (!accreditationExpiry || accreditationExpiry < date)) return 'Role accreditation unverified or expired';
   return '';
 }
-export function matchCrewCheck(people, team, match, policy) {
+export function matchCrewCheck(people, team, match, policy, competition = null) {
   const sport = crewSport(team), rules = normCrewRules(policy);
   const rows = arr(match?.crew).filter(a => a && CREW_ROLES[a.role] && typeof a.personId === 'string');
   const duplicates = [...new Set(rows.map(r => r.personId).filter((id, i) => rows.findIndex(x => x.personId === id) !== i))];
@@ -124,7 +164,8 @@ export function matchCrewCheck(people, team, match, policy) {
   // Solve distinct staffing slots across ALL configured requirements. For example,
   // one blue trainer must not simultaneously satisfy "one Level 1" AND "one first responder".
   // Standard augmenting-path matching reassigns eligible people to avoid false shortages.
-  const applicable = rules.rows.filter(r => crewRequirementAllowed(sport, r.role));
+  const contextMatches = policyFitsContext(rules,team,competition) && (!match?.entryId || !!competition?.comp);
+  const applicable = contextMatches ? rules.rows.filter(r => crewRequirementAllowed(sport,r.role)) : [];
   const demand = applicable.flatMap((r, index) =>
     Array.from({ length: r.min }, () => ({ role: r.role, index, eligible: MATCHING[r.role] })));
   demand.sort((a, b) => a.eligible.length - b.eligible.length);
@@ -148,12 +189,15 @@ export function matchCrewCheck(people, team, match, policy) {
     ...r, name: REQUIREMENT_ROLES[r.role],
     have: covered[i], missing: Math.max(0, r.min - covered[i])
   }));
-  const configured = !!rules.source && rules.sport === sport && rules.year === words(match?.date).slice(0, 4)
+  const configured = !!rules.source && contextMatches && rules.year === words(match?.date).slice(0, 4)
     && !!rules.rows.length && applicable.length === rules.rows.length;
   return {
     configured, source: rules.source, slots, shortages,
     ready: configured && shortages.every(x => x.missing === 0) && slots.every(x => x.valid),
-    issues: slots.filter(x => !x.valid).map(x => `${x.name}: ${x.issue}`)
+    issues: [
+      ...(!contextMatches ? ['Staffing rules do not match this match’s sport, age group, category, division or competition. Review the correct official requirements.'] : []),
+      ...slots.filter(x => !x.valid).map(x => `${x.name}: ${x.issue}`)
+    ]
   };
 }
 

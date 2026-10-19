@@ -39,6 +39,8 @@ with sync_playwright() as p:
                  and 'Assemble' in pg.inner_text('#sheet'),
                  f'[{width}] manual team allocation opens correct Oztag role/editor and provider')
             pg.locator(f'#sheet input[name=role][value={role}]').check()
+            if role == 'firstAid':
+                pg.fill('#sheet [name=qualified-firstAid]','2017')
             pg.fill(f'#sheet input[name=reg-{member}]', info['year'])
             pg.fill('#sheet input[name=squad-year]', info['year'])
             if role != 'manager':
@@ -47,6 +49,22 @@ with sync_playwright() as p:
             pg.fill('#sheet input[name=wwccExpiry]', '2036-12-31')
             pg.locator('#sheet form[data-form=crew-person] button[type=submit]').click()
             pg.wait_for_timeout(60)
+        # Extended private volunteer record: phone, club joining year and profile review.
+        pg.locator('#view [data-act=crew-basic]').filter(has_text='Casey Coach').click()
+        c.ok(pg.locator('#sheet form[data-form=crew-basic] [name=phone]').count()==1
+             and pg.locator('#sheet form[data-form=crew-basic] [name=photo]').count()==1
+             and pg.locator('#sheet form[data-form=crew-basic] [name=joined]').count()==1,
+             f'[{width}] private club profile shows phone, image and club service year')
+        pg.fill('#sheet [name=phone]','0400 111 222')
+        pg.fill('#sheet [name=joined]','2018')
+        pg.locator('#sheet form[data-form=crew-basic] button[type=submit]').click()
+        c.ok(pg.evaluate("window.__team.ws.matchOfficials.find(x=>x.name==='Casey Coach').clubSince['st-george-oztag']") is not None
+             or pg.evaluate("() => Object.values(window.__team.ws.matchOfficials.find(x=>x.name==='Casey Coach').clubSince).includes('2018')"),
+             f'[{width}] joined year retained against the actual club ID')
+        c.ok(pg.evaluate("window.__team.ws.matchOfficials.find(x=>x.name==='Casey Coach').phone") == '0400 111 222',
+             f'[{width}] private mobile number persisted')
+        c.ok(pg.evaluate("window.__team.ws.matchOfficials.find(x=>x.name==='Frances First Aid').qualificationSinceBySport.Oztag.firstAid")=='2017',
+             f'[{width}] sport-specific first qualification year persisted')
         people = pg.evaluate("window.__team.ws.matchOfficials")
         scope = pg.evaluate("() => ({club: window.__team.data.team.clubId, team: window.__team.data.id})")
         c.ok(len(people) == 3 and all(
