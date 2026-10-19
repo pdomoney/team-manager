@@ -2472,7 +2472,7 @@ function openPlayerLists() {
 }
 function openPlayerListForm(x) {
   const lines = x ? x.labels.map(l => `${l.code} ${l.name}`).join('\n') : '';
-  openSheet(x && x.id ? `Edit ${x.name}` : 'New player list', `<form data-form="pset" autocomplete="off">
+  openSheet(x && x.id ? `Edit ${x.name}` : 'New diagram role list', `<form data-form="pset" autocomplete="off">
     <input type="hidden" name="id" value="${esc(x && x.id || '')}">
     <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(x ? x.name : '')}" placeholder="e.g. League tag"></label>
     <label class="field-l"><span>Role labels, one per line: code followed by position name</span><textarea name="labels" rows="12" placeholder="1 Fullback&#10;2 Right wing&#10;3 Right centre&#10;4 Left centre&#10;5 Left wing&#10;6 Five-eighth&#10;7 Halfback">${esc(lines)}</textarea>
@@ -5450,7 +5450,7 @@ const actions = {
   'pset-del': coachOnly(el => {
     const id = el.dataset.id, n = data.plays.filter(p => p.set === id).length;
     if (n) { toast(`${n} play${n === 1 ? ' uses' : 's use'} this list. Switch ${n === 1 ? 'it' : 'them'} to another list first.`); return; }
-    if (!confirm('Delete this player list?')) return;
+    if (!confirm('Delete this diagram role list?')) return;
     data.playerSets = data.playerSets.filter(x => x.id !== id); save(); openPlayerLists(); toast('List deleted');
   }),
   'plays-restore': coachOnly(() => {
