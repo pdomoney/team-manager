@@ -148,3 +148,28 @@ test('other sport profiles do not inherit league shirt or first-responder group'
  assert.equal(mod.crewProfile('Touch football').provider.includes('MySideline'),true);
  assert.equal(mod.crewProfile('Rugby union').provider,'Rugby Xplorer');
 });
+
+test('sport-specific match staff roles remain independent after editing another code', async () => {
+  const { crewRolesForSport } = await import('../site/match-crew.js');
+  const p = {
+    ...person('dual', ['coach', 'manager', 'firstAid']),
+    rolesBySport: { Oztag: ['manager', 'firstAid'], 'Rugby league': ['coach'] },
+    registrationBySport: {
+      Oztag: { coach:'2026', volunteer:'2026', trainer:'2026' },
+      'Rugby league': { coach:'2026', volunteer:'2026', trainer:'2026' }
+    },
+    accreditation: { coach:'2027-01-01', firstAid:'2027-01-01' }
+  };
+  const oz = { ...team, team: { ...team.team, sport:'Oztag' } };
+  assert.deepEqual(crewRolesForSport(p, 'Oztag'), ['manager','firstAid']);
+  assert.deepEqual(crewRolesForSport(p, 'Rugby league'), ['coach']);
+  assert.equal(canCrewServe(p, oz, 'firstAid', date), '');
+  assert.match(canCrewServe(p, oz, 'coach', date), /not eligible/);
+  assert.equal(canCrewServe(p, team, 'coach', date), '');
+  assert.match(canCrewServe(p, team, 'firstAid', date), /not eligible/);
+  const changed = { ...p, rolesBySport: { ...p.rolesBySport, 'Rugby league':['manager'] } };
+  assert.deepEqual(crewRolesForSport(changed, 'Oztag'), ['manager','firstAid']);
+  assert.deepEqual(crewRolesForSport(changed, 'Rugby league'), ['manager']);
+  assert.deepEqual(crewRolesForSport(p, 'Touch football'), []);
+  assert.equal(crewRolesForSport(person('legacy', ['blue']), 'Rugby league')[0], 'blue');
+});
