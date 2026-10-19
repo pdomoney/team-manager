@@ -583,7 +583,12 @@ async function loadLatest() {
   }
 }
 
-function signOutNow() { store.del(KEYS.auth); location.hash = ''; location.reload(); }
+function signOutNow() {
+  // Signing out clears the publishing token even after trusted-device opt-in.
+  gh.token = ''; gh.rememberToken = false; saveGh();
+  store.del(KEYS.auth);
+  location.hash = ''; location.reload();
+}
 
 /* =========================================================
    RENDER
