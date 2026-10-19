@@ -3505,6 +3505,8 @@ function crewManualForm(clubId) {
     '<p class="hint">Adding to ' + esc(intakeClubLabel(clubId)) + '. This creates a local coach-recorded directory entry, not an account. Qualifications are not verified automatically.</p>' +
     crewField('name','Full name','','text','required maxlength="120"') +
     crewField('email','Email (optional)','','email','maxlength="254" placeholder="volunteer@example.com"') +
+    crewField('phone','Mobile / contact number (optional)','','tel','maxlength="40"') +
+    (clubId ? crewField('joined','First joined club (year, optional)','','number','min="1900" max="'+String(new Date().getFullYear())+'"') : '') +
     '<label class="field-l"><span>Team assignment (optional)</span><select name="teamId">' +
     intakeTeamOptions(clubId) + '</select><small>Club membership comes first. You can add a team and enter the sport-specific qualifications later.</small></label>' +
     '<button class="btn primary block" type="submit">Save volunteer record</button>' +
@@ -5520,6 +5522,21 @@ const actions = {
   'crew-new': coachOnly(() => openSheet('Add a volunteer',crewIntakeStartForm(),'crew-intake-start')),
   'crew-intake-back': coachOnly(() => openSheet('Add a volunteer',crewIntakeStartForm(),'crew-intake-start')),
   'crew-basic': coachOnly(el => { const p = crewPerson(el.dataset.id); if(p) openSheet('Volunteer profile',crewBasicForm(p),'crew-basic'); }),
+  'crew-profile-review': coachOnly(el => {
+    const form=el.closest('form'), p=crewPerson(form?.querySelector('[name=id]')?.value);
+    const teamId=form?.querySelector('[name=reviewTeam]')?.value;
+    const chosen=M.activeTeams(ws).find(t=>t.id===teamId);
+    if(!p||!chosen||!inTeamPool(p,chosen)){toast('Choose a team for which this volunteer is available');return;}
+    pickTeam(chosen.id); state.crewClubId=chosen.team?.clubId||'';
+    openSheet('Review sport qualifications',crewPersonForm(p),'crew-person');
+  }),
+  'crew-photo-clear': coachOnly(el => {
+    const form=el.closest('form');if(!form)return;
+    form.querySelector('[name=photo]').value='';
+    const name=form.querySelector('[name=name]')?.value||'';
+    form.querySelector('.photo-prev').innerHTML='<span class="pphoto big none" aria-hidden="true">'+esc(initials({name})||'?')+'</span>';
+    el.hidden=true;
+  }),
   'crew-switch': coachOnly(() => openSheet('Change match-day staff team',crewChooseTeamForm(true),'crew-pick-view')),
   'crew-reassign': coachOnly(() => openSheet('Choose team and sport',crewChooseTeamForm(),'crew-pick-team')),
   'crew-edit': coachOnly(el => { const p = crewPerson(el.dataset.id); if (p) openSheet(p.name, crewPersonForm(p), 'crew-person'); }),
@@ -6053,6 +6070,15 @@ document.addEventListener('change', e => {
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
   if (k === 'study-role') { state.studyRole = e.target.value; render(); }
   if (k === 'team-context') refreshTeamSportGuide(e.target.closest('form'));
+  if (k === 'crew-photo') {
+    const inp=e.target,form=inp.closest('form');
+    if(!form)return;
+    readPhoto(inp.files&&inp.files[0]).then(photo=>{
+      form.querySelector('[name=photo]').value=photo;
+      form.querySelector('.photo-prev').innerHTML='<span class="pphoto big"><img src="'+photo+'" alt=""></span>';
+      form.querySelector('[data-act=crew-photo-clear]').hidden=false;
+    }).catch(err=>toast(err.message)).finally(()=>{inp.value='';});
+  }
   if (k === 'player-photo') {
     const inp = e.target, form = inp.closest('form');
     readPhoto(inp.files && inp.files[0]).then(d => {
@@ -6384,7 +6410,9 @@ document.addEventListener('submit', async e => {
       const problem=validateManualVolunteer({name:str('name'),email:str('email')},arr(ws.matchOfficials));
       if(problem){fieldError(form,problem.includes('email')?'email':'name',problem);return;}
       const p=normCrewPerson(withClubAssociation({
-        id:uid(),name:str('name'),email:str('email'),roles:[],active:true,
+        id:uid(),name:str('name'),email:str('email'),phone:str('phone'),
+        clubSince: clubId && /^(?:19|20)\d{2}$/.test(str('joined')) ? { [clubId]:str('joined') } : {},
+        roles:[],active:true,
         registrationBySport:{},rolesBySport:{},wwccStatus:'unverified'
       },clubId,teamId));
       ws.matchOfficials=arr(ws.matchOfficials);ws.matchOfficials.push(p);save();
@@ -6404,7 +6432,14 @@ document.addEventListener('submit', async e => {
     const p=crewPerson(str('id')); if(!p){toast('Volunteer no longer exists');return;}
     const problem=validateManualVolunteer({name:str('name'),email:str('email')},arr(ws.matchOfficials).filter(x=>x.id!==p.id));
     if(problem){fieldError(form,problem.includes('email')?'email':'name',problem);return;}
-    const saved=normCrewPerson({...p,name:str('name'),email:str('email'),active:!!f.get('active')});
+    const clubId=str('clubId'), joined=str('joined');
+    if (joined && (!/^(?:19|20)\d{2}$/.test(joined) || Number(joined)>new Date().getFullYear())) {
+      fieldError(form,'joined','Enter a valid year no later than this year');return;
+    }
+    const saved=normCrewPerson({...p,name:str('name'),email:str('email'),phone:str('phone'),
+      photo:str('photo'),clubSince:clubId && joined ?
+        {...p.clubSince,[clubId]:joined} : p.clubSince,
+      active:!!f.get('active')});
     Object.assign(p,saved);save();closeSheet();render();toast('Volunteer profile updated');return;
   }
   if (kind === 'crew-pick-team' || kind === 'crew-pick-view') {
@@ -6434,7 +6469,15 @@ document.addEventListener('submit', async e => {
       registrationBySport: { ...(p?.registrationBySport||{}), [sport]: Object.fromEntries(['coach','volunteer','trainer'].map(k=>[k,str('reg-'+k)])) },
       registration: p?.registration || {},
       squadYears: { ...(p?.squadYears || {}), [data.id]: str('squad-year') },
-      accreditation: { ...(p?.accreditation||{}), ...Object.fromEntries(Object.keys(CREW_ROLES).filter(r=>crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r)).map(k=>[k,str('acc-'+k)])) },
+      accreditation: p?.accreditation || {},
+      qualificationSinceBySport: { ...(p?.qualificationSinceBySport||{}),
+        [sport]: { ...(p?.qualificationSinceBySport?.[sport]||{}),
+          ...Object.fromEntries(Object.keys(CREW_ROLES).filter(r=>crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r))
+            .map(r=>[r,str('qualified-'+r)])) } },
+      accreditationBySport: { ...(p?.accreditationBySport||{}),
+        [sport]: { ...(p?.accreditationBySport?.[sport]||{}),
+          ...Object.fromEntries(Object.keys(CREW_ROLES).filter(r=>crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r))
+            .map(r=>[r,str('acc-'+r)])) } },
       wwccStatus: f.get('wwccChecked') ? 'checked' : 'unverified',
       wwccExpiry: str('wwccExpiry')
     });
@@ -6452,8 +6495,16 @@ document.addEventListener('submit', async e => {
     if (rows.some(r => !Number.isInteger(r.min) || r.min > 12)) { toast('Each minimum must be a whole number from 0 to 12.'); return; }
     const match = str('matchId') ? matchById(str('matchId')) : null;
     if (str('matchId') && !match) { toast('That match is no longer available'); return; }
-    if (match) match.crewPolicy = normCrewRules({ sport, year, source, rows });
-    else data.team.crewPolicy = normCrewRules({ sport, year, source, rows });
+    const selected=match ? M.matchKind(ws,match) :
+      M.teamEntries(ws,data.id,(M.activeSeason(data)||{}).id).find(({comp})=>comp.id===str('competitionId')) || null;
+    if (!match && str('competitionId') && !selected) { fieldError(form,'competitionId','Select a competition for this team');return; }
+    if (match && match.entryId && !selected?.comp) { toast('This match has no valid competition entry. Correct the fixture link first.');return; }
+    const ctx=crewPolicyContext({team:{...data.team,sport}},selected);
+    const sourceUrl=str('sourceUrl');
+    if(sourceUrl && !/^https:\/\/\S+$/i.test(sourceUrl)){fieldError(form,'sourceUrl','Use an official https:// reference URL');return;}
+    const policy=normCrewRules({...ctx,year,source,sourceUrl,rows,reviewedAt:todayISO()});
+    if (match) match.crewPolicy=policy;
+    else data.team.crewPolicy=policy;
     save(); if (match) openMatch(match.id); else { closeSheet(); render(); }
     toast('Requirements recorded. Check each game’s assigned and confirmed staff.');
     return;
