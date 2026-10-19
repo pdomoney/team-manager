@@ -992,3 +992,26 @@ div.cl-match{cursor:default}
 div.cl-line,p.cl-line{cursor:default}
 .cl-open{margin-top:14px}
 .rtable .pill{white-space:nowrap}
+
+/* Coach-only match-day officials and trainer compliance aide. */
+.crew-section{margin-bottom:16px}
+.crew-section h3{font-size:18px;margin:0}
+.crew-person{display:flex;align-items:center;text-align:left;width:100%;padding:14px;min-height:62px;cursor:pointer}
+.crew-person .sub{white-space:normal;line-height:1.5}
+.crew-status{padding:12px 14px;border-radius:10px;border:1px solid #B4C6D4;background:#EFF5F8;margin:8px 0;display:flex;flex-direction:column;gap:3px}
+.crew-status strong{color:#123F61}
+.crew-status .sub{font-size:13px;white-space:normal}
+.crew-status.crew-alert{background:#FFF4E9;border-color:#E1B78A}
+.crew-status.crew-alert strong{color:#8E381A}
+.crew-status.crew-okay{background:#E9F6EA;border-color:#A0C8A5}
+.crew-status.crew-okay strong{color:#215C37}
+.crew-req{margin:10px 0;padding-left:24px;line-height:1.55}
+.crew-notready{font-weight:600;color:#8E381A;margin:10px 0}
+.crew-rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.crew-rule-grid input{max-width:110px}
+.crew-assign-row{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
+.crew-assign-row legend{padding:0 4px;font-size:14px;font-weight:700;color:var(--ink)}
+.crew-assign-row .field-l{margin-bottom:6px}
+.crew-match-summary{margin:12px 0 16px;border-top:1px solid var(--line)}
+.crew-match-summary h3{margin:12px 0 6px}
+@media(max-width:600px){.crew-rule-grid{grid-template-columns:1fr 1fr;gap:8px}.crew-assign-row{padding:10px}.crew-section{margin-bottom:12px}}
