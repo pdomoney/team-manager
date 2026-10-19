@@ -1,6 +1,8 @@
 // Coach-only club/team match crew and clearance checks. This is a planning aide,
 // NOT a live MySideline verification or an official determination of eligibility.
 // Every minimum must be configured against the correct competition requirements.
+import { inTeamPool } from './volunteer-intake.js';
+
 export const CREW_ROLES = Object.freeze({
   coach: 'Head coach',
   assistant: 'Assistant coach',
@@ -60,7 +62,8 @@ const obj = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
 const roleList = v => [...new Set(arr(v).filter(x => CREW_ROLES[x]))];
 export const normCrewPerson = p => ({
   id: words(p?.id), name: words(p?.name).slice(0, 120),
-  clubId: words(p?.clubId), teamIds: [...new Set(arr(p?.teamIds).filter(x => typeof x === 'string'))],
+  clubId: words(p?.clubId), clubIds: [...new Set(arr(p?.clubIds).filter(x => typeof x === 'string' && x.trim()))],
+  email: words(p?.email).toLowerCase().slice(0, 254), teamIds: [...new Set(arr(p?.teamIds).filter(x => typeof x === 'string'))],
   roles: roleList(p?.roles),
   // Sport assignments are independent; unmodified legacy records remain readable.
   rolesBySport: Object.fromEntries(Object.entries(obj(p?.rolesBySport))
@@ -96,7 +99,7 @@ export function canCrewServe(person, team, role, date) {
   const p = normCrewPerson(person);
   const sport = crewSport(team);
   if (!p.active || !CREW_ROLES[role] || !crewRolesForSport(p,sport).includes(role)) return 'Role not eligible for this sport or availability not confirmed';
-  if (!p.teamIds.includes(team.id) && !(p.clubId && p.clubId === team.team?.clubId)) return 'Not in this club/team';
+  if (!inTeamPool(p, team)) return 'Not in this club/team';
   const season = words(date).slice(0, 4);
   const current = p.registrationBySport[sport]?.[TYPE[role]] || (
     (sport === 'Rugby league' || sport === 'League tag') ? p.registration[TYPE[role]] : '');
