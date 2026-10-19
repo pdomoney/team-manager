@@ -2406,6 +2406,59 @@ function castKey(play, side) {
   return `<p class="cast-key">${codes.map(c => `<span><b>${esc(c)}</b> ${esc(labelName(g.set, c))}</span>`).join('')}</p>`;
 }
 
+/* ----- Cross-sport play adaptation (coach review, concept only) ----- */
+// No automatic changes to play geometry, rule labels, source steps or other teams.
+function transferSource(p) {
+  // Existing eight-slot drawings are historically Oztag. This is only a default.
+  return TRANSFER_SPORTS.includes(p.originSport) ? p.originSport : 'Oztag';
+}
+const transferKey = (from, to) => from + ' → ' + to;
+function transferSportSelect(name, chosen) {
+  return `<select name="${name}" aria-label="${name === 'source' ? 'Original sport' : 'Target sport'}">${TRANSFER_SPORTS.map(x =>
+    `<option value="${esc(x)}" ${x === chosen ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
+}
+function openTransferChoices(p, from = transferSource(p), to = 'Rugby league') {
+  if (!p) return;
+  openSheet('Adapt a play', `<div class="transfer-intro">
+    <span class="transfer-eyebrow">Coaching concept · not an automated conversion</span>
+    <h3>${esc(p.name)}</h3>
+    <p>Similar attacking ideas can work across Oztag, touch, league tag, rugby league and union. Choose the original code and the sport you want to coach. We'll show the reusable mechanics and checks before you adapt the play.</p>
+  </div>
+  <form data-form="transfer-choose" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(p.id)}">
+    <label class="field-l"><span>Original sport</span>${transferSportSelect('source', from)}<small>Earlier plays use an Oztag-shaped diagram; change this if its coaching concept came from another sport.</small></label>
+    <label class="field-l"><span>Adapt towards</span>${transferSportSelect('target', to)}<small>This will not change the original play or generate extra on-field players.</small></label>
+    <button class="btn primary block" type="submit">Compare the mechanics</button>
+  </form>`, 'transfer');
+}
+function openTransferReview(p, from, to) {
+  const guide = transferGuide(p, from, to);
+  if (!guide) { toast('Choose two different supported sports.'); return; }
+  const notes = p.transferNotes?.[transferKey(from, to)] || '';
+  openSheet('Adapt ' + p.name, `<div class="transfer-intro">
+    <span class="transfer-eyebrow">${esc(from)} → ${esc(to)}</span>
+    <h3>Transfer the idea, adjust the execution</h3>
+    <p>These are coaching prompts. A labelled eight-player Oztag drawing does not become a legal ${esc(to)} formation by changing the labels.</p>
+    <button type="button" class="link-btn" data-act="transfer-change" data-id="${esc(p.id)}" data-from="${esc(from)}" data-to="${esc(to)}">Choose another sport</button>
+  </div>
+  <section class="transfer-section"><h3>Mechanics worth exploring</h3>
+  ${guide.detected.length ? `<div class="transfer-ideas">${guide.detected.map(m=>`<article class="transfer-item"><span class="transfer-kind">${esc(m.basis)}</span><h4>${esc(m.title)}</h4><p>${esc(m.detail)}</p></article>`).join('')}</div>` : '<p class="hint">This play has no detectable movement lines or descriptive cues. Identify the intended defensive reaction with the coach before transferring it.</p>'}
+  </section>
+  <section class="transfer-section"><h3>What changes for ${esc(to)}</h3>
+    <div class="transfer-checks">${guide.adjustments.map(a=>`<article><h4>${esc(a.title)}</h4><p>${esc(a.text)}</p></article>`).join('')}</div>
+  </section>
+  <div class="transfer-caution"><h3>Before teaching this</h3><ul>${guide.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul></div>
+  <form data-form="transfer-notes" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(p.id)}">
+    <input type="hidden" name="source" value="${esc(from)}">
+    <input type="hidden" name="target" value="${esc(to)}">
+    <label class="field-l"><span>Coach’s adapted instructions (private)</span><textarea name="notes" rows="5" maxlength="4000" placeholder="Which roles, restart, defensive read and teaching cues would you change?">${esc(notes)}</textarea>
+      <small>Kept only in the encrypted coach workspace. The current diagram and player-facing instructions remain unchanged until you edit a play deliberately.</small></label>
+    <div class="btn-row"><button class="btn primary" type="submit">Save coach notes</button>
+      <button type="button" class="btn" data-act="transfer-copy" data-id="${esc(p.id)}">Copy coaching brief</button></div>
+  </form>`, 'transfer-review');
+}
+
 /* ----- Player lists (coach) ----- */
 function openPlayerLists() {
   const used = id => data.plays.filter(p => (p.set || 'oztag') === id).length;
@@ -5381,6 +5434,14 @@ const actions = {
     data.plays = data.plays.filter(x => x.id !== p.id); state.playId = null; save(); render(); toast('Play deleted');
   }),
   'play-share': coachOnly(el => { const p = playById(el.dataset.id); if (!p) return; sendWa(playShareText(p, state.playSide), { ref: 'play:' + p.id }); }),
+  'play-transfer': coachOnly(el => { const p = playById(el.dataset.id); if(p) openTransferChoices(p); }),
+  'transfer-change': coachOnly(el => { const p = playById(el.dataset.id); if(p) openTransferChoices(p, el.dataset.from, el.dataset.to); }),
+  'transfer-copy': coachOnly(el => {
+    const p = playById(el.dataset.id), form = $('#sheet form[data-form="transfer-notes"]');
+    if (!p || !form) return;
+    const guide = transferGuide(p, form.elements.source.value, form.elements.target.value);
+    if (guide) copyText(transferBrief(p, guide, form.elements.notes.value), 'Coaching brief copied');
+  }),
   'psets': coachOnly(() => openPlayerLists()),
   'pset-new': coachOnly(() => openPlayerListForm(null)),
   'pset-edit': coachOnly(el => openPlayerListForm(data.playerSets.find(x => x.id === el.dataset.id))),
@@ -6431,6 +6492,26 @@ document.addEventListener('submit', async e => {
     if (i >= 0) data.plays[i] = E.draft; else data.plays.push(E.draft);
     state.playId = E.draft.id; state.ped = null;
     save(); closeSheet(); render(); toast('Play saved');
+    return;
+  }
+  if (kind === 'transfer-choose') {
+    const p = playById(str('id')), from = str('source'), to = str('target');
+    if (!p) { toast('That play is no longer available.'); return; }
+    if (from === to) { fieldError(form, 'target', 'Choose a different sport for this adaptation'); return; }
+    if (!transferGuide(p, from, to)) { toast('Choose supported sports.'); return; }
+    openTransferReview(p, from, to);
+    return;
+  }
+  if (kind === 'transfer-notes') {
+    const p = playById(str('id')), from = str('source'), to = str('target');
+    if (!p || !transferGuide(p, from, to)) { toast('That play or sport is no longer available.'); return; }
+    const note = raw('notes').slice(0,4000).trim();
+    p.transferNotes = p.transferNotes && typeof p.transferNotes === 'object' && !Array.isArray(p.transferNotes) ? p.transferNotes : {};
+    if (note) p.transferNotes[transferKey(from,to)] = note;
+    else delete p.transferNotes[transferKey(from,to)];
+    if (p.builtin) p.edited = true;
+    M.libMarkEdited(p);
+    save(); openTransferReview(p, from, to); toast(note ? 'Coach adaptation notes saved privately' : 'Coach adaptation notes cleared');
     return;
   }
   if (kind === 'pset') {
