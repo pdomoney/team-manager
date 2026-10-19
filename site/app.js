@@ -26,6 +26,7 @@ import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
+import { CREW_ROLES, REQUIREMENT_ROLES, normCrewPerson, normCrewRules, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import * as M from './model.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
@@ -68,7 +69,7 @@ const NAV = [
   { id: 'schedule', label: 'Schedule', icon: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
     views: [['agenda', 'Upcoming'], ['training', 'Training'], ['matches', 'Matches'], ['attendance', 'Attendance', true]] },
   { id: 'team', label: 'Team', icon: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.5c2.5.1 4.2 1.8 5 5"/>',
-    views: [['squad', 'Squad'], ['tasks', 'Tasks'], ['helpers', 'Helpers', true], ['tally', 'Tally', true]] },
+    views: [['squad', 'Squad'], ['tasks', 'Tasks'], ['helpers', 'Helpers', true], ['crew', 'Match staff', true], ['tally', 'Tally', true]] },
   { id: 'tactics', label: 'Tactics', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14M5 5.5h14M5 18.5h14"/>',
     views: [['field', 'Lineup'], ['plays', 'Plays'], ['rules', 'Rules'], ['library', 'Library', true]] },
   { id: 'more', label: 'More', icon: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
@@ -196,6 +197,8 @@ function normalize(d) {
   const out = { ...base, ...d, team: { ...base.team, ...(d.team || {}) } };
   out.team.field = { ...FIELD_DEFAULTS, ...((d.team && d.team.field) || {}) };
   ['players', 'sessions', 'lineups', 'messages', 'notices', 'plays', 'playerSets', 'tasks', 'helpers', 'matches'].forEach(k => { out[k] = arr(out[k]); });
+  out.team.crewPolicy = normCrewRules(out.team.crewPolicy);
+  out.matches.forEach(m => { m.crew = arr(m.crew).filter(a => a && typeof a.personId === 'string' && CREW_ROLES[a.role]).map(a => ({ personId: a.personId, role: a.role, confirmed: a.confirmed === true })); });
   out.systems = obj(out.systems);
   out.seasons = arr(out.seasons);
   out.team.tasksContact = { name: '', phone: '', ...obj(out.team.tasksContact) };
@@ -650,7 +653,7 @@ function render() {
 }
 const VIEWS = {
   home: () => viewHome(), agenda: () => viewAgenda(), training: () => viewSchedule(), matches: () => viewMatches(), attendance: () => viewAttendance(),
-  squad: () => viewSquad(), tasks: () => viewTaskList(), helpers: () => viewHelpers(), tally: () => viewHelped(),
+  squad: () => viewSquad(), tasks: () => viewTaskList(), helpers: () => viewHelpers(), crew: () => viewCrew(), tally: () => viewHelped(),
   field: () => viewField(), plays: () => viewPlays(), rules: () => viewRules(), library: () => viewLibrary(),
   more: () => viewMore(), club: () => viewClub(), messages: () => viewMessages(), reports: () => viewReports(), teams: () => viewTeams(), comps: () => viewComps(), notices: () => viewNotices()
 };
@@ -3358,6 +3361,124 @@ function checklistBody() {
   </form>` : ''}`;
 }
 
+
+/* ---------- Accredited match-day staff: private coach workspace ---------- */
+// This is an independently maintained roster: registrations are manually checked
+// against MySideline and accreditation/WWCC records, never queried or verified here.
+const crewPool = () => arr(ws.matchOfficials).filter(p =>
+  p.teamIds?.includes(data.id) || (p.clubId && p.clubId === data.team.clubId)).sort((a,b) => a.name.localeCompare(b.name));
+const crewPerson = id => arr(ws.matchOfficials).find(p => p.id === id);
+const crewPolicy = (m = null) => normCrewRules(m?.crewPolicy || data.team.crewPolicy);
+const crewStatus = m => {
+  const report = matchCrewCheck(arr(ws.matchOfficials), data, m, crewPolicy(m));
+  const clashes = crewScheduleClashes(M.teamsOf(ws), data.id, m);
+  return { ...report, ready: report.ready && !clashes.length,
+    issues: [...report.issues, ...clashes.map(c => `${crewPerson(c.personId)?.name || 'Staff member'} may be double-booked vs ${c.opponent} (${c.start || 'time TBC'}). Check this before relying on coverage.`)] };
+};
+const crewName = key => CREW_ROLES[key] || REQUIREMENT_ROLES[key] || key;
+const crewField = (name,label,value='',type='text',extra='') =>
+  `<label class="field-l"><span>${label}</span><input type="${type}" name="${name}" value="${esc(value)}" ${extra}></label>`;
+function viewCrew() {
+  const pool = crewPool(), club = M.clubOf(ws, data), rules = crewPolicy(), isClub = !!data.team.clubId;
+  return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add person</button></div>
+    <p class="hint">Club and team officials, coaches and accredited trainers. Separate from general helpers for lifts, events and BBQs. Records and checks stay in the encrypted coach workspace.</p>
+    <section class="sec crew-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">Configure</button></div>
+      <p class="hint">Match staffing differs by competition, age group and season. Only enter requirements verified against the official local league policy.</p>
+      ${rules.source && rules.rows.length ? `<div class="crew-status"><strong>Season ${esc(rules.year || 'not set')}</strong>
+        <span class="sub">${esc(rules.source)}</span></div>
+        <ul class="crew-req">${rules.rows.map(r => `<li>${r.min} × ${esc(REQUIREMENT_ROLES[r.role])}</li>`).join('')}</ul>`
+        : '<p class="crew-notready">No reviewed rules configured — match staffing cannot be marked ready.</p>'}
+    </section>
+    <section class="sec crew-section"><h3>Available ${isClub ? esc(club?.name || 'club') : 'team'} personnel (${pool.length})</h3>
+      ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="crew-edit" data-id="${esc(p.id)}">
+        <span class="grow"><span class="name">${esc(p.name)}</span><span class="sub" style="display:block">${p.roles.map(r => esc(CREW_ROLES[r])).join(' · ') || 'No roles yet'}</span>
+        <span class="sub" style="display:block">${p.active ? 'Available for selection' : 'Inactive'} · ${p.wwccStatus === 'checked' ? 'WWCC details manually checked' : 'WWCC unverified'}</span></span>
+        ${icon('chevron-right', 18)}
+      </button>`).join('')}</div>`
+        : '<div class="empty"><p>Start with the head coach, manager and first responder. Add club-wide trainers once and use them across the club’s teams.</p></div>'}
+      <p class="hint">Entries are coach-recorded, not MySideline-verified. Never enter WWCC numbers, documents, dates of birth or registration passwords here.</p>
+    </section>`;
+}
+function crewPersonForm(person) {
+  const p = normCrewPerson(person || {});
+  const club = M.clubOf(ws, data), currentClub = data.team.clubId || '';
+  const scope = p.id ? (p.teamIds.includes(data.id) ? 'team' : 'club') : (currentClub ? 'club' : 'team');
+  const roles = Object.entries(CREW_ROLES).map(([r,label]) =>
+    `<label class="check"><input type="checkbox" name="role" value="${r}" ${p.roles.includes(r) ? 'checked' : ''}><span>${esc(label)}</span></label>`).join('');
+  return `<form data-form="crew-person" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(p.id)}">
+    <p class="hint">Registration and qualification details are entered by a coach following their own check of official club/NRL records. This does not register anyone with the NRL.</p>
+    ${crewField('name', 'Full name', p.name, 'text', 'required maxlength="120"')}
+    <div class="field-l"><span>Available to</span><div class="opts">
+      ${currentClub ? `<label class="opt"><input type="radio" name="scope" value="club" ${scope === 'club' ? 'checked' : ''}><span>All teams in ${esc(club?.name || 'this club')}</span></label>` : ''}
+      <label class="opt"><input type="radio" name="scope" value="team" ${scope === 'team' || !currentClub ? 'checked' : ''}><span>Only ${esc(data.team.name)}</span></label>
+    </div></div>
+    <div class="field-l"><span>Accredited roles</span><div class="opts">${roles}</div></div>
+    <h3 class="form-sec">Season registration confirmed with MySideline</h3>
+    <p class="hint">Enter the registration season for each relevant Member Type: Coach, Volunteer (manager), Trainer. If it has not been checked, leave blank.</p>
+    <div class="two">${crewField('reg-coach', 'Coach registration year', p.registration.coach, 'number', 'min="2020" max="2100" placeholder="2026"')}
+      ${crewField('reg-volunteer', 'Volunteer registration year', p.registration.volunteer, 'number', 'min="2020" max="2100" placeholder="2026"')}</div>
+    ${crewField('reg-trainer', 'Trainer registration year', p.registration.trainer, 'number', 'min="2020" max="2100" placeholder="2026"')}
+    <h3 class="form-sec">Official team squad allocation</h3>
+    <p class="hint">Even club-wide trainers must be allocated to this particular team in MySideline before they appear on its official team list.</p>
+    ${crewField('squad-year','Squad allocation confirmed for this team (season)', p.squadYears?.[data.id] || '', 'number','min="2020" max="2100" placeholder="2026"')}
+    <h3 class="form-sec">Accreditation expiry (confirmed)</h3>
+    <p class="hint">Enter a date only when the role-specific accreditation or its required annual renewal has been confirmed. An empty or expired date prevents match readiness.</p>
+    <div class="two">${Object.entries(CREW_ROLES).filter(([r]) => r !== 'manager').map(([r,label]) => crewField('acc-' + r, label, p.accreditation[r], 'date')).join('')}</div>
+    <h3 class="form-sec">Working With Children Check</h3>
+    <label class="check"><input type="checkbox" name="wwccChecked" ${p.wwccStatus === 'checked' ? 'checked' : ''}><span>Club has independently confirmed the relevant clearance</span></label>
+    ${crewField('wwccExpiry', 'WWCC expiry', p.wwccExpiry, 'date')}
+    <label class="check"><input type="checkbox" name="active" ${p.active ? 'checked' : ''}><span>Available for match assignment</span></label>
+    <button class="btn primary block" type="submit">${p.id ? 'Save staff member' : 'Add staff member'}</button>
+    ${p.id ? `<button class="btn danger block" type="button" data-act="crew-delete" data-id="${esc(p.id)}">Remove from directory</button>` : ''}
+  </form>`;
+}
+function crewPolicyForm(match = null) {
+  const p = crewPolicy(match);
+  return `<form data-form="crew-policy" autocomplete="off">
+    <input type="hidden" name="matchId" value="${esc(match?.id || '')}">
+    <p class="hint">${match ? 'These requirements override the team defaults for this match only. ' : 'These are team-wide defaults. '}These are not national defaults. Confirm the exact requirements for this team’s age group, competition and season with your NSWRL/local league handbook. A coach cannot double as the required first responder.</p>
+    ${crewField('year','Applicable season', p.year || String(new Date().getFullYear()), 'number','required min="2020" max="2100"')}
+    ${crewField('source','Official competition / policy reference', p.source, 'text', 'required maxlength="250" placeholder="Association rule and year; e.g. 2026 local league by-laws"')}
+    <h3 class="form-sec">Minimum distinct people by role</h3>
+    <p class="hint">Use a first-responder group for any eligible green/blue/orange trainer, or more specific shirt requirements when officially prescribed. A person assigned to one match role cannot fill another simultaneously.</p>
+    <div class="crew-rule-grid">${Object.entries(REQUIREMENT_ROLES).map(([r,label]) => `<label class="field-l"><span>${esc(label)}</span><input type="number" name="min-${r}" inputmode="numeric" min="0" max="12" value="${p.rows.find(x => x.role === r)?.min || 0}"></label>`).join('')}</div>
+    <button class="btn primary block" type="submit">Save reviewed ${match ? 'match' : 'team'} requirements</button>
+    ${match?.crewPolicy ? `<button class="btn block" type="button" data-act="crew-policy-reset" data-id="${esc(match.id)}">Use team requirements instead</button>` : ''}
+    <p class="hint">A rule set with no required roles is treated as unconfigured. Recheck the reference for each new season.</p>
+  </form>`;
+}
+function crewAssignRow(a, i, pool) {
+  return `<fieldset class="crew-assign-row"><legend>Position ${i + 1}</legend><div class="two">
+      <label class="field-l"><span>Person</span><select name="crew-person"><option value="">Not assigned</option>
+        ${pool.map(p => `<option value="${esc(p.id)}" ${p.id === a?.personId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+      <label class="field-l"><span>Game-day role</span><select name="crew-role">${Object.entries(CREW_ROLES).map(([r,label]) => `<option value="${r}" ${r === a?.role ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label>
+    </div><label class="check"><input type="checkbox" name="crew-confirm-${i}" ${a?.confirmed ? 'checked' : ''}><span>Confirmed to attend this match</span></label></fieldset>`;
+}
+function crewMatchForm(m) {
+  const pool = crewPool(), slots = arr(m.crew);
+  return `<form data-form="crew-match" autocomplete="off"><input name="id" type="hidden" value="${esc(m.id)}">
+    <p class="hint"><b>${esc(data.team.name)} vs ${esc(m.opponent || 'TBC')}</b> · ${esc(fmtDay(m.date))}. Match assignments do not register or accredit staff with MySideline. Each person can fill only one match role.</p>
+    <div id="crew-assignments">${Array.from({length:Math.max(4,slots.length+1)},(_,i)=>crewAssignRow(slots[i],i,pool)).join('')}</div>
+    <button type="button" class="btn sm" data-act="crew-add-row">+ Add another position</button>
+    <button class="btn primary block" type="submit" style="margin-top:14px">Save match-day staff</button>
+    <p class="hint">Only confirmed people with current season registration, verified WWCC and suitable accreditation count towards configured minimums. Readiness is a coach planning check, not official permission to start play.</p>
+  </form>`;
+}
+function crewMatchSummary(m) {
+  const c = crewStatus(m);
+  const label = !c.configured ? 'Requirements not configured for this season' :
+    c.ready ? 'All configured roles covered (coach-recorded)' : 'Match-day staffing needs attention';
+  return `<section class="crew-match-summary"><h3 class="form-sec">Match-day staff</h3>
+    <div class="crew-status ${c.ready ? 'crew-okay' : 'crew-alert'}"><strong>${esc(label)}</strong>
+    <span class="sub">${c.configured ? esc(c.source) : 'Verify the official local competition requirements before relying on this check.'}</span></div>
+    ${c.shortages.length ? `<ul class="crew-req">${c.shortages.map(r => `<li>${esc(r.name)}: ${r.have}/${r.min}${r.missing ? ' · ' + r.missing + ' missing' : ' · covered'}</li>`).join('')}</ul>` : ''}
+    ${c.issues.length ? `<ul class="diff-list issues">${c.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    <div class="btn-row"><button class="btn sm primary" data-act="crew-match-open" data-id="${esc(m.id)}">Assign / check staff</button>
+      <button class="btn sm" data-act="crew-policy-open" data-id="${esc(m.id)}">Match requirements</button></div>
+  </section>`;
+}
+
 /* Helpers: family, friends and people from the community who aren't on the squad */
 function viewHelpers() {
   const H = sortedHelpers(), load = taskLoad();
@@ -3681,6 +3802,7 @@ function matchBody(m) {
     <div class="roll-sum">${rsvpPills(m)}</div>
     <div class="btn-row"><button class="btn" data-act="rsvp-open" data-k="match" data-id="${m.id}">${icon('rsvp', 18)}Record replies</button><button class="btn wa" data-act="rsvp-ask" data-k="match" data-id="${m.id}">${icon('chat', 18)}Ask for replies</button></div>
     ${c.none && live ? `<p class="hint">${c.none} player${c.none === 1 ? ' hasn’t' : 's haven’t'} replied.</p>` : ''}
+    ${crewMatchSummary(m)}
     <h3 class="form-sec">Lineup</h3>
     ${lu ? `<p><b>${esc(lu.name)}</b></p>
       ${chk.issues.length ? `<ul class="diff-list issues">${chk.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="small" style="color:var(--ok);font-weight:600">Ready: eight on, mixed rule met, nobody unavailable.</p>'}
@@ -5187,6 +5309,36 @@ const actions = {
     if (!t.cancelled && !confirm(`Mark “${t.title}” on ${fmtDay(t.date)} as cancelled? Everyone stays on it in case it’s back on.`)) return;
     t.cancelled = !t.cancelled; delete t.cancelledWith; save(); refreshTask(t.id); toast(t.cancelled ? 'Task cancelled' : 'Task back on');
   }),
+  'crew-new': coachOnly(() => openSheet('Add match-day staff', crewPersonForm(null), 'crew-person')),
+  'crew-edit': coachOnly(el => { const p = crewPerson(el.dataset.id); if (p) openSheet(p.name, crewPersonForm(p), 'crew-person'); }),
+  'crew-policy-open': coachOnly(el => {
+    const match = el.dataset.id ? matchById(el.dataset.id) : null;
+    openSheet(match ? 'Match-specific staffing requirements' : 'Team staffing requirements', crewPolicyForm(match), 'crew-policy');
+  }),
+  'crew-policy-reset': coachOnly(el => {
+    const match = matchById(el.dataset.id); if (!match || !match.crewPolicy) return;
+    if (!confirm('Use the team-wide staffing requirements for this game?')) return;
+    delete match.crewPolicy; save(); openMatch(match.id); toast('Match now uses the team requirements');
+  }),
+  'crew-match-open': coachOnly(el => {
+    const m = matchById(el.dataset.id); if (!m) return;
+    openSheet('Staff for ' + (m.opponent || 'the match'), crewMatchForm(m), 'crew-match');
+  }),
+  'crew-add-row': coachOnly(() => {
+    const box = $('#crew-assignments'), m = matchById($('#sheet form[data-form="crew-match"] [name=id]')?.value);
+    if (!box || !m) return;
+    const i = box.querySelectorAll('.crew-assign-row').length;
+    if (i >= 30) { toast('Maximum 30 positions. Contact the club if more are required.'); return; }
+    box.insertAdjacentHTML('beforeend', crewAssignRow(null, i, crewPool()));
+  }),
+  'crew-delete': coachOnly(el => {
+    const p = crewPerson(el.dataset.id); if (!p) return;
+    const used = M.teamsOf(ws).some(t => arr(t.matches).some(m => arr(m.crew).some(a => a.personId === p.id)));
+    if (used) { toast('This person is assigned to match records. Mark them inactive instead to preserve history.'); return; }
+    if (!confirm('Remove ' + p.name + ' from the match staff directory?')) return;
+    ws.matchOfficials = arr(ws.matchOfficials).filter(x => x.id !== p.id);
+    save(); closeSheet(); render();
+  }),
   'helper-new': coachOnly(() => openSheet('Add helper', helperForm(null))),
   'helper-edit': coachOnly(el => { const h = data.helpers.find(x => x.id === el.dataset.id); if (h) openSheet(h.name, helperForm(h)); }),
   'helper-del': coachOnly(el => {
@@ -5976,6 +6128,55 @@ document.addEventListener('submit', async e => {
     state.lineupId = null; state.msgDraft = null; state.playId = null;
     save(); closeSheet(); render();
     toast(`Cleared: ${Object.entries(n).map(([k, v]) => `${v} ${k === 'squad' ? 'players' : k === 'training' ? 'sessions' : k}`).join(', ')}`);
+    return;
+  }
+  if (kind === 'crew-person') {
+    const id = str('id'), p = id ? crewPerson(id) : null;
+    if (id && !p) { toast('The staff member no longer exists.'); return; }
+    if (!str('name')) { fieldError(form, 'name', 'Enter the staff member’s name'); return; }
+    const roles = f.getAll('role').filter(x => CREW_ROLES[x]);
+    if (!roles.length) { toast('Select at least one recognised role.'); return; }
+    const scope = str('scope');
+    const saved = normCrewPerson({
+      ...(p || {}), id: id || uid(), name: str('name'),
+      clubId: scope === 'club' ? data.team.clubId : '',
+      teamIds: scope === 'club' ? [] : [...new Set([...(p?.teamIds || []), data.id])],
+      roles, active: !!f.get('active'),
+      registration: Object.fromEntries(['coach','volunteer','trainer'].map(k => [k, str('reg-' + k)])),
+      squadYears: { ...(p?.squadYears || {}), [data.id]: str('squad-year') },
+      accreditation: Object.fromEntries(Object.keys(CREW_ROLES).map(k => [k, str('acc-' + k)])),
+      wwccStatus: f.get('wwccChecked') ? 'checked' : 'unverified',
+      wwccExpiry: str('wwccExpiry')
+    });
+    ws.matchOfficials = arr(ws.matchOfficials);
+    if (p) Object.assign(p,saved); else ws.matchOfficials.push(saved);
+    save(); closeSheet(); render(); toast(id ? 'Staff member updated' : 'Staff member added');
+    return;
+  }
+  if (kind === 'crew-policy') {
+    const year = str('year'), source = str('source');
+    if (!/^20\d\d$/.test(year)) { fieldError(form, 'year', 'Enter the competition season year'); return; }
+    if (!source) { fieldError(form, 'source', 'Add the source of the official requirements'); return; }
+    const rows = Object.keys(REQUIREMENT_ROLES).map(role => ({ role, min: Number(str('min-'+role) || '0') })).filter(r => r.min > 0);
+    if (rows.some(r => !Number.isInteger(r.min) || r.min > 12)) { toast('Each minimum must be a whole number from 0 to 12.'); return; }
+    const match = str('matchId') ? matchById(str('matchId')) : null;
+    if (str('matchId') && !match) { toast('That match is no longer available'); return; }
+    if (match) match.crewPolicy = normCrewRules({ year, source, rows });
+    else data.team.crewPolicy = normCrewRules({ year, source, rows });
+    save(); if (match) openMatch(match.id); else { closeSheet(); render(); }
+    toast('Requirements recorded. Check each game’s assigned and confirmed staff.');
+    return;
+  }
+  if (kind === 'crew-match') {
+    const m = matchById(str('id')); if (!m) return;
+    const ids = f.getAll('crew-person').map(String), roles = f.getAll('crew-role').map(String);
+    const rows = ids.flatMap((personId,i) => personId && crewPerson(personId) && CREW_ROLES[roles[i]]
+      ? [{personId, role: roles[i], confirmed: !!f.get('crew-confirm-'+i)}] : []);
+    if (new Set(rows.map(x=>x.personId)).size !== rows.length) {
+      toast('Assign each person to only one match-day role.'); return;
+    }
+    m.crew = rows;
+    save(); openMatch(m.id); toast(crewStatus(m).ready ? 'All configured roles covered — verify with the official match-day requirements' : 'Staff assignments saved; check missing roles and verification warnings');
     return;
   }
   if (kind === 'helper') {

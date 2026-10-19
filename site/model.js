@@ -25,7 +25,7 @@ export { RULES };
 // an earlier app still opens a schema 4 copy, showing every season's records together.
 export const SCHEMA = 4;
 export const PRIMARY_ID = 'team1';
-const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions'];
+const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions', 'matchOfficials'];
 const TEAM_ID = /^[a-z0-9]{3,32}$/;
 
 export const arr = v => Array.isArray(v) ? v : [];
@@ -141,6 +141,7 @@ export function migrateWorkspace(raw, normTeam = t => t) {
   ws.updatedAt = src.updatedAt || null;
   teamsOf(ws).forEach(t => ensureSeasons(t));
   ws.competitions = src.competitions === undefined ? seedCompetitions(ws) : arr(src.competitions).filter(isObj).map(normComp);
+  ws.matchOfficials = arr(src.matchOfficials).filter(p => isObj(p) && typeof p.id === 'string' && typeof p.name === 'string');
   repairCompetitions(ws);
   syncEvents(ws);
   fixDefaultPositions(ws);
