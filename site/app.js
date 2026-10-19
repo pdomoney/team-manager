@@ -2311,20 +2311,64 @@ function viewPlays() {
     </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add one, or restore the starter plays.' : 'No plays yet.'}</p></div>`}
     ${coach && missing ? `<button class="link-btn" data-act="plays-restore">Restore the ${missing} missing starter play${missing === 1 ? '' : 's'}</button>` : ''}`;
 }
+
+function studySequence(p, side) {
+  const mirrored = side !== (p.side || 'right');
+  return studyCards(p, playSteps(p, side), t => mirrored ? mirrorText(t, textPairs(p)) : String(t ?? ''));
+}
+function studyFigure(p, side, cards) {
+  const item = cards[state.studyIndex], v = phaseView(p, item.phase);
+  const geom = playGeom(v, side), codes = [...new Set(Object.values(geom.codes))].filter(Boolean);
+  const roles = state.studyRole !== 'all' ? [state.studyRole]
+    : item.roles.length ? item.roles.map(r => side !== (p.side || 'right') ? (setPairs(getSet(p.set))[r] || swapSlot(r)) : r)
+      : cueRoles(item.text, codes);
+  return `<div class="study-progress"><strong>Step ${state.studyIndex + 1} of ${cards.length}</strong>
+        <span>${phaseCount(p) > 1 ? `Phase ${item.phase + 1} of ${phaseCount(p)}` : 'Learn at your pace'}</span></div>
+    <div class="study-cue" role="status" aria-live="polite"><h3>${esc(item.title)}</h3><p>${esc(item.text)}</p></div>
+    <div class="study-controls" role="group" aria-label="Learning steps">
+      <button type="button" class="btn sm" data-act="study-prev" ${state.studyIndex === 0 ? 'disabled' : ''}>← Previous</button>
+      <button type="button" class="btn primary sm" data-act="study-next" ${state.studyIndex === cards.length - 1 ? 'disabled' : ''}>Next step →</button>
+    </div>
+    ${playSVG(v, side, { study: true, studyCodes: roles, studyMoves: item.moves })}
+    ${playLegend(v, side)}
+    ${castKey(v, side)}`;
+}
 function viewPlay(p) {
   const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side);
+  const mode = state.playMode || (coach ? 'watch' : 'learn');
+  const cards = studySequence(p, side);
+  state.studyIndex = clamp(state.studyIndex || 0, 0, cards.length - 1);
   state.playPhase = clamp(state.playPhase || 0, 0, phaseCount(p) - 1);
+  const chosen = cards[state.studyIndex];
+  const geom = playGeom(phaseView(p, chosen.phase), side);
+  const codes = [...new Set(Object.values(geom.codes))].filter(Boolean);
   return `<button class="toggle-past" data-act="play-back">← All plays</button>
     <div class="sec-h"><h2>${esc(p.name)}</h2><span class="pills">${p.set && p.set !== 'oztag' ? `<span class="pill neutral">${esc(getSet(p.set).name)}</span>` : ''}<span class="pill neutral">${esc(p.category || 'Other')}</span></span></div>
+    <div class="seg play-modes" role="group" aria-label="How to explore this play">
+      <button data-act="play-mode" data-mode="learn" aria-pressed="${mode === 'learn'}">Learn step by step</button>
+      <button data-act="play-mode" data-mode="watch" aria-pressed="${mode === 'watch'}">Watch animation</button>
+    </div>
     <div class="seg" role="group" aria-label="Direction">
       <button data-act="play-side" data-side="left" aria-pressed="${side === 'left'}">Attacking left</button>
       <button data-act="play-side" data-side="right" aria-pressed="${side === 'right'}">Attacking right</button>
     </div>
-    <div class="cols play-cols"><div class="col">
-    <figure class="play-card" id="play-fig">${playFigure(p, side, state.playPhase)}</figure>
+    <div class="cols play-cols ${mode === 'learn' ? 'learn-cols' : ''}"><div class="col">
+      <figure class="play-card ${mode === 'learn' ? 'play-study' : ''}" id="play-fig">
+        ${mode === 'learn' ? studyFigure(p, side, cards) : playFigure(p, side, state.playPhase)}
+      </figure>
     </div><div class="col">
-    ${when ? `<section class="sec play-when-sec"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
-    ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}
+    ${mode === 'learn' ? `<section class="sec study-side">
+      <h3 class="play-h">Find your position</h3>
+      <p class="hint">Highlight your role to find where you stand and which lines start near you.</p>
+      <label class="field-l"><span>My position</span><select data-change="study-role" aria-label="Highlight a position">
+        <option value="all">All positions</option>
+        ${codes.map(code => `<option value="${esc(code)}" ${state.studyRole === code ? 'selected' : ''}>${esc(code)}${labelName(geom.set, code) && labelName(geom.set, code) !== code ? ' · ' + esc(labelName(geom.set, code)) : ''}</option>`).join('')}
+      </select></label>
+      <p class="hint">The blue emphasis follows player names mentioned in the step or the position you select. Drawn runs and passes may happen together. Only coach-linked instructions specify exact movement order.</p>
+      ${when ? `<h3 class="play-h" style="margin-top:16px">When to use it</h3><p>${esc(when)}</p>` : ''}
+      ${steps.length ? `<details class="study-details"><summary>Read the full coaching instructions</summary><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></details>` : ''}
+    </section>` : `${when ? `<section class="sec play-when-sec"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
+    ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}`}
     ${libBar('plays', p.id, p)}
     ${coach ? `<div class="btn-row"><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
