@@ -144,7 +144,10 @@ export function canCrewServe(person, team, role, date) {
   if (p.wwccStatus !== 'checked' || !p.wwccExpiry || p.wwccExpiry < date) return 'WWCC verification missing or expired';
   const needsAcc = ['yellow','green','blue','orange','firstAid'].includes(role)
     || (['coach','assistant'].includes(role) && sport !== 'Oztag');
-  const accreditationExpiry = p.accreditationBySport[sport]?.[role] || p.accreditation[role];
+  const perSport = p.accreditationBySport[sport] || {};
+  // An explicitly cleared sport expiry must not revive an old generic clearance.
+  const accreditationExpiry = Object.prototype.hasOwnProperty.call(perSport,role)
+    ? perSport[role] : p.accreditation[role];
   if (needsAcc && (!accreditationExpiry || accreditationExpiry < date)) return 'Role accreditation unverified or expired';
   return '';
 }
