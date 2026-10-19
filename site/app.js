@@ -25,6 +25,7 @@ import { GitHub, repoFromLocation } from './github.js';
 import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
+import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, normCrewPerson, normCrewRules, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import * as M from './model.js';
@@ -2307,7 +2308,7 @@ function viewPlays() {
   state.playId = null;
   const missing = STARTER_IDS.filter(id => !V.plays.some(p => p.id === id)).length;
   return `<div class="sec-h"><h2>Plays</h2>${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div>
-    <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.${coach ? ` <button class="link-btn inline" data-act="psets">Player lists</button>` : ''}</p>
+    <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.</p>
     ${V.plays.length ? `<div class="list grid plays-grid">${V.plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
       <span class="grow"><span class="name" style="display:block">${esc(p.name)}${coach && p.lib ? ' <span class="pill neutral">Library</span>' : ''}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
@@ -2374,7 +2375,7 @@ function viewPlay(p) {
     </section>` : `${when ? `<section class="sec play-when-sec"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
     ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}`}
     ${libBar('plays', p.id, p)}
-    ${coach ? `<div class="btn-row"><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
+    ${coach ? `<div class="btn-row"><button class="btn" data-act="play-transfer" data-id="${esc(p.id)}">Adapt to another sport</button><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
     </div></div>`;
 }
@@ -2408,21 +2409,21 @@ function castKey(play, side) {
 /* ----- Player lists (coach) ----- */
 function openPlayerLists() {
   const used = id => data.plays.filter(p => (p.set || 'oztag') === id).length;
-  openSheet('Player lists', `<p class="hint" style="margin:-4px 0 12px">A play shows its players with labels from one of these lists. To use a list, duplicate or edit a play and pick it under Player labels: the drawing stays the same and only the labels and words change.</p>
+  openSheet('Diagram role labels', `<p class="hint" style="margin:-4px 0 12px">Choose how diagram roles are named. These lists do not contain your actual squad and they do not change the number of circles or automatically convert a formation. To use a list, open a play in Advanced diagram and select it under Diagram role labels.</p>
     <div class="list">${allSets().map(x => `<div class="row" style="padding:10px 8px 10px 14px">
-      <span class="grow"><span class="name" style="display:block">${esc(x.name)}</span><span class="sub">${x.labels.length} players · ${x.labels.map(l => esc(l.code)).join(' ')}${used(x.id) ? ` · used by ${used(x.id)} play${used(x.id) === 1 ? '' : 's'}` : ''}</span></span>
+      <span class="grow"><span class="name" style="display:block">${esc(x.name)}</span><span class="sub"> ${x.labels.length} labels · ${x.labels.map(l => esc(l.code)).join(' ')}${used(x.id) ? ` · used by ${used(x.id)} play${used(x.id) === 1 ? '' : 's'}` : ''}</span></span>
       ${x.builtin ? `<button class="btn sm" data-act="pset-copy" data-id="${esc(x.id)}">Copy</button>` : `<button class="btn sm" data-act="pset-edit" data-id="${esc(x.id)}">Edit</button>`}
     </div>${x.builtin ? '' : `<div class="pset-lib">${libBar('playerSets', x.id, x)}</div>`}`).join('')}</div>
-    <button class="btn primary block" style="margin-top:14px" data-act="pset-new">New list</button>
-    <p class="hint" style="margin-top:12px">League tag, for example, is played with up to 11 a side from 13 years up.</p>`, 'psets');
+    <button class="btn block" style="margin-top:14px" data-act="pset-new">Create a custom role list</button>
+    <p class="hint" style="margin-top:12px">A list can have 13 names, but the current diagram still shows eight player circles. Team-specific formations need a separate drawing model.</p>`, 'psets');
 }
 function openPlayerListForm(x) {
   const lines = x ? x.labels.map(l => `${l.code} ${l.name}`).join('\n') : '';
   openSheet(x && x.id ? `Edit ${x.name}` : 'New player list', `<form data-form="pset" autocomplete="off">
     <input type="hidden" name="id" value="${esc(x && x.id || '')}">
     <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(x ? x.name : '')}" placeholder="e.g. League tag"></label>
-    <label class="field-l"><span>Players, one per line: the label, then the name</span><textarea name="labels" rows="12" placeholder="1 Fullback&#10;2 Right wing&#10;3 Right centre&#10;4 Left centre&#10;5 Left wing&#10;6 Five-eighth&#10;7 Halfback">${esc(lines)}</textarea>
-      <small>Labels show inside the players' circles, so keep them to 3 or 4 characters. Players pair up for the attacking-left version when their names say Left and Right (Left wing and Right wing), or when the label starts with L or R (LC and RC). The first eight go on the eight spots of a play when you switch it to this list; change any of them in the editor.</small></label>
+    <label class="field-l"><span>Role labels, one per line: code followed by position name</span><textarea name="labels" rows="12" placeholder="1 Fullback&#10;2 Right wing&#10;3 Right centre&#10;4 Left centre&#10;5 Left wing&#10;6 Five-eighth&#10;7 Halfback">${esc(lines)}</textarea>
+      <small>Labels show inside the players' circles, so keep them to 3 or 4 characters. Players pair up for the attacking-left version when their names say Left and Right (Left wing and Right wing), or when the label starts with L or R (LC and RC). Up to eight labels show in the existing diagram. This does not create a full formation for league, league tag or union.</small></label>
     <button class="btn primary block" type="submit">Save list</button>
     ${x && x.id ? `<button type="button" class="btn danger block" style="margin-top:10px" data-act="pset-del" data-id="${esc(x.id)}">Delete this list</button>` : ''}
   </form>`, 'pset');
@@ -2677,7 +2678,7 @@ function openPlayEditor(play) {
     <div id="ped-diagram" class="ped-diagram" hidden>
       <div class="ped-phases" id="ped-phases"></div>
       <div class="ped-meta">
-      <label class="field-l ped-list"><span>Player labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select></label>
+      <label class="field-l ped-list"><span>Diagram role labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select><small>These are label names, not full team formations. A rugby league list has 13 role labels, but this diagram still draws eight positions.</small><button class="link-btn inline" type="button" data-act="psets">Manage diagram labels</button></label>
       <label class="field-l ped-ptitle"><span id="ped-ptitle-l">Phase 1</span><input type="text" id="ped-ptitle" data-input="ped-ptitle" value="${esc(draft.title || '')}" placeholder="What happens in this phase, e.g. Tag 2: hands right"></label>
       </div>
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
@@ -4533,7 +4534,7 @@ function viewLibrary() {
   return `<div class="sec-h"><h2>Library</h2></div><p class="hint" style="margin:-4px 0 6px">Shared by all your teams. Save a play, a game system or a player list to the library from where you edit it, then add it to any team. Teams that haven’t changed their copy get each new library version; a team that has keeps its own.</p>
     ${sec('plays', 'Plays', 'No plays yet. Open a play and choose Save to library.')}
     ${sec('systems', 'Game systems', 'None yet. Show a game system on the Lineup page and choose Save to library.')}
-    ${sec('playerSets', 'Player lists', 'None yet. Open Plays › Player lists and save a list to the library.')}
+    ${sec('playerSets', 'Diagram role labels', 'None yet. Use Advanced diagram → Manage diagram labels to add a list to the library.')}
     <div class="btn-row" style="margin-top:16px"><button class="btn" data-act="lib-export">Export the library</button><button class="btn" data-act="lib-import">Import a library</button></div>
     <p class="hint">A library file holds plays, systems and labels only: no players, phone numbers or results. Use it to share with another coach.</p>`;
 }
