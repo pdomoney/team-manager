@@ -128,5 +128,9 @@ with sync_playwright() as p:
     d1.evaluate(act, ['tab', {'tab': 'rules'}]); d1.wait_for_selector('[data-act=rules-check]')
     d1.click('[data-act=rules-check]'); d1.wait_for_timeout(500)
     c.ok(gh.workflows[-1:] == ['rules-watch.yml'] and 'Checking the rule books' in d1.inner_text('#toast'), 'Check the rule books now starts the Rules watch')
+    d1.evaluate(act, ['sign-out', {}]); d1.wait_for_selector('input[name=password]', timeout=20000)
+    signed_out = json.loads(d1.evaluate("localStorage.getItem('tm-github')"))
+    c.ok('token' not in signed_out and d1.evaluate("sessionStorage.getItem('tm-github:token')") is None,
+         'signing out removes the publishing token from session and durable storage')
     ok = c.done(errs); b.close()
 srv.shutdown(); sys.exit(0 if ok else 1)
