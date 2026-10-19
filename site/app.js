@@ -5378,7 +5378,9 @@ const actions = {
     if (!t.cancelled && !confirm(`Mark “${t.title}” on ${fmtDay(t.date)} as cancelled? Everyone stays on it in case it’s back on.`)) return;
     t.cancelled = !t.cancelled; delete t.cancelledWith; save(); refreshTask(t.id); toast(t.cancelled ? 'Task cancelled' : 'Task back on');
   }),
-  'crew-new': coachOnly(() => openSheet('Add match-day staff', crewPersonForm(null), 'crew-person')),
+  'crew-new': coachOnly(() => M.activeTeams(ws).length>1 ? openSheet('Choose team and sport',crewChooseTeamForm(),'crew-pick-team') : openSheet('Add match-day staff',crewPersonForm(null),'crew-person')),
+  'crew-switch': coachOnly(() => openSheet('Change match-day staff team',crewChooseTeamForm(true),'crew-pick-view')),
+  'crew-reassign': coachOnly(() => openSheet('Choose team and sport',crewChooseTeamForm(),'crew-pick-team')),
   'crew-edit': coachOnly(el => { const p = crewPerson(el.dataset.id); if (p) openSheet(p.name, crewPersonForm(p), 'crew-person'); }),
   'crew-policy-open': coachOnly(el => {
     const match = el.dataset.id ? matchById(el.dataset.id) : null;
@@ -6207,21 +6209,32 @@ document.addEventListener('submit', async e => {
     toast(`Cleared: ${Object.entries(n).map(([k, v]) => `${v} ${k === 'squad' ? 'players' : k === 'training' ? 'sessions' : k}`).join(', ')}`);
     return;
   }
+  if (kind === 'crew-pick-team' || kind === 'crew-pick-view') {
+    const target=M.activeTeams(ws).find(t=>t.id===str('teamId'));
+    if(!target){toast('Choose a team that exists in this workspace.');return;}
+    pickTeam(target.id);
+    if(kind==='crew-pick-team') openSheet('Add match-day staff',crewPersonForm(null),'crew-person');
+    else {state.tab='crew';history.replaceState(null,'','#crew');closeSheet();render();}
+    return;
+  }
   if (kind === 'crew-person') {
     const id = str('id'), p = id ? crewPerson(id) : null;
     if (id && !p) { toast('The staff member no longer exists.'); return; }
     if (!str('name')) { fieldError(form, 'name', 'Enter the staff member’s name'); return; }
-    const roles = f.getAll('role').filter(x => CREW_ROLES[x]);
-    if (!roles.length) { toast('Select at least one recognised role.'); return; }
+    const sport=M.teamSport(data.team,M.clubOf(ws,data));
+    const rolesSelected=f.getAll('role').filter(x=>crewRoleAllowed(sport,x));
+    const roles=[...(p?.roles||[]).filter(x=>!crewRoleAllowed(sport,x)),...rolesSelected];
+    if (!rolesSelected.length) { toast('Select at least one role for ' + sport); return; }
     const scope = str('scope');
     const saved = normCrewPerson({
       ...(p || {}), id: id || uid(), name: str('name'),
       clubId: scope === 'club' ? data.team.clubId : '',
       teamIds: scope === 'club' ? [] : [...new Set([...(p?.teamIds || []), data.id])],
       roles, active: !!f.get('active'),
-      registration: Object.fromEntries(['coach','volunteer','trainer'].map(k => [k, str('reg-' + k)])),
+      registrationBySport: { ...(p?.registrationBySport||{}), [sport]: Object.fromEntries(['coach','volunteer','trainer'].map(k=>[k,str('reg-'+k)])) },
+      registration: p?.registration || {},
       squadYears: { ...(p?.squadYears || {}), [data.id]: str('squad-year') },
-      accreditation: Object.fromEntries(Object.keys(CREW_ROLES).map(k => [k, str('acc-' + k)])),
+      accreditation: { ...(p?.accreditation||{}), ...Object.fromEntries(Object.keys(CREW_ROLES).filter(r=>crewRoleAllowed(sport,r)).map(k=>[k,str('acc-'+k)])) },
       wwccStatus: f.get('wwccChecked') ? 'checked' : 'unverified',
       wwccExpiry: str('wwccExpiry')
     });
@@ -6234,12 +6247,13 @@ document.addEventListener('submit', async e => {
     const year = str('year'), source = str('source');
     if (!/^20\d\d$/.test(year)) { fieldError(form, 'year', 'Enter the competition season year'); return; }
     if (!source) { fieldError(form, 'source', 'Add the source of the official requirements'); return; }
-    const rows = Object.keys(REQUIREMENT_ROLES).map(role => ({ role, min: Number(str('min-'+role) || '0') })).filter(r => r.min > 0);
+    const sport=M.teamSport(data.team,M.clubOf(ws,data));
+    const rows = Object.keys(REQUIREMENT_ROLES).filter(role=>crewRequirementAllowed(sport,role)).map(role => ({ role, min: Number(str('min-'+role) || '0') })).filter(r => r.min > 0);
     if (rows.some(r => !Number.isInteger(r.min) || r.min > 12)) { toast('Each minimum must be a whole number from 0 to 12.'); return; }
     const match = str('matchId') ? matchById(str('matchId')) : null;
     if (str('matchId') && !match) { toast('That match is no longer available'); return; }
-    if (match) match.crewPolicy = normCrewRules({ year, source, rows });
-    else data.team.crewPolicy = normCrewRules({ year, source, rows });
+    if (match) match.crewPolicy = normCrewRules({ sport, year, source, rows });
+    else data.team.crewPolicy = normCrewRules({ sport, year, source, rows });
     save(); if (match) openMatch(match.id); else { closeSheet(); render(); }
     toast('Requirements recorded. Check each game’s assigned and confirmed staff.');
     return;
@@ -6247,7 +6261,8 @@ document.addEventListener('submit', async e => {
   if (kind === 'crew-match') {
     const m = matchById(str('id')); if (!m) return;
     const ids = f.getAll('crew-person').map(String), roles = f.getAll('crew-role').map(String);
-    const rows = ids.flatMap((personId,i) => personId && crewPerson(personId) && CREW_ROLES[roles[i]]
+    const sport=M.teamSport(data.team,M.clubOf(ws,data));
+    const rows = ids.flatMap((personId,i) => personId && crewPerson(personId) && crewRoleAllowed(sport,roles[i])
       ? [{personId, role: roles[i], confirmed: !!f.get('crew-confirm-'+i)}] : []);
     if (new Set(rows.map(x=>x.personId)).size !== rows.length) {
       toast('Assign each person to only one match-day role.'); return;
