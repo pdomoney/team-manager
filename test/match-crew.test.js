@@ -93,3 +93,22 @@ test('a match in the next season cannot use the previous season local policy',()
   assert.equal(r.configured,false);
   assert.equal(r.ready,false);
 });
+
+
+test('shared club trainer double-booked across two games is flagged', () => {
+  const match = { id:'one', date, start:'09:00', status:'scheduled',
+    crew:[{personId:'t',role:'green',confirmed:true}] };
+  const other = { id:'two', date, start:'09:30', status:'scheduled',
+    crew:[{personId:'t',role:'blue',confirmed:true}] };
+  const teams = [
+    { id:'u12', matches:[match] },
+    { id:'u13', matches:[other] }
+  ];
+  assert.equal(crewScheduleClashes(teams,'u12',match).length,1);
+  other.start='13:30';
+  assert.deepEqual(crewScheduleClashes(teams,'u12',match),[]);
+  other.start='';
+  assert.equal(crewScheduleClashes(teams,'u12',match).length,1);
+  other.status='cancelled';
+  assert.deepEqual(crewScheduleClashes(teams,'u12',match),[]);
+});
