@@ -30,7 +30,7 @@ test('coach and first responder must be separate assigned people', () => {
 
 test('club-wide registration alone does not certify a person for each team squad', () => {
   const p = { ...person('b', ['blue']), squadYears: {} };
-  assert.match(canCrewServe(p,team,'blue',date),/squad allocation/);
+  assert.match(canCrewServe(p,team,'blue',date),/team allocation/);
   assert.equal(canCrewServe({ ...p,squadYears:{u12:'2026'} },team,'blue',date),'');
 });
 
@@ -129,7 +129,7 @@ test('Oztag and Touch never accept league shirt trainer roles or league policy',
 });
 
 test('registrations remain independent for shared people and each sport',()=>{
- const p={...person('x',['coach','firstAid']),registrationBySport:{Oztag:{coach:'2026',trainer:'2026'}},
+ const p={...person('x',['coach','firstAid'],{trainer:'',coach:'',volunteer:''}),registrationBySport:{Oztag:{coach:'2026',trainer:'2026'}},
  accreditation:{firstAid:'2027-01-01',coach:'2027-01-01'}};
  assert.equal(canCrewServe(p,{...team,team:{...team.team,sport:'Oztag'}},'firstAid',date),'');
  assert.match(canCrewServe(p,team,'firstAid',date),/registration/);
