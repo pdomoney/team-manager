@@ -620,6 +620,55 @@ details.more[open] summary{margin-bottom:8px}
 .play-legend{justify-content:center;margin-top:8px;gap:6px 14px}
 .play-legend span{display:inline-flex;align-items:center;gap:5px}
 .pf .mv.opt{opacity:.5}
+/* Play learning viewer: a readable coaching cue and clear roles, without editing.
+   Both coaches and players use the same SVG geometry and mirroring. */
+.play-modes{max-width:600px;margin-bottom:10px}
+.play-modes button{font-weight:700;letter-spacing:.1px}
+.play-study{border:1px solid #9FB9AB;background:#FFFFFF;padding:12px 12px 16px;box-shadow:0 4px 18px rgba(18,61,43,.06)}
+.study-progress{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:#365546;margin:2px 0 10px}
+.study-progress strong{background:#E6F2EA;border:1px solid #B6D4C0;padding:5px 11px;border-radius:999px;white-space:nowrap}
+.study-progress span{color:var(--muted);text-align:right}
+.study-cue{padding:14px 16px 15px;border-radius:12px;background:#164C38;color:#FFFFFF;margin-bottom:12px;min-height:98px}
+.study-cue h3{font:700 24px/1.15 var(--font-d);letter-spacing:.2px;margin:0 0 6px;color:white}
+.study-cue p{font-size:16px;line-height:1.5;font-weight:500;margin:0;color:#F0F7F2}
+.study-controls{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:12px}
+.study-controls .btn{min-width:112px}
+.study-controls .btn:disabled{opacity:.42}
+.pf.study{--pf-turf:#E4EEE5;--pf-edge:#617C6A;--pf-key:#155FC7;max-width:none}
+.pf.study .mv{stroke-width:2.1}
+.pf.study .mv.key{stroke-width:3.1}
+.pf.study .mv.study-emphasis{stroke:var(--pf-key);stroke-width:3.4;opacity:1}
+.pf.study .mv.study-soft{opacity:.18}
+.pf.study .plg.study-target .pl{fill:#174F3C;stroke:#174F3C;stroke-width:3}
+.pf.study .plg.study-target .plt{fill:white}
+.pf.study .plg.study-soft{opacity:.48}
+.pf.study .pf-q{fill:#435F50;font-weight:600}
+.pf.study .df{stroke:#718B79;stroke-width:1.7}
+.study-side{margin:0}
+.study-side .field-l{margin-top:12px}
+.study-side select{width:100%;min-height:44px;background:var(--paper);color:var(--ink)}
+.study-side .hint{line-height:1.5}
+.study-side .play-h{font-size:20px}
+.study-details{margin-top:16px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.study-details summary{font-weight:700;min-height:28px;cursor:pointer}
+.study-details[open] .steps{margin-top:10px}
+.anim-timeline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 8px 0}
+.anim-timeline label{font-size:13px;font-weight:600;color:var(--muted)}
+.anim-timeline input[type=range]{flex:1 1 150px;min-width:95px;accent-color:var(--pitch);min-height:32px;cursor:pointer}
+.anim-timeline output{min-width:3ch;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+@media(max-width:600px){
+  .play-study{margin:0 -2px;padding:10px 8px 12px}
+  .study-cue{padding:12px 13px;min-height:100px}
+  .study-cue h3{font-size:23px}
+  .study-progress{padding:0 4px}
+  .study-controls{padding:0 3px}
+  .study-controls .btn{min-height:44px}
+  .anim-bar{flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){
+  .play-study,.pf.study{scroll-behavior:auto}
+}
+
 /* Phases and the animation */
 .phase-bar{margin:0 0 8px;flex-wrap:wrap}
 .phase-bar button{flex:1 1 auto;white-space:nowrap}
