@@ -3414,6 +3414,9 @@ function crewPersonForm(person) {
     <div class="two">${crewField('reg-coach', 'Coach registration year', p.registration.coach, 'number', 'min="2020" max="2100" placeholder="2026"')}
       ${crewField('reg-volunteer', 'Volunteer registration year', p.registration.volunteer, 'number', 'min="2020" max="2100" placeholder="2026"')}</div>
     ${crewField('reg-trainer', 'Trainer registration year', p.registration.trainer, 'number', 'min="2020" max="2100" placeholder="2026"')}
+    <h3 class="form-sec">Official team squad allocation</h3>
+    <p class="hint">Even club-wide trainers must be allocated to this particular team in MySideline before they appear on its official team list.</p>
+    ${crewField('squad-year','Squad allocation confirmed for this team (season)', p.squadYears?.[data.id] || '', 'number','min="2020" max="2100" placeholder="2026"')}
     <h3 class="form-sec">Accreditation expiry (confirmed)</h3>
     <p class="hint">Enter a date only when the role-specific accreditation or its required annual renewal has been confirmed. An empty or expired date prevents match readiness.</p>
     <div class="two">${Object.entries(CREW_ROLES).filter(([r]) => r !== 'manager').map(([r,label]) => crewField('acc-' + r, label, p.accreditation[r], 'date')).join('')}</div>
@@ -6125,6 +6128,7 @@ document.addEventListener('submit', async e => {
       teamIds: scope === 'club' ? [] : [...new Set([...(p?.teamIds || []), data.id])],
       roles, active: !!f.get('active'),
       registration: Object.fromEntries(['coach','volunteer','trainer'].map(k => [k, str('reg-' + k)])),
+      squadYears: { ...(p?.squadYears || {}), [data.id]: str('squad-year') },
       accreditation: Object.fromEntries(Object.keys(CREW_ROLES).map(k => [k, str('acc-' + k)])),
       wwccStatus: f.get('wwccChecked') ? 'checked' : 'unverified',
       wwccExpiry: str('wwccExpiry')
