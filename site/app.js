@@ -3416,7 +3416,7 @@ function crewPersonForm(person) {
     ${crewField('reg-trainer', 'Trainer registration year', p.registration.trainer, 'number', 'min="2020" max="2100" placeholder="2026"')}
     <h3 class="form-sec">Accreditation expiry (confirmed)</h3>
     <p class="hint">Enter a date only when the role-specific accreditation or its required annual renewal has been confirmed. An empty or expired date prevents match readiness.</p>
-    <div class="two">${Object.entries(CREW_ROLES).map(([r,label]) => crewField('acc-' + r, label, p.accreditation[r], 'date')).join('')}</div>
+    <div class="two">${Object.entries(CREW_ROLES).filter(([r]) => r !== 'manager').map(([r,label]) => crewField('acc-' + r, label, p.accreditation[r], 'date')).join('')}</div>
     <h3 class="form-sec">Working With Children Check</h3>
     <label class="check"><input type="checkbox" name="wwccChecked" ${p.wwccStatus === 'checked' ? 'checked' : ''}><span>Club has independently confirmed the relevant clearance</span></label>
     ${crewField('wwccExpiry', 'WWCC expiry', p.wwccExpiry, 'date')}
