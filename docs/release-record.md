@@ -1,13 +1,14 @@
 # Release record — current status and historical milestones
 
-## Current merged baseline — 18 October 2026
+## Current merged baseline — 19 October 2026
 
-- **Authoritative `main`:** [`960212fdb3c6`](https://github.com/pdomoney/team-manager/commit/960212fdb3c6bfcf73bbb3c2160aa21ac2ea07e6). [PR #9](https://github.com/pdomoney/team-manager/pull/9), [PR #10](https://github.com/pdomoney/team-manager/pull/10) and [PR #11](https://github.com/pdomoney/team-manager/pull/11) are **merged**.
-- **Superseded alternative:** [PR #8](https://github.com/pdomoney/team-manager/pull/8) is **closed without merging**. The accepted jersey history and sport-position models were retained; additional compatible PR8 test and resilience improvements were selectively integrated via PR #11.
-- **On merged `main`:** [Tests run 39112283528](https://github.com/pdomoney/team-manager/actions/runs/39112283528) passed **103 unit tests and 491 Chromium checks across 13 browser suites**; [Publish run 39112283502](https://github.com/pdomoney/team-manager/actions/runs/39112283502) succeeded.
-- **Full capacity qualification:** [PR #11 run 39108841423](https://github.com/pdomoney/team-manager/actions/runs/39108841423) passed **521/521 browser checks across 14 suites**, including **30/30 synthetic-photo capacity checks**. Main-branch pushes omit the slower capacity suite by design. The [capacity and evidence record](pr8-selective-qualification-20261018.md) retains test measurements and limitations.
-- **Outstanding manual acceptance:** Real iOS/macOS Safari photo/forms, physical-device quota and backup recovery, and authenticated GitHub data-branch publishing. The successful Pages deploy was in **test mode**, with no data branch yet.
-- **Repository release status:** Automated development baseline accepted; operational/live-team acceptance **not** established.
+- **Authoritative `main`:** [`6d62e83d2a1d`](https://github.com/pdomoney/team-manager/commit/6d62e83d2a1d67db2698c7aa1da4cb9ca5a8fd38). PRs #1–#7 and #9–#15 are merged; PR #8 was closed without merging and selectively superseded by accepted changes.
+- **Features included:** multi-club Home; seasons and competitions; player photos and jerseys; explicit cross-team player links; sport inheritance and override; fresh New Team with deliberate setup reuse.
+- **Exactly merged `main` GitHub Actions:** [Tests 39178700541](https://github.com/pdomoney/team-manager/actions/runs/39178700541) passed **113/113 unit tests** and **559/559 Chromium browser checks across 16 suites**. [Publish 39178700562](https://github.com/pdomoney/team-manager/actions/runs/39178700562) succeeded and confirmed **no `data` branch** existed at publication.
+- **PR #15 full capacity qualification:** [39178073122](https://github.com/pdomoney/team-manager/actions/runs/39178073122) passed **589/589 browser checks across 17 suites**, including **30/30 synthetic-photo capacity checks** (PR head `751e5be20327`). Normal main-branch checks omit the slow capacity suite.
+- **Separate workflow issue:** scheduled Rules watch [39172394540](https://github.com/pdomoney/team-manager/actions/runs/39172394540) failed when committing from a newly initialised temporary repository with no Git author identity. This is not a failed Pages deployment.
+- **Manual operational acceptance outstanding:** real Safari on iOS/macOS, realistic device storage limits and encrypted backup restore, actual authenticated GitHub `data` branch publication with approved data and coach review of visual workflows.
+- **Active code candidate, not accepted:** [architecture stabilisation handoff](architecture-stabilisation-20261019.md) covers GitHub token retention, team/library reuse boundaries and incremental extraction. Do not treat branch changes as part of the merged baseline until approved.
 
 ## Historical milestone record (not current release status)
 
