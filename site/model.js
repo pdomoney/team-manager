@@ -18,6 +18,7 @@
 // replies) carry `via: 'coach'`, so a future sign-in system can tell them apart from people's own.
 
 import { RULES } from './rules.js';
+import { normStyle } from './team-style.js';
 export { RULES };
 
 // Schema 4 adds seasons (team.seasons, and a seasonId on training, matches, tasks, messages and
@@ -145,6 +146,8 @@ export function migrateWorkspace(raw, normTeam = t => t) {
   repairCompetitions(ws);
   syncEvents(ws);
   fixDefaultPositions(ws);
+  // A team's colour style: kept if it's a known palette or valid colours, dropped otherwise.
+  teamsOf(ws).forEach(t => { if (t.team && 'style' in t.team) { const st = normStyle(t.team.style); if (st) t.team.style = st; else delete t.team.style; } });
   teamsOf(ws).forEach(t => repairTeam(t));
   return ws;
 }

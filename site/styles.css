@@ -6,6 +6,11 @@
   --sky:#2F7FD0; --sky-soft:#E0EDFA; --sky-ink:#174E87;
   --ok:#23804A; --ok-soft:#E2F2E8; --warn:#B26A00; --warn-soft:#FCEFD9; --bad:#C0283A; --bad-soft:#FBE3E6;
   --wa:#1C9D50;
+  /* Team colours (Settings › Team colours sets them; these defaults are the classic look). --pitch is
+     the team's dark colour. Colours that carry meaning (--ok, --warn, --bad, --tag, --gold, --sky) never
+     change with the team. */
+  --pitch-3:#1B5A3D; --team-action:var(--tag); --team-action-ink:#fff; --team-action-hover:var(--tag-dark); --team-action-edge:var(--tag);
+  --team-accent:#FFD24D; --team-on-dark:var(--tag); --team-on-dark-ink:#fff; --team-indicator:var(--tag);
   --nav-h:64px;
   --font-d:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
   --font-m:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
@@ -30,7 +35,7 @@ p{margin:0}
 .top-row{display:flex;align-items:center;gap:10px;min-height:44px}
 .top h1{font-size:21px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.015em}
 .days-chip{font:600 16px/1 var(--font-d);background:rgba(255,255,255,.12);padding:6px 10px;border-radius:999px;white-space:nowrap}
-.days-chip b{color:#FFD24D;font-weight:700}
+.days-chip b{color:var(--team-accent);font-weight:700}
 .top .icon-btn{color:#fff}
 .team-btn{appearance:none;background:none;border:0;color:inherit;font:inherit;display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:4px 6px 4px 0;cursor:pointer;min-height:40px}
 .team-btn svg{flex:none;opacity:.8}
@@ -44,8 +49,9 @@ main{max-width:720px;margin:0 auto;padding:16px}
 /* Buttons */
 .btn{appearance:none;border:1px solid var(--line);background:var(--paper);font-weight:500;font-size:15px;padding:9px 14px;border-radius:10px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;text-decoration:none;color:var(--ink);white-space:nowrap}
 .btn:active{transform:translateY(1px)}
-.btn.primary{background:var(--tag);border-color:var(--tag);color:#fff}
-.btn.primary:hover{background:var(--tag-dark)}
+.btn.primary{background:var(--team-action);border-color:var(--team-action-edge);color:var(--team-action-ink)}
+.btn.primary:hover{background:var(--team-action-hover)}
+.focus:not(.calm):not(.lite) .btn.primary,.hero .btn.primary{background:var(--team-on-dark);border-color:var(--team-on-dark);color:var(--team-on-dark-ink)}
 .btn.dark{background:var(--pitch);border-color:var(--pitch);color:#fff}
 .btn.wa{background:var(--wa);border-color:var(--wa);color:#fff}
 .btn.danger{color:var(--bad);border-color:#F0C3C9}
@@ -120,7 +126,7 @@ main{max-width:720px;margin:0 auto;padding:16px}
 .sess.today .cal .dow{background:var(--tag)}
 .sess.cancelled .t,.sess.cancelled .sub{text-decoration:line-through;color:var(--muted)}
 .sess .t{font-weight:600}
-.sess .focus{font-size:14px;margin-top:2px}
+.sess .sess-focus{font-size:14px;margin-top:2px}
 .sess .acts{display:flex;flex-direction:column;gap:6px;flex:none}
 .sess-main{appearance:none;background:none;border:0;text-align:left;padding:0;flex:1;min-width:0;cursor:pointer}
 .toggle-past{appearance:none;background:none;border:0;color:var(--pitch);font-weight:600;padding:12px 0;cursor:pointer}
@@ -471,13 +477,13 @@ input[type=text],input[type=tel],input[type=email],input[type=url],input[type=da
 .nav-group{display:flex;min-width:0}
 .tabs .nav-main{appearance:none;background:none;border:0;width:100%;height:var(--nav-h);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;position:relative}
 .tabs .nav-main[aria-current="page"]{color:var(--pitch)}
-.tabs .nav-main[aria-current="page"]::before{content:"";position:absolute;top:0;left:28%;right:28%;height:3px;background:var(--tag);border-radius:0 0 3px 3px}
+.tabs .nav-main[aria-current="page"]::before{content:"";position:absolute;top:0;left:28%;right:28%;height:3px;background:var(--team-indicator);border-radius:0 0 3px 3px}
 .nav-sub{display:none}
 .subnav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:-4px -16px 16px;padding:0 16px 2px;border-bottom:1px solid var(--line)}
 .subnav::-webkit-scrollbar{display:none}
 .subnav button{appearance:none;background:none;border:0;padding:10px 12px;min-height:44px;font-weight:600;font-size:15px;color:var(--muted);cursor:pointer;white-space:nowrap;position:relative}
 .subnav button[aria-current="page"]{color:var(--ink)}
-.subnav button[aria-current="page"]::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--tag)}
+.subnav button[aria-current="page"]::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--team-indicator)}
 main:focus{outline:none}
 .more-item{padding:14px 12px}
 .more-ic{width:40px;height:40px;border-radius:10px;background:var(--chalk);display:grid;place-items:center;color:var(--pitch);flex:none}
@@ -749,7 +755,7 @@ body.wide .nav-sub{display:flex;flex-direction:column;gap:1px;margin:0 0 6px 36p
 body.wide .nav-sub button{appearance:none;background:none;border:0;text-align:left;padding:7px 12px;min-height:36px;border-radius:8px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;position:relative}
 body.wide .nav-sub button:hover{background:var(--chalk)}
 body.wide .nav-sub button[aria-current="page"]{background:var(--chalk);color:var(--ink)}
-body.wide .nav-sub button[aria-current="page"]::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--tag)}
+body.wide .nav-sub button[aria-current="page"]::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--team-indicator)}
 body.wide .subnav{display:none}
 body.wide .tabs{overflow-y:auto}
 body.wide .toast{bottom:24px}
@@ -967,7 +973,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .jersey-list .jersey{width:30px;height:30px;font-size:16px}
 
 /* Live competition on Home */
-.comp-live{background:linear-gradient(140deg,#0D2F21 0%,#123D2B 55%,#1B5A3D 100%);color:#fff;border-radius:14px;padding:14px 16px 16px;margin-bottom:20px;border-top:4px solid var(--gold)}
+.comp-live{background:linear-gradient(140deg,var(--pitch-2) 0%,var(--pitch) 55%,var(--pitch-3) 100%);color:#fff;border-radius:14px;padding:14px 16px 16px;margin-bottom:20px;border-top:4px solid var(--gold)}
 .cl-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
 .cl-trophy{width:44px;height:44px;border-radius:50%;background:var(--gold);color:var(--pitch-2);display:grid;place-items:center;flex:none}
 .cl-k{font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--gold);margin:2px 0 2px;display:flex;align-items:center;gap:6px}
@@ -997,7 +1003,9 @@ div.cl-line,p.cl-line{cursor:default}
 /* Coach-only match-day officials and trainer compliance aide. */
 .crew-section{margin-bottom:16px}
 .crew-section h3{font-size:18px;margin:0}
-.crew-person{display:flex;align-items:center;text-align:left;width:100%;padding:14px;min-height:62px;cursor:pointer}
+.crew-person{display:flex;align-items:center;text-align:left;width:100%;padding:14px;min-height:62px;cursor:pointer;appearance:none;-webkit-appearance:none;background:var(--paper);color:inherit;font:inherit;border:0;border-top:1px solid var(--line)}
+.list>.crew-person:first-child{border-top:0}
+.crew-person:hover{background:#FAFBF8}
 .crew-person .sub{white-space:normal;line-height:1.5}
 .crew-status{padding:12px 14px;border-radius:10px;border:1px solid #B4C6D4;background:#EFF5F8;margin:8px 0;display:flex;flex-direction:column;gap:3px}
 .crew-status strong{color:#123F61}
@@ -1086,3 +1094,52 @@ div.cl-line,p.cl-line{cursor:default}
 .crew-qual-row legend{font-weight:600;font-size:14px;padding:0 5px}
 .crew-qual-row .field-l{margin-bottom:0}
 @media(max-width:600px){.crew-qual-row{padding:10px}.crew-qual-row .two{display:grid;grid-template-columns:1fr;gap:8px}}
+
+/* ----- Team colours: a chosen style also shows as a stripe under the header and on the live card ----- */
+html[data-team-style] .top{box-shadow:inset 0 -4px 0 var(--team-accent)}
+html[data-team-style] .comp-live{border-top-color:var(--team-accent)}
+html[data-team-style] .cl-trophy{background:var(--team-accent)}
+html[data-team-style] .cl-k,html[data-team-style] .cl-lbl{color:var(--team-accent)}
+.style-grid{border:0;padding:0;margin:0 0 10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.style-sw{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 4px 7px;border:1px solid var(--line);border-radius:12px;background:var(--paper);cursor:pointer;text-align:center;min-height:44px}
+.style-sw input{position:absolute;opacity:0;width:1px;height:1px}
+.style-sw .sw{display:flex;width:44px;height:26px;border-radius:8px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.14)}
+.style-sw .sw i{flex:1}
+.style-sw .nm{font-size:12px;line-height:1.2;color:var(--ink)}
+.style-sw input:checked+.sw{box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--ink)}
+.style-sw:has(input:checked){border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.style-sw:has(input:focus-visible){outline:3px solid var(--gold);outline-offset:2px}
+.style-custom .three{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.style-custom input[type=color]{width:100%;height:46px;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+/* ----- Sport icons: beside the season, on the crest, on team chips and as a faint mark ----- */
+.season-ic{vertical-align:-3px;margin-right:6px;color:var(--team-accent)}
+.crest-wrap{position:relative;display:inline-flex;flex:none;margin-right:6px}
+.sport-pip{position:absolute;right:-9px;bottom:-7px;width:22px;height:22px;border-radius:50%;background:var(--pitch);color:#fff;display:grid;place-items:center;box-shadow:0 0 0 2px var(--paper)}
+.chip-ic{vertical-align:-3px;margin-right:5px;flex:none}
+.switch-ic{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--chalk);color:var(--pitch);flex:none;margin-right:10px}
+section.focus{position:relative;overflow:hidden}
+section.focus.has-mark::after{content:"";position:absolute;right:-26px;top:-22px;width:150px;height:150px;background:currentColor;opacity:.09;pointer-events:none;
+  -webkit-mask:var(--sport-mark) center/contain no-repeat;mask:var(--sport-mark) center/contain no-repeat}
+section.focus.calm.has-mark::after,section.focus.lite.has-mark::after{opacity:.06}
+section.focus>*{position:relative}
+/* ----- Accreditation badges for match-day staff ----- */
+.cbadges{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 3px}
+.cbadge{display:inline-flex;line-height:0;border-radius:50%}
+.cbadge.on{box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--ink)}
+.cbadge-card{border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:12px 14px;margin:8px 0 12px}
+.cbadge-card>strong{display:block}
+.cbadge-list{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:10px}
+.cbadge-list li{display:flex;align-items:center;gap:10px;line-height:1.35}
+.cbadge-list li .cbadge-svg{flex:none}
+.cbadge-list li.s-expired .sub,.cbadge-list li.s-expiring .sub{font-weight:600}
+.cbadge-list li.s-expired .sub{color:var(--bad)} .cbadge-list li.s-expiring .sub{color:var(--warn)}
+.cbadge-legend{margin:12px 0 4px;border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:10px 14px}
+.cbadge-legend summary{cursor:pointer;font-weight:600;min-height:28px;display:flex;align-items:center}
+.cbadge-key{list-style:none;padding:0;margin:10px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px 14px}
+.cbadge-key li{display:flex;align-items:center;gap:8px;font-size:14px}
+.cbadge-key.states{border-top:1px solid var(--line);padding-top:10px}
+.crew-row-badges{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-height:4px;margin:2px 0 6px}
+.crew-row-badges .cbadges{margin:0}
+.crew-slots{list-style:none;padding:0;margin:10px 0;display:grid;gap:8px}
+.crew-slots li{display:flex;align-items:center;gap:10px}
+.crew-slots .cbadges{margin:0;flex:none}

@@ -131,6 +131,15 @@ export const normCrewRules = p => ({
   rows: arr(p?.rows).filter(r => REQUIREMENT_ROLES[r?.role] && Number.isInteger(+r.min) && +r.min >= 1 && +r.min <= 12)
     .map(r => ({ role: r.role, min: Number(r.min) }))
 });
+// Roles that need a current accreditation to count on match day (others need only the role itself).
+export const crewRoleNeedsAccreditation = (role, sport) =>
+  ['yellow', 'green', 'blue', 'orange', 'firstAid'].includes(role) || (['coach', 'assistant'].includes(role) && words(sport) !== 'Oztag');
+// The accreditation expiry recorded for a role in a sport. An expiry explicitly cleared for the sport
+// must not fall back to an older generic one.
+export function crewAccreditationExpiry(person, sport, role) {
+  const p = normCrewPerson(person), perSport = p.accreditationBySport[words(sport)] || {};
+  return Object.prototype.hasOwnProperty.call(perSport, role) ? perSport[role] : p.accreditation[role];
+}
 export function canCrewServe(person, team, role, date) {
   const p = normCrewPerson(person);
   const sport = crewSport(team);
@@ -142,13 +151,8 @@ export function canCrewServe(person, team, role, date) {
   if (!ymd(date) || !season || current !== season) return 'Season registration unverified for ' + sport;
   if (p.squadYears[team.id] !== season) return crewProfile(sport).provider + ' team allocation unverified';
   if (p.wwccStatus !== 'checked' || !p.wwccExpiry || p.wwccExpiry < date) return 'WWCC verification missing or expired';
-  const needsAcc = ['yellow','green','blue','orange','firstAid'].includes(role)
-    || (['coach','assistant'].includes(role) && sport !== 'Oztag');
-  const perSport = p.accreditationBySport[sport] || {};
-  // An explicitly cleared sport expiry must not revive an old generic clearance.
-  const accreditationExpiry = Object.prototype.hasOwnProperty.call(perSport,role)
-    ? perSport[role] : p.accreditation[role];
-  if (needsAcc && (!accreditationExpiry || accreditationExpiry < date)) return 'Role accreditation unverified or expired';
+  const accreditationExpiry = crewAccreditationExpiry(p, sport, role);
+  if (crewRoleNeedsAccreditation(role, sport) && (!accreditationExpiry || accreditationExpiry < date)) return 'Role accreditation unverified or expired';
   return '';
 }
 export function matchCrewCheck(people, team, match, policy, competition = null) {
