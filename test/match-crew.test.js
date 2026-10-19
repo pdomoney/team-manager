@@ -8,7 +8,7 @@ const person = (id, roles, reg = { trainer: '2026', coach: '2026', volunteer: '2
     wwccStatus: 'checked', wwccExpiry: '2027-01-01',
     accreditation: Object.fromEntries(roles.map(r => [r, '2027-01-01'])) });
 const date = '2026-11-01';
-const policy = { source: 'Approved club U12 match-day rules, reviewed 2026', rows: [
+const policy = { source: 'Approved club U12 match-day rules, reviewed 2026', year: '2026', rows: [
   { role: 'coach', min: 1 }, { role: 'manager', min: 1 }, { role: 'firstResponder', min: 1 }
 ] };
 
@@ -45,7 +45,7 @@ test('qualification types and time are checked for each job and date', () => {
 test('unconfirmed attendance never fulfils a role minimum', () => {
   const p = person('p',['blue']);
   const res = matchCrewCheck([p],team,{date,crew:[{personId:'p',role:'blue',confirmed:false}]},
-    {source:'Local requirement',rows:[{role:'firstResponder',min:1}]});
+    {source:'Local requirement',year:'2026',rows:[{role:'firstResponder',min:1}]});
   assert.equal(res.ready,false);
   assert.equal(res.shortages[0].missing,1);
 });
@@ -54,7 +54,7 @@ test('configured combined minimum counts distinct qualifying jobs', () => {
   const a=person('a',['green']), b=person('b',['orange']);
   const r=matchCrewCheck([a,b],team,{date,crew:[
     {personId:'a',role:'green',confirmed:true},{personId:'b',role:'orange',confirmed:true}
-  ]},{source:'Local rule',rows:[{role:'firstResponder',min:2}]});
+  ]},{source:'Local rule',year:'2026',rows:[{role:'firstResponder',min:2}]});
   assert.equal(r.ready,true);
 });
 
