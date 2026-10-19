@@ -56,7 +56,7 @@ with sync_playwright() as p:
                   f'[{width}] optional diagram role labels live in advanced editor')
         pg.locator('#sheet [data-act=close-sheet]').last.click()
         pg.evaluate("""() => {window.__team.state.playMode='learn';}""")
-        pg.locator('[data-act=preview-on]').count() and pg.locator('[data-act=preview-on]').first.click()
+        pg.evaluate("([a, ds]) => {const b=document.createElement('button');b.dataset.act=a;Object.assign(b.dataset,ds||{});document.body.appendChild(b);b.click();b.remove()}", ['preview-on', {}])
         checks.ok(pg.locator('[data-act=play-transfer]').count()==0 and
                   'Retain draw and pass; rehearse touch' not in pg.inner_text('#view'),
                   f'[{width}] private coach notes and adaptation actions omitted from player view')
