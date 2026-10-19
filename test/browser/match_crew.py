@@ -30,8 +30,11 @@ with sync_playwright() as p:
             pg.locator('#sheet form[data-form=crew-person] button[type=submit]').click()
             pg.wait_for_timeout(60)
         people = pg.evaluate("window.__team.ws.matchOfficials")
-        c.ok(len(people) == 3 and all(x['teamIds'] and x['wwccStatus'] == 'checked' for x in people),
-             f'[{width}] shared encrypted directory stores role and manual verification, scoped to team')
+        scope = pg.evaluate("() => ({club: window.__team.data.team.clubId, team: window.__team.data.id})")
+        c.ok(len(people) == 3 and all(
+             x['wwccStatus'] == 'checked' and (x['clubId'] == scope['club'] if scope['club'] else scope['team'] in x['teamIds'])
+             for x in people),
+             f'[{width}] directory stores role and verification, scoped to the actual club or team')
         pg.locator('[data-act=crew-policy-open]').click()
         pg.fill('#sheet [name=year]', info['year'])
         pg.fill('#sheet [name=source]', f'{info["year"]} local age-group requirements (synthetic test)')
