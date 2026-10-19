@@ -75,6 +75,7 @@ test('stamps a version on the app files and the manifest', () => {
   assert.match(js, /from '\.\/github-settings\.js\?v=abc1234'/);
   assert.match(js, /from '\.\/team-setup\.js\?v=abc1234'/);
   assert.match(js, /from '\.\/play-study\.js\?v=abc1234'/);
+  assert.match(js, /from '\.\/play-transfer\.js\?v=abc1234'/);
   assert.match(js, /from '\.\/play-teaching\.js\?v=abc1234'/);
   assert.match(js, /from '\.\/match-crew\.js\?v=abc1234'/);
   assert.equal(JSON.parse(fs.readFileSync(path.join(outDir, 'data', 'manifest.json'), 'utf8')).version, 'abc1234');
