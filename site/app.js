@@ -3439,7 +3439,7 @@ function viewCrew() {
   const selectedId = intakeClubId();
   const directoryClub = arr(ws.clubs).find(c => c.id === selectedId);
   const pool = selectedId ? localClubDirectory(arr(ws.matchOfficials),selectedId,M.activeTeams(ws)) : crewPool();
-  return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add person</button></div>
+  return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div>
     <div class="crew-context"><span class="sub">Team: <strong>${esc(data.team.name)}</strong> · ${esc(sport)} · ${esc(profile.provider)}</span>
     <button class="btn sm" data-act="crew-switch">Change team</button></div>
     <p class="hint">A person can appear in more than one club. Club membership, registration and accreditation are reviewed separately. These records stay in the encrypted coach workspace, not a global member directory.</p>
@@ -6320,6 +6320,7 @@ document.addEventListener('submit', async e => {
     if (clubId && !arr(ws.clubs).some(c=>c.id===clubId)) { toast('Club no longer exists'); return; }
     const chosenTeam=teamId ? intakeClubTeams(clubId).find(t=>t.id===teamId) : null;
     if (teamId && !chosenTeam) { toast('Choose a team belonging to this club'); return; }
+    if (!clubId && !teamId) { fieldError(form, 'teamId', 'Choose a team if there is no club.'); return; }
     state.crewClubId=clubId;
     if (kind==='crew-invite-draft') {
       if (!validEmail(str('email'))) { fieldError(form,'email','Enter a valid recipient email address');return; }
@@ -6360,6 +6361,7 @@ document.addEventListener('submit', async e => {
     const target=M.activeTeams(ws).find(t=>t.id===str('teamId'));
     if(!target){toast('Choose a team that exists in this workspace.');return;}
     pickTeam(target.id);
+    state.crewClubId = target.team?.clubId || '';
     if(kind==='crew-pick-team') openSheet('Add match-day staff',crewPersonForm(null),'crew-person');
     else {state.tab='crew';history.replaceState(null,'','#crew');closeSheet();render();}
     return;
