@@ -47,6 +47,7 @@ export const normCrewPerson = p => ({
 });
 export const normCrewRules = p => ({
   source: words(p?.source).slice(0, 250),
+  year: /^\d{4}$/.test(String(p?.year || '')) ? String(p.year) : '',
   rows: arr(p?.rows).filter(r => REQUIREMENT_ROLES[r?.role] && Number.isInteger(+r.min) && +r.min >= 1 && +r.min <= 12)
     .map(r => ({ role: r.role, min: Number(r.min) }))
 });
@@ -74,7 +75,7 @@ export function matchCrewCheck(people, team, match, policy) {
     const n = slots.filter(a => a.valid && MATCHING[r.role].includes(a.role)).length;
     return { ...r, name: REQUIREMENT_ROLES[r.role], have: n, missing: Math.max(0, r.min - n) };
   });
-  const configured = !!rules.source && !!rules.rows.length;
+  const configured = !!rules.source && rules.year === words(match?.date).slice(0, 4) && !!rules.rows.length;
   return {
     configured, source: rules.source, slots, shortages,
     ready: configured && shortages.every(x => x.missing === 0) && slots.every(x => x.valid),
