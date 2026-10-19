@@ -25,6 +25,7 @@ import { GitHub, repoFromLocation } from './github.js';
 import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
+import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import * as M from './model.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
@@ -2649,15 +2650,20 @@ function openPlayEditor(play) {
     ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
   };
   tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
-  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, undo: [], dirty: false, tab: 'diagram' };
+  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, undo: [], dirty: false, tab: 'teach', teachPhase: 0, teachPreview: 0 };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
     <div class="two">
       <label class="field-l"><span>Name</span><input type="text" name="name" value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
       <label class="field-l"><span>Type</span><select name="category">${[...PLAY_CATS, ...(PLAY_CATS.includes(draft.category) ? [] : [draft.category])].map(c => `<option ${c === draft.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
     </div>
-    <div class="seg" role="group" aria-label="What to edit">
-      <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="true">Diagram</button>
-      <button type="button" data-act="ped-tab" data-tab="words" aria-pressed="false">Words</button>
+    <div class="seg ped-workspaces" role="group" aria-label="Play editor workspace">
+      <button type="button" data-act="ped-tab" data-tab="teach" aria-pressed="true">Teach the play</button>
+      <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="false">Advanced diagram</button>
+      <button type="button" data-act="ped-tab" data-tab="words" aria-pressed="false">Play details</button>
+    </div>
+    <div id="ped-teach" class="ped-teach">
+      <p class="hint">Create actions in the order players should learn them. Link each instruction to a movement and position in the diagram. Your existing drawing and written steps stay unchanged.</p>
+      <div id="ped-teach-body"></div>
     </div>
     <div id="ped-words" hidden>
       <label class="field-l"><span>Headline</span><input type="text" name="headline" value="${esc(draft.headline)}" placeholder="What the play does, in one line"></label>
@@ -2665,7 +2671,7 @@ function openPlayEditor(play) {
       <label class="field-l"><span>Steps, one per line</span><textarea name="steps" rows="6" placeholder="Use LW, LL, LR, LM, RM, RR, RL, RW so the left version swaps them automatically.">${esc(draft.steps)}</textarea></label>
       ${playRulesField(draft)}
     </div>
-    <div id="ped-diagram" class="ped-diagram">
+    <div id="ped-diagram" class="ped-diagram" hidden>
       <div class="ped-phases" id="ped-phases"></div>
       <div class="ped-meta">
       <label class="field-l ped-list"><span>Player labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select></label>
@@ -2856,6 +2862,64 @@ function refreshPedField() {
   const E = state.ped, box = $('#ped-field'); if (!E || !box) return;
   box.innerHTML = playSVG(pedView(E), 'right', { editor: true, svgId: 'ped-svg', viewport: pedViewport(E), overlay: fr => pedOverlay(E, fr) });
 }
+
+function refreshPedTeaching() {
+  const E = state.ped, box = $('#ped-teach-body'); if (!E || !box) return;
+  const phases = [E.draft, ...E.draft.phases];
+  E.teachPhase = clamp(E.teachPhase || 0, 0, phases.length - 1);
+  const ph = teachingPhase(E.draft, E.teachPhase), cues = teachingSteps(E.draft, E.teachPhase);
+  E.teachPreview = clamp(E.teachPreview || 0, 0, Math.max(0, cues.length - 1));
+  const codes = [...new Set(Object.values(playGeom(phaseView(E.draft, E.teachPhase), 'right').codes))].filter(Boolean);
+  const list = cues.map((cue, i) => {
+    const role = (cue.roles || [])[0] || '';
+    const move = (cue.moves || [])[0];
+    return `<section class="teach-action${i === E.teachPreview ? ' selected' : ''}">
+      <div class="teach-action-head"><strong>Action ${i + 1}</strong>
+        <div class="btn-row">
+          <button type="button" class="btn sm" data-act="teach-prev" data-i="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move action ${i + 1} earlier">↑</button>
+          <button type="button" class="btn sm" data-act="teach-next" data-i="${i}" ${i === cues.length - 1 ? 'disabled' : ''} aria-label="Move action ${i + 1} later">↓</button>
+          <button type="button" class="btn sm danger" data-act="teach-remove" data-i="${i}">Remove</button>
+        </div>
+      </div>
+      <label class="field-l"><span>Short title</span><input type="text" data-input="teach-title" data-i="${i}" maxlength="100" value="${esc(cue.title || '')}" placeholder="e.g. Draw the marker"></label>
+      <label class="field-l"><span>What should players do?</span><textarea data-input="teach-text" data-i="${i}" rows="2" maxlength="700" placeholder="One clear instruction, with the names or positions involved">${esc(cue.text || '')}</textarea></label>
+      <div class="two">
+        <label class="field-l"><span>Highlight position</span><select data-change="teach-role" data-i="${i}">
+          <option value="">Auto from instruction</option>
+          ${codes.map(code => `<option value="${esc(code)}" ${role === code ? 'selected' : ''}>${esc(code)}${labelName(getSet(E.draft.set), code) ? ' · ' + esc(labelName(getSet(E.draft.set), code)) : ''}</option>`).join('')}
+        </select></label>
+        <label class="field-l"><span>Linked diagram movement</span><select data-change="teach-move" data-i="${i}">
+          <option value="">Overview (no exact line)</option>
+          ${(ph.moves || []).map((m, k) => `<option value="${k}" ${move === k ? 'selected' : ''}>${k + 1}. ${esc(MOVE_KINDS[m.t] || m.t)}</option>`).join('')}
+        </select></label>
+      </div>
+      <button type="button" class="btn sm" data-act="teach-preview" data-i="${i}">Preview this action</button>
+    </section>`;
+  }).join('');
+  const preview = cues[E.teachPreview];
+  const guide = preview && preview.text ? preview : { title: 'Teaching preview', text: 'Write an instruction above, then choose Preview this action.', moves: [], roles: [] };
+  box.innerHTML = `<div class="teach-phase-picker" role="group" aria-label="Edit teaching phase">
+      ${phases.map((p, i) => `<button type="button" class="btn sm${i === E.teachPhase ? ' on' : ''}" data-act="teach-phase" data-i="${i}" aria-pressed="${i === E.teachPhase}">Phase ${i + 1}</button>`).join('')}
+    </div>
+    <div class="teach-layout">
+      <div class="teach-list">
+        <div class="teach-help"><strong>Tell the team what happens, in order.</strong>
+          <p>Each action has one clear instruction. The optional movement link makes the player highlight exact rather than inferred.</p></div>
+        ${list || '<p class="hint">No guided actions yet. Existing drawings and coaching words are preserved.</p>'}
+        <div class="btn-row">
+          <button type="button" class="btn primary sm" data-act="teach-add">+ Add action</button>
+          ${!cues.length ? '<button type="button" class="btn sm" data-act="teach-seed">Use existing instructions</button>' : ''}
+        </div>
+      </div>
+      <section class="teach-preview" aria-label="Player learning preview">
+        <h3 class="play-h">What players will see</h3>
+        <p class="hint">Phase ${E.teachPhase + 1} · Action ${cues.length ? E.teachPreview + 1 : 0} of ${cues.length}. Preview uses the exact saved field coordinates.</p>
+        <div class="study-cue"><h3>${esc(guide.title)}</h3><p>${esc(guide.text)}</p></div>
+        <div class="play-card">${playSVG(phaseView(E.draft, E.teachPhase), 'right', { study: true, studyCodes: guide.roles || [], studyMoves: guide.moves || [] })}</div>
+        <p class="hint">Switch to Advanced diagram to add or change runs, passes and player positions. Then return here to link the teaching actions.</p>
+      </section>
+    </div>`;
+}
 function refreshPlayEditor() {
   const E = state.ped; if (!E || !$('#ped-field')) return;
   const n = phaseCount(E.draft);
@@ -2864,6 +2928,7 @@ function refreshPlayEditor() {
   $('#ped-ptitle-l').textContent = n > 1 ? `Phase ${E.phase + 1}` : 'Phase 1 (add more phases for the next rucks)';
   $('#ped-tools').innerHTML = PED_TOOLS.map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${E.tool === k}">${l}</button>`).join('');
   refreshPedField();
+  if (E.tab === 'teach') refreshPedTeaching();
   $('#ped-panel').innerHTML = pedPanel(E);
   const u = $('[data-act="ped-undo"]'); if (u) u.disabled = !E.undo.length;
   const w = $('[data-act="ped-whole"]'); if (w) w.textContent = E.whole ? 'Zoom to the picture' : 'Show the whole field';
@@ -2873,7 +2938,8 @@ function pedSyncTitle() {
   const E = state.ped, t = $('#ped-ptitle'); if (E && t) t.value = pedCur(E).title || '';
 }
 function pedSetPhase(i) {
-  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length); E.placing = false; pedSelect(null); E.drawing = null;
+  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length);
+  E.teachPhase = Math.min(E.teachPhase || 0, E.draft.phases.length); E.placing = false; pedSelect(null); E.drawing = null;
   pedSyncTitle(); refreshPlayEditor();
 }
 // A new phase: the team lines up around the next ruck, with their defence 7 m back.
@@ -2899,7 +2965,7 @@ function pedUndo() {
 function pedDelete() {
   const E = state.ped; if (!E || !E.sel) return false;
   const d = pedCur(E), sel = E.sel;
-  if (sel.k === 'mv' && d.moves[sel.i]) { pedSnap(); d.moves.splice(sel.i, 1); }
+  if (sel.k === 'mv' && d.moves[sel.i]) { pedSnap(); removeMovementLinks(d, sel.i); d.moves.splice(sel.i, 1); }
   else if (sel.k === 'lb' && d.labels[sel.i]) { pedSnap(); d.labels.splice(sel.i, 1); }
   else return false;
   pedSelect(null); refreshPlayEditor(); return true;
@@ -5178,10 +5244,54 @@ const actions = {
     data.plays = [...starters.filter(p => add.includes(p)), ...data.plays].sort((a, b) => (STARTER_IDS.indexOf(a.id) + 1 || 99) - (STARTER_IDS.indexOf(b.id) + 1 || 99));
     save(); render(); toast(`${add.length} starter play${add.length === 1 ? '' : 's'} restored`);
   }),
+  'teach-phase': coachOnly(el => {
+    const E = state.ped; if (!E) return;
+    E.teachPhase = clamp(Number(el.dataset.i) || 0, 0, E.draft.phases.length);
+    E.teachPreview = 0; refreshPedTeaching();
+  }),
+  'teach-add': coachOnly(() => {
+    const E = state.ped; if (!E) return;
+    pedSnap(pedWords()); E.teachPreview = addTeachingStep(E.draft, E.teachPhase);
+    refreshPedTeaching();
+  }),
+  'teach-seed': coachOnly(() => {
+    const E = state.ped; if (!E) return;
+    pedSnap(pedWords());
+    const lines = String($('#sheet [name=steps]')?.value || '').split('\n').map(x => x.trim()).filter(Boolean);
+    const n = seedTeachingFromLegacy(E.draft, lines);
+    E.teachPreview = 0; refreshPedTeaching();
+    toast(n ? `${n} teaching action${n === 1 ? '' : 's'} created. Review each one before saving.` : 'Teaching actions are already configured.');
+  }),
+  'teach-remove': coachOnly(el => {
+    const E = state.ped; if (!E) return;
+    const i = Number(el.dataset.i);
+    if (!confirm(`Remove teaching action ${i + 1}? The original diagram and written steps stay.`)) return;
+    pedSnap(pedWords()); removeTeachingStep(E.draft, E.teachPhase, i);
+    E.teachPreview = Math.max(0, Math.min(E.teachPreview, teachingSteps(E.draft, E.teachPhase).length - 1));
+    refreshPedTeaching();
+  }),
+  'teach-prev': coachOnly(el => {
+    const E = state.ped; if (!E) return;
+    pedSnap(pedWords()); const i = Number(el.dataset.i);
+    if (moveTeachingStep(E.draft, E.teachPhase, i, -1)) E.teachPreview = i - 1;
+    refreshPedTeaching();
+  }),
+  'teach-next': coachOnly(el => {
+    const E = state.ped; if (!E) return;
+    pedSnap(pedWords()); const i = Number(el.dataset.i);
+    if (moveTeachingStep(E.draft, E.teachPhase, i, 1)) E.teachPreview = i + 1;
+    refreshPedTeaching();
+  }),
+  'teach-preview': coachOnly(el => {
+    const E = state.ped; if (!E) return;
+    E.teachPreview = Number(el.dataset.i) || 0; refreshPedTeaching();
+  }),
   'ped-tool': coachOnly(el => { const E = state.ped; E.tool = el.dataset.t; E.drawing = null; if (E.tool !== 'select') pedSelect(null); refreshPlayEditor(); }),
   'ped-tab': coachOnly(el => {
     const E = state.ped; E.tab = el.dataset.tab;
-    $('#ped-words').hidden = E.tab !== 'words'; $('#ped-diagram').hidden = E.tab !== 'diagram';
+    if (E.tab === 'diagram') pedSetPhase(E.teachPhase);
+    if (E.tab === 'teach') refreshPedTeaching();
+    $('#ped-words').hidden = E.tab !== 'words'; $('#ped-diagram').hidden = E.tab !== 'diagram'; $('#ped-teach').hidden = E.tab !== 'teach';
     document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === E.tab)));
   }),
   'ped-undo': coachOnly(() => pedUndo()),
@@ -5549,6 +5659,14 @@ document.addEventListener('input', e => {
   if (k === 'team-positions') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'msg') state.msgDraft = e.target.value;
   if (k === 'ped-ptitle' && state.ped) { pedCur(state.ped).title = e.target.value; state.ped.dirty = true; }
+  if ((k === 'teach-title' || k === 'teach-text') && state.ped) {
+    const E = state.ped, step = teachingSteps(E.draft, E.teachPhase)[Number(e.target.dataset.i)];
+    if (!step) return;
+    const editKey = k + ':' + E.teachPhase + ':' + e.target.dataset.i;
+    if (E.lastTeachInput !== editKey) { pedSnap(pedWords()); E.lastTeachInput = editKey; }
+    step[k === 'teach-title' ? 'title' : 'text'] = e.target.value;
+    E.dirty = true;
+  }
   if ((k === 'ped-text' || k === 'ped-line') && state.ped && state.ped.sel) {
     const E = state.ped, d = pedCur(E);
     if (!E.textSnap) { pedSnap(); E.textSnap = true; }
@@ -5582,6 +5700,14 @@ document.addEventListener('change', e => {
   if (k === 'msg-session') { state.msgSession = e.target.value; state.msgDraft = buildTemplate(state.msgTpl); render(); }
   if (k === 'post-notice') state.postNotice = e.target.checked;
   if (k === 'ped-list' && state.ped) { pedSetList(e.target.value); refreshPlayEditor(); toast(`Showing ${getSet(e.target.value).name} labels`); }
+  if ((k === 'teach-role' || k === 'teach-move') && state.ped) {
+    const E = state.ped, step = teachingSteps(E.draft, E.teachPhase)[Number(e.target.dataset.i)];
+    if (!step) return;
+    pedSnap(pedWords());
+    if (k === 'teach-role') step.roles = e.target.value ? [e.target.value] : [];
+    else step.moves = e.target.value !== '' ? [Number(e.target.value)] : [];
+    E.teachPreview = Number(e.target.dataset.i); refreshPedTeaching();
+  }
   if (k === 'ped-side' && state.ped && state.ped.sel) {
     const E = state.ped, d = pedCur(E); pedSnap();
     if (E.sel.k === 'lb' && d.labels[E.sel.i]) d.labels[E.sel.i].side = e.target.value;
@@ -6086,6 +6212,14 @@ document.addEventListener('submit', async e => {
   }
   if (kind === 'play') {
     const E = state.ped; if (!E) return;
+    const phases = [E.draft, ...E.draft.phases];
+    const bad = phases.findIndex(ph => Array.isArray(ph.study) && ph.study.some(x => !String(x.text || '').trim()));
+    if (bad >= 0) {
+      E.tab = 'teach'; E.teachPhase = bad;
+      $('#ped-teach').hidden = false; $('#ped-diagram').hidden = true; $('#ped-words').hidden = true;
+      document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === 'teach')));
+      refreshPedTeaching(); toast('Every teaching action needs an instruction before saving.'); return;
+    }
     if (!str('name')) { toast('Give the play a name'); const n = form.querySelector('[name=name]'); if (n) n.focus(); return; }
     Object.assign(E.draft, { name: str('name'), category: str('category') || 'Other', headline: str('headline'), when: str('when'), steps: String(f.get('steps') || '').trim() });
     if (form.querySelector('[name=rules]')) E.draft.rules = f.getAll('rules').map(String);

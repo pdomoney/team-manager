@@ -669,6 +669,38 @@ details.more[open] summary{margin-bottom:8px}
   .play-study,.pf.study{scroll-behavior:auto}
 }
 
+/* Guided coach teaching workspace: intuitive sequential authoring with exact SVG preview. */
+.ped-workspaces{gap:4px}
+.ped-teach>.hint{margin:2px 2px 14px;max-width:850px}
+.teach-phase-picker{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 14px}
+.teach-help{background:#E9F2EA;padding:14px 16px;border-radius:10px;margin-bottom:12px;border:1px solid #BFD6C6}
+.teach-help strong{color:#174D39;font-size:16px}
+.teach-help p{margin:5px 0 0;color:#355346;font-size:14px;line-height:1.45}
+.teach-layout{display:grid;gap:16px;align-items:start}
+.teach-action{border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:14px;margin-bottom:10px}
+.teach-action.selected{border-color:#91B9A2;box-shadow:inset 3px 0 #215E43}
+.teach-action-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.teach-action-head strong{font:700 18px var(--font-d)}
+.teach-action-head .btn{min-width:38px;min-height:38px}
+.teach-action .field-l{margin-bottom:12px}
+.teach-action .field-l>span{font-size:14px}
+.teach-action textarea{width:100%;min-height:68px}
+.teach-preview{border:1px solid var(--line);border-radius:12px;background:#FFF;padding:12px}
+.teach-preview .study-cue{min-height:84px}
+.teach-preview .play-card{border-radius:10px;padding:5px}
+.teach-preview .pf{max-width:100%}
+.teach-preview .play-h{margin-bottom:4px}
+@media(min-width:960px){
+  .teach-layout{grid-template-columns:minmax(0,1fr) minmax(340px,.85fr)}
+  .teach-preview{position:sticky;top:0}
+}
+@media(max-width:600px){
+  .ped-workspaces button{font-size:13px;padding:8px 4px}
+  .teach-action{padding:11px}
+  .teach-action-head{flex-wrap:wrap}
+  .teach-action-head .btn-row{margin-left:auto}
+}
+
 /* Phases and the animation */
 .phase-bar{margin:0 0 8px;flex-wrap:wrap}
 .phase-bar button{flex:1 1 auto;white-space:nowrap}
