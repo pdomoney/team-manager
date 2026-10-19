@@ -26,7 +26,7 @@ import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
-import { CREW_ROLES, REQUIREMENT_ROLES, normCrewPerson, normCrewRules, canCrewServe, matchCrewCheck } from './match-crew.js';
+import { CREW_ROLES, REQUIREMENT_ROLES, normCrewPerson, normCrewRules, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import * as M from './model.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
@@ -3369,7 +3369,12 @@ const crewPool = () => arr(ws.matchOfficials).filter(p =>
   p.teamIds?.includes(data.id) || (p.clubId && p.clubId === data.team.clubId)).sort((a,b) => a.name.localeCompare(b.name));
 const crewPerson = id => arr(ws.matchOfficials).find(p => p.id === id);
 const crewPolicy = () => normCrewRules(data.team.crewPolicy);
-const crewStatus = m => matchCrewCheck(arr(ws.matchOfficials), data, m, crewPolicy());
+const crewStatus = m => {
+  const report = matchCrewCheck(arr(ws.matchOfficials), data, m, crewPolicy());
+  const clashes = crewScheduleClashes(M.teamsOf(ws), data.id, m);
+  return { ...report, ready: report.ready && !clashes.length,
+    issues: [...report.issues, ...clashes.map(c => `${crewPerson(c.personId)?.name || 'Staff member'} may be double-booked vs ${c.opponent} (${c.start || 'time TBC'}). Check this before relying on coverage.`)] };
+};
 const crewName = key => CREW_ROLES[key] || REQUIREMENT_ROLES[key] || key;
 const crewField = (name,label,value='',type='text',extra='') =>
   `<label class="field-l"><span>${label}</span><input type="${type}" name="${name}" value="${esc(value)}" ${extra}></label>`;
