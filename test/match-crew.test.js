@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canCrewServe, matchCrewCheck, normCrewPerson, normCrewRules } from '../site/match-crew.js';
+import { canCrewServe, matchCrewCheck, normCrewPerson, normCrewRules, crewScheduleClashes } from '../site/match-crew.js';
 
 const team = { id: 'u12', team: { clubId: 'titans' } };
 const person = (id, roles, reg = { trainer: '2026', coach: '2026', volunteer: '2026' }) =>
