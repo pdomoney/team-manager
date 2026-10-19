@@ -102,6 +102,16 @@ To deliberately reuse an existing setup **in the same coach workspace**, choose 
 - St George Oztag is set up with DragonTag Mixed 20s in it.
 - **More → Club** shows the club to players and coaches. Each team has its own squad, schedule, matches, tasks, lineups, plays and messages, and its own players' password and invite link. The **library** (Tactics → Library) shares plays, game systems and player lists between teams: a team uses a linked copy, which follows new library versions until the team changes it.
 
+### Club-first match-day volunteers (PR23 candidate)
+
+From **Team → Match staff → Add volunteer**, start with the club rather than a team. There are three options:
+
+- **Existing volunteer:** reuse an existing person in this encrypted coach workspace, explicitly linking them to the selected club and optionally a team. No global account lookup or automatic identity matching.
+- **Email invitation:** prepare an email in your mail app for manual review and sending. This does **not** create a Team Manager account, provide a sign-up link, record delivery or enrol anyone.
+- **Add manually:** record a name and optional email under a club. Team assignment can wait. After choosing a team, review sport-specific roles, registration, safeguarding and accreditation. Nothing is marked cleared by intake.
+
+A volunteer can be associated with multiple clubs in the same workspace without duplicating their ID. The club directory and current team's match staffing checks are separate. A club association **never** establishes match-day eligibility. The current app has no individual user accounts or tenant-specific access control; real self-enrolment and inter-club registration need a future authenticated backend.
+
 ### Players, sports and jerseys
 
 > **Current merged development baseline — 19 October 2026:** `main` at [`6d62e83d2a1d`](https://github.com/pdomoney/team-manager/commit/6d62e83d2a1d67db2698c7aa1da4cb9ca5a8fd38), following merged [PR #13](https://github.com/pdomoney/team-manager/pull/13) (explicit cross-team player linking), [PR #14](https://github.com/pdomoney/team-manager/pull/14) (team sport override) and [PR #15](https://github.com/pdomoney/team-manager/pull/15) (fresh-team isolation). [PR #8](https://github.com/pdomoney/team-manager/pull/8) was **closed without merging** as superseded. At the exact current `main` commit, [unit and Chromium checks passed](https://github.com/pdomoney/team-manager/actions/runs/39178700541): **113/113 unit tests and 559/559 browser checks** across 16 suites; [GitHub Pages deployed](https://github.com/pdomoney/team-manager/actions/runs/39178700562) in **test mode without a `data` branch**. The full synthetic photo-capacity suite was passed separately on [PR #15's final head](https://github.com/pdomoney/team-manager/actions/runs/39178073122): 589/589 browser checks, 17/17 suites, including 30/30 capacity checks. Real iOS/macOS Safari, physical-device storage, and authenticated production-data publishing remain **unverified**. An architecture stabilisation PR is under review and is not yet part of this merged baseline.
