@@ -2938,7 +2938,8 @@ function pedSyncTitle() {
   const E = state.ped, t = $('#ped-ptitle'); if (E && t) t.value = pedCur(E).title || '';
 }
 function pedSetPhase(i) {
-  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length); E.placing = false; pedSelect(null); E.drawing = null;
+  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length);
+  E.teachPhase = Math.min(E.teachPhase || 0, E.draft.phases.length); E.placing = false; pedSelect(null); E.drawing = null;
   pedSyncTitle(); refreshPlayEditor();
 }
 // A new phase: the team lines up around the next ruck, with their defence 7 m back.
@@ -5243,9 +5244,53 @@ const actions = {
     data.plays = [...starters.filter(p => add.includes(p)), ...data.plays].sort((a, b) => (STARTER_IDS.indexOf(a.id) + 1 || 99) - (STARTER_IDS.indexOf(b.id) + 1 || 99));
     save(); render(); toast(`${add.length} starter play${add.length === 1 ? '' : 's'} restored`);
   }),
+  'teach-phase': coachOnly(el => {
+    const E = state.ped; if (!E) return;
+    E.teachPhase = clamp(Number(el.dataset.i) || 0, 0, E.draft.phases.length);
+    E.teachPreview = 0; refreshPedTeaching();
+  }),
+  'teach-add': coachOnly(() => {
+    const E = state.ped; if (!E) return;
+    pedSnap(pedWords()); E.teachPreview = addTeachingStep(E.draft, E.teachPhase);
+    refreshPedTeaching();
+  }),
+  'teach-seed': coachOnly(() => {
+    const E = state.ped; if (!E) return;
+    pedSnap(pedWords());
+    const lines = String($('#sheet [name=steps]')?.value || '').split('\n').map(x => x.trim()).filter(Boolean);
+    const n = seedTeachingFromLegacy(E.draft, lines);
+    E.teachPreview = 0; refreshPedTeaching();
+    toast(n ? `${n} teaching action${n === 1 ? '' : 's'} created. Review each one before saving.` : 'Teaching actions are already configured.');
+  }),
+  'teach-remove': coachOnly(el => {
+    const E = state.ped; if (!E) return;
+    const i = Number(el.dataset.i);
+    if (!confirm(`Remove teaching action ${i + 1}? The original diagram and written steps stay.`)) return;
+    pedSnap(pedWords()); removeTeachingStep(E.draft, E.teachPhase, i);
+    E.teachPreview = Math.max(0, Math.min(E.teachPreview, teachingSteps(E.draft, E.teachPhase).length - 1));
+    refreshPedTeaching();
+  }),
+  'teach-prev': coachOnly(el => {
+    const E = state.ped; if (!E) return;
+    pedSnap(pedWords()); const i = Number(el.dataset.i);
+    if (moveTeachingStep(E.draft, E.teachPhase, i, -1)) E.teachPreview = i - 1;
+    refreshPedTeaching();
+  }),
+  'teach-next': coachOnly(el => {
+    const E = state.ped; if (!E) return;
+    pedSnap(pedWords()); const i = Number(el.dataset.i);
+    if (moveTeachingStep(E.draft, E.teachPhase, i, 1)) E.teachPreview = i + 1;
+    refreshPedTeaching();
+  }),
+  'teach-preview': coachOnly(el => {
+    const E = state.ped; if (!E) return;
+    E.teachPreview = Number(el.dataset.i) || 0; refreshPedTeaching();
+  }),
   'ped-tool': coachOnly(el => { const E = state.ped; E.tool = el.dataset.t; E.drawing = null; if (E.tool !== 'select') pedSelect(null); refreshPlayEditor(); }),
   'ped-tab': coachOnly(el => {
     const E = state.ped; E.tab = el.dataset.tab;
+    if (E.tab === 'diagram') pedSetPhase(E.teachPhase);
+    if (E.tab === 'teach') refreshPedTeaching();
     $('#ped-words').hidden = E.tab !== 'words'; $('#ped-diagram').hidden = E.tab !== 'diagram'; $('#ped-teach').hidden = E.tab !== 'teach';
     document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === E.tab)));
   }),
@@ -5614,6 +5659,14 @@ document.addEventListener('input', e => {
   if (k === 'team-positions') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'msg') state.msgDraft = e.target.value;
   if (k === 'ped-ptitle' && state.ped) { pedCur(state.ped).title = e.target.value; state.ped.dirty = true; }
+  if ((k === 'teach-title' || k === 'teach-text') && state.ped) {
+    const E = state.ped, step = teachingSteps(E.draft, E.teachPhase)[Number(e.target.dataset.i)];
+    if (!step) return;
+    const editKey = k + ':' + E.teachPhase + ':' + e.target.dataset.i;
+    if (E.lastTeachInput !== editKey) { pedSnap(pedWords()); E.lastTeachInput = editKey; }
+    step[k === 'teach-title' ? 'title' : 'text'] = e.target.value;
+    E.dirty = true;
+  }
   if ((k === 'ped-text' || k === 'ped-line') && state.ped && state.ped.sel) {
     const E = state.ped, d = pedCur(E);
     if (!E.textSnap) { pedSnap(); E.textSnap = true; }
@@ -5647,6 +5700,14 @@ document.addEventListener('change', e => {
   if (k === 'msg-session') { state.msgSession = e.target.value; state.msgDraft = buildTemplate(state.msgTpl); render(); }
   if (k === 'post-notice') state.postNotice = e.target.checked;
   if (k === 'ped-list' && state.ped) { pedSetList(e.target.value); refreshPlayEditor(); toast(`Showing ${getSet(e.target.value).name} labels`); }
+  if ((k === 'teach-role' || k === 'teach-move') && state.ped) {
+    const E = state.ped, step = teachingSteps(E.draft, E.teachPhase)[Number(e.target.dataset.i)];
+    if (!step) return;
+    pedSnap(pedWords());
+    if (k === 'teach-role') step.roles = e.target.value ? [e.target.value] : [];
+    else step.moves = e.target.value !== '' ? [Number(e.target.value)] : [];
+    E.teachPreview = Number(e.target.dataset.i); refreshPedTeaching();
+  }
   if (k === 'ped-side' && state.ped && state.ped.sel) {
     const E = state.ped, d = pedCur(E); pedSnap();
     if (E.sel.k === 'lb' && d.labels[E.sel.i]) d.labels[E.sel.i].side = e.target.value;
@@ -6151,6 +6212,14 @@ document.addEventListener('submit', async e => {
   }
   if (kind === 'play') {
     const E = state.ped; if (!E) return;
+    const phases = [E.draft, ...E.draft.phases];
+    const bad = phases.findIndex(ph => Array.isArray(ph.study) && ph.study.some(x => !String(x.text || '').trim()));
+    if (bad >= 0) {
+      E.tab = 'teach'; E.teachPhase = bad;
+      $('#ped-teach').hidden = false; $('#ped-diagram').hidden = true; $('#ped-words').hidden = true;
+      document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === 'teach')));
+      refreshPedTeaching(); toast('Every teaching action needs an instruction before saving.'); return;
+    }
     if (!str('name')) { toast('Give the play a name'); const n = form.querySelector('[name=name]'); if (n) n.focus(); return; }
     Object.assign(E.draft, { name: str('name'), category: str('category') || 'Other', headline: str('headline'), when: str('when'), steps: String(f.get('steps') || '').trim() });
     if (form.querySelector('[name=rules]')) E.draft.rules = f.getAll('rules').map(String);
