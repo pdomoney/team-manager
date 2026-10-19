@@ -3441,10 +3441,10 @@ function viewCrew() {
     <p class="hint">Club and team officials, coaches and accredited trainers. Separate from general helpers for lifts, events and BBQs. Records and checks stay in the encrypted coach workspace.</p>
     <section class="sec crew-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">Configure</button></div>
       <p class="hint">Match staffing differs by sport, competition, age group and season. Verify requirements against this team’s official competition rules; no minimums are pre-approved.</p>
-      ${rules.source && rules.rows.length ? `<div class="crew-status"><strong>Season ${esc(rules.year || 'not set')}</strong>
+      ${rules.source && rules.rows.length && rules.sport === sport ? `<div class="crew-status"><strong>Season ${esc(rules.year || 'not set')}</strong>
         <span class="sub">${esc(rules.source)}</span></div>
         <ul class="crew-req">${rules.rows.map(r => `<li>${r.min} × ${esc(REQUIREMENT_ROLES[r.role])}</li>`).join('')}</ul>`
-        : '<p class="crew-notready">No reviewed rules configured — match staffing cannot be marked ready.</p>'}
+        : `<p class="crew-notready">${rules.source && rules.sport !== sport ? 'Existing staffing rules belong to another sport. Review these for '+esc(sport)+'.' : 'No reviewed rules configured for '+esc(sport)+' — staffing cannot be marked ready.'}</p>`}
     </section>
     <section class="sec crew-section"><h3>Available ${isClub ? esc(club?.name || 'club') : 'team'} personnel (${pool.length})</h3>
       ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="crew-edit" data-id="${esc(p.id)}">
@@ -3456,6 +3456,14 @@ function viewCrew() {
       <p class="hint">Entries are coach-recorded, not MySideline-verified. Never enter WWCC numbers, documents, dates of birth or registration passwords here.</p>
     </section>`;
 }
+function crewChooseTeamForm(view=false) {
+  return `<form data-form="${view?'crew-pick-view':'crew-pick-team'}">
+    <p class="hint">Choose a team in this workspace. The staff roles and registration checks will follow that team's sport, not the club default.</p>
+    <label class="field-l"><span>Team and sport</span><select name="teamId">
+    ${M.activeTeams(ws).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(M.teamSport(t.team,M.clubOf(ws,t)))}</option>`).join('')}</select>
+    <small>Only teams already managed in this workspace are listed. Create another team in Team management if it is missing.</small></label>
+    <button class="btn primary block" type="submit">${view?'Show this team':'Continue'}</button></form>`;
+}
 function crewPersonForm(person) {
   const p = normCrewPerson(person || {});
   const club = M.clubOf(ws, data), currentClub = data.team.clubId || '';
@@ -3464,19 +3472,19 @@ function crewPersonForm(person) {
   const roles = Object.entries(CREW_ROLES).filter(([r]) => crewRoleAllowed(sport, r)).map(([r,label]) =>
     `<label class="check"><input type="checkbox" name="role" value="${r}" ${p.roles.includes(r) ? 'checked' : ''}><span>${esc(label)}</span></label>`).join('');
   return `<form data-form="crew-person" autocomplete="off">
-    <input type="hidden" name="id" value="${esc(p.id)}">
-    <p class="hint"><strong>${esc(data.team.name)} · ${esc(sport)}</strong>. Registration and qualification details are checked against the relevant sport’s official records. This does not register anyone.</p>
+    <input type="hidden" name="id" value="${esc(p.id)}"><input type="hidden" name="sport" value="${esc(sport)}">
+    <p class="hint"><strong>${esc(data.team.name)} · ${esc(sport)}</strong>. Registration and qualification details are checked against the relevant sport’s official records. This does not register anyone. ${M.activeTeams(ws).length>1 && !p.id ? '<button class="link-btn inline" type="button" data-act="crew-reassign">Choose another team</button>' : ''}</p>
     ${crewField('name', 'Full name', p.name, 'text', 'required maxlength="120"')}
     <div class="field-l"><span>Available to</span><div class="opts">
-      ${currentClub ? `<label class="opt"><input type="radio" name="scope" value="club" ${scope === 'club' ? 'checked' : ''}><span>All teams in ${esc(club?.name || 'this club')}</span></label>` : ''}
+      ${currentClub ? `<label class="opt"><input type="radio" name="scope" value="club" ${scope === 'club' ? 'checked' : ''}><span>Club-wide: ${esc(club?.name || 'this club')}</span></label>` : ''}
       <label class="opt"><input type="radio" name="scope" value="team" ${scope === 'team' || !currentClub ? 'checked' : ''}><span>Only ${esc(data.team.name)}</span></label>
-    </div></div>
+    </div><small>Club-wide means available to the club pool; registration and allocation must still be checked for each sport and team.</small></div>
     <div class="field-l"><span>Match-day roles for ${esc(sport)}</span><div class="opts crew-role-list">${roles}</div><small>A role for another sport does not establish eligibility here.</small></div>
     <h3 class="form-sec">Registration checked with ${esc(profile.provider)}</h3>
     <p class="hint">Enter a season only after checking this person’s relevant registration for ${esc(sport)}. These planning categories do not replace the governing body’s official registration categories.</p>
     <div class="two">${crewField('reg-coach', 'Coach registration year', registration.coach || '', 'number', 'min="2020" max="2100" placeholder="2026"')}
       ${crewField('reg-volunteer', 'Volunteer registration year', registration.volunteer || '', 'number', 'min="2020" max="2100" placeholder="2026"')}</div>
-    ${crewField('reg-trainer', 'Trainer registration year', registration.trainer || '', 'number', 'min="2020" max="2100" placeholder="2026"')}
+    ${crewField('reg-trainer', (sport === 'Rugby league' || sport === 'League tag') ? 'Trainer registration year' : 'First aid / health-support registration year', registration.trainer || '', 'number', 'min="2020" max="2100" placeholder="2026"')}
     <h3 class="form-sec">Team association verified</h3>
     <p class="hint">Check this person’s association with ${esc(data.team.name)} in ${esc(profile.provider)} or authorised club records. Club-wide availability is not team eligibility.</p>
     ${crewField('squad-year','Team association confirmed for this season', p.squadYears?.[data.id] || '', 'number','min="2020" max="2100" placeholder="2026"')}
@@ -3497,7 +3505,7 @@ function crewPolicyForm(match = null) {
     <input type="hidden" name="matchId" value="${esc(match?.id || '')}">
     <p class="hint">${match ? 'These requirements override the team defaults for this match only. ' : 'These are team-wide defaults. '}These are not national defaults. Confirm the current ${esc(sport)} age-group and competition requirements. The rugby league shirt rules must not be applied to other sports.</p>
     ${crewField('year','Applicable season', p.year || String(new Date().getFullYear()), 'number','required min="2020" max="2100"')}
-    ${crewField('source','Official competition / policy reference', p.source, 'text', 'required maxlength="250" placeholder="Association rule and year; e.g. 2026 local league by-laws"')}
+    ${crewField('source','Official competition / policy reference', p.sport === sport ? p.source : '', 'text', 'required maxlength="250" placeholder="Sport, competition and official rule/year"')}
     <h3 class="form-sec">Minimum distinct people by role</h3>
     <p class="hint">Only enter requirements verified for ${esc(sport)}. One person cannot fulfil two separate match-day jobs simultaneously.</p>
     <div class="crew-rule-grid">${Object.entries(REQUIREMENT_ROLES).filter(([r]) => crewRequirementAllowed(sport,r)).map(([r,label]) => `<label class="field-l"><span>${esc(label)}</span><input type="number" name="min-${r}" inputmode="numeric" min="0" max="12" value="${p.rows.find(x => x.role === r)?.min || 0}"></label>`).join('')}</div>
