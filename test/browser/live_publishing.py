@@ -35,6 +35,17 @@ with sync_playwright() as p:
     c.ok(all('Mia Tuala' not in v and 'Ava Young' not in v and set(json.loads(v)) <= {'format','version','role','kdf','salt','iv','data'} for v in files.values()), 'nothing readable in the published files')
     c.ok(W(d1, 'S.pub') == 'ok' and gh.dispatches == 1, 'published and site rebuild started')
     c.ok(d1.evaluate("localStorage.getItem('tm-test-data')") is None, 'unencrypted test copy removed')
+    # Publishing credentials are session-only unless the user explicitly opts in.
+    saved_gh = json.loads(d1.evaluate("localStorage.getItem('tm-github')"))
+    c.ok('token' not in saved_gh and saved_gh.get('rememberToken') is False,
+         'the token is not kept in durable browser storage by default')
+    c.ok(d1.evaluate("sessionStorage.getItem('tm-github:token')") == 'tok',
+         'the token remains available in this tab for publishing and retries')
+    d1.evaluate(act, ['github', {}]); d1.wait_for_selector('#sheet input[name=token]')
+    c.ok(d1.input_value('#sheet input[name=token]') == '' and
+         d1.locator('#sheet input[name=rememberToken]').is_checked() is False,
+         'GitHub form does not echo the token and longer retention is opt-in')
+    d1.evaluate(act, ['close-sheet', {}])
     u16pass = W(d1, f"M.findTeam(W, '{u16}').teamPass")
     c.ok(len(u16pass) >= 15 and u16pass != 'team password one', 'second team got its own password')
     # Players: the U16 invite link opens only U16; the first team's password opens only the first team
