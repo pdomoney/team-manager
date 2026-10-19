@@ -30,8 +30,7 @@ test('age, gender/category, division and competition must match an approved poli
  assert.equal(correct.ready,true);
  for (const replacement of [
   {...team,team:{...team.team,category:'boys'}},
-  {...team,team:{...team.team,ageGroup:'Under 13'}},
-  {...team,team:{...team.team,division:'Silver'}}
+  {...team,team:{...team.team,ageGroup:'Under 13'}}
  ]) {
   const result=matchCrewCheck([volunteer],replacement,match,checked,competition);
   assert.equal(result.configured,false);
@@ -39,6 +38,7 @@ test('age, gender/category, division and competition must match an approved poli
   assert.equal(result.shortages.length,0);
   assert.match(result.issues.join(' '),/do not match/);
  }
+ assert.equal(matchCrewCheck([volunteer],team,match,checked,{comp:{id:'comp-gold'},entry:{division:'Silver'}}).ready,false);
  assert.equal(matchCrewCheck([volunteer],team,match,checked,{comp:{id:'other'},entry:{division:'Gold'}}).ready,false);
  assert.equal(matchCrewCheck([volunteer],team,match,checked,null).ready,false);
 });
