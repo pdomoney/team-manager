@@ -107,3 +107,25 @@ export function matchCrewCheck(people, team, match, policy) {
     issues: slots.filter(x => !x.valid).map(x => `${x.name}: ${x.issue}`)
   };
 }
+
+
+export function crewScheduleClashes(teams, currentTeamId, match) {
+  if (!match || match.status && match.status !== 'scheduled' || !match.date) return [];
+  const target = arr(match.crew).filter(a => a?.personId && a.confirmed === true);
+  const mins = hhmm => /^\d{2}:\d{2}$/.test(hhmm || '') ? Number(hhmm.slice(0,2))*60 + Number(hhmm.slice(3)) : null;
+  const results = [];
+  for (const team of arr(teams)) {
+    for (const other of arr(team.matches)) {
+      if (!other || (team.id === currentTeamId && other.id === match.id)
+        || other.date !== match.date || (other.status && other.status !== 'scheduled')) continue;
+      const m1 = mins(match.start), m2 = mins(other.start);
+      if (m1 !== null && m2 !== null && Math.abs(m1 - m2) >= 120) continue;
+      for (const a of target) {
+        if (!arr(other.crew).some(b => b?.personId === a.personId && b.confirmed === true)) continue;
+        results.push({ personId: a.personId, teamId: team.id, opponent: other.opponent || 'TBC',
+          start: other.start || '', date: other.date });
+      }
+    }
+  }
+  return results;
+}
