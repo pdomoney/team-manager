@@ -3556,17 +3556,13 @@ function crewPersonForm(person) {
   const p = normCrewPerson(person || {});
   const club = M.clubOf(ws, data), currentClub = data.team.clubId || '';
   const sport = M.teamSport(data.team, club), profile = crewProfile(sport), registration = p.registrationBySport?.[sport] || (sport === 'Rugby league' || sport === 'League tag' ? p.registration : {});
-  const scope = p.id ? (p.teamIds.includes(data.id) ? 'team' : 'club') : (currentClub ? 'club' : 'team');
   const roles = Object.entries(CREW_ROLES).filter(([r]) => crewRoleAllowed(sport, r)).map(([r,label]) =>
     `<label class="check"><input type="checkbox" name="role" value="${r}" ${crewRolesForSport(p,sport).includes(r) ? 'checked' : ''}><span>${esc(label)}</span></label>`).join('');
   return `<form data-form="crew-person" autocomplete="off">
     <input type="hidden" name="id" value="${esc(p.id)}"><input type="hidden" name="sport" value="${esc(sport)}">
     <p class="hint"><strong>${esc(data.team.name)} · ${esc(sport)}</strong>. Registration and qualification details are checked against the relevant sport’s official records. This does not register anyone. ${M.activeTeams(ws).length>1 && !p.id ? '<button class="link-btn inline" type="button" data-act="crew-reassign">Choose another team</button>' : ''}</p>
     ${crewField('name', 'Full name', p.name, 'text', 'required maxlength="120"')}
-    <div class="field-l"><span>Available to</span><div class="opts">
-      ${currentClub ? `<label class="opt"><input type="radio" name="scope" value="club" ${scope === 'club' ? 'checked' : ''}><span>Club-wide: ${esc(club?.name || 'this club')}</span></label>` : ''}
-      <label class="opt"><input type="radio" name="scope" value="team" ${scope === 'team' || !currentClub ? 'checked' : ''}><span>Only ${esc(data.team.name)}</span></label>
-    </div><small>Club-wide means available to the club pool; registration and allocation must still be checked for each sport and team.</small></div>
+    <p class="hint">Club directory: ${esc(club?.name || 'No club')}. You are reviewing roles for ${esc(data.team.name)}. Club memberships are managed separately using Add volunteer → Existing volunteer; this page does not remove another club's association.</p>
     <div class="field-l"><span>Match-day roles for ${esc(sport)}</span><div class="opts crew-role-list">${roles}</div><small>A role for another sport does not establish eligibility here.</small></div>
     <h3 class="form-sec">Registration checked with ${esc(profile.provider)}</h3>
     <p class="hint">Enter a season only after checking this person’s relevant registration for ${esc(sport)}. These planning categories do not replace the governing body’s official registration categories.</p>
@@ -6374,13 +6370,12 @@ document.addEventListener('submit', async e => {
     const rolesSelected=f.getAll('role').filter(x=>crewRoleAllowed(sport,x));
     const roles=[...new Set([...(p?.roles||[]),...rolesSelected])]; // Keep historical labels; rolesBySport controls eligibility
     if (!rolesSelected.length) { toast('Select at least one role for ' + sport); return; }
-    const scope = str('scope');
     const saved = normCrewPerson({
       ...(p || {}), id: id || uid(), name: str('name'),
-      clubId: p?.clubId || (scope === 'club' ? data.team.clubId : ''),
-      clubIds: [...new Set([...(p?.clubIds || []), ...(scope === 'club' && data.team.clubId ? [data.team.clubId] : [])])],
+      clubId: p?.clubId || '',
+      clubIds: [...new Set(p?.clubIds || [])],
       email: p?.email || '',
-      teamIds: scope === 'club' ? [...(p?.teamIds || [])] : [...new Set([...(p?.teamIds || []), data.id])],
+      teamIds: [...new Set([...(p?.teamIds || []), data.id])],
       roles, rolesBySport: { ...(p?.rolesBySport || {}), [sport]: rolesSelected }, active: !!f.get('active'),
       registrationBySport: { ...(p?.registrationBySport||{}), [sport]: Object.fromEntries(['coach','volunteer','trainer'].map(k=>[k,str('reg-'+k)])) },
       registration: p?.registration || {},
