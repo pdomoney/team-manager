@@ -152,3 +152,15 @@ test('invite links survive any password characters', () => {
     assert.equal(fromB64Url(enc), pw);
   }
 });
+
+
+test('coach-only tactical adaptation notes never enter player copies', () => {
+  const p = {id:'p-example',name:'Quickie', moves:[{t:'pass',pts:[[20,50],[30,49]]}],
+    transferNotes:{'Oztag → Rugby league':'PRIVATE COACH ADAPTATION TEXT'}};
+  const coach = {...sample,plays:[p]};
+  const out=teamView(coach);
+  assert.equal(out.plays.length,1);
+  assert.ok(!JSON.stringify(out).includes('PRIVATE COACH ADAPTATION TEXT'));
+  assert.ok(!('transferNotes' in out.plays[0]));
+  assert.equal(out.plays[0].moves.length,1);
+});
