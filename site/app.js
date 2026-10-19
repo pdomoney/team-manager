@@ -27,7 +27,7 @@ import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
-import { CREW_ROLES, REQUIREMENT_ROLES, normCrewPerson, normCrewRules, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
+import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, normCrewPerson, normCrewRules, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import * as M from './model.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
@@ -3434,10 +3434,13 @@ const crewField = (name,label,value='',type='text',extra='') =>
   `<label class="field-l"><span>${label}</span><input type="${type}" name="${name}" value="${esc(value)}" ${extra}></label>`;
 function viewCrew() {
   const pool = crewPool(), club = M.clubOf(ws, data), rules = crewPolicy(), isClub = !!data.team.clubId;
+  const sport = M.teamSport(data.team, club), profile = crewProfile(sport);
   return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add person</button></div>
+    <div class="crew-context"><span class="sub">Team: <strong>${esc(data.team.name)}</strong> · ${esc(sport)} · ${esc(profile.provider)}</span>
+    <button class="btn sm" data-act="crew-switch">Change team</button></div>
     <p class="hint">Club and team officials, coaches and accredited trainers. Separate from general helpers for lifts, events and BBQs. Records and checks stay in the encrypted coach workspace.</p>
     <section class="sec crew-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">Configure</button></div>
-      <p class="hint">Match staffing differs by competition, age group and season. Only enter requirements verified against the official local league policy.</p>
+      <p class="hint">Match staffing differs by sport, competition, age group and season. Verify requirements against this team’s official competition rules; no minimums are pre-approved.</p>
       ${rules.source && rules.rows.length ? `<div class="crew-status"><strong>Season ${esc(rules.year || 'not set')}</strong>
         <span class="sub">${esc(rules.source)}</span></div>
         <ul class="crew-req">${rules.rows.map(r => `<li>${r.min} × ${esc(REQUIREMENT_ROLES[r.role])}</li>`).join('')}</ul>`
@@ -3456,29 +3459,30 @@ function viewCrew() {
 function crewPersonForm(person) {
   const p = normCrewPerson(person || {});
   const club = M.clubOf(ws, data), currentClub = data.team.clubId || '';
+  const sport = M.teamSport(data.team, club), profile = crewProfile(sport), registration = p.registrationBySport?.[sport] || (sport === 'Rugby league' || sport === 'League tag' ? p.registration : {});
   const scope = p.id ? (p.teamIds.includes(data.id) ? 'team' : 'club') : (currentClub ? 'club' : 'team');
-  const roles = Object.entries(CREW_ROLES).map(([r,label]) =>
+  const roles = Object.entries(CREW_ROLES).filter(([r]) => crewRoleAllowed(sport, r)).map(([r,label]) =>
     `<label class="check"><input type="checkbox" name="role" value="${r}" ${p.roles.includes(r) ? 'checked' : ''}><span>${esc(label)}</span></label>`).join('');
   return `<form data-form="crew-person" autocomplete="off">
     <input type="hidden" name="id" value="${esc(p.id)}">
-    <p class="hint">Registration and qualification details are entered by a coach following their own check of official club/NRL records. This does not register anyone with the NRL.</p>
+    <p class="hint"><strong>${esc(data.team.name)} · ${esc(sport)}</strong>. Registration and qualification details are checked against the relevant sport’s official records. This does not register anyone.</p>
     ${crewField('name', 'Full name', p.name, 'text', 'required maxlength="120"')}
     <div class="field-l"><span>Available to</span><div class="opts">
       ${currentClub ? `<label class="opt"><input type="radio" name="scope" value="club" ${scope === 'club' ? 'checked' : ''}><span>All teams in ${esc(club?.name || 'this club')}</span></label>` : ''}
       <label class="opt"><input type="radio" name="scope" value="team" ${scope === 'team' || !currentClub ? 'checked' : ''}><span>Only ${esc(data.team.name)}</span></label>
     </div></div>
-    <div class="field-l"><span>Accredited roles</span><div class="opts">${roles}</div></div>
-    <h3 class="form-sec">Season registration confirmed with MySideline</h3>
-    <p class="hint">Enter the registration season for each relevant Member Type: Coach, Volunteer (manager), Trainer. If it has not been checked, leave blank.</p>
-    <div class="two">${crewField('reg-coach', 'Coach registration year', p.registration.coach, 'number', 'min="2020" max="2100" placeholder="2026"')}
-      ${crewField('reg-volunteer', 'Volunteer registration year', p.registration.volunteer, 'number', 'min="2020" max="2100" placeholder="2026"')}</div>
-    ${crewField('reg-trainer', 'Trainer registration year', p.registration.trainer, 'number', 'min="2020" max="2100" placeholder="2026"')}
-    <h3 class="form-sec">Official team squad allocation</h3>
-    <p class="hint">Even club-wide trainers must be allocated to this particular team in MySideline before they appear on its official team list.</p>
-    ${crewField('squad-year','Squad allocation confirmed for this team (season)', p.squadYears?.[data.id] || '', 'number','min="2020" max="2100" placeholder="2026"')}
+    <div class="field-l"><span>Match-day roles for ${esc(sport)}</span><div class="opts crew-role-list">${roles}</div><small>A role for another sport does not establish eligibility here.</small></div>
+    <h3 class="form-sec">Registration checked with ${esc(profile.provider)}</h3>
+    <p class="hint">Enter a season only after checking this person’s relevant registration for ${esc(sport)}. These planning categories do not replace the governing body’s official registration categories.</p>
+    <div class="two">${crewField('reg-coach', 'Coach registration year', registration.coach || '', 'number', 'min="2020" max="2100" placeholder="2026"')}
+      ${crewField('reg-volunteer', 'Volunteer registration year', registration.volunteer || '', 'number', 'min="2020" max="2100" placeholder="2026"')}</div>
+    ${crewField('reg-trainer', 'Trainer registration year', registration.trainer || '', 'number', 'min="2020" max="2100" placeholder="2026"')}
+    <h3 class="form-sec">Team association verified</h3>
+    <p class="hint">Check this person’s association with ${esc(data.team.name)} in ${esc(profile.provider)} or authorised club records. Club-wide availability is not team eligibility.</p>
+    ${crewField('squad-year','Team association confirmed for this season', p.squadYears?.[data.id] || '', 'number','min="2020" max="2100" placeholder="2026"')}
     <h3 class="form-sec">Accreditation expiry (confirmed)</h3>
-    <p class="hint">Enter a date only when the role-specific accreditation or its required annual renewal has been confirmed. An empty or expired date prevents match readiness.</p>
-    <div class="two">${Object.entries(CREW_ROLES).filter(([r]) => r !== 'manager').map(([r,label]) => crewField('acc-' + r, label, p.accreditation[r], 'date')).join('')}</div>
+    <p class="hint">Record role-specific training and expiry when verified. General first aid and sports trainer qualifications are not automatically interchangeable.</p>
+    <div class="two">${Object.entries(CREW_ROLES).filter(([r]) => crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r)).map(([r,label]) => crewField('acc-' + r, label, p.accreditation[r], 'date')).join('')}</div>
     <h3 class="form-sec">Working With Children Check</h3>
     <label class="check"><input type="checkbox" name="wwccChecked" ${p.wwccStatus === 'checked' ? 'checked' : ''}><span>Club has independently confirmed the relevant clearance</span></label>
     ${crewField('wwccExpiry', 'WWCC expiry', p.wwccExpiry, 'date')}
@@ -3488,35 +3492,37 @@ function crewPersonForm(person) {
   </form>`;
 }
 function crewPolicyForm(match = null) {
-  const p = crewPolicy(match);
+  const p = crewPolicy(match), sport = M.teamSport(data.team, M.clubOf(ws,data));
   return `<form data-form="crew-policy" autocomplete="off">
     <input type="hidden" name="matchId" value="${esc(match?.id || '')}">
-    <p class="hint">${match ? 'These requirements override the team defaults for this match only. ' : 'These are team-wide defaults. '}These are not national defaults. Confirm the exact requirements for this team’s age group, competition and season with your NSWRL/local league handbook. A coach cannot double as the required first responder.</p>
+    <p class="hint">${match ? 'These requirements override the team defaults for this match only. ' : 'These are team-wide defaults. '}These are not national defaults. Confirm the current ${esc(sport)} age-group and competition requirements. The rugby league shirt rules must not be applied to other sports.</p>
     ${crewField('year','Applicable season', p.year || String(new Date().getFullYear()), 'number','required min="2020" max="2100"')}
     ${crewField('source','Official competition / policy reference', p.source, 'text', 'required maxlength="250" placeholder="Association rule and year; e.g. 2026 local league by-laws"')}
     <h3 class="form-sec">Minimum distinct people by role</h3>
-    <p class="hint">Use a first-responder group for any eligible green/blue/orange trainer, or more specific shirt requirements when officially prescribed. A person assigned to one match role cannot fill another simultaneously.</p>
-    <div class="crew-rule-grid">${Object.entries(REQUIREMENT_ROLES).map(([r,label]) => `<label class="field-l"><span>${esc(label)}</span><input type="number" name="min-${r}" inputmode="numeric" min="0" max="12" value="${p.rows.find(x => x.role === r)?.min || 0}"></label>`).join('')}</div>
+    <p class="hint">Only enter requirements verified for ${esc(sport)}. One person cannot fulfil two separate match-day jobs simultaneously.</p>
+    <div class="crew-rule-grid">${Object.entries(REQUIREMENT_ROLES).filter(([r]) => crewRequirementAllowed(sport,r)).map(([r,label]) => `<label class="field-l"><span>${esc(label)}</span><input type="number" name="min-${r}" inputmode="numeric" min="0" max="12" value="${p.rows.find(x => x.role === r)?.min || 0}"></label>`).join('')}</div>
     <button class="btn primary block" type="submit">Save reviewed ${match ? 'match' : 'team'} requirements</button>
     ${match?.crewPolicy ? `<button class="btn block" type="button" data-act="crew-policy-reset" data-id="${esc(match.id)}">Use team requirements instead</button>` : ''}
     <p class="hint">A rule set with no required roles is treated as unconfigured. Recheck the reference for each new season.</p>
   </form>`;
 }
 function crewAssignRow(a, i, pool) {
+  const sport = M.teamSport(data.team, M.clubOf(ws, data));
+  const roleOptions = Object.entries(CREW_ROLES).filter(([r])=>crewRoleAllowed(sport,r)||r===a?.role);
   return `<fieldset class="crew-assign-row"><legend>Position ${i + 1}</legend><div class="two">
       <label class="field-l"><span>Person</span><select name="crew-person"><option value="">Not assigned</option>
         ${pool.map(p => `<option value="${esc(p.id)}" ${p.id === a?.personId ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
-      <label class="field-l"><span>Game-day role</span><select name="crew-role">${Object.entries(CREW_ROLES).map(([r,label]) => `<option value="${r}" ${r === a?.role ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label>
+      <label class="field-l"><span>Game-day role</span><select name="crew-role">${roleOptions.map(([r,label]) => `<option value="${r}" ${r === a?.role ? 'selected' : ''}>${esc(label)}${crewRoleAllowed(sport,r) ? '' : ' (invalid for this sport)'}</option>`).join('')}</select></label>
     </div><label class="check"><input type="checkbox" name="crew-confirm-${i}" ${a?.confirmed ? 'checked' : ''}><span>Confirmed to attend this match</span></label></fieldset>`;
 }
 function crewMatchForm(m) {
   const pool = crewPool(), slots = arr(m.crew);
   return `<form data-form="crew-match" autocomplete="off"><input name="id" type="hidden" value="${esc(m.id)}">
-    <p class="hint"><b>${esc(data.team.name)} vs ${esc(m.opponent || 'TBC')}</b> · ${esc(fmtDay(m.date))}. Match assignments do not register or accredit staff with MySideline. Each person can fill only one match role.</p>
+    <p class="hint"><b>${esc(data.team.name)} vs ${esc(m.opponent || 'TBC')}</b> · ${esc(fmtDay(m.date))}. Match-day roles are for ${esc(M.teamSport(data.team,M.clubOf(ws,data)))}. Registration is verified externally, never by this app. Each person can fill only one match role.</p>
     <div id="crew-assignments">${Array.from({length:Math.max(4,slots.length+1)},(_,i)=>crewAssignRow(slots[i],i,pool)).join('')}</div>
     <button type="button" class="btn sm" data-act="crew-add-row">+ Add another position</button>
     <button class="btn primary block" type="submit" style="margin-top:14px">Save match-day staff</button>
-    <p class="hint">Only confirmed people with current season registration, verified WWCC and suitable accreditation count towards configured minimums. Readiness is a coach planning check, not official permission to start play.</p>
+    <p class="hint">Only confirmed people with checked registration, team association, safeguarding and relevant accreditation count towards reviewed minima. This is a planning check, not permission to play.</p>
   </form>`;
 }
 function crewMatchSummary(m) {
