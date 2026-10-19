@@ -64,3 +64,26 @@ test('normalisation does not retain sensitive ID numbers or external unknown val
   assert.ok(!JSON.stringify(n).includes('1980-01-01'));
   assert.deepEqual(normCrewRules({source:'',rows:[{role:'firstResponder',min:1},{role:'bad',min:1}]}).rows,[{role:'firstResponder',min:1}]);
 });
+
+
+test('two overlapping minimums require two separate people, not one blue trainer counted twice', () => {
+  const blue = person('b', ['blue']);
+  const rule = { source: 'Association staff rule', year: '2026', rows: [
+    {role: 'firstResponder',min:1}, {role:'level1',min:1}
+  ]};
+  const one = matchCrewCheck([blue],team,{date,crew:[{personId:'b',role:'blue',confirmed:true}]},rule);
+  assert.equal(one.ready,false);
+  assert.equal(one.shortages.reduce((n,x)=>n+x.missing,0),1);
+  const orange = person('o',['orange']);
+  const two = matchCrewCheck([blue,orange],team,{date,crew:[
+    {personId:'b',role:'blue',confirmed:true},{personId:'o',role:'orange',confirmed:true}
+  ]},rule);
+  assert.equal(two.ready,true);
+});
+test('a match in the next season cannot use the previous season local policy',()=>{
+  const blue = person('b',['blue']);
+  const r = matchCrewCheck([blue],team,{date:'2027-01-15',crew:[{personId:'b',role:'blue',confirmed:true}]},
+    {source:'2026 local rules',year:'2026',rows:[{role:'firstResponder',min:1}]});
+  assert.equal(r.configured,false);
+  assert.equal(r.ready,false);
+});
