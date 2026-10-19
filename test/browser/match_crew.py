@@ -86,17 +86,24 @@ with sync_playwright() as p:
              f'[{width}] match check does not create horizontal overflow')
         pg.evaluate("""() => {
           const x=window.__team, t=x.M.clone(x.data);
-          t.id='league2026';t.team={...t.team,name:'Titans League U12',sport:'Rugby league'};
+          // A different rugby league CLUB, not just another team in the Oztag club.
+          x.ws.clubs.push({id:'titans-club',name:'Taren Point Titans',shortName:'Titans',sport:'Rugby league'});
+          t.id='league2026';t.team={...t.team,name:'Titans League U12',sport:'Rugby league',clubId:'titans-club'};
           t.matches=[];t.sessions=[];t.players=[];t.tasks=[];t.seasons=[];
           x.M.addTeam(x.ws,t);
         }""")
         pg.evaluate(act, ['crew-switch', {}])
         c.ok(pg.locator('#sheet [name=teamId] option').count()>=2,
              f'[{width}] team selection includes the other club team')
+        c.ok('Titans League U12' in pg.locator('#sheet [name=teamId]').inner_text()
+             and 'Rugby league' in pg.locator('#sheet [name=teamId]').inner_text(),
+             f'[{width}] picker exposes teams from the other club with their true sport')
         pg.locator('#sheet [name=teamId]').select_option('league2026')
         pg.locator('#sheet form[data-form=crew-pick-view] button[type=submit]').click()
         c.ok('Titans League U12' in pg.inner_text('#view'),
              f'[{width}] active match staff context follows chosen team')
+        c.ok('Frances First Aid' not in pg.inner_text('#view'),
+             f'[{width}] unrelated Oztag club staff are not silently pooled into Titans club')
         pg.locator('#view [data-act=crew-new]').click()
         c.ok(pg.locator('#sheet form[data-form=crew-pick-team]').count()==1,
              f'[{width}] new staff entry asks for team when multiple teams exist')
