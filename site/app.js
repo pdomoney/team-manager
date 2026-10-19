@@ -2862,6 +2862,64 @@ function refreshPedField() {
   const E = state.ped, box = $('#ped-field'); if (!E || !box) return;
   box.innerHTML = playSVG(pedView(E), 'right', { editor: true, svgId: 'ped-svg', viewport: pedViewport(E), overlay: fr => pedOverlay(E, fr) });
 }
+
+function refreshPedTeaching() {
+  const E = state.ped, box = $('#ped-teach-body'); if (!E || !box) return;
+  const phases = [E.draft, ...E.draft.phases];
+  E.teachPhase = clamp(E.teachPhase || 0, 0, phases.length - 1);
+  const ph = teachingPhase(E.draft, E.teachPhase), cues = teachingSteps(E.draft, E.teachPhase);
+  E.teachPreview = clamp(E.teachPreview || 0, 0, Math.max(0, cues.length - 1));
+  const codes = [...new Set(Object.values(playGeom(phaseView(E.draft, E.teachPhase), 'right').codes))].filter(Boolean);
+  const list = cues.map((cue, i) => {
+    const role = (cue.roles || [])[0] || '';
+    const move = (cue.moves || [])[0];
+    return `<section class="teach-action${i === E.teachPreview ? ' selected' : ''}">
+      <div class="teach-action-head"><strong>Action ${i + 1}</strong>
+        <div class="btn-row">
+          <button type="button" class="btn sm" data-act="teach-prev" data-i="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move action ${i + 1} earlier">↑</button>
+          <button type="button" class="btn sm" data-act="teach-next" data-i="${i}" ${i === cues.length - 1 ? 'disabled' : ''} aria-label="Move action ${i + 1} later">↓</button>
+          <button type="button" class="btn sm danger" data-act="teach-remove" data-i="${i}">Remove</button>
+        </div>
+      </div>
+      <label class="field-l"><span>Short title</span><input type="text" data-input="teach-title" data-i="${i}" maxlength="100" value="${esc(cue.title || '')}" placeholder="e.g. Draw the marker"></label>
+      <label class="field-l"><span>What should players do?</span><textarea data-input="teach-text" data-i="${i}" rows="2" maxlength="700" placeholder="One clear instruction, with the names or positions involved">${esc(cue.text || '')}</textarea></label>
+      <div class="two">
+        <label class="field-l"><span>Highlight position</span><select data-change="teach-role" data-i="${i}">
+          <option value="">Auto from instruction</option>
+          ${codes.map(code => `<option value="${esc(code)}" ${role === code ? 'selected' : ''}>${esc(code)}${labelName(getSet(E.draft.set), code) ? ' · ' + esc(labelName(getSet(E.draft.set), code)) : ''}</option>`).join('')}
+        </select></label>
+        <label class="field-l"><span>Linked diagram movement</span><select data-change="teach-move" data-i="${i}">
+          <option value="">Overview (no exact line)</option>
+          ${(ph.moves || []).map((m, k) => `<option value="${k}" ${move === k ? 'selected' : ''}>${k + 1}. ${esc(MOVE_KINDS[m.t] || m.t)}</option>`).join('')}
+        </select></label>
+      </div>
+      <button type="button" class="btn sm" data-act="teach-preview" data-i="${i}">Preview this action</button>
+    </section>`;
+  }).join('');
+  const preview = cues[E.teachPreview];
+  const guide = preview && preview.text ? preview : { title: 'Teaching preview', text: 'Write an instruction above, then choose Preview this action.', moves: [], roles: [] };
+  box.innerHTML = `<div class="teach-phase-picker" role="group" aria-label="Edit teaching phase">
+      ${phases.map((p, i) => `<button type="button" class="btn sm${i === E.teachPhase ? ' on' : ''}" data-act="teach-phase" data-i="${i}" aria-pressed="${i === E.teachPhase}">Phase ${i + 1}</button>`).join('')}
+    </div>
+    <div class="teach-layout">
+      <div class="teach-list">
+        <div class="teach-help"><strong>Tell the team what happens, in order.</strong>
+          <p>Each action has one clear instruction. The optional movement link makes the player highlight exact rather than inferred.</p></div>
+        ${list || '<p class="hint">No guided actions yet. Existing drawings and coaching words are preserved.</p>'}
+        <div class="btn-row">
+          <button type="button" class="btn primary sm" data-act="teach-add">+ Add action</button>
+          ${!cues.length ? '<button type="button" class="btn sm" data-act="teach-seed">Use existing instructions</button>' : ''}
+        </div>
+      </div>
+      <section class="teach-preview" aria-label="Player learning preview">
+        <h3 class="play-h">What players will see</h3>
+        <p class="hint">Phase ${E.teachPhase + 1} · Action ${cues.length ? E.teachPreview + 1 : 0} of ${cues.length}. Preview uses the exact saved field coordinates.</p>
+        <div class="study-cue"><h3>${esc(guide.title)}</h3><p>${esc(guide.text)}</p></div>
+        <div class="play-card">${playSVG(phaseView(E.draft, E.teachPhase), 'right', { study: true, studyCodes: guide.roles || [], studyMoves: guide.moves || [] })}</div>
+        <p class="hint">Switch to Advanced diagram to add or change runs, passes and player positions. Then return here to link the teaching actions.</p>
+      </section>
+    </div>`;
+}
 function refreshPlayEditor() {
   const E = state.ped; if (!E || !$('#ped-field')) return;
   const n = phaseCount(E.draft);
