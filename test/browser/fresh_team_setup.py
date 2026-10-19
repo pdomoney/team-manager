@@ -51,6 +51,8 @@ with sync_playwright() as p:
     # Deliberate setup reuse: separate picker, explicit source, same club and sport.
     W("(D.team.trainingVenue='Titans Oval',D.team.trainingStart='17:15',D.team.venue='Titans Ground',D.team.event='U16 Secret Cup',D.team.eventStart='2027-03-11',D.team.eventEnd='2027-03-13',D.team.bylaws=[{id:'u16rule',topic:'Other',text:'U16 restriction'}],D.team.tasksContact={name:'Private Coach',phone:'0400 111 777'},D.team.staff=[{name:'Secret Assistant',role:'Assistant coach'}],1)")
     original = W("D.id")
+    # Make a real library item available, so optional library-only reuse can be tested.
+    W("(W.library.plays.push({id:'lib-test-titans',name:'Private Titans play',rev:1}),1)")
     pg.goto(url + '#teams')
     pg.wait_for_selector('[data-act=team-template-choose]')
     pg.click('[data-act=team-template-choose]')
@@ -79,6 +81,21 @@ with sync_playwright() as p:
     pg.wait_for_timeout(80)
     c.ok(W("M.teamsOf(W).length") == count and pg.locator('#sheet select[name=teamSport][aria-invalid=true]').count() == 1,
          'copying setup across sports within the same club is rejected atomically')
+    # Library import alone may not bypass the same-club/sport boundary.
+    pg.uncheck('#sheet input[name=copySettings]')
+    pg.check('#sheet input[name=withLibrary]')
+    pg.select_option('#sheet select[name=clubId]', 'stgeorge')
+    pg.click('#sheet form[data-form=team-new] button[type=submit]')
+    pg.wait_for_timeout(70)
+    c.ok(W("M.teamsOf(W).length") == count and pg.locator('#sheet select[name=clubId][aria-invalid=true]').count() == 1,
+         'library-only import across clubs is rejected without side effects')
+    pg.select_option('#sheet select[name=clubId]', club)
+    pg.click('#sheet form[data-form=team-new] button[type=submit]')
+    pg.wait_for_timeout(70)
+    c.ok(W("M.teamsOf(W).length") == count and pg.locator('#sheet select[name=teamSport][aria-invalid=true]').count() == 1,
+         'library-only import across sports is rejected without side effects')
+    pg.uncheck('#sheet input[name=withLibrary]')
+    pg.check('#sheet input[name=copySettings]')
     pg.select_option('#sheet select[name=teamSport]', '')
     pg.click('#sheet form[data-form=team-new] button[type=submit]')
     pg.wait_for_timeout(160)
