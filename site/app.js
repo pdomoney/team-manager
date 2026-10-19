@@ -25,6 +25,7 @@ import { GitHub, repoFromLocation } from './github.js';
 import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
+import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import * as M from './model.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
@@ -2649,15 +2650,20 @@ function openPlayEditor(play) {
     ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
   };
   tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
-  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, undo: [], dirty: false, tab: 'diagram' };
+  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, undo: [], dirty: false, tab: 'teach', teachPhase: 0, teachPreview: 0 };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
     <div class="two">
       <label class="field-l"><span>Name</span><input type="text" name="name" value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
       <label class="field-l"><span>Type</span><select name="category">${[...PLAY_CATS, ...(PLAY_CATS.includes(draft.category) ? [] : [draft.category])].map(c => `<option ${c === draft.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
     </div>
-    <div class="seg" role="group" aria-label="What to edit">
-      <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="true">Diagram</button>
-      <button type="button" data-act="ped-tab" data-tab="words" aria-pressed="false">Words</button>
+    <div class="seg ped-workspaces" role="group" aria-label="Play editor workspace">
+      <button type="button" data-act="ped-tab" data-tab="teach" aria-pressed="true">Teach the play</button>
+      <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="false">Advanced diagram</button>
+      <button type="button" data-act="ped-tab" data-tab="words" aria-pressed="false">Play details</button>
+    </div>
+    <div id="ped-teach" class="ped-teach">
+      <p class="hint">Create actions in the order players should learn them. Link each instruction to a movement and position in the diagram. Your existing drawing and written steps stay unchanged.</p>
+      <div id="ped-teach-body"></div>
     </div>
     <div id="ped-words" hidden>
       <label class="field-l"><span>Headline</span><input type="text" name="headline" value="${esc(draft.headline)}" placeholder="What the play does, in one line"></label>
@@ -2665,7 +2671,7 @@ function openPlayEditor(play) {
       <label class="field-l"><span>Steps, one per line</span><textarea name="steps" rows="6" placeholder="Use LW, LL, LR, LM, RM, RR, RL, RW so the left version swaps them automatically.">${esc(draft.steps)}</textarea></label>
       ${playRulesField(draft)}
     </div>
-    <div id="ped-diagram" class="ped-diagram">
+    <div id="ped-diagram" class="ped-diagram" hidden>
       <div class="ped-phases" id="ped-phases"></div>
       <div class="ped-meta">
       <label class="field-l ped-list"><span>Player labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select></label>
@@ -2864,6 +2870,7 @@ function refreshPlayEditor() {
   $('#ped-ptitle-l').textContent = n > 1 ? `Phase ${E.phase + 1}` : 'Phase 1 (add more phases for the next rucks)';
   $('#ped-tools').innerHTML = PED_TOOLS.map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${E.tool === k}">${l}</button>`).join('');
   refreshPedField();
+  if (E.tab === 'teach') refreshPedTeaching();
   $('#ped-panel').innerHTML = pedPanel(E);
   const u = $('[data-act="ped-undo"]'); if (u) u.disabled = !E.undo.length;
   const w = $('[data-act="ped-whole"]'); if (w) w.textContent = E.whole ? 'Zoom to the picture' : 'Show the whole field';
@@ -2899,7 +2906,7 @@ function pedUndo() {
 function pedDelete() {
   const E = state.ped; if (!E || !E.sel) return false;
   const d = pedCur(E), sel = E.sel;
-  if (sel.k === 'mv' && d.moves[sel.i]) { pedSnap(); d.moves.splice(sel.i, 1); }
+  if (sel.k === 'mv' && d.moves[sel.i]) { pedSnap(); removeMovementLinks(d, sel.i); d.moves.splice(sel.i, 1); }
   else if (sel.k === 'lb' && d.labels[sel.i]) { pedSnap(); d.labels.splice(sel.i, 1); }
   else return false;
   pedSelect(null); refreshPlayEditor(); return true;
@@ -5181,7 +5188,7 @@ const actions = {
   'ped-tool': coachOnly(el => { const E = state.ped; E.tool = el.dataset.t; E.drawing = null; if (E.tool !== 'select') pedSelect(null); refreshPlayEditor(); }),
   'ped-tab': coachOnly(el => {
     const E = state.ped; E.tab = el.dataset.tab;
-    $('#ped-words').hidden = E.tab !== 'words'; $('#ped-diagram').hidden = E.tab !== 'diagram';
+    $('#ped-words').hidden = E.tab !== 'words'; $('#ped-diagram').hidden = E.tab !== 'diagram'; $('#ped-teach').hidden = E.tab !== 'teach';
     document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === E.tab)));
   }),
   'ped-undo': coachOnly(() => pedUndo()),
