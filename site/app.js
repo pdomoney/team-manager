@@ -5710,7 +5710,7 @@ document.addEventListener('submit', async e => {
     const withLibrary = !!source && !!f.get('withLibrary');
     const reuseIssue = setupReuseIssue({
       source, sourceSport: source ? M.teamSport(source.team, M.clubOf(ws, source)) : '',
-      clubId, sport, copySettings, withLibrary
+      clubId, sport, copySettings: copySetup, withLibrary
     });
     if (reuseIssue) { fieldError(form, reuseIssue.field, reuseIssue.message); return; }
     const t = normalize({ ...defaultData(), id: M.uid() });
