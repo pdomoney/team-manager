@@ -8,7 +8,10 @@ export const CREW_ROLES = Object.freeze({
   yellow: 'Yellow · LeagueSafe',
   green: 'Green · League First Aid',
   blue: 'Blue · Level 1 trainer',
-  orange: 'Orange · Level 2 trainer'
+  orange: 'Orange · Level 2 trainer',
+  firstAid: 'First aid / medical support',
+  matchDelegate: 'Game-day delegate',
+  groundMarshal: 'Ground marshal'
 });
 export const REQUIREMENT_ROLES = Object.freeze({
   coach: 'Head coach',
@@ -20,16 +23,36 @@ export const REQUIREMENT_ROLES = Object.freeze({
   green: 'Green shirt',
   blue: 'Blue shirt',
   orange: 'Orange shirt',
-  assistant: 'Assistant coach'
+  assistant: 'Assistant coach',
+  firstAid: 'First aid / medical support',
+  matchDelegate: 'Game-day delegate',
+  groundMarshal: 'Ground marshal'
 });
 const MATCHING = {
   coach: ['coach'], manager: ['manager'], assistant: ['assistant'],
   leagueSafe: ['yellow'], firstResponder: ['green', 'blue', 'orange'],
   level1: ['blue', 'orange'], level2: ['orange'],
-  green: ['green'], blue: ['blue'], orange: ['orange']
+  green: ['green'], blue: ['blue'], orange: ['orange'],
+  firstAid: ['firstAid'], matchDelegate: ['matchDelegate'], groundMarshal: ['groundMarshal']
 };
 const TYPE = { coach: 'coach', assistant: 'coach', manager: 'volunteer',
-  yellow: 'trainer', green: 'trainer', blue: 'trainer', orange: 'trainer' };
+  yellow: 'trainer', green: 'trainer', blue: 'trainer', orange: 'trainer',
+  firstAid: 'trainer', matchDelegate: 'volunteer', groundMarshal: 'volunteer' };
+// Sport-specific UI / eligibility. Templates describe possible club roles, NOT
+// minimum people or legal match-day staffing requirements.
+const SHARED = ['coach','assistant','manager','firstAid','matchDelegate'];
+export const CREW_SPORTS = Object.freeze({
+  'Rugby league': { provider:'MySideline', roles:['coach','assistant','manager','yellow','green','blue','orange','firstAid','matchDelegate','groundMarshal'], requirements:['coach','assistant','manager','leagueSafe','firstResponder','level1','level2','green','blue','orange','firstAid','matchDelegate','groundMarshal'] },
+  'League tag': { provider:'MySideline', roles:['coach','assistant','manager','yellow','green','blue','orange','firstAid','matchDelegate'], requirements:['coach','assistant','manager','leagueSafe','firstResponder','level1','level2','green','blue','orange','firstAid','matchDelegate'] },
+  'Oztag': { provider:'Assemble / local Oztag association',roles:SHARED,requirements:['coach','assistant','manager','firstAid','matchDelegate'] },
+  'Touch football': { provider:'MySideline (Touch Football)',roles:SHARED,requirements:['coach','assistant','manager','firstAid','matchDelegate'] },
+  'Rugby union': { provider:'Rugby Xplorer',roles:[...SHARED,'groundMarshal'],requirements:['coach','assistant','manager','firstAid','matchDelegate','groundMarshal'] }
+});
+const OTHER = {provider:'Applicable sport/competition registry',roles:SHARED,requirements:['coach','assistant','manager','firstAid','matchDelegate']};
+export const crewSport = team => words(team?.team?.sport || team?.sport || 'Oztag');
+export const crewProfile = sport => CREW_SPORTS[words(sport)] || OTHER;
+export const crewRoleAllowed = (sport, role) => crewProfile(sport).roles.includes(role);
+export const crewRequirementAllowed = (sport, role) => crewProfile(sport).requirements.includes(role);
 const ymd = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? '')) && !Number.isNaN(Date.parse(v + 'T12:00:00Z')) ? v : '';
 const words = v => String(v ?? '').trim();
 const arr = v => Array.isArray(v) ? v : [];
@@ -38,7 +61,9 @@ const roleList = v => [...new Set(arr(v).filter(x => CREW_ROLES[x]))];
 export const normCrewPerson = p => ({
   id: words(p?.id), name: words(p?.name).slice(0, 120),
   clubId: words(p?.clubId), teamIds: [...new Set(arr(p?.teamIds).filter(x => typeof x === 'string'))],
-  roles: roleList(p?.roles), squadYears: Object.fromEntries(Object.entries(obj(p?.squadYears))
+  roles: roleList(p?.roles), registrationBySport: Object.fromEntries(Object.entries(obj(p?.registrationBySport))
+    .filter(([sport]) => typeof sport === 'string').map(([sport,rec]) => [sport, Object.fromEntries(['coach','volunteer','trainer'].map(k =>
+      [k, /^\d{4}$/.test(String(rec?.[k] || '')) ? String(rec[k]) : '']))])), squadYears: Object.fromEntries(Object.entries(obj(p?.squadYears))
     .filter(([teamId,year]) => typeof teamId === 'string' && /^\d{4}$/.test(String(year))).map(([id,year]) => [id,String(year)])),
   registration: Object.fromEntries(['coach', 'volunteer', 'trainer']
     .map(k => [k, /^\d{4}$/.test(String(p?.registration?.[k] || '')) ? String(p.registration[k]) : ''])),
@@ -49,23 +74,27 @@ export const normCrewPerson = p => ({
 });
 export const normCrewRules = p => ({
   source: words(p?.source).slice(0, 250),
+  sport: words(p?.sport || 'Rugby league'), // legacy reviewed policies were rugby league only
   year: /^\d{4}$/.test(String(p?.year || '')) ? String(p.year) : '',
   rows: arr(p?.rows).filter(r => REQUIREMENT_ROLES[r?.role] && Number.isInteger(+r.min) && +r.min >= 1 && +r.min <= 12)
     .map(r => ({ role: r.role, min: Number(r.min) }))
 });
 export function canCrewServe(person, team, role, date) {
   const p = normCrewPerson(person);
-  if (!p.active || !CREW_ROLES[role] || !p.roles.includes(role)) return 'Role or availability not confirmed';
+  const sport = crewSport(team);
+  if (!p.active || !CREW_ROLES[role] || !p.roles.includes(role) || !crewRoleAllowed(sport,role)) return 'Role not eligible for this sport or availability not confirmed';
   if (!p.teamIds.includes(team.id) && !(p.clubId && p.clubId === team.team?.clubId)) return 'Not in this club/team';
   const season = words(date).slice(0, 4);
-  if (!ymd(date) || !season || p.registration[TYPE[role]] !== season) return 'Season registration unverified';
-  if (p.squadYears[team.id] !== season) return 'MySideline team squad allocation unverified';
+  const current = p.registrationBySport[sport]?.[TYPE[role]] || (
+    (sport === 'Rugby league' || sport === 'League tag') ? p.registration[TYPE[role]] : '');
+  if (!ymd(date) || !season || current !== season) return 'Season registration unverified for ' + sport;
+  if (p.squadYears[team.id] !== season) return crewProfile(sport).provider + ' team allocation unverified';
   if (p.wwccStatus !== 'checked' || !p.wwccExpiry || p.wwccExpiry < date) return 'WWCC verification missing or expired';
   if (role !== 'manager' && (!p.accreditation[role] || p.accreditation[role] < date)) return 'Role accreditation unverified or expired';
   return '';
 }
 export function matchCrewCheck(people, team, match, policy) {
-  const rules = normCrewRules(policy);
+  const sport = crewSport(team), rules = normCrewRules(policy);
   const rows = arr(match?.crew).filter(a => a && CREW_ROLES[a.role] && typeof a.personId === 'string');
   const duplicates = [...new Set(rows.map(r => r.personId).filter((id, i) => rows.findIndex(x => x.personId === id) !== i))];
   const slots = rows.map(a => {
@@ -77,7 +106,8 @@ export function matchCrewCheck(people, team, match, policy) {
   // Solve distinct staffing slots across ALL configured requirements. For example,
   // one blue trainer must not simultaneously satisfy "one Level 1" AND "one first responder".
   // Standard augmenting-path matching reassigns eligible people to avoid false shortages.
-  const demand = rules.rows.flatMap((r, index) =>
+  const applicable = rules.rows.filter(r => crewRequirementAllowed(sport, r.role));
+  const demand = applicable.flatMap((r, index) =>
     Array.from({ length: r.min }, () => ({ role: r.role, index, eligible: MATCHING[r.role] })));
   demand.sort((a, b) => a.eligible.length - b.eligible.length);
   const byPerson = new Map();
@@ -94,13 +124,14 @@ export function matchCrewCheck(people, team, match, policy) {
     return false;
   };
   demand.forEach((_, i) => allocate(i, new Set()));
-  const covered = rules.rows.map(() => 0);
+  const covered = applicable.map(() => 0);
   byPerson.forEach(i => { covered[demand[i].index]++; });
-  const shortages = rules.rows.map((r, i) => ({
+  const shortages = applicable.map((r, i) => ({
     ...r, name: REQUIREMENT_ROLES[r.role],
     have: covered[i], missing: Math.max(0, r.min - covered[i])
   }));
-  const configured = !!rules.source && rules.year === words(match?.date).slice(0, 4) && !!rules.rows.length;
+  const configured = !!rules.source && rules.sport === sport && rules.year === words(match?.date).slice(0, 4)
+    && !!rules.rows.length && applicable.length === rules.rows.length;
   return {
     configured, source: rules.source, slots, shortages,
     ready: configured && shortages.every(x => x.missing === 0) && slots.every(x => x.valid),
