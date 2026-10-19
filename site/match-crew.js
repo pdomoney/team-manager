@@ -61,7 +61,12 @@ const roleList = v => [...new Set(arr(v).filter(x => CREW_ROLES[x]))];
 export const normCrewPerson = p => ({
   id: words(p?.id), name: words(p?.name).slice(0, 120),
   clubId: words(p?.clubId), teamIds: [...new Set(arr(p?.teamIds).filter(x => typeof x === 'string'))],
-  roles: roleList(p?.roles), registrationBySport: Object.fromEntries(Object.entries(obj(p?.registrationBySport))
+  roles: roleList(p?.roles),
+  // Sport assignments are independent; unmodified legacy records remain readable.
+  rolesBySport: Object.fromEntries(Object.entries(obj(p?.rolesBySport))
+    .filter(([sport]) => typeof sport === 'string' && !!sport.trim())
+    .map(([sport,roles]) => [sport, roleList(roles)])),
+  registrationBySport: Object.fromEntries(Object.entries(obj(p?.registrationBySport))
     .filter(([sport]) => typeof sport === 'string').map(([sport,rec]) => [sport, Object.fromEntries(['coach','volunteer','trainer'].map(k =>
       [k, /^\d{4}$/.test(String(rec?.[k] || '')) ? String(rec[k]) : '']))])), squadYears: Object.fromEntries(Object.entries(obj(p?.squadYears))
     .filter(([teamId,year]) => typeof teamId === 'string' && /^\d{4}$/.test(String(year))).map(([id,year]) => [id,String(year)])),
@@ -72,6 +77,14 @@ export const normCrewPerson = p => ({
   wwccExpiry: ymd(p?.wwccExpiry), // no WWCC number, ID scan or date of birth
   active: p?.active !== false
 });
+export function crewRolesForSport(person, sport) {
+  const p = normCrewPerson(person);
+  // When sport roles are explicitly reviewed, other sports cannot inherit
+  // shared role names. Legacy records still retain their pre-upgrade roles.
+  return Object.keys(p.rolesBySport).length
+    ? (p.rolesBySport[sport] || []).filter(role => crewRoleAllowed(sport, role))
+    : p.roles.filter(role => crewRoleAllowed(sport, role));
+}
 export const normCrewRules = p => ({
   source: words(p?.source).slice(0, 250),
   sport: words(p?.sport || 'Rugby league'), // legacy reviewed policies were rugby league only
@@ -82,7 +95,7 @@ export const normCrewRules = p => ({
 export function canCrewServe(person, team, role, date) {
   const p = normCrewPerson(person);
   const sport = crewSport(team);
-  if (!p.active || !CREW_ROLES[role] || !p.roles.includes(role) || !crewRoleAllowed(sport,role)) return 'Role not eligible for this sport or availability not confirmed';
+  if (!p.active || !CREW_ROLES[role] || !crewRolesForSport(p,sport).includes(role)) return 'Role not eligible for this sport or availability not confirmed';
   if (!p.teamIds.includes(team.id) && !(p.clubId && p.clubId === team.team?.clubId)) return 'Not in this club/team';
   const season = words(date).slice(0, 4);
   const current = p.registrationBySport[sport]?.[TYPE[role]] || (
