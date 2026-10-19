@@ -20,7 +20,7 @@ test('all target rugby codes have reviewed explicit requirements and never claim
   assert.equal(g.source,from);assert.equal(g.target,to);
   assert.equal(g.adjustments.length,4);
   assert.ok(g.warnings.some(w=>w.includes('eight Oztag-shaped')));
-  assert.ok(!transferBrief(sample,g).includes('ready formation'));
+  assert.ok(transferBrief(sample,g).includes('Not a match-ready formation'));
   assert.ok(transferBrief(sample,g).includes('CONCEPT ONLY'));
  }
 });
