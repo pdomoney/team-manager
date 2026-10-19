@@ -24,7 +24,8 @@ with sync_playwright() as p:
             pg.locator(f'#sheet input[name=role][value={role}]').check()
             pg.fill(f'#sheet input[name=reg-{member}]', info['year'])
             pg.fill('#sheet input[name=squad-year]', info['year'])
-            pg.fill(f'#sheet input[name=acc-{role}]', '2036-12-31')
+            if role != 'manager':
+                pg.fill(f'#sheet input[name=acc-{role}]', '2036-12-31')
             pg.locator('#sheet input[name=wwccChecked]').check()
             pg.fill('#sheet input[name=wwccExpiry]', '2036-12-31')
             pg.locator('#sheet form[data-form=crew-person] button[type=submit]').click()
