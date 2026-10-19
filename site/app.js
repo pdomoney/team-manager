@@ -2438,7 +2438,7 @@ function openTransferReview(p, from, to) {
   openSheet('Adapt ' + p.name, `<div class="transfer-intro">
     <span class="transfer-eyebrow">${esc(from)} → ${esc(to)}</span>
     <h3>Transfer the idea, adjust the execution</h3>
-    <p>These are coaching prompts. A labelled eight-player Oztag drawing does not become a legal ${esc(to)} formation by changing the labels.</p>
+    <p>These are coaching prompts. Positions, field shape and rules are not automatically converted. A labelled eight-player Oztag drawing does not become a valid ${esc(to)} formation by changing the labels.</p>
     <button type="button" class="link-btn" data-act="transfer-change" data-id="${esc(p.id)}" data-from="${esc(from)}" data-to="${esc(to)}">Choose another sport</button>
   </div>
   <section class="transfer-section"><h3>Mechanics worth exploring</h3>
