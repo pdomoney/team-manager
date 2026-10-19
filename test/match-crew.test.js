@@ -28,6 +28,12 @@ test('coach and first responder must be separate assigned people', () => {
   assert.equal(report.ready, true);
 });
 
+test('club-wide registration alone does not certify a person for each team squad', () => {
+  const p = { ...person('b', ['blue']), squadYears: {} };
+  assert.match(canCrewServe(p,team,'blue',date),/squad allocation/);
+  assert.equal(canCrewServe({ ...p,squadYears:{u12:'2026'} },team,'blue',date),'');
+});
+
 test('missing policy can never display match ready', () => {
   const c = person('c', ['coach']);
   assert.equal(matchCrewCheck([c], team, { date, crew: [{personId:'c',role:'coach',confirmed:true}] }, {source:'',rows:[]}).ready,false);
