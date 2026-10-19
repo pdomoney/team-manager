@@ -2731,7 +2731,7 @@ function openPlayEditor(play) {
     <div id="ped-diagram" class="ped-diagram" hidden>
       <div class="ped-phases" id="ped-phases"></div>
       <div class="ped-meta">
-      <label class="field-l ped-list"><span>Diagram role labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select><small>These are label names, not full team formations. A rugby league list has 13 role labels, but this diagram still draws eight positions.</small><button class="link-btn inline" type="button" data-act="psets">Manage diagram labels</button></label>
+      <label class="field-l ped-list"><span>Diagram role labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select><small>These are label names, not full team formations. A rugby league list has 13 role labels, but this diagram still draws eight positions.</small><small>Manage custom role lists in Tactics → Library after saving your play.</small></label>
       <label class="field-l ped-ptitle"><span id="ped-ptitle-l">Phase 1</span><input type="text" id="ped-ptitle" data-input="ped-ptitle" value="${esc(draft.title || '')}" placeholder="What happens in this phase, e.g. Tag 2: hands right"></label>
       </div>
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
@@ -4584,10 +4584,11 @@ function libRow(kind, li) {
 function viewLibrary() {
   if (!isCoach()) return '';
   const sec = (kind, title, empty) => { const items = M.libItems(ws, kind); return `<h3 class="form-sec">${title} (${items.length})</h3>${items.length ? `<div class="list">${items.map(li => libRow(kind, li)).join('')}</div>` : `<p class="muted small">${empty}</p>`}`; };
-  return `<div class="sec-h"><h2>Library</h2></div><p class="hint" style="margin:-4px 0 6px">Shared by all your teams. Save a play, a game system or a player list to the library from where you edit it, then add it to any team. Teams that haven’t changed their copy get each new library version; a team that has keeps its own.</p>
+  return `<div class="sec-h"><h2>Library</h2></div><p class="hint" style="margin:-4px 0 6px">Shared across your teams. Save plays, game systems and custom diagram role labels to the library, then reuse them in another team. Teams that haven’t changed their copy get each new library version; a team that has keeps its own.</p>
     ${sec('plays', 'Plays', 'No plays yet. Open a play and choose Save to library.')}
     ${sec('systems', 'Game systems', 'None yet. Show a game system on the Lineup page and choose Save to library.')}
-    ${sec('playerSets', 'Diagram role labels', 'None yet. Use Advanced diagram → Manage diagram labels to add a list to the library.')}
+    ${sec('playerSets', 'Diagram role labels', 'No custom diagram labels in the shared library yet.')}
+    <button class="btn sm" data-act="psets" style="margin-top:10px">Manage diagram role labels</button>
     <div class="btn-row" style="margin-top:16px"><button class="btn" data-act="lib-export">Export the library</button><button class="btn" data-act="lib-import">Import a library</button></div>
     <p class="hint">A library file holds plays, systems and labels only: no players, phone numbers or results. Use it to share with another coach.</p>`;
 }
