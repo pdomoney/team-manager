@@ -31,7 +31,7 @@ export function stampVersion(outDir, version) {
   edit('index.html', t => t
     .replace(/(src|href)="(app\.js|styles\.css|favicon\.svg)"/g, `$1="$2?v=${version}"`)
     .replace('<meta charset="utf-8">', `<meta charset="utf-8">\n  <meta name="app-version" content="${version}">`));
-  for (const f of ['app.js', 'model.js']) edit(f, t => t.replace(/from '\.\/(vault|github|github-settings|team-setup|model|rules)\.js'/g, `from './$1.js?v=${version}'`));
+  for (const f of ['app.js', 'model.js']) edit(f, t => t.replace(/from '\.\/(vault|github|github-settings|team-setup|play-study|model|rules)\.js'/g, `from './$1.js?v=${version}'`));
 }
 
 export function build({ dataDir = 'data', outDir = 'dist', siteDir = 'site', watchDir = 'rules-watch', log = console.log, version = (process.env.GITHUB_SHA || '').slice(0, 7) || Date.now().toString(36) } = {}) {

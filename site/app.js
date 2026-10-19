@@ -24,6 +24,7 @@ import { ITERATIONS, makeLock, newSalt, seal, openFile, teamView, toB64, fromB64
 import { GitHub, repoFromLocation } from './github.js';
 import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
+import { studyCards, cueRoles } from './play-study.js';
 import * as M from './model.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
@@ -279,7 +280,7 @@ const state = {
   lineupId: null, moveMode: false, msgTpl: 'reminder', msgSession: null, msgDraft: null, postNotice: true,
   layers: { zones: true, channels: true, ...(readJson('tm-field-layers') || {}) },
   system: null, sysFlip: false,
-  playId: null, playSide: 'right', ped: null,
+  playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
   taskFilter: 'up', taskPick: null,
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
@@ -2185,12 +2186,17 @@ function trimLine(pts, blockers) {
 let svgSeq = 0;
 function playSVG(play, side, opts = {}) {
   const g = playGeom(play, side), fr = playFrame(g, opts), { X, Y, k, H } = fr, id = `p${++svgSeq}`;
-  const thumb = !!opts.thumb, words = !thumb, F = fieldDims(V.team.field);
+  const thumb = !!opts.thumb, words = !thumb, annotations = words && !opts.study, F = fieldDims(V.team.field);
+  const studyCodes = new Set(opts.studyCodes || []);
+  const spotlightIds = Object.keys(g.codes).filter(k => studyCodes.has(g.codes[k]));
+  const studyMoves = Array.isArray(opts.studyMoves) ? opts.studyMoves : [];
+  const relatedToSpotlight = m => spotlightIds.some(k =>
+    m.pts.some(q => dist(q, g.players[k]) < 2.3));
   const pr = thumb ? 15 : PR, dr = thumb ? 11 : DR, dot = thumb ? 7 : DOT;
   const XY = p => [X(p[0]), Y(p[1])];
   // field: the tint runs to the picture's edge wherever the field carries on past it
   const L = fr.x0 <= 0 ? X(0) : 0, R = fr.x1 >= 50 ? X(50) : PW, T = fr.y0 <= 0 ? Y(0) : 0, B = fr.y1 >= 80 ? Y(80) : H;
-  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="pf${thumb ? ' thumb' : ''}${opts.editor ? ' editor' : ''}" viewBox="0 0 ${PW} ${H}" data-x0="${fr.x0}" data-y0="${fr.y0}" data-k="${k}" data-top="${fr.top}" role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
+  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="pf${thumb ? ' thumb' : ''}${opts.editor ? ' editor' : ''}${opts.study ? ' study' : ''}" viewBox="0 0 ${PW} ${H}" data-x0="${fr.x0}" data-y0="${fr.y0}" data-k="${k}" data-top="${fr.top}" role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
   const aw = thumb ? 22 : 8, ak = thumb ? 24 : 10;
   s += `<defs><marker id="${id}-g" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${aw}" markerHeight="${aw}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker><marker id="${id}-b" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${ak}" markerHeight="${ak}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah key"/></marker><marker id="${id}-r" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${aw}" markerHeight="${aw}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah shift"/></marker></defs>`;
   s += `<rect class="pf-turf" x="${L}" y="${T}" width="${R - L}" height="${B - T}"/>`;
@@ -2217,12 +2223,12 @@ function playSVG(play, side, opts = {}) {
   const defs = g.line.map((p, i) => ({ p, i })).filter(d => opts.editor || fr.shows(d.p));
   defs.forEach(({ p, i }) => { s += `<g class="dfg" data-df="${i}" transform="translate(${X(p[0])} ${Y(p[1])})"><circle class="df" r="${dr}"/></g>`; });
   if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${X(g.marker[0])} ${Y(g.marker[1])})"><circle class="df mk" r="${dr}"/></g>`;
-  if (words && defs.length) {
+  if (annotations && defs.length) {
     const text = g.notes.line ? g.notes.line.text : 'Their line, 7 m back';
     const ly = Math.min(...defs.map(d => Y(d.p[1]))) - dr - 9;
     if (text) s += `<text class="pf-note" ${away} y="${ly.toFixed(1)}">${esc(text)}</text>`;
   }
-  if (words && g.marker) {
+  if (annotations && g.marker) {
     const n = g.notes.marker || { text: 'Marker', side: 'l' };
     if (n.text) s += svgWords(X(g.marker[0]), Y(g.marker[1]), dr, n.side || 'l', n.text, 'pf-note');
   }
@@ -2238,15 +2244,18 @@ function playSVG(play, side, opts = {}) {
   ];
   const player = ([pid, p]) => {
     const tag = g.tags[pid], cls = ['pl', g.focus.includes(pid) && 'focus', g.ghost.includes(pid) && 'ghost', !opts.editor && !busy(pid) && 'idle'].filter(Boolean).join(' ');
+    const studyClass = opts.study && spotlightIds.length ? (spotlightIds.includes(pid) ? ' study-target' : ' study-soft') : '';
     const code = g.codes[pid] ?? pid;
-    return `<g class="plg" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}</g>`;
+    return `<g class="plg${studyClass}" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}</g>`;
   };
   shown.filter(([pid]) => g.ghost.includes(pid)).forEach(e => { s += player(e); });
   g.moves.forEach((m, i) => {
     const pts = trimLine(m.pts.map(XY), blockers);
+    const highlighted = opts.study && (studyMoves.length ? studyMoves.includes(i) : spotlightIds.length && relatedToSpotlight(m));
+    const faded = opts.study && (studyMoves.length || spotlightIds.length) && !highlighted;
     const head = m.t === 'shift' ? 'r' : m.key ? 'b' : 'g';
     const d = pathD(pts, m.curve);
-    s += `<path class="mv ${m.t}${m.key && m.t !== 'shift' ? ' key' : ''}${m.opt ? ' opt' : ''}" d="${d}"${m.t === 'dummy' ? '' : ` marker-end="url(#${id}-${head})"`}${opts.editor ? ` data-mv="${i}"` : ''}/>`;
+    s += `<path class="mv ${m.t}${m.key && m.t !== 'shift' ? ' key' : ''}${m.opt ? ' opt' : ''}${highlighted ? ' study-emphasis' : ''}${faded ? ' study-soft' : ''}" d="${d}"${m.t === 'dummy' ? '' : ` marker-end="url(#${id}-${head})"`}${opts.editor ? ` data-mv="${i}"` : ''}/>`;
     if (opts.editor) s += `<path class="mv-hit" d="${d}" data-mv="${i}"/>`;
   });
   if (opts.drawing && opts.drawing.pts.length) {
@@ -2255,7 +2264,7 @@ function playSVG(play, side, opts = {}) {
   }
   dots.forEach(l => { s += `<circle class="dot" cx="${X(l.at[0])}" cy="${Y(l.at[1])}" r="${dot}"/>`; });
   shown.filter(([pid]) => !g.ghost.includes(pid)).forEach(e => { s += player(e); });
-  if (words) {
+  if (annotations) {
     shown.forEach(([pid, p]) => { const n = g.notes[pid]; if (n && n.text) s += svgWords(X(p[0]), Y(p[1]), pr, n.side || 'r', n.text, 'pf-note'); });
     defs.forEach(({ p, i }) => { const n = g.notes['d' + i]; if (n && n.text) s += svgWords(X(p[0]), Y(p[1]), dr, n.side || 'r', n.text, 'pf-note'); });
     g.labels.forEach((l, i) => { s += svgWords(X(l.at[0]), Y(l.at[1]), l.dot ? dot : 0, l.side || 'r', l.text, (l.dot ? 'pf-lbl' : 'pf-note') + (opts.editor ? '" data-lb="' + i : '')); });
@@ -2302,20 +2311,64 @@ function viewPlays() {
     </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add one, or restore the starter plays.' : 'No plays yet.'}</p></div>`}
     ${coach && missing ? `<button class="link-btn" data-act="plays-restore">Restore the ${missing} missing starter play${missing === 1 ? '' : 's'}</button>` : ''}`;
 }
+
+function studySequence(p, side) {
+  const mirrored = side !== (p.side || 'right');
+  return studyCards(p, playSteps(p, side), t => mirrored ? mirrorText(t, textPairs(p)) : String(t ?? ''));
+}
+function studyFigure(p, side, cards) {
+  const item = cards[state.studyIndex], v = phaseView(p, item.phase);
+  const geom = playGeom(v, side), codes = [...new Set(Object.values(geom.codes))].filter(Boolean);
+  const roles = state.studyRole !== 'all' ? [state.studyRole]
+    : item.roles.length ? item.roles.map(r => side !== (p.side || 'right') ? (setPairs(getSet(p.set))[r] || swapSlot(r)) : r)
+      : cueRoles(item.text, codes);
+  return `<div class="study-progress"><strong>Step ${state.studyIndex + 1} of ${cards.length}</strong>
+        <span>${phaseCount(p) > 1 ? `Phase ${item.phase + 1} of ${phaseCount(p)}` : 'Learn at your pace'}</span></div>
+    <div class="study-cue" role="status" aria-live="polite"><h3>${esc(item.title)}</h3><p>${esc(item.text)}</p></div>
+    <div class="study-controls" role="group" aria-label="Learning steps">
+      <button type="button" class="btn sm" data-act="study-prev" ${state.studyIndex === 0 ? 'disabled' : ''}>← Previous</button>
+      <button type="button" class="btn primary sm" data-act="study-next" ${state.studyIndex === cards.length - 1 ? 'disabled' : ''}>Next step →</button>
+    </div>
+    ${playSVG(v, side, { study: true, studyCodes: roles, studyMoves: item.moves })}
+    ${playLegend(v, side)}
+    ${castKey(v, side)}`;
+}
 function viewPlay(p) {
   const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side);
+  const mode = state.playMode || (coach ? 'watch' : 'learn');
+  const cards = studySequence(p, side);
+  state.studyIndex = clamp(state.studyIndex || 0, 0, cards.length - 1);
   state.playPhase = clamp(state.playPhase || 0, 0, phaseCount(p) - 1);
+  const chosen = cards[state.studyIndex];
+  const geom = playGeom(phaseView(p, chosen.phase), side);
+  const codes = [...new Set(Object.values(geom.codes))].filter(Boolean);
   return `<button class="toggle-past" data-act="play-back">← All plays</button>
     <div class="sec-h"><h2>${esc(p.name)}</h2><span class="pills">${p.set && p.set !== 'oztag' ? `<span class="pill neutral">${esc(getSet(p.set).name)}</span>` : ''}<span class="pill neutral">${esc(p.category || 'Other')}</span></span></div>
+    <div class="seg play-modes" role="group" aria-label="How to explore this play">
+      <button data-act="play-mode" data-mode="learn" aria-pressed="${mode === 'learn'}">Learn step by step</button>
+      <button data-act="play-mode" data-mode="watch" aria-pressed="${mode === 'watch'}">Watch animation</button>
+    </div>
     <div class="seg" role="group" aria-label="Direction">
       <button data-act="play-side" data-side="left" aria-pressed="${side === 'left'}">Attacking left</button>
       <button data-act="play-side" data-side="right" aria-pressed="${side === 'right'}">Attacking right</button>
     </div>
-    <div class="cols play-cols"><div class="col">
-    <figure class="play-card" id="play-fig">${playFigure(p, side, state.playPhase)}</figure>
+    <div class="cols play-cols ${mode === 'learn' ? 'learn-cols' : ''}"><div class="col">
+      <figure class="play-card ${mode === 'learn' ? 'play-study' : ''}" id="play-fig">
+        ${mode === 'learn' ? studyFigure(p, side, cards) : playFigure(p, side, state.playPhase)}
+      </figure>
     </div><div class="col">
-    ${when ? `<section class="sec play-when-sec"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
-    ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}
+    ${mode === 'learn' ? `<section class="sec study-side">
+      <h3 class="play-h">Find your position</h3>
+      <p class="hint">Highlight your role to find where you stand and which lines start near you.</p>
+      <label class="field-l"><span>My position</span><select data-change="study-role" aria-label="Highlight a position">
+        <option value="all">All positions</option>
+        ${codes.map(code => `<option value="${esc(code)}" ${state.studyRole === code ? 'selected' : ''}>${esc(code)}${labelName(geom.set, code) && labelName(geom.set, code) !== code ? ' · ' + esc(labelName(geom.set, code)) : ''}</option>`).join('')}
+      </select></label>
+      <p class="hint">The blue emphasis follows player names mentioned in the step or the position you select. Drawn runs and passes may happen together. Only coach-linked instructions specify exact movement order.</p>
+      ${when ? `<h3 class="play-h" style="margin-top:16px">When to use it</h3><p>${esc(when)}</p>` : ''}
+      ${steps.length ? `<details class="study-details"><summary>Read the full coaching instructions</summary><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></details>` : ''}
+    </section>` : `${when ? `<section class="sec play-when-sec"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
+    ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}`}
     ${libBar('plays', p.id, p)}
     ${coach ? `<div class="btn-row"><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
@@ -2333,7 +2386,11 @@ function playFigure(p, side, i) {
       <button type="button" class="btn sm primary" data-act="anim-play">${anim.playing ? 'Pause' : anim.done ? 'Play again' : 'Play'}</button>
       <button type="button" class="btn sm${anim.slow ? ' on' : ''}" data-act="anim-slow" aria-pressed="${!!anim.slow}">Slow</button>
       ${n > 1 ? `<span class="muted small">Phase ${i + 1} of ${n}</span>` : ''}
-    </div>`;
+      <button type="button" class="btn sm" data-act="anim-restart">Restart</button>
+    </div>
+    <div class="anim-timeline"><label for="anim-seek">Animation progress</label>
+      <input id="anim-seek" data-input="anim-seek" type="range" min="0" max="100" step="1" value="0" aria-label="Seek within this phase">
+      <output id="anim-pct" for="anim-seek">0%</output></div>`;
 }
 
 // What the labels mean, when they aren't Oztag's: "7 Halfback · 9 Hooker ..."
@@ -2500,6 +2557,24 @@ function animStop(keepDone) {
 }
 function animButtons() {
   const b = $('[data-act="anim-play"]'); if (b) b.textContent = anim.playing ? 'Pause' : anim.done ? 'Play again' : 'Play';
+  const r = $('#anim-seek'), out = $('#anim-pct');
+  const pct = anim.plan && anim.plan.T ? clamp(Math.round(100 * anim.t / anim.plan.T), 0, 100) : 0;
+  if (r) r.value = String(pct);
+  if (out) out.textContent = pct + '%';
+}
+function animSeek(pct) {
+  if (state.playMode !== 'watch') return;
+  const p = playById(state.playId); if (!p) return;
+  animStop();
+  if (!anim.plan || anim.planFor !== `${p.id}/${state.playSide}/${state.playPhase}`) {
+    animShowPhase(p, state.playPhase);
+    anim.planFor = `${p.id}/${state.playSide}/${state.playPhase}`;
+  }
+  anim.t = anim.plan.T * clamp(Number(pct) / 100 || 0, 0, 1);
+  const svg = $('#play-fig svg');
+  if (svg) animFrame(svg, anim.plan, anim.t);
+  anim.done = anim.t >= anim.plan.T;
+  animButtons();
 }
 function animShowPhase(p, i) {
   state.playPhase = i;
@@ -2532,6 +2607,7 @@ function animStart() {
     } else {
       anim.t = Math.min(anim.plan.T, anim.t + dt);
       animFrame(svg, anim.plan, anim.t);
+      animButtons();
       if (anim.t >= anim.plan.T) {
         if (state.playPhase < phaseCount(p) - 1) anim.hold = 0.9;
         else { anim.playing = false; anim.done = true; anim.raf = 0; animButtons(); return; }
@@ -4119,7 +4195,7 @@ function afterJersey(p, msg) {
 // they were and opened read-only (with a deliberate "make a correction" step), and the next season is
 // set up by picking who carries over. Nothing from one season's schedule is copied into the next.
 const SAFE_ACTS = new Set(('tab nav close-sheet settings layout layout-width lock-mode refresh sign-out squad-filter train-view report-range toggle-past attendance '
-  + 'lineup-menu layer system sys-side sys-play task-view task-filter task-waiting play-open play-phase anim-play anim-slow play-back play-side plays-view psets '
+  + 'lineup-menu layer system sys-side sys-play task-view task-filter task-waiting play-open play-phase anim-play anim-slow anim-restart play-back play-side play-mode study-prev study-next plays-view psets '
   + 'preview-on preview-off teams team-switch team-pick home-scope home-days home-more home-go updates rules-open rules-seen review-system review-play club-open '
   + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open').split(' '));
 const pastMsg = () => V && V.viewSeason ? `${V.viewSeason.name} is read-only. Go back to the current season, or make a correction.` : 'Start a season first: Seasons, from the season under the team name.';
@@ -5054,12 +5130,26 @@ const actions = {
   }),
   'wa-helper': coachOnly(el => { const h = data.helpers.find(x => x.id === el.dataset.id); if (!h || !h.phone) return; sendWa(`Hi ${firstName(h)}, `, { to: h.name, phone: h.phone, ref: 'helper:' + h.id }); }),
   'sys-share': coachOnly(() => { const sys = curSystem(); if (!sys) return; sendWa(systemShareText(sys, curLineup()), { ref: 'system:' + sys.id }); }),
-  'play-open': el => { state.playId = el.dataset.id; state.playPhase = 0; render(); window.scrollTo(0, 0); },
+  'play-open': el => {
+    animStop(); state.playId = el.dataset.id; state.playPhase = 0;
+    state.studyIndex = 0; state.studyRole = 'all'; state.playMode = isCoach() ? 'watch' : 'learn';
+    render(); window.scrollTo(0, 0);
+  },
+  'play-mode': el => {
+    animStop(); state.playMode = el.dataset.mode === 'watch' ? 'watch' : 'learn';
+    state.playPhase = 0; state.studyIndex = 0; render();
+  },
+  'study-prev': () => { animStop(); state.studyIndex = Math.max(0, state.studyIndex - 1); render(); },
+  'study-next': () => {
+    const p = playById(state.playId); if (!p) return;
+    animStop(); state.studyIndex = Math.min(studySequence(p, state.playSide).length - 1, state.studyIndex + 1); render();
+  },
   'play-phase': el => { const p = playById(state.playId); if (!p) return; animStop(); animShowPhase(p, Number(el.dataset.i)); anim.planFor = null; },
   'anim-play': () => animStart(),
   'anim-slow': el => { anim.slow = !anim.slow; el.classList.toggle('on', anim.slow); el.setAttribute('aria-pressed', String(anim.slow)); },
-  'play-back': () => { state.playId = null; render(); window.scrollTo(0, 0); },
-  'play-side': el => { state.playSide = el.dataset.side; render(); },
+  'anim-restart': () => { animSeek(0); },
+  'play-back': () => { animStop(); state.playId = null; state.playMode = null; render(); window.scrollTo(0, 0); },
+  'play-side': el => { animStop(); state.playSide = el.dataset.side; render(); },
   'play-new': coachOnly(() => openPlayEditor(null)),
   'play-edit': coachOnly(el => { const p = playById(el.dataset.id); if (p) openPlayEditor(p); }),
   'play-dup': coachOnly(el => {
@@ -5455,6 +5545,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('input', e => {
   const k = e.target.dataset.input; if (!k) return;
   if (k === 'squad-search') { state.squadSearch = e.target.value; const l = $('#squad-list'); if (l) l.innerHTML = squadList(); }
+  if (k === 'anim-seek') animSeek(e.target.value);
   if (k === 'team-positions') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'msg') state.msgDraft = e.target.value;
   if (k === 'ped-ptitle' && state.ped) { pedCur(state.ped).title = e.target.value; state.ped.dirty = true; }
@@ -5470,6 +5561,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
+  if (k === 'study-role') { state.studyRole = e.target.value; render(); }
   if (k === 'team-context') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'player-photo') {
     const inp = e.target, form = inp.closest('form');
