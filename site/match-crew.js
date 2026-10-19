@@ -58,7 +58,7 @@ export function canCrewServe(person, team, role, date) {
   const season = words(date).slice(0, 4);
   if (!ymd(date) || !season || p.registration[TYPE[role]] !== season) return 'Season registration unverified';
   if (p.wwccStatus !== 'checked' || !p.wwccExpiry || p.wwccExpiry < date) return 'WWCC verification missing or expired';
-  if (!p.accreditation[role] || p.accreditation[role] < date) return 'Role accreditation unverified or expired';
+  if (role !== 'manager' && (!p.accreditation[role] || p.accreditation[role] < date)) return 'Role accreditation unverified or expired';
   return '';
 }
 export function matchCrewCheck(people, team, match, policy) {
