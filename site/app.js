@@ -6262,8 +6262,7 @@ document.addEventListener('submit', async e => {
   if (kind === 'crew-match') {
     const m = matchById(str('id')); if (!m) return;
     const ids = f.getAll('crew-person').map(String), roles = f.getAll('crew-role').map(String);
-    const sport=M.teamSport(data.team,M.clubOf(ws,data));
-    const rows = ids.flatMap((personId,i) => personId && crewPerson(personId) && crewRoleAllowed(sport,roles[i])
+    const rows = ids.flatMap((personId,i) => personId && crewPerson(personId) && CREW_ROLES[roles[i]]
       ? [{personId, role: roles[i], confirmed: !!f.get('crew-confirm-'+i)}] : []);
     if (new Set(rows.map(x=>x.personId)).size !== rows.length) {
       toast('Assign each person to only one match-day role.'); return;
