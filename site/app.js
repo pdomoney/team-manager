@@ -25,6 +25,7 @@ import { GitHub, repoFromLocation } from './github.js';
 import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
+import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, normCrewPerson, normCrewRules, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import * as M from './model.js';
@@ -2307,7 +2308,7 @@ function viewPlays() {
   state.playId = null;
   const missing = STARTER_IDS.filter(id => !V.plays.some(p => p.id === id)).length;
   return `<div class="sec-h"><h2>Plays</h2>${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div>
-    <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.${coach ? ` <button class="link-btn inline" data-act="psets">Player lists</button>` : ''}</p>
+    <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.</p>
     ${V.plays.length ? `<div class="list grid plays-grid">${V.plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
       <span class="grow"><span class="name" style="display:block">${esc(p.name)}${coach && p.lib ? ' <span class="pill neutral">Library</span>' : ''}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
@@ -2374,7 +2375,7 @@ function viewPlay(p) {
     </section>` : `${when ? `<section class="sec play-when-sec"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
     ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}`}
     ${libBar('plays', p.id, p)}
-    ${coach ? `<div class="btn-row"><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
+    ${coach ? `<div class="btn-row"><button class="btn" data-act="play-transfer" data-id="${esc(p.id)}">Adapt to another sport</button><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
     </div></div>`;
 }
@@ -2405,24 +2406,77 @@ function castKey(play, side) {
   return `<p class="cast-key">${codes.map(c => `<span><b>${esc(c)}</b> ${esc(labelName(g.set, c))}</span>`).join('')}</p>`;
 }
 
+/* ----- Cross-sport play adaptation (coach review, concept only) ----- */
+// No automatic changes to play geometry, rule labels, source steps or other teams.
+function transferSource(p) {
+  // Existing eight-slot drawings are historically Oztag. This is only a default.
+  return TRANSFER_SPORTS.includes(p.originSport) ? p.originSport : 'Oztag';
+}
+const transferKey = (from, to) => from + ' → ' + to;
+function transferSportSelect(name, chosen) {
+  return `<select name="${name}" aria-label="${name === 'source' ? 'Original sport' : 'Target sport'}">${TRANSFER_SPORTS.map(x =>
+    `<option value="${esc(x)}" ${x === chosen ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
+}
+function openTransferChoices(p, from = transferSource(p), to = 'Rugby league') {
+  if (!p) return;
+  openSheet('Adapt a play', `<div class="transfer-intro">
+    <span class="transfer-eyebrow">Coaching concept · not an automated conversion</span>
+    <h3>${esc(p.name)}</h3>
+    <p>Similar attacking ideas can work across Oztag, touch, league tag, rugby league and union. Choose the original code and the sport you want to coach. We'll show the reusable mechanics and checks before you adapt the play.</p>
+  </div>
+  <form data-form="transfer-choose" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(p.id)}">
+    <label class="field-l"><span>Original sport</span>${transferSportSelect('source', from)}<small>Earlier plays use an Oztag-shaped diagram; change this if its coaching concept came from another sport.</small></label>
+    <label class="field-l"><span>Adapt towards</span>${transferSportSelect('target', to)}<small>This will not change the original play or generate extra on-field players.</small></label>
+    <button class="btn primary block" type="submit">Compare the mechanics</button>
+  </form>`, 'transfer');
+}
+function openTransferReview(p, from, to) {
+  const guide = transferGuide(p, from, to);
+  if (!guide) { toast('Choose two different supported sports.'); return; }
+  const notes = p.transferNotes?.[transferKey(from, to)] || '';
+  openSheet('Adapt ' + p.name, `<div class="transfer-intro">
+    <span class="transfer-eyebrow">${esc(from)} → ${esc(to)}</span>
+    <h3>Transfer the idea, adjust the execution</h3>
+    <p>These are coaching prompts. Positions, field shape and rules are not automatically converted. A labelled eight-player Oztag drawing does not become a valid ${esc(to)} formation by changing the labels.</p>
+    <button type="button" class="link-btn" data-act="transfer-change" data-id="${esc(p.id)}" data-from="${esc(from)}" data-to="${esc(to)}">Choose another sport</button>
+  </div>
+  <section class="transfer-section"><h3>Mechanics worth exploring</h3>
+  ${guide.detected.length ? `<div class="transfer-ideas">${guide.detected.map(m=>`<article class="transfer-item"><span class="transfer-kind">${esc(m.basis)}</span><h4>${esc(m.title)}</h4><p>${esc(m.detail)}</p></article>`).join('')}</div>` : '<p class="hint">This play has no detectable movement lines or descriptive cues. Identify the intended defensive reaction with the coach before transferring it.</p>'}
+  </section>
+  <section class="transfer-section"><h3>What changes for ${esc(to)}</h3>
+    <div class="transfer-checks">${guide.adjustments.map(a=>`<article><h4>${esc(a.title)}</h4><p>${esc(a.text)}</p></article>`).join('')}</div>
+  </section>
+  <div class="transfer-caution"><h3>Before teaching this</h3><ul>${guide.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul></div>
+  <form data-form="transfer-notes" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(p.id)}">
+    <input type="hidden" name="source" value="${esc(from)}">
+    <input type="hidden" name="target" value="${esc(to)}">
+    <label class="field-l"><span>Coach’s adapted instructions (private)</span><textarea name="notes" rows="5" maxlength="4000" placeholder="Which roles, restart, defensive read and teaching cues would you change?">${esc(notes)}</textarea>
+      <small>Kept only in the encrypted coach workspace. The current diagram and player-facing instructions remain unchanged until you edit a play deliberately.</small></label>
+    <div class="btn-row"><button class="btn primary" type="submit">Save coach notes</button>
+      <button type="button" class="btn" data-act="transfer-copy" data-id="${esc(p.id)}">Copy coaching brief</button></div>
+  </form>`, 'transfer-review');
+}
+
 /* ----- Player lists (coach) ----- */
 function openPlayerLists() {
   const used = id => data.plays.filter(p => (p.set || 'oztag') === id).length;
-  openSheet('Player lists', `<p class="hint" style="margin:-4px 0 12px">A play shows its players with labels from one of these lists. To use a list, duplicate or edit a play and pick it under Player labels: the drawing stays the same and only the labels and words change.</p>
+  openSheet('Diagram role labels', `<p class="hint" style="margin:-4px 0 12px">Choose how diagram roles are named. These lists do not contain your actual squad and they do not change the number of circles or automatically convert a formation. To use a list, open a play in Advanced diagram and select it under Diagram role labels.</p>
     <div class="list">${allSets().map(x => `<div class="row" style="padding:10px 8px 10px 14px">
-      <span class="grow"><span class="name" style="display:block">${esc(x.name)}</span><span class="sub">${x.labels.length} players · ${x.labels.map(l => esc(l.code)).join(' ')}${used(x.id) ? ` · used by ${used(x.id)} play${used(x.id) === 1 ? '' : 's'}` : ''}</span></span>
+      <span class="grow"><span class="name" style="display:block">${esc(x.name)}</span><span class="sub"> ${x.labels.length} labels · ${x.labels.map(l => esc(l.code)).join(' ')}${used(x.id) ? ` · used by ${used(x.id)} play${used(x.id) === 1 ? '' : 's'}` : ''}</span></span>
       ${x.builtin ? `<button class="btn sm" data-act="pset-copy" data-id="${esc(x.id)}">Copy</button>` : `<button class="btn sm" data-act="pset-edit" data-id="${esc(x.id)}">Edit</button>`}
     </div>${x.builtin ? '' : `<div class="pset-lib">${libBar('playerSets', x.id, x)}</div>`}`).join('')}</div>
-    <button class="btn primary block" style="margin-top:14px" data-act="pset-new">New list</button>
-    <p class="hint" style="margin-top:12px">League tag, for example, is played with up to 11 a side from 13 years up.</p>`, 'psets');
+    <button class="btn block" style="margin-top:14px" data-act="pset-new">Create a custom role list</button>
+    <p class="hint" style="margin-top:12px">A list can have 13 names, but the current diagram still shows eight player circles. Team-specific formations need a separate drawing model.</p>`, 'psets');
 }
 function openPlayerListForm(x) {
   const lines = x ? x.labels.map(l => `${l.code} ${l.name}`).join('\n') : '';
-  openSheet(x && x.id ? `Edit ${x.name}` : 'New player list', `<form data-form="pset" autocomplete="off">
+  openSheet(x && x.id ? `Edit ${x.name}` : 'New diagram role list', `<form data-form="pset" autocomplete="off">
     <input type="hidden" name="id" value="${esc(x && x.id || '')}">
     <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(x ? x.name : '')}" placeholder="e.g. League tag"></label>
-    <label class="field-l"><span>Players, one per line: the label, then the name</span><textarea name="labels" rows="12" placeholder="1 Fullback&#10;2 Right wing&#10;3 Right centre&#10;4 Left centre&#10;5 Left wing&#10;6 Five-eighth&#10;7 Halfback">${esc(lines)}</textarea>
-      <small>Labels show inside the players' circles, so keep them to 3 or 4 characters. Players pair up for the attacking-left version when their names say Left and Right (Left wing and Right wing), or when the label starts with L or R (LC and RC). The first eight go on the eight spots of a play when you switch it to this list; change any of them in the editor.</small></label>
+    <label class="field-l"><span>Role labels, one per line: code followed by position name</span><textarea name="labels" rows="12" placeholder="1 Fullback&#10;2 Right wing&#10;3 Right centre&#10;4 Left centre&#10;5 Left wing&#10;6 Five-eighth&#10;7 Halfback">${esc(lines)}</textarea>
+      <small>Labels show inside the players' circles, so keep them to 3 or 4 characters. Players pair up for the attacking-left version when their names say Left and Right (Left wing and Right wing), or when the label starts with L or R (LC and RC). Up to eight labels show in the existing diagram. This does not create a full formation for league, league tag or union.</small></label>
     <button class="btn primary block" type="submit">Save list</button>
     ${x && x.id ? `<button type="button" class="btn danger block" style="margin-top:10px" data-act="pset-del" data-id="${esc(x.id)}">Delete this list</button>` : ''}
   </form>`, 'pset');
@@ -2677,7 +2731,7 @@ function openPlayEditor(play) {
     <div id="ped-diagram" class="ped-diagram" hidden>
       <div class="ped-phases" id="ped-phases"></div>
       <div class="ped-meta">
-      <label class="field-l ped-list"><span>Player labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select></label>
+      <label class="field-l ped-list"><span>Diagram role labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select><small>These are label names, not full team formations. A rugby league list has 13 role labels, but this diagram still draws eight positions.</small><small>Manage custom role lists in Tactics → Library after saving your play.</small></label>
       <label class="field-l ped-ptitle"><span id="ped-ptitle-l">Phase 1</span><input type="text" id="ped-ptitle" data-input="ped-ptitle" value="${esc(draft.title || '')}" placeholder="What happens in this phase, e.g. Tag 2: hands right"></label>
       </div>
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
@@ -4530,10 +4584,11 @@ function libRow(kind, li) {
 function viewLibrary() {
   if (!isCoach()) return '';
   const sec = (kind, title, empty) => { const items = M.libItems(ws, kind); return `<h3 class="form-sec">${title} (${items.length})</h3>${items.length ? `<div class="list">${items.map(li => libRow(kind, li)).join('')}</div>` : `<p class="muted small">${empty}</p>`}`; };
-  return `<div class="sec-h"><h2>Library</h2></div><p class="hint" style="margin:-4px 0 6px">Shared by all your teams. Save a play, a game system or a player list to the library from where you edit it, then add it to any team. Teams that haven’t changed their copy get each new library version; a team that has keeps its own.</p>
+  return `<div class="sec-h"><h2>Library</h2></div><p class="hint" style="margin:-4px 0 6px">Shared across your teams. Save plays, game systems and custom diagram role labels to the library, then reuse them in another team. Teams that haven’t changed their copy get each new library version; a team that has keeps its own.</p>
     ${sec('plays', 'Plays', 'No plays yet. Open a play and choose Save to library.')}
     ${sec('systems', 'Game systems', 'None yet. Show a game system on the Lineup page and choose Save to library.')}
-    ${sec('playerSets', 'Player lists', 'None yet. Open Plays › Player lists and save a list to the library.')}
+    ${sec('playerSets', 'Diagram role labels', 'No custom diagram labels in the shared library yet.')}
+    <button class="btn sm" data-act="psets" style="margin-top:10px">Manage diagram role labels</button>
     <div class="btn-row" style="margin-top:16px"><button class="btn" data-act="lib-export">Export the library</button><button class="btn" data-act="lib-import">Import a library</button></div>
     <p class="hint">A library file holds plays, systems and labels only: no players, phone numbers or results. Use it to share with another coach.</p>`;
 }
@@ -5380,6 +5435,14 @@ const actions = {
     data.plays = data.plays.filter(x => x.id !== p.id); state.playId = null; save(); render(); toast('Play deleted');
   }),
   'play-share': coachOnly(el => { const p = playById(el.dataset.id); if (!p) return; sendWa(playShareText(p, state.playSide), { ref: 'play:' + p.id }); }),
+  'play-transfer': coachOnly(el => { const p = playById(el.dataset.id); if(p) openTransferChoices(p); }),
+  'transfer-change': coachOnly(el => { const p = playById(el.dataset.id); if(p) openTransferChoices(p, el.dataset.from, el.dataset.to); }),
+  'transfer-copy': coachOnly(el => {
+    const p = playById(el.dataset.id), form = $('#sheet form[data-form="transfer-notes"]');
+    if (!p || !form) return;
+    const guide = transferGuide(p, form.elements.source.value, form.elements.target.value);
+    if (guide) copyText(transferBrief(p, guide, form.elements.notes.value), 'Coaching brief copied');
+  }),
   'psets': coachOnly(() => openPlayerLists()),
   'pset-new': coachOnly(() => openPlayerListForm(null)),
   'pset-edit': coachOnly(el => openPlayerListForm(data.playerSets.find(x => x.id === el.dataset.id))),
@@ -5387,7 +5450,7 @@ const actions = {
   'pset-del': coachOnly(el => {
     const id = el.dataset.id, n = data.plays.filter(p => p.set === id).length;
     if (n) { toast(`${n} play${n === 1 ? ' uses' : 's use'} this list. Switch ${n === 1 ? 'it' : 'them'} to another list first.`); return; }
-    if (!confirm('Delete this player list?')) return;
+    if (!confirm('Delete this diagram role list?')) return;
     data.playerSets = data.playerSets.filter(x => x.id !== id); save(); openPlayerLists(); toast('List deleted');
   }),
   'plays-restore': coachOnly(() => {
@@ -6430,6 +6493,26 @@ document.addEventListener('submit', async e => {
     if (i >= 0) data.plays[i] = E.draft; else data.plays.push(E.draft);
     state.playId = E.draft.id; state.ped = null;
     save(); closeSheet(); render(); toast('Play saved');
+    return;
+  }
+  if (kind === 'transfer-choose') {
+    const p = playById(str('id')), from = str('source'), to = str('target');
+    if (!p) { toast('That play is no longer available.'); return; }
+    if (from === to) { fieldError(form, 'target', 'Choose a different sport for this adaptation'); return; }
+    if (!transferGuide(p, from, to)) { toast('Choose supported sports.'); return; }
+    openTransferReview(p, from, to);
+    return;
+  }
+  if (kind === 'transfer-notes') {
+    const p = playById(str('id')), from = str('source'), to = str('target');
+    if (!p || !transferGuide(p, from, to)) { toast('That play or sport is no longer available.'); return; }
+    const note = raw('notes').slice(0,4000).trim();
+    p.transferNotes = p.transferNotes && typeof p.transferNotes === 'object' && !Array.isArray(p.transferNotes) ? p.transferNotes : {};
+    if (note) p.transferNotes[transferKey(from,to)] = note;
+    else delete p.transferNotes[transferKey(from,to)];
+    if (p.builtin) p.edited = true;
+    M.libMarkEdited(p);
+    save(); openTransferReview(p, from, to); toast(note ? 'Coach adaptation notes saved privately' : 'Coach adaptation notes cleared');
     return;
   }
   if (kind === 'pset') {
