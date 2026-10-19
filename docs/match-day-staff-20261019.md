@@ -32,7 +32,7 @@ Exact minimum people and combinations are **not** hard-coded, since league, age,
 ## Risk and limitations
 
 1. Coach-entered years, WWCC expiry and accreditation dates may be inaccurate. The product warns that this is not automated certification.
-2. Requirements vary across competitions and age levels. Configured policies are **team-wide and season-wide** in this release; where a team competes across different events with different staff requirements, add separate per-competition/per-match policy support before claiming unified readiness.
+2. Requirements vary by competition, age and season. The team-wide reviewed policy is a default. Coaches may override requirements for an individual match and restore the default without changing its staffing assignments. The policy source remains coach-entered and must be checked against the official local rules.
 3. Multi-club personnel: a person scoped to a club is available to teams in that club. Team-only staff can be assigned to specific teams; entering the same person in separate club pools may create duplicates.
 4. No self-service availability messages, identity verification APIs, match attendance signatures, audit trail or ground manager approval in this stage.
 5. Trainer color roles use community NRL course descriptions, **not** rules for elite/pathways competitions.
