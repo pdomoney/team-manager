@@ -5299,6 +5299,28 @@ const actions = {
     if (!t.cancelled && !confirm(`Mark “${t.title}” on ${fmtDay(t.date)} as cancelled? Everyone stays on it in case it’s back on.`)) return;
     t.cancelled = !t.cancelled; delete t.cancelledWith; save(); refreshTask(t.id); toast(t.cancelled ? 'Task cancelled' : 'Task back on');
   }),
+  'crew-new': coachOnly(() => openSheet('Add match-day staff', crewPersonForm(null), 'crew-person')),
+  'crew-edit': coachOnly(el => { const p = crewPerson(el.dataset.id); if (p) openSheet(p.name, crewPersonForm(p), 'crew-person'); }),
+  'crew-policy-open': coachOnly(() => openSheet('Match-day staffing requirements', crewPolicyForm(), 'crew-policy')),
+  'crew-match-open': coachOnly(el => {
+    const m = matchById(el.dataset.id); if (!m) return;
+    openSheet('Staff for ' + (m.opponent || 'the match'), crewMatchForm(m), 'crew-match');
+  }),
+  'crew-add-row': coachOnly(() => {
+    const box = $('#crew-assignments'), m = matchById($('#sheet form[data-form="crew-match"] [name=id]')?.value);
+    if (!box || !m) return;
+    const i = box.querySelectorAll('.crew-assign-row').length;
+    if (i >= 30) { toast('Maximum 30 positions. Contact the club if more are required.'); return; }
+    box.insertAdjacentHTML('beforeend', crewAssignRow(null, i, crewPool()));
+  }),
+  'crew-delete': coachOnly(el => {
+    const p = crewPerson(el.dataset.id); if (!p) return;
+    const used = M.teamsOf(ws).some(t => arr(t.matches).some(m => arr(m.crew).some(a => a.personId === p.id)));
+    if (used) { toast('This person is assigned to match records. Mark them inactive instead to preserve history.'); return; }
+    if (!confirm('Remove ' + p.name + ' from the match staff directory?')) return;
+    ws.matchOfficials = arr(ws.matchOfficials).filter(x => x.id !== p.id);
+    save(); closeSheet(); render();
+  }),
   'helper-new': coachOnly(() => openSheet('Add helper', helperForm(null))),
   'helper-edit': coachOnly(el => { const h = data.helpers.find(x => x.id === el.dataset.id); if (h) openSheet(h.name, helperForm(h)); }),
   'helper-del': coachOnly(el => {
@@ -6088,6 +6110,50 @@ document.addEventListener('submit', async e => {
     state.lineupId = null; state.msgDraft = null; state.playId = null;
     save(); closeSheet(); render();
     toast(`Cleared: ${Object.entries(n).map(([k, v]) => `${v} ${k === 'squad' ? 'players' : k === 'training' ? 'sessions' : k}`).join(', ')}`);
+    return;
+  }
+  if (kind === 'crew-person') {
+    const id = str('id'), p = id ? crewPerson(id) : null;
+    if (id && !p) { toast('The staff member no longer exists.'); return; }
+    if (!str('name')) { fieldError(form, 'name', 'Enter the staff member’s name'); return; }
+    const roles = f.getAll('role').filter(x => CREW_ROLES[x]);
+    if (!roles.length) { toast('Select at least one recognised role.'); return; }
+    const scope = str('scope');
+    const saved = normCrewPerson({
+      ...(p || {}), id: id || uid(), name: str('name'),
+      clubId: scope === 'club' ? data.team.clubId : '',
+      teamIds: scope === 'club' ? [] : [...new Set([...(p?.teamIds || []), data.id])],
+      roles, active: !!f.get('active'),
+      registration: Object.fromEntries(['coach','volunteer','trainer'].map(k => [k, str('reg-' + k)])),
+      accreditation: Object.fromEntries(Object.keys(CREW_ROLES).map(k => [k, str('acc-' + k)])),
+      wwccStatus: f.get('wwccChecked') ? 'checked' : 'unverified',
+      wwccExpiry: str('wwccExpiry')
+    });
+    ws.matchOfficials = arr(ws.matchOfficials);
+    if (p) Object.assign(p,saved); else ws.matchOfficials.push(saved);
+    save(); closeSheet(); render(); toast(id ? 'Staff member updated' : 'Staff member added');
+    return;
+  }
+  if (kind === 'crew-policy') {
+    const year = str('year'), source = str('source');
+    if (!/^20\d\d$/.test(year)) { fieldError(form, 'year', 'Enter the competition season year'); return; }
+    if (!source) { fieldError(form, 'source', 'Add the source of the official requirements'); return; }
+    const rows = Object.keys(REQUIREMENT_ROLES).map(role => ({ role, min: Number(str('min-'+role) || '0') })).filter(r => r.min > 0);
+    if (rows.some(r => !Number.isInteger(r.min) || r.min > 12)) { toast('Each minimum must be a whole number from 0 to 12.'); return; }
+    data.team.crewPolicy = normCrewRules({ year, source, rows });
+    save(); closeSheet(); render(); toast('Requirements recorded. Check each game’s assigned and confirmed staff.');
+    return;
+  }
+  if (kind === 'crew-match') {
+    const m = matchById(str('id')); if (!m) return;
+    const ids = f.getAll('crew-person').map(String), roles = f.getAll('crew-role').map(String);
+    const rows = ids.flatMap((personId,i) => personId && crewPerson(personId) && CREW_ROLES[roles[i]]
+      ? [{personId, role: roles[i], confirmed: !!f.get('crew-confirm-'+i)}] : []);
+    if (new Set(rows.map(x=>x.personId)).size !== rows.length) {
+      toast('Assign each person to only one match-day role.'); return;
+    }
+    m.crew = rows;
+    save(); openMatch(m.id); toast(crewStatus(m).ready ? 'All configured roles covered — verify with the official match-day requirements' : 'Staff assignments saved; check missing roles and verification warnings');
     return;
   }
   if (kind === 'helper') {
