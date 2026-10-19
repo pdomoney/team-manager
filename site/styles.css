@@ -1045,3 +1045,15 @@ div.cl-line,p.cl-line{cursor:default}
 .transfer-caution li+li{margin-top:6px}
 @media(min-width:900px){body.wide .transfer-ideas,body.wide .transfer-checks{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.transfer-section{margin:16px 0}.transfer-intro h3{font-size:20px}.transfer-ideas,.transfer-checks{gap:8px}}
+
+/* Sport-aware match staff: make the actual team context prominent, without
+   using hard-coded club-wide rugby league badges in other sports. */
+.crew-context{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 13px;margin:0 0 16px;border:1px solid #BED1C5;background:#EEF5F0;border-radius:12px}
+.crew-context .sub{white-space:normal;line-height:1.45;flex:1}
+.crew-context .sub strong{font-weight:600;color:var(--pitch)}
+.crew-context .btn{flex:none;white-space:nowrap}
+.crew-role-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 12px}
+.crew-role-list .check{margin:5px 0;align-items:flex-start}
+@media(max-width:600px){.crew-context{align-items:flex-start;flex-direction:column}
+.crew-context .btn{align-self:flex-start}.crew-role-list{grid-template-columns:1fr}}

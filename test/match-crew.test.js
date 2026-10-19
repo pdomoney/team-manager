@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canCrewServe, matchCrewCheck, normCrewPerson, normCrewRules, crewScheduleClashes } from '../site/match-crew.js';
 
-const team = { id: 'u12', team: { clubId: 'titans' } };
+const team = { id: 'u12', team: { clubId: 'titans', sport: 'Rugby league' } };
 const person = (id, roles, reg = { trainer: '2026', coach: '2026', volunteer: '2026' }) =>
  ({ id, name: id, clubId: 'titans', teamIds: [], squadYears:{u12:'2026'}, active: true, roles, registration: reg,
     wwccStatus: 'checked', wwccExpiry: '2027-01-01',
@@ -30,7 +30,7 @@ test('coach and first responder must be separate assigned people', () => {
 
 test('club-wide registration alone does not certify a person for each team squad', () => {
   const p = { ...person('b', ['blue']), squadYears: {} };
-  assert.match(canCrewServe(p,team,'blue',date),/squad allocation/);
+  assert.match(canCrewServe(p,team,'blue',date),/team allocation/);
   assert.equal(canCrewServe({ ...p,squadYears:{u12:'2026'} },team,'blue',date),'');
 });
 
@@ -111,4 +111,65 @@ test('shared club trainer double-booked across two games is flagged', () => {
   assert.equal(crewScheduleClashes(teams,'u12',match).length,1);
   other.status='cancelled';
   assert.deepEqual(crewScheduleClashes(teams,'u12',match),[]);
+});
+
+
+test('Oztag and Touch never accept league shirt trainer roles or league policy',()=>{
+  const nz={id:'u12',team:{clubId:'titans',sport:'Oztag'}};
+  const t={...person('x',['green','firstAid']),registrationBySport:{Oztag:{trainer:'2026'}},
+    squadYears:{u12:'2026'}};
+  assert.match(canCrewServe(t,nz,'green',date),/not eligible/);
+  assert.equal(canCrewServe(t,nz,'firstAid',date),'');
+  const bad={source:'Old league staffing',year:'2026',sport:'Rugby league',rows:[{role:'firstResponder',min:1}]};
+  assert.equal(matchCrewCheck([t],nz,{date,crew:[{personId:'x',role:'green',confirmed:true}]},bad).ready,false);
+  const good={source:'Reviewed local Oztag rules',year:'2026',sport:'Oztag',rows:[{role:'firstAid',min:1}]};
+  assert.equal(matchCrewCheck([t],nz,{date,crew:[{personId:'x',role:'firstAid',confirmed:true}]},good).ready,true);
+  const touch={...nz,team:{...nz.team,sport:'Touch football'}};
+  assert.match(canCrewServe(t,touch,'firstAid',date),/registration/);
+});
+
+test('registrations remain independent for shared people and each sport',()=>{
+ const p={...person('x',['coach','firstAid'],{trainer:'',coach:'',volunteer:''}),registrationBySport:{Oztag:{coach:'2026',trainer:'2026'}},
+ accreditation:{firstAid:'2027-01-01',coach:'2027-01-01'}};
+ assert.equal(canCrewServe(p,{...team,team:{...team.team,sport:'Oztag'}},'firstAid',date),'');
+ assert.match(canCrewServe(p,team,'firstAid',date),/registration/);
+ p.registrationBySport['Rugby league']={trainer:'2026'};
+ assert.equal(canCrewServe(p,team,'firstAid',date),'');
+});
+
+test('other sport profiles do not inherit league shirt or first-responder group', async()=>{
+ const mod=await import('../site/match-crew.js');
+ for(const sport of ['Oztag','Touch football','Rugby union','Netball']){
+  assert.equal(mod.crewRoleAllowed(sport,'yellow'),false);
+  assert.equal(mod.crewRequirementAllowed(sport,'firstResponder'),false);
+  assert.equal(mod.crewRoleAllowed(sport,'firstAid'),true);
+ }
+ assert.equal(mod.crewRoleAllowed('League tag','blue'),true);
+ assert.equal(mod.crewProfile('Touch football').provider.includes('MySideline'),true);
+ assert.equal(mod.crewProfile('Rugby union').provider,'Rugby Xplorer');
+});
+
+test('sport-specific match staff roles remain independent after editing another code', async () => {
+  const { crewRolesForSport } = await import('../site/match-crew.js');
+  const p = {
+    ...person('dual', ['coach', 'manager', 'firstAid']),
+    rolesBySport: { Oztag: ['manager', 'firstAid'], 'Rugby league': ['coach'] },
+    registrationBySport: {
+      Oztag: { coach:'2026', volunteer:'2026', trainer:'2026' },
+      'Rugby league': { coach:'2026', volunteer:'2026', trainer:'2026' }
+    },
+    accreditation: { coach:'2027-01-01', firstAid:'2027-01-01' }
+  };
+  const oz = { ...team, team: { ...team.team, sport:'Oztag' } };
+  assert.deepEqual(crewRolesForSport(p, 'Oztag'), ['manager','firstAid']);
+  assert.deepEqual(crewRolesForSport(p, 'Rugby league'), ['coach']);
+  assert.equal(canCrewServe(p, oz, 'firstAid', date), '');
+  assert.match(canCrewServe(p, oz, 'coach', date), /not eligible/);
+  assert.equal(canCrewServe(p, team, 'coach', date), '');
+  assert.match(canCrewServe(p, team, 'firstAid', date), /not eligible/);
+  const changed = { ...p, rolesBySport: { ...p.rolesBySport, 'Rugby league':['manager'] } };
+  assert.deepEqual(crewRolesForSport(changed, 'Oztag'), ['manager','firstAid']);
+  assert.deepEqual(crewRolesForSport(changed, 'Rugby league'), ['manager']);
+  assert.deepEqual(crewRolesForSport(p, 'Touch football'), []);
+  assert.equal(crewRolesForSport(person('legacy', ['blue']), 'Rugby league')[0], 'blue');
 });
