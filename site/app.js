@@ -6441,7 +6441,7 @@ document.addEventListener('submit', async e => {
       fieldError(form,'joined','Enter a valid year no later than this year');return;
     }
     const saved=normCrewPerson({...p,name:str('name'),email:str('email'),phone:str('phone'),
-      photo:str('photo'),clubSince:clubId && joined ?
+      photo:str('photo'),clubSince:clubId ?
         {...p.clubSince,[clubId]:joined} : p.clubSince,
       active:!!f.get('active')});
     Object.assign(p,saved);save();closeSheet();render();toast('Volunteer profile updated');return;
