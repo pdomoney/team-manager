@@ -3424,7 +3424,8 @@ const crewPool = () => arr(ws.matchOfficials).filter(p =>
 const crewPerson = id => arr(ws.matchOfficials).find(p => p.id === id);
 const crewPolicy = (m = null) => normCrewRules(m?.crewPolicy || data.team.crewPolicy);
 const crewStatus = m => {
-  const report = matchCrewCheck(arr(ws.matchOfficials), data, m, crewPolicy(m));
+  const scoped={...data,team:{...data.team,sport:M.teamSport(data.team,M.clubOf(ws,data))}};
+  const report = matchCrewCheck(arr(ws.matchOfficials), scoped, m, crewPolicy(m));
   const clashes = crewScheduleClashes(M.teamsOf(ws), data.id, m);
   return { ...report, ready: report.ready && !clashes.length,
     issues: [...report.issues, ...clashes.map(c => `${crewPerson(c.personId)?.name || 'Staff member'} may be double-booked vs ${c.opponent} (${c.start || 'time TBC'}). Check this before relying on coverage.`)] };
@@ -3448,12 +3449,12 @@ function viewCrew() {
     </section>
     <section class="sec crew-section"><h3>Available ${isClub ? esc(club?.name || 'club') : 'team'} personnel (${pool.length})</h3>
       ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="crew-edit" data-id="${esc(p.id)}">
-        <span class="grow"><span class="name">${esc(p.name)}</span><span class="sub" style="display:block">${p.roles.map(r => esc(CREW_ROLES[r])).join(' · ') || 'No roles yet'}</span>
+        <span class="grow"><span class="name">${esc(p.name)}</span><span class="sub" style="display:block">${p.roles.filter(r=>crewRoleAllowed(sport,r)).map(r=>esc(CREW_ROLES[r])).join(' · ') || `No ${esc(sport)} roles recorded; other sport qualifications kept`}</span>
         <span class="sub" style="display:block">${p.active ? 'Available for selection' : 'Inactive'} · ${p.wwccStatus === 'checked' ? 'WWCC details manually checked' : 'WWCC unverified'}</span></span>
         ${icon('chevron-right', 18)}
       </button>`).join('')}</div>`
-        : '<div class="empty"><p>Start with the head coach, manager and first responder. Add club-wide trainers once and use them across the club’s teams.</p></div>'}
-      <p class="hint">Entries are coach-recorded, not MySideline-verified. Never enter WWCC numbers, documents, dates of birth or registration passwords here.</p>
+        : '<div class="empty"><p>Start with a coach and manager and then add any qualified support roles your competition requires.</p></div>'}
+      <p class="hint">Entries are coach-recorded, not verified by the governing organisation. Never enter WWCC numbers, documents, dates of birth or registration passwords here.</p>
     </section>`;
 }
 function crewChooseTeamForm(view=false) {
