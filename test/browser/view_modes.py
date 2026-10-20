@@ -23,7 +23,7 @@ with sync_playwright() as p:
         checks.ok(W("M.teamsOf(W).some(t=>M.teamSport(t.team,M.clubOf(W,t))==='Rugby league')") and
                   W("W.competitions.some(c=>c.format==='roundrobin' && c.sport==='League tag')"),
                   f'[{width}] Rugby league and League tag tournaments are independently represented')
-        for tab, selector in [('plays', '.plays-grid'), ('helpers', '.helper-card'),
+        for tab, selector in [('plays', '.plays-grid'), ('helpers', '.list.grid'),
                               ('crew', '.crew-directory-list'), ('matches', '.sess-grid')]:
             pg.goto(url + '#' + tab)
             pg.wait_for_selector('#view .card-mode')
