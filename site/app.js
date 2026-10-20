@@ -4607,7 +4607,7 @@ function clubDirectoryResults() {
       ${c.ground ? `<span class="sub" style="display:block">Ground: ${esc(c.ground)}</span>` : ''}
       ${c.colours ? `<span class="sub" style="display:block">Published colours (verify): ${esc(c.colours)}</span>` : ''}
       ${c.sourceClass === 'historical_location' ? '<span class="pill neutral">Historical lead</span>' : '<span class="pill neutral">Unverified listing</span>'}
-      ${directorySource(c.sourceUrl) ? ` <a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">Source ↗</a>` : ''}
+      ${directorySource(c.sourceUrl) ? ` <a href="${esc(directorySource(c.sourceUrl))}" target="_blank" rel="noopener noreferrer">Source ↗</a>` : ''}
       ${directorySource(c.website) ? ` <a href="${esc(c.website)}" target="_blank" rel="noopener noreferrer">Website ↗</a>` : ''}
       ${directorySource(c.brandSource) ? ` <a href="${esc(directorySource(c.brandSource))}" target="_blank" rel="noopener noreferrer" title="Logo research source; verify current branding and usage rights">Brand research ↗</a>` : ''}
     </span><button class="btn sm" data-act="directory-use" data-id="${esc(c.id)}">Use details</button>
