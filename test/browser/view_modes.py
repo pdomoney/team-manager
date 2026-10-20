@@ -55,8 +55,9 @@ with sync_playwright() as p:
                   pg.locator('#view .play-row').count() == 0,
                   f'[{width}] Oztag starters excluded from League Tag playbook')
         pg.click('#view [data-act=play-new]')
-        checks.ok(pg.locator('#sheet .ped [data-change=ped-list] option[value=league]:checked').count() == 1,
-                  f'[{width}] new League Tag play starts with rugby-league labels, not Oztag labels')
+        checks.ok(pg.locator('#sheet .ped [data-change=ped-list] option[value=league]:checked').count() == 1 and
+                  pg.locator('#sheet [name=playSport]').input_value() == 'League tag',
+                  f'[{width}] new League Tag play starts with correct sport and teaching labels')
         pg.fill('#sheet input[name=name]', 'Synthetic league tag sweep')
         pg.click('#sheet form[data-form=play] button[type=submit]')
         pg.wait_for_timeout(160)
