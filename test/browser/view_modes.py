@@ -13,7 +13,8 @@ with sync_playwright() as p:
     browser = p.chromium.launch()
     for width in (390, 1280):
         ctx, pg, _ = page(browser, url + '#home', width=width, height=860, errors=errs)
-        pg.get_by_text('load the full test library').click()
+        pg.wait_for_selector('#view [data-act=test-library]')
+        pg.click('#view [data-act=test-library]')
         pg.wait_for_function('window.__team.ws.testLibrary?.version === 3')
         W = lambda js: pg.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M, S = window.__team.state; return {js}; }})()')
         checks.ok(W('M.teamsOf(W).length') == 6 and W('W.competitions.length') >= 7,
