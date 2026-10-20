@@ -1394,3 +1394,15 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   .crew-directory-results .crew-person{padding:10px}
   .crew-directory-results .crew-person .edit-hint{font-size:12px}
 }
+
+/* Club-wide colours/logo, with per-team opt-out retained. */
+.club-brand-summary{display:flex;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);
+  border-radius:12px;margin:12px 0 16px;background:var(--paper)}
+.club-brand-summary .logo-prev{flex:none;display:flex}
+.club-brand-summary>span:last-child{display:flex;flex-direction:column;gap:3px;min-width:0}
+.club-brand-summary strong{font-size:18px;font-weight:600;overflow-wrap:anywhere}
+.club-brand-summary small{font-size:13px;color:var(--muted)}
+.club-brand-apply{margin:18px 0 10px;border-radius:10px;background:var(--chalk);padding:12px}
+.club-head .btn{flex:none}
+@media(max-width:600px){.club-head{flex-wrap:wrap}.club-brand-summary{padding:10px}
+.club-brand-apply{padding:10px}}

@@ -7,6 +7,7 @@
 // grass greens on the field diagrams.
 //
 // A team's choice is stored as team.style = { palette: '<id>' } or { custom: { dark, action, accent } }.
+// The club can provide the shared default; a team.style override takes precedence.
 // No style is the classic look. Every resolved style is checked for contrast; custom colours are
 // adjusted until they pass, never stored as unreadable.
 
@@ -57,7 +58,11 @@ export function normStyle(v) {
   return null;
 }
 
-// Everything the page needs, with each rule checked:
+// A club supplies a shared look to all its teams. Existing explicit team styles
+// remain authoritative until the club administrator elects to reset them.
+export const effectiveStyle = (team, club) => normStyle(team?.style) || normStyle(club?.style);
+
+ // Everything the page needs, with each rule checked:
 //  - white text on the header and dark cards: at least 7:1 (a lot of small text sits there)
 //  - text on main buttons: at least 4.5:1 (white or dark ink, whichever passes)
 //  - a button's edge against the page, and the selected-tab bar against white: at least 3:1

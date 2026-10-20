@@ -548,6 +548,10 @@ export function normClub(c) {
   CLUB_PUBLIC.forEach(k => { if (k !== 'id' && typeof out[k] !== 'string') out[k] = out[k] == null ? '' : String(out[k]); });
   if (!out.sport) out.sport = 'Oztag';
   if (!validLogo(out.logo)) out.logo = '';
+  // Shared branding is a validated object, distinct from the text-only CLUB_PUBLIC list.
+  // Old saved clubs simply have no style and continue using the classic theme.
+  const style = normStyle(out.style);
+  if (style) out.style = style; else delete out.style;
   out.officials = arr(out.officials).filter(isObj).map(o => ({ role: String(o.role || 'Other'), name: String(o.name || ''), phone: String(o.phone || ''), email: String(o.email || '') }));
   out.notes = String(out.notes || '');
   return out;
@@ -569,7 +573,10 @@ function seedClubs(ws) {
 export const clubOf = (ws, t) => (t && t.team && t.team.clubId && arr(ws && ws.clubs).find(c => c.id === t.team.clubId)) || null;
 export const clubTeams = (ws, id) => teamsOf(ws).filter(t => t.team && t.team.clubId === id);
 // What a team's players see of its club: no officials, no notes.
-export const clubForPlayers = c => c ? Object.fromEntries(CLUB_PUBLIC.filter(k => c[k]).map(k => [k, c[k]])) : null;
+export const clubForPlayers = c => c ? {
+  ...Object.fromEntries(CLUB_PUBLIC.filter(k => c[k]).map(k => [k, c[k]])),
+  ...(normStyle(c.style) ? { style: normStyle(c.style) } : {})
+} : null;
 export function removeClub(ws, id) {
   clubTeams(ws, id).forEach(t => { t.team.clubId = ''; });
   ws.clubs = arr(ws.clubs).filter(c => c.id !== id);

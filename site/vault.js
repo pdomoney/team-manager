@@ -12,6 +12,8 @@
 // into each file as additional authenticated data, so one file can't be passed off as the other.
 // Works in browsers and in Node 20+ (both provide globalThis.crypto.subtle).
 
+import { normStyle } from './team-style.js';
+
 export const ITERATIONS = 600000;
 export const FORMAT = 'team-manager';
 
@@ -130,7 +132,11 @@ export function teamView(d, club = null, comps = []) {
       bylaws: (c.bylaws || []).map(b => pick(b, ['topic', 'text'])) })),
     // The team's sport and colour style too, so players see their own sport icon and team colours.
     team: pick(d.team, ['name', 'event', 'eventStart', 'eventEnd', 'venue', 'trainingVenue', 'maxMales', 'positions', 'field', 'tasksContact', 'clubId', 'division', 'category', 'ageGroup', 'season', 'colours', 'rules', 'bylaws', 'sport', 'style']),
-    club: club && typeof club === 'object' ? pick(club, CLUB_PUBLIC) : null,
+    // Club branding is public metadata. Validate the optional style separately
+    // from the string-only club fields, without exposing officials or notes.
+    club: club && typeof club === 'object'
+      ? { ...pick(club, CLUB_PUBLIC), ...(normStyle(club.style) ? {style:normStyle(club.style)} : {}) }
+      : null,
     // Team staff: who they are; their phone numbers and email addresses stay with the coach.
     staff: ((d.team && d.team.staff) || []).filter(x => x && x.name).map(x => pick(x, ['role', 'name'])),
     players: (d.players || []).map(p => pick(p, ['id', 'name', 'gender', 'number', 'positions'])),

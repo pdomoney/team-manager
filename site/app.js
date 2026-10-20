@@ -29,7 +29,7 @@ import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.j
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
-import { TEAM_STYLES, CLASSIC, styleById, normStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
+import { TEAM_STYLES, CLASSIC, styleById, normStyle, effectiveStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
 import { sportIcon, sportMaskUrl } from './sport-icons.js';
 import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-badges.js';
 import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
@@ -315,7 +315,7 @@ const sportOfTeam = t => M.teamSport(t && t.team, M.clubOf(ws, t));
 // Sets the team's colours as CSS custom properties on the page; colours that carry meaning are
 // separate tokens and never change. `preview` shows a style before it's saved (Settings).
 function applyTeamStyle(preview) {
-  const r = resolveStyle(preview !== undefined ? preview : V && V.team && V.team.style), root = document.documentElement, vars = styleVars(r);
+  const r = resolveStyle(preview !== undefined ? preview : effectiveStyle(V?.team, curClub())), root = document.documentElement, vars = styleVars(r);
   STYLE_VARS.forEach(k => { if (vars[k]) root.style.setProperty(k, vars[k]); else root.style.removeProperty(k); });
   if (r) root.dataset.teamStyle = r.id; else delete root.dataset.teamStyle;
   const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = r ? r.dark : '#123D2B';
@@ -4522,7 +4522,7 @@ function viewTeams() {
   return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus', 18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button><button class="btn sm" data-act="team-template-choose">Use existing setup</button></div></div>
     ${clubs.map(c => { const ts = sortT(M.clubTeams(ws, c.id)); return `<section class="sec club-group">
       <div class="club-head">${crest(clubBadge(c))}<span class="grow"><span class="name" style="display:block">${esc(c.name)}</span><span class="sub">${esc([c.sport, c.governingBody, `${ts.length} team${ts.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</span></span>
-        <button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
+        <button class="btn sm" data-act="club-brand-open" data-id="${esc(c.id)}">Branding</button><button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
       ${ts.length ? `<div class="list">${ts.map(row).join('')}</div>` : '<p class="muted small">No teams in this club yet.</p>'}
     </section>`; }).join('')}
     ${loose.length ? `<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name" style="display:block">Not in a club</span><span class="sub">Choose a club in Settings › Team</span></span></div><div class="list">${loose.map(row).join('')}</div></section>` : ''}
@@ -4626,15 +4626,22 @@ function refreshTeamSportGuide(form) {
 // Settings › Team colours: a palette, the classic look, or the team's own colours (checked for
 // contrast and adjusted if they'd be hard to read). Picking one shows it straight away; it's kept
 // when Settings is saved.
-function teamStyleFields(T) {
-  const cur = normStyle(T.style), sel = cur ? (cur.palette || 'custom') : '', club = M.clubOf(ws, data);
+function teamStyleFields(T, selectedClub = M.clubOf(ws, data), clubBrand = false) {
+  const cur = normStyle(T.style), sel = cur ? (cur.palette || 'custom') : '', club = selectedClub;
   const c = cur && cur.custom ? cur.custom : (() => { const r = resolveStyle({ palette: 'pitch' }); return { dark: r.dark, action: r.action, accent: r.accent }; })();
   const sw = (id, name, [a, b]) => `<label class="style-sw"><input type="radio" name="teamStyle" value="${id}" ${sel === id ? 'checked' : ''} data-change="team-style"><span class="sw" aria-hidden="true"><i style="background:${a}"></i><i style="background:${b}"></i></span><span class="nm">${esc(name)}</span></label>`;
   const hint = club && club.colours ? suggestStyle(club.colours) : '';
-  return `<h3 class="form-sec" id="team-colours">Team colours</h3>
-    <p class="muted small" style="margin-bottom:10px">The header, main cards, buttons and highlights, for you and your players. Green, orange and red keep their meaning (OK, check, problem) in every style.</p>
+  const inherited = !clubBrand && normStyle(club?.style);
+  const shared = inherited ? resolveStyle(inherited) : null;
+  const defaultLabel = clubBrand ? 'Classic (no club colours)' : inherited ? 'Use club colours' : CLASSIC.name;
+  const swatch = shared ? [shared.dark, shared.accent] : CLASSIC.swatch;
+  return `<h3 class="form-sec" id="team-colours">${clubBrand ? 'Club' : 'Team'} colours</h3>
+    <p class="muted small" style="margin-bottom:10px">${clubBrand
+      ? 'One shared style for the club. Teams inherit it unless a separate team override is retained.'
+      : inherited ? 'This team can inherit its club colours or use its own look.'
+      : 'Choose team colours or use Classic until your club has a shared style.'} Green, orange and red still mean OK, check and problem.</p>
     <fieldset class="style-grid"><legend class="sr-only">Colour style</legend>
-      ${sw('', CLASSIC.name, CLASSIC.swatch)}${TEAM_STYLES.map(x => sw(x.id, x.name, x.swatch)).join('')}${sw('custom', 'Your own', [c.dark, c.action])}
+      ${sw('', defaultLabel, swatch)}${TEAM_STYLES.map(x => sw(x.id, x.name, x.swatch)).join('')}${sw('custom', 'Your own', [c.dark, c.action])}
     </fieldset>
     <div class="style-custom" ${sel === 'custom' ? '' : 'hidden'}>
       <div class="three">
@@ -4654,7 +4661,11 @@ function formStyle(form) {
 function previewTeamStyle(form) {
   const st = formStyle(form), custom = (form.querySelector('[name=teamStyle]:checked') || {}).value === 'custom';
   const box = form.querySelector('.style-custom'); if (box) box.hidden = !custom;
-  const r = applyTeamStyle(st); state.stylePreview = true;
+  const club = form.dataset.form === 'club-branding'
+    ? arr(ws.clubs).find(c => c.id === form.querySelector('[name=brandingClubId]')?.value)
+    : arr(ws.clubs).find(c => c.id === form.querySelector('[name=clubId]')?.value);
+  const r = applyTeamStyle(st || (form.dataset.form === 'club-branding' ? null : normStyle(club?.style)));
+  state.stylePreview = true;
   const note = form.querySelector('.style-note');
   if (note) note.textContent = custom && r && r.adjusted.length ? `Adjusted so it stays readable: ${r.adjusted.map(k => ({ dark: 'header made darker', action: 'buttons made darker', accent: 'highlight made lighter' })[k]).join(', ')}.` : '';
 }
@@ -5352,7 +5363,7 @@ function settingsBody() {
 // Settings in sections, each opened on its own and saved on its own (it used to be one form five
 // screens long with the Save button halfway down).
 const SETTINGS_SECS = [
-  ['team', 'Team', 'Name, club, sport, rules and colours'], ['season', 'Season and tournament', 'The tournament and its dates'],
+  ['team', 'Team', 'Name, club, sport and rules'], ['clubbrand', 'Club branding', 'Colours and logo for all club teams'], ['season', 'Season and tournament', 'The tournament and its dates'],
   ['contacts', 'Contacts', 'Team contact and team staff'], ['training', 'Training', 'Usual venue and times'],
   ['field', 'Field', 'Zones and channels on the Lineup field'], ['players', 'Jerseys', 'Whether jerseys are lent and handed back'],
   ['publishing', 'Publishing', 'Players’ access, passwords and GitHub'], ['backup', 'Backup', 'Export, import and this phone'],
@@ -5362,6 +5373,7 @@ function settingsSummary(k) {
   const fmtR = (a, b) => [a, b].filter(Boolean).map(fmtTime).join('–');
   return {
     team: [T.name, M.teamSport(T, club), club && club.name].filter(Boolean).join(' · '),
+    clubbrand: arr(ws.clubs).length+' clubs · '+arr(ws.clubs).filter(c=>c.logo||c.style).length+' branded',
     season: T.event ? `${T.event}${T.eventStart ? ` · ${fmtDay(T.eventStart)}${T.eventEnd && T.eventEnd !== T.eventStart ? ` to ${fmtDay(T.eventEnd)}` : ''}` : ''}` : 'No tournament set',
     contacts: [T.tasksContact.name ? `Contact: ${T.tasksContact.name}` : 'No team contact', `${arr(T.staff).length} staff`].join(' · '),
     training: [T.trainingVenue, fmtR(T.trainingStart, T.trainingEnd)].filter(Boolean).join(' · ') || 'No defaults set',
@@ -5378,11 +5390,40 @@ function settingsIndex() {
   return `${multiTeam() ? `<p class="hint" style="margin:0 0 10px">Settings for <b>${esc(data.team.name)}</b>.</p>` : ''}
     <div class="list set-list">${SETTINGS_SECS.map(([k, t, sub]) => `<button class="pick" data-act="settings-sec" data-sec="${k}"><span class="grow"><span class="name" style="display:block">${esc(t)}</span><span class="tagline">${esc(settingsSummary(k) || sub)}</span></span>${icon('chevron-right', 18)}</button>`).join('')}</div>`;
 }
+// Club branding is managed centrally, without changing the selected team.
+function clubBrandingSection(id = '') {
+  const club = arr(ws.clubs).find(c => c.id === id) ||
+    arr(ws.clubs).find(c => c.id === data.team.clubId) || arr(ws.clubs)[0];
+  if (!club) return '<button class="btn sm set-back" data-act="settings">All settings</button><p class="hint">Create a club first in Clubs and teams.</p>';
+  const teams = M.clubTeams(ws,club.id), overrides = teams.filter(t => normStyle(t.team.style));
+  const options = arr(ws.clubs).map(c => '<option value="'+esc(c.id)+'" '+(c.id===club.id?'selected':'')+'>'+esc(c.name)+'</option>').join('');
+  return '<button class="btn sm set-back" data-act="settings">'+icon('back',18)+'All settings</button>'+
+    '<form data-form="club-branding" autocomplete="off">'+
+    '<h3 class="form-sec">Club branding</h3>'+
+    '<p class="hint">Choose a club in this coach workspace. One logo and palette can apply to every team, including player views, without switching teams.</p>'+
+    '<label class="field-l"><span>Club to manage</span><select name="brandingClubId" data-change="club-branding-pick">'+options+
+    '</select><small>Switching clubs discards unsaved changes here.</small></label>'+
+    '<div class="club-brand-summary"><span class="logo-prev">'+crest(clubBadge(club),true)+'</span>'+
+    '<span><strong>'+esc(club.name)+'</strong><small>'+teams.length+' team'+(teams.length===1?'':'s')+' · shared badge and palette</small></span></div>'+
+    '<div class="field-l logo-field"><span id="brand-logo-label">Club logo</span>'+
+    '<div class="logo-row"><label class="btn sm file-btn"><input type="file" accept="image/png,image/jpeg,image/webp" data-change="club-logo" aria-labelledby="brand-logo-label">Choose logo</label>'+
+    '<button type="button" class="btn sm" data-act="club-logo-clear" '+(club.logo?'':'hidden')+'>Remove logo</button></div>'+
+    '<input type="hidden" name="logo" value="'+esc(club.logo||'')+'">'+
+    '<small>Shared with this club’s teams and included in their player copies. Square PNG, JPEG or WebP works best.</small></div>'+
+    teamStyleFields(club,club,true)+
+    '<label class="check club-brand-apply"><input type="checkbox" name="applyAll" checked>'+
+    '<span>Apply club colours to every team in '+esc(club.name)+' ('+teams.length+')</span></label>'+
+    '<p class="hint">'+(overrides.length ? overrides.length+' existing team-specific colour choice'+(overrides.length===1?'':'s')+' will be reset if checked.' : 'No teams currently have a separate colour choice.')+
+    ' Uncheck to preserve existing overrides. New teams inherit the club colours automatically.</p>'+
+    '<button class="btn primary block" type="submit">Save branding for '+esc(club.name)+'</button></form>';
+}
+
 function settingsSection(k) {
   const T = data.team, club = M.clubOf(ws, data);
   const back = `<button class="btn sm set-back" data-act="settings">${icon('back', 18)}All settings</button>`;
   const form = (body, label = 'Save') => `${back}<form data-form="settings" data-sec="${k}">${body}<button class="btn primary block" type="submit">${esc(label)}</button></form>`;
   const positions = `<label class="field-l"><span>Positions for this team</span><input type="text" name="positions" data-auto-positions="${T.positionsCustom === true ? 'false' : 'true'}" data-last-default="${esc(M.positionsFor(T, club).join(', '))}" data-input="team-positions" value="${esc(M.positionsFor(T, club).join(', '))}"><small>What players can pick as preferred positions, separated by commas. They follow the team’s sport unless you change them. ${esc(M.teamSport(T, club))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, club)] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>`;
+  if (k === 'clubbrand') return clubBrandingSection(state.brandClubId);
   if (k === 'team') return form(`<label class="field-l"><span>Team name</span><input type="text" name="name" value="${esc(T.name)}"></label>
     ${teamDetailsFields(T, { staff: false, maxMales: true, after: positions })}${teamStyleFields(T)}`, 'Save team');
   if (k === 'season') return form(`<h3 class="form-sec">Tournament</h3>
@@ -6488,6 +6529,12 @@ const actions = {
     openSheet('Create from ' + M.teamName(source), teamForm(), 'team-new');
   }),
   'club-new': coachOnly(() => { state.clubFor = state.sheet === 'settings' ? data.id : null; openSheet('New club', clubForm(null), 'club'); }),
+  'club-brand-open': coachOnly(el => {
+    const id=el.dataset.id;
+    if(!arr(ws.clubs).some(c=>c.id===id))return;
+    state.brandClubId=id;
+    openSheet('Club branding',clubBrandingSection(id),'settings');
+  }),
   'club-edit': coachOnly(el => { const c = arr(ws.clubs).find(x => x.id === el.dataset.id); if (c) openSheet(`Edit ${c.name}`, clubForm(c), 'club'); }),
   'club-open': coachOnly(el => { state.clubId = el.dataset.id; goTo('club'); }),
   'updates': () => openUpdates(),
@@ -6558,7 +6605,10 @@ const actions = {
     const form = el.closest('form'); if (!form) return;
     form.querySelector('[name=logo]').value = '';
     const v = n => (form.querySelector(`[name=${n}]`) || {}).value || '';
-    form.querySelector('.logo-prev').innerHTML = crest({ id: v('id') || 'new', name: v('name'), short: v('shortName'), colours: v('colours') }, true);
+    const existing = arr(ws.clubs).find(c=>c.id===v('brandingClubId'));
+    form.querySelector('.logo-prev').innerHTML = crest(existing ? {...clubBadge(existing),logo:''} : {
+      id:v('id')||'new',name:v('name'),short:v('shortName'),colours:v('colours')
+    },true);
     el.hidden = true;
   }),
   'club-del': coachOnly(el => {
@@ -6655,6 +6705,12 @@ document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
   if (k === 'team-style') previewTeamStyle(e.target.closest('form'));
+  if (k === 'club-branding-pick' && isCoach()) {
+    const id=e.target.value;
+    if (!arr(ws.clubs).some(c=>c.id===id)) return;
+    state.brandClubId=id; state.stylePreview=false; applyTeamStyle();
+    openSheet('Club branding',clubBrandingSection(id),'settings');
+  }
   if (k === 'crew-person') {
     const row = e.target.closest('.crew-assign-row'), box = row && row.querySelector('.crew-row-badges');
     if (box) box.innerHTML = crewAssignBadges(row.querySelector('[name=crew-person]').value, row.querySelector('[name=crew-role]').value, box.dataset.day);
@@ -6883,6 +6939,25 @@ document.addEventListener('submit', async e => {
     m.status = status;
     m.result = status === 'played' ? { us: Number(us), them: Number(them), notes: str('rnotes') } : status === 'forfeit' ? { forfeit, notes: str('rnotes') } : { notes: str('rnotes') };
     save(); refreshMatch(m.id); toast(M.matchOutcome(m) ? `Saved: ${resultText(m)}` : 'Saved');
+    return;
+  }
+  if (kind === 'club-branding') {
+    const id=str('brandingClubId'), club=arr(ws.clubs).find(c=>c.id===id);
+    if(!club){fieldError(form,'brandingClubId','Choose an existing club');return;}
+    const logo=str('logo');
+    if(logo && !M.validLogo(logo)){toast('The logo must be a supported small image.');return;}
+    const style=formStyle(form);
+    club.logo=logo;
+    if(style) club.style=style; else delete club.style;
+    const teams=M.clubTeams(ws,id);
+    let changed=0;
+    if(f.get('applyAll')) {
+      teams.forEach(t=>{if(t.team.style){delete t.team.style;changed++;}});
+    }
+    state.brandClubId=id;state.stylePreview=false;
+    save();closeSheet();render();
+    toast(club.name+' branding saved for '+teams.length+' team'+(teams.length===1?'':'s')+
+      (changed?' ('+changed+' team colour override'+(changed===1?'':'s')+' cleared)':''));
     return;
   }
   if (kind === 'club') {
