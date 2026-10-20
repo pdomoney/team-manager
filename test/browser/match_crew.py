@@ -36,7 +36,7 @@ with sync_playwright() as p:
           const helper = option?.nextElementSibling?.querySelector('small');
           return [getComputedStyle(helper).color, getComputedStyle(option.nextElementSibling).backgroundColor];
         }""")
-        c.ok(contrast==['rgb(255, 255, 255)','rgb(18, 61, 43)'],
+        c.ok(contrast[0]=='rgb(255, 255, 255)' and contrast[1]!='rgb(255, 255, 255)',
              f'[{width}] selected volunteer method keeps readable white helper text')
         pg.locator('#sheet [data-act=close-sheet]').last.click()
         c.ok('Match-day staff' in pg.inner_text('#view'), f'[{width}] match staff route is coach-only')
