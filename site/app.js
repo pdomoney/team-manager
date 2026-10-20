@@ -670,8 +670,15 @@ function render() {
   const tag = !sName ? '' : coachSeason ? `<button class="season-tag${V.readOnly ? ' past' : ''}" data-act="season-pick" aria-haspopup="dialog" aria-label="${esc(sp)}. Season: ${esc(sName)}${V.readOnly ? ', looking back' : ''}. Change season">${ic}${esc(sName)}${V.readOnly ? ' · looking back' : ''}</button>` : `<span class="season-tag" title="${esc(sp)}">${ic}${esc(sName)}</span>`;
   const club = curClub(), tc = $('#team-crest');
   if (tc) { tc.hidden = !club; tc.innerHTML = club ? crest(clubBadge(club)) : ''; tc.title = club ? club.name : ''; }
-  $('#team-title').classList.toggle('with-season', !!tag);
-  $('#team-title').innerHTML = (multiTeam() && !state.preview ? `<button class="team-btn" data-act="team-switch" aria-haspopup="dialog" aria-label="${esc(V.team.name)}. Switch team"><span class="t-name">${esc(V.team.name || 'Team')}</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : `<span class="t-name">${esc(V.team.name || 'Team Manager')}</span>`) + tag;
+  // The header identifies the current team; it is no longer a second team switcher.
+  // Coaches choose teams on Home (clubs/teams) or in Clubs and teams. The current
+  // player view already has only one team, so never advertise a switch action here.
+  const context = [club && (club.shortName || club.name), sp].filter(Boolean).join(' · ');
+  const currentTeam = V.team.name || 'Team Manager';
+  const identity = `<span class="t-name" title="Current team: ${esc(currentTeam)}">${esc(currentTeam)}</span>`;
+  const contextTag = context ? `<span class="t-context" title="${esc([club && club.name, sp].filter(Boolean).join(' · '))}">${esc(context)}</span>` : '';
+  $('#team-title').classList.toggle('with-season', !!(tag || contextTag));
+  $('#team-title').innerHTML = identity + `<span class="t-meta">${tag}${contextTag}</span>`;
   document.title = V.team.name || 'Team Manager';
   $('#menu-btn').hidden = false;
   renderBell(); loadWatch();
