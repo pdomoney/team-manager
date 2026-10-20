@@ -32,7 +32,13 @@ const TEAM_ID = /^[a-z0-9]{3,32}$/;
 export const arr = v => Array.isArray(v) ? v : [];
 export const obj = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
-export const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+let countedId = null;   // set while the test library is built, so its ids come out the same every time
+export const uid = () => countedId ? countedId() : Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+// Ids from a counter (tst0000001, tst0000002…) while `fn` runs, then random ids again.
+export function withCountedIds(prefix, fn) {
+  let n = 0; countedId = () => prefix + String(++n).padStart(10 - prefix.length, '0');
+  try { return fn(); } finally { countedId = null; }
+}
 export const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
 const pad = n => String(n).padStart(2, '0');
 export const isoDay = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -1488,6 +1494,8 @@ export function records(ws) {
     Object.entries(obj(t.systems)).forEach(([id, v]) => put(`${tk}/systems/${id}`, v, `${pre}Game system: ${id}`));
   });
   arr(ws.clubs).forEach(c => { if (c && c.id) put(`club/${c.id}`, c, `Club: ${c.name || '?'}`); });
+  // Match-day volunteers are their own records, so one added on another device isn't lost when copies combine.
+  arr(ws.matchOfficials).forEach(p => { if (p && p.id) put(`off/${p.id}`, p, `Match-day volunteer: ${p.name || '?'}`); });
   compsOf(ws).forEach(c => { if (c && c.id) put(`comp/${c.id}`, c, `Competition: ${c.name || '?'}`); });
   const L = normLibrary(ws.library);
   ['plays', 'playerSets'].forEach(c => L[c].forEach(x => { if (x.id) put(`lib/${c}/${x.id}`, x, `Library · ${LABEL[c](x)}`); }));
@@ -1497,8 +1505,8 @@ export function records(ws) {
 // Put one record (or remove it, when value is undefined) into a workspace.
 function putRecord(ws, key, value, template) {
   const parts = key.split('/');
-  if (parts[0] === 'club' || parts[0] === 'comp') {
-    const k = parts[0] === 'club' ? 'clubs' : 'competitions';
+  if (parts[0] === 'club' || parts[0] === 'comp' || parts[0] === 'off') {
+    const k = { club: 'clubs', comp: 'competitions', off: 'matchOfficials' }[parts[0]];
     ws[k] = arr(ws[k]);
     const i = ws[k].findIndex(c => c.id === parts[1]);
     if (value === undefined) { if (i >= 0) ws[k].splice(i, 1); } else if (i >= 0) ws[k][i] = clone(value); else ws[k].push(clone(value));

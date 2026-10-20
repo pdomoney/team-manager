@@ -435,3 +435,26 @@ test('club logos: a small PNG, JPEG or WebP image kept with the club, nothing el
   const ws = M.migrateWorkspace({ team: { name: 'T', clubId: 'c1' }, players: [], clubs: [{ id: 'c1', name: 'Club', logo: png }] });
   assert.equal(M.homeClubs(ws)[0].logo, png);
 });
+
+test('match-day volunteers added or changed on different devices all survive a merge', () => {
+  const base = M.migrateWorkspace(team());
+  base.matchOfficials = [{ id: 'v1', name: 'Casey Morgan', clubIds: [], teamIds: [], active: true }];
+  const local = JSON.parse(JSON.stringify(base)), remote = JSON.parse(JSON.stringify(base));
+  local.matchOfficials.push({ id: 'v2', name: 'Frances Lee', active: true });          // added on this phone
+  remote.matchOfficials.push({ id: 'v3', name: 'Priya Shah', active: true });          // added on the laptop
+  remote.matchOfficials[0].phone = '0400 000 000';                                     // changed on the laptop
+  const r = M.merge3(base, local, remote);
+  assert.deepEqual(r.merged.matchOfficials.map(p => p.id).sort(), ['v1', 'v2', 'v3']);
+  assert.equal(r.merged.matchOfficials.find(p => p.id === 'v1').phone, '0400 000 000');
+  assert.deepEqual(r.changes.local.map(c => c.label), ['Match-day volunteer: Frances Lee']);
+  assert.equal(r.changes.both.length, 0);
+  // removed on one side only: removed
+  const gone = JSON.parse(JSON.stringify(base)); gone.matchOfficials = [];
+  assert.equal(M.merge3(base, gone, JSON.parse(JSON.stringify(base))).merged.matchOfficials.length, 0);
+  // changed on both sides: listed for the coach to choose
+  const a = JSON.parse(JSON.stringify(base)), b = JSON.parse(JSON.stringify(base));
+  a.matchOfficials[0].name = 'Casey M'; b.matchOfficials[0].name = 'Casey Morgan-Lee';
+  const both = M.merge3(base, a, b);
+  assert.deepEqual(both.changes.both.map(c => c.label), ['Match-day volunteer: Casey M']);
+  assert.equal(M.resolve(both, { [both.changes.both[0].key]: 'remote' }).matchOfficials[0].name, 'Casey Morgan-Lee');
+});
