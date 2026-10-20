@@ -4670,8 +4670,8 @@ function viewClub() {
     </div></div>`;
 }
 const CLUB_SPORTS = M.SPORTS;
-function clubForm(c) {
-  const isNew = !c; c = M.normClub(c || { name: '' });
+function clubForm(c, forceNew = false) {
+  const isNew = !c || forceNew; c = M.normClub(c || { name: '' });
   const f = (name, label, ph = '', type = 'text') => `<label class="field-l"><span>${label}</span><input type="${type}" name="${name}" value="${esc(c[name])}" placeholder="${esc(ph)}"></label>`;
   const rows = [...c.officials, { role: 'President', name: '', phone: '', email: '' }, { role: 'Secretary', name: '', phone: '', email: '' }];
   return `<form data-form="club" autocomplete="off"><input type="hidden" name="id" value="${isNew ? '' : esc(c.id)}">
@@ -6805,7 +6805,7 @@ const actions = {
     const c=directoryRecords().find(x=>x.id===el.dataset.id), draft=directoryClubDraft(c);
     if (!draft) return;
     state.clubFor=null; // Browsing a club cannot assign any team, club role or ownership.
-    openSheet('Review club details · '+c.name,clubForm(draft),'club');
+    openSheet('Review club details · '+c.name,clubForm(draft, true),'club');
     toast('Research candidate: review the details, colours and logo before creating a local club.');
   }),
   'club-new': coachOnly(() => { state.clubFor = state.sheet === 'settings' ? data.id : null; openSheet('New club', clubForm(null), 'club'); }),
