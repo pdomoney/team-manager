@@ -38,9 +38,12 @@ with sync_playwright() as p:
         pg.wait_for_selector('#sheet .player-crop-panel:visible')
         c.ok(pg.locator('#sheet [name=photo]').input_value()==before,
           f'[{width}] original photo is unchanged until crop is accepted')
-        pg.locator('#sheet [name=cropZoom]').fill('200')
-        pg.locator('#sheet [name=cropX]').fill('0')
-        pg.locator('#sheet [name=cropY]').fill('45')
+        pg.evaluate("""() => {
+          for(const [name,value] of [['cropZoom','200'],['cropX','0'],['cropY','45']]){
+            const slider=document.querySelector('#sheet [name='+name+']');
+            slider.value=value;slider.dispatchEvent(new Event('input',{bubbles:true}));
+          }
+        }""")
         pg.click('#sheet [data-act=player-crop-apply]')
         cropped=pg.locator('#sheet [name=photo]').input_value()
         c.ok(cropped.startswith('data:image/') and len(cropped)<=12000 and cropped!=before,
