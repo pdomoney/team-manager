@@ -39,7 +39,10 @@ with sync_playwright() as p:
     c.ok('Halfback' in pos and 'Fullback' in pos and 'Rugby league positions' in pg.inner_text('#sheet'), 'the player form offers rugby league positions')
     c.ok('Middle' in pos, 'a position the player already had stays ticked-able')
     # photo
-    pg.set_input_files('#sheet input[data-change=player-photo]', PHOTO); pg.wait_for_function("document.querySelector('#sheet input[name=photo]').value.startsWith('data:image/')")
+    pg.set_input_files('#sheet input[data-change=player-photo]', PHOTO)
+    pg.wait_for_selector('#sheet .player-crop-panel:visible')
+    pg.click('#sheet [data-act=player-crop-apply]')
+    pg.wait_for_function("document.querySelector('#sheet input[name=photo]').value.startsWith('data:image/')")
     pg.click('#sheet form[data-form=player] button[type=submit]'); pg.wait_for_timeout(200)
     c.ok(W(f"D.players.find(p => p.id === '{pid}').photo").startswith('data:image/'), 'photo saved with the player')
     pg.goto(url + '#squad'); pg.wait_for_timeout(150)
