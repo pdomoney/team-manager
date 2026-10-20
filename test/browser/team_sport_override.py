@@ -86,7 +86,7 @@ with sync_playwright() as p:
     pg.keyboard.press('Escape')
 
     # Changing team sport on Settings previews new defaults before saving.
-    pg.evaluate(act, ['settings', {}])
+    pg.evaluate(act, ['settings', {'sec': 'team'}])
     pg.wait_for_selector('#sheet form[data-form=settings]')
     c.ok('Touch football positions' in pg.inner_text('[data-sport-guide]'), 'Settings reflects current team override')
     pg.select_option('#sheet form[data-form=settings] select[name=teamSport]', 'Netball')

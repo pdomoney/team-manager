@@ -56,7 +56,7 @@ with sync_playwright() as p:
     W("(window.__team.M.libMarkEdited(D.plays[D.plays.length-1]), 0)")
     # system to library and a player list
     pg.goto(url + '#field'); pg.wait_for_timeout(100)
-    pg.click('.sys-chip >> nth=0'); pg.wait_for_timeout(100)
+    pg.click('.show-btn'); pg.click('.sys-chip >> nth=0'); pg.wait_for_timeout(100)   # game systems sit behind Show
     c.ok('Save to library' in pg.inner_text('#view'), 'system card offers the library')
     # archive and restore U16
     pg.evaluate(act, ['teams', {}]); pg.wait_for_timeout(100)

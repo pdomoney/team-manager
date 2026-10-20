@@ -67,9 +67,9 @@ with sync_playwright() as p:
         pg.keyboard.press('ArrowLeft'); pg.wait_for_timeout(50)
         c.ok(abs(d("D.lineups[0].slots.find(s => s.id === 'RW').x") - (x0 - 1)) < 0.01, W + ' position moved with the keyboard')
         pg.click('[data-act=move-mode][data-on="0"]'); pg.click('[data-act=shape][data-shape=defence]')
-        pg.click('.sys-chip >> nth=1'); pg.wait_for_timeout(100)
+        pg.click('.show-btn'); pg.click('.sys-chip >> nth=1'); pg.wait_for_timeout(100)   # game systems sit behind Show
         c.ok(pg.locator('.sys-card').count() == 1 and pg.locator('#field .sy-t, #field .sy-mv').count() > 0, W + ' game system drawn with its card')
-        pg.click('.sys-chip >> nth=1'); pg.wait_for_timeout(50)
+        pg.click('.show-btn'); pg.click('.sys-chip >> nth=1'); pg.wait_for_timeout(50)
         c.ok('males' in pg.inner_text('#view'), W + ' mixed-team check shown')
         # plays: open, flip, animate, edit and save, duplicate, player lists
         pg.goto(url + '#plays'); pg.wait_for_timeout(150)

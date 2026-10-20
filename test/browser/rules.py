@@ -55,7 +55,7 @@ with sync_playwright() as p:
     c.ok(W('D.team.rulesSeen') == W('M.RULES.pack') and 'Tactics › Rules' in W('D.notices[0].text'), 'marked as reviewed, with a notice to players')
     c.ok(pg.inner_text('#bell-btn .badge') == '1', 'bell now only shows the rule book change')
     # settings: the rule set and the males number
-    pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#sheet select[name=rules]')
+    pg.evaluate(act, ['settings', {'sec': 'team'}]); pg.wait_for_selector('#sheet select[name=rules]')
     c.ok('Automatic: Oztag, Mixed' in pg.inner_text('#sheet select[name=rules]'), 'rule set: automatic from the club and category')
     pg.fill('#sheet input[name=maxMales]', ''); pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(150)
     c.ok(W("D.team.maxMales") == '' and W('M.maxMalesOf(D.team)') == 4, 'blank males number follows the rule set')
@@ -64,7 +64,7 @@ with sync_playwright() as p:
     pg.goto(url + '#rules'); pg.wait_for_timeout(150)
     txt = pg.inner_text('#view')
     c.ok('Under 12' in txt and '100 × 68 m' in txt and 'National Junior League Laws' in txt, 'another rule set chosen')
-    pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#sheet select[name=rules]')
+    pg.evaluate(act, ['settings', {'sec': 'team'}]); pg.wait_for_selector('#sheet select[name=rules]')
     pg.select_option('#sheet select[name=rules]', ''); pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(150); pg.keyboard.press('Escape')
     pg.goto(url + '#rules'); pg.wait_for_timeout(150)
     c.ok('our by-law' in pg.inner_text('.rule-values'), 'a team number for males shows as our by-law')

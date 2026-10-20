@@ -13,8 +13,10 @@ with sync_playwright() as p:
     for width in (390, 1280):
         ctx, pg, _ = page(browser, url + '#home', width=width, height=860, errors=errs)
         pg.get_by_text('Load a sample squad').click()
-        info = pg.evaluate("""() => ({ id: window.__team.data.matches[0].id,
-          year: window.__team.data.matches[0].date.slice(0,4) })""")
+        # An upcoming match: a finished one only lists who helped (no staffing check).
+        info = pg.evaluate("""() => { const t = new Date(), iso = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+          const m = window.__team.data.matches.filter(m => m.date >= iso && m.status === 'scheduled').sort((a, b) => a.date.localeCompare(b.date))[0];
+          return { id: m.id, year: m.date.slice(0,4), past: window.__team.data.matches.find(m => m.date < iso).id }; }""")
         pg.goto(url + '#crew')
         pg.wait_for_selector('[data-act=crew-new]')
         c.ok('Oztag' in pg.inner_text('#view'), f'[{width}] staff page uses the team sport')

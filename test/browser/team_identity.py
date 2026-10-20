@@ -22,16 +22,17 @@ with sync_playwright() as p:
         W = lambda js: pg.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M; return {js}; }})()')
         pg.get_by_text('Load a sample squad').click(); pg.wait_for_timeout(250)
         classic_top = pg.evaluate(BG, '.top')
-        c.ok(classic_top == 'rgb(18, 61, 43)' and pg.evaluate(BG, '.btn.primary') == 'rgb(211, 38, 58)' and pg.evaluate("document.documentElement.dataset.teamStyle") is None,
-             f'[{width}] no style chosen: the classic look, unchanged')
+        c.ok(classic_top == 'rgb(18, 61, 43)' and pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--team-action').trim()") == '#1D6B45'
+             and pg.evaluate(BG, '.focus .btn.primary') == 'rgb(255, 210, 77)' and pg.evaluate("document.documentElement.dataset.teamStyle") is None,
+             f'[{width}] no style chosen: the classic look, with green main buttons (gold on the dark Home card)')
         # Settings › Team colours: preview, close without saving, then save
-        pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#team-colours')
+        pg.evaluate(act, ['settings', {'sec': 'team'}]); pg.wait_for_selector('#team-colours')
         c.ok(pg.locator('#sheet [name=teamStyle]').count() >= 18 and pg.is_checked('#sheet [name=teamStyle][value=""]'), f'[{width}] more than a dozen styles to choose from, classic selected')
         pg.click('#sheet .style-sw:has(input[value=maroon])')
         c.ok(pg.evaluate(BG, '.top') == hexrgb('#4E0B27'), f'[{width}] picking a style shows it straight away')
         pg.keyboard.press('Escape'); pg.wait_for_timeout(100)
         c.ok(pg.evaluate(BG, '.top') == classic_top and W('D.team.style') is None, f'[{width}] closing Settings without saving puts the colours back')
-        pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#team-colours')
+        pg.evaluate(act, ['settings', {'sec': 'team'}]); pg.wait_for_selector('#team-colours')
         pg.click('#sheet .style-sw:has(input[value=maroon])'); pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(150); pg.keyboard.press('Escape')
         c.ok(W('D.team.style') == {'palette': 'maroon'} and pg.evaluate(BG, '.top') == hexrgb('#4E0B27'), f'[{width}] saved with the team')
         pg.reload(); pg.wait_for_function('window.__team && window.__team.ws'); pg.wait_for_timeout(250)
@@ -47,7 +48,7 @@ with sync_playwright() as p:
             if hdr < 7 or btn < 4.5: bad.append((sid, round(hdr, 1), round(btn, 1)))
         c.ok(not bad and len(styles) >= 13, f'[{width}] every style passes on the page: header text 7:1, button text 4.5:1 {bad}')
         # your own colours: too pale is adjusted, and says so
-        pg.goto(url + '#home'); pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#team-colours')
+        pg.goto(url + '#home'); pg.evaluate(act, ['settings', {'sec': 'team'}]); pg.wait_for_selector('#team-colours')
         pg.click('#sheet .style-sw:has(input[value=custom])')
         c.ok(pg.is_visible('#sheet .style-custom'), f'[{width}] your own colours: three pickers appear')
         for n, v in [('styleDark', '#a0d0ff'), ('styleAction', '#ffee55'), ('styleAccent', '#334455')]:
@@ -57,20 +58,20 @@ with sync_playwright() as p:
         c.ok(W('D.team.style.custom.dark') == '#A0D0FF', f'[{width}] your own colours are saved as chosen (the page adjusts them)')
         # the club's colours suggest a palette
         W("(W.clubs.find(c => c.id === D.team.clubId).colours = 'Red and white', 1)")
-        pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#team-colours')
+        pg.evaluate(act, ['settings', {'sec': 'team'}]); pg.wait_for_selector('#team-colours')
         pg.click('#sheet [data-act=style-club]')
         c.ok(pg.is_checked('#sheet [name=teamStyle][value=redwhite]') and pg.evaluate(BG, '.top') == hexrgb('#7D0F1D'), f'[{width}] “closest to the club’s colours” picks Red & White')
         pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(120); pg.keyboard.press('Escape')
         # sport icons: header, crest badge, main card
         pg.goto(url + '#home'); pg.wait_for_timeout(150)
         oz = pg.inner_html('.season-tag .sport-ic')
-        c.ok(pg.locator('.season-tag .sport-ic').count() == 1 and pg.locator('.scope.single .sport-pip').count() == 1 and 'Oztag' in pg.inner_text('.scope.single .sport-pip'),
-             f'[{width}] the sport beside the season and on the club crest')
+        c.ok(pg.locator('.season-tag .sport-ic').count() == 1 and 'Oztag' in pg.get_attribute('.season-tag', 'aria-label') and pg.is_visible('#team-crest .crest'),
+             f'[{width}] the sport beside the season, the club crest beside the name (one team: no repeated card on Home)')
         c.ok('url("data:image/svg+xml' in pg.evaluate("getComputedStyle(document.querySelector('section.focus'), '::after').maskImage || getComputedStyle(document.querySelector('section.focus'), '::after').webkitMaskImage"),
              f'[{width}] a faint sport mark on Home’s main card')
-        pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#sheet select[name=teamSport]')
+        pg.evaluate(act, ['settings', {'sec': 'team'}]); pg.wait_for_selector('#sheet select[name=teamSport]')
         pg.select_option('#sheet select[name=teamSport]', 'Netball'); pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(120); pg.keyboard.press('Escape')
-        c.ok(pg.inner_html('.season-tag .sport-ic') != oz and 'Netball' in pg.inner_text('.scope.single .sport-pip'), f'[{width}] changing the sport changes the icon')
+        c.ok(pg.inner_html('.season-tag .sport-ic') != oz and 'Netball' in pg.get_attribute('.season-tag', 'aria-label'), f'[{width}] changing the sport changes the icon')
         # the training focus is plain text again, not a dark card
         pg.goto(url + '#training'); pg.wait_for_timeout(150)
         c.ok(pg.locator('.sess-focus').count() > 0 and pg.evaluate(BG, '.sess-focus') == 'rgba(0, 0, 0, 0)', f'[{width}] a session’s focus is plain text')
