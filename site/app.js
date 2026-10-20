@@ -29,7 +29,7 @@ import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.j
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
-import { TEAM_STYLES, CLASSIC, styleById, normStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
+import { TEAM_STYLES, CLASSIC, styleById, normStyle, effectiveStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
 import { sportIcon, sportMaskUrl } from './sport-icons.js';
 import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-badges.js';
 import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
@@ -315,7 +315,7 @@ const sportOfTeam = t => M.teamSport(t && t.team, M.clubOf(ws, t));
 // Sets the team's colours as CSS custom properties on the page; colours that carry meaning are
 // separate tokens and never change. `preview` shows a style before it's saved (Settings).
 function applyTeamStyle(preview) {
-  const r = resolveStyle(preview !== undefined ? preview : V && V.team && V.team.style), root = document.documentElement, vars = styleVars(r);
+  const r = resolveStyle(preview !== undefined ? preview : effectiveStyle(V?.team, curClub())), root = document.documentElement, vars = styleVars(r);
   STYLE_VARS.forEach(k => { if (vars[k]) root.style.setProperty(k, vars[k]); else root.style.removeProperty(k); });
   if (r) root.dataset.teamStyle = r.id; else delete root.dataset.teamStyle;
   const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = r ? r.dark : '#123D2B';
@@ -4626,15 +4626,22 @@ function refreshTeamSportGuide(form) {
 // Settings › Team colours: a palette, the classic look, or the team's own colours (checked for
 // contrast and adjusted if they'd be hard to read). Picking one shows it straight away; it's kept
 // when Settings is saved.
-function teamStyleFields(T) {
-  const cur = normStyle(T.style), sel = cur ? (cur.palette || 'custom') : '', club = M.clubOf(ws, data);
+function teamStyleFields(T, selectedClub = M.clubOf(ws, data), clubBrand = false) {
+  const cur = normStyle(T.style), sel = cur ? (cur.palette || 'custom') : '', club = selectedClub;
   const c = cur && cur.custom ? cur.custom : (() => { const r = resolveStyle({ palette: 'pitch' }); return { dark: r.dark, action: r.action, accent: r.accent }; })();
   const sw = (id, name, [a, b]) => `<label class="style-sw"><input type="radio" name="teamStyle" value="${id}" ${sel === id ? 'checked' : ''} data-change="team-style"><span class="sw" aria-hidden="true"><i style="background:${a}"></i><i style="background:${b}"></i></span><span class="nm">${esc(name)}</span></label>`;
   const hint = club && club.colours ? suggestStyle(club.colours) : '';
-  return `<h3 class="form-sec" id="team-colours">Team colours</h3>
-    <p class="muted small" style="margin-bottom:10px">The header, main cards, buttons and highlights, for you and your players. Green, orange and red keep their meaning (OK, check, problem) in every style.</p>
+  const inherited = !clubBrand && normStyle(club?.style);
+  const shared = inherited ? resolveStyle(inherited) : null;
+  const defaultLabel = clubBrand ? 'Classic (no club colours)' : inherited ? 'Use club colours' : CLASSIC.name;
+  const swatch = shared ? [shared.dark, shared.accent] : CLASSIC.swatch;
+  return `<h3 class="form-sec" id="team-colours">${clubBrand ? 'Club' : 'Team'} colours</h3>
+    <p class="muted small" style="margin-bottom:10px">${clubBrand
+      ? 'One shared style for the club. Teams inherit it unless a separate team override is retained.'
+      : inherited ? 'This team can inherit its club colours or use its own look.'
+      : 'Choose team colours or use Classic until your club has a shared style.'} Green, orange and red still mean OK, check and problem.</p>
     <fieldset class="style-grid"><legend class="sr-only">Colour style</legend>
-      ${sw('', CLASSIC.name, CLASSIC.swatch)}${TEAM_STYLES.map(x => sw(x.id, x.name, x.swatch)).join('')}${sw('custom', 'Your own', [c.dark, c.action])}
+      ${sw('', defaultLabel, swatch)}${TEAM_STYLES.map(x => sw(x.id, x.name, x.swatch)).join('')}${sw('custom', 'Your own', [c.dark, c.action])}
     </fieldset>
     <div class="style-custom" ${sel === 'custom' ? '' : 'hidden'}>
       <div class="three">
@@ -4654,7 +4661,11 @@ function formStyle(form) {
 function previewTeamStyle(form) {
   const st = formStyle(form), custom = (form.querySelector('[name=teamStyle]:checked') || {}).value === 'custom';
   const box = form.querySelector('.style-custom'); if (box) box.hidden = !custom;
-  const r = applyTeamStyle(st); state.stylePreview = true;
+  const club = form.dataset.form === 'club-branding'
+    ? arr(ws.clubs).find(c => c.id === form.querySelector('[name=brandingClubId]')?.value)
+    : arr(ws.clubs).find(c => c.id === form.querySelector('[name=clubId]')?.value);
+  const r = applyTeamStyle(st || (form.dataset.form === 'club-branding' ? null : normStyle(club?.style)));
+  state.stylePreview = true;
   const note = form.querySelector('.style-note');
   if (note) note.textContent = custom && r && r.adjusted.length ? `Adjusted so it stays readable: ${r.adjusted.map(k => ({ dark: 'header made darker', action: 'buttons made darker', accent: 'highlight made lighter' })[k]).join(', ')}.` : '';
 }
