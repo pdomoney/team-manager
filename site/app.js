@@ -31,6 +31,7 @@ import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequir
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
 import { TEAM_STYLES, CLASSIC, styleById, normStyle, effectiveStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
 import { sportIcon, sportMaskUrl } from './sport-icons.js';
+import { directoryRecords, filterClubDirectory, directoryClubDraft, DIRECTORY_STATES } from './club-directory.js';
 import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-badges.js';
 import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
 import * as M from './model.js';
@@ -4556,27 +4557,92 @@ function openWhatsApp(text, phone) {
 // messages and players' password; switching only changes which one is on screen. Archiving takes a
 // team's players' file off the site (its data stays in the coach's copy) until it's restored.
 const multiTeam = () => S.role === 'coach' && M.activeTeams(ws).length > 1;
+// Browsing/filtering never mutates the workspace or assigns club permissions.
+const teamFinder = { text: '', sport: '', club: '' };
+const clubFinder = { text: '', sport: '', state: '', limit: 30 };
+const finderMatch = (txt, needle) => String(txt || '').toLocaleLowerCase('en-AU').includes(needle.toLocaleLowerCase('en-AU'));
+const clubNameKey = n => String(n || '').toLocaleLowerCase('en-AU')
+  .replace(/\b(junior rugby league football club|rugby league football club|jrlfc|rlfc|jrfc|football club|oztag association)\b/g, '')
+  .replace(/[^a-z0-9]+/g, ' ').trim();
+const directorySource = u => {
+  const url = String(u || '').split(/[;|\s]+/)[0];
+  return /^https:\/\/[^\s<>"]+$/.test(url) ? url : '';
+};
+function managedTeamResults() {
+  const all = M.teamsOf(ws), activeN = all.filter(t => !t.archived).length;
+  const q = teamFinder.text.trim(), sport = teamFinder.sport, clubId = teamFinder.club;
+  const row = t => {
+    const sp = M.teamSport(t.team, M.clubOf(ws, t));
+    return `<div class="row team-row ${t === data ? 'current' : ''}">
+      <span class="grow"><span class="name" style="display:block">${sportIcon(sp, 18)} ${esc(M.teamName(t))}${t === data ? ' <span class="pill ok">On screen</span>' : ''}${t.archived ? ' <span class="pill neutral">Archived</span>' : ''}</span>
+      <span class="sub" style="display:block">${esc([sp, t.team.division, M.TEAM_CATEGORIES[t.team.category], (M.activeSeason(t) || {}).name || 'No active season', `${M.activeLens(t).players.length} players`].filter(Boolean).join(' · '))}</span></span>
+      <button class="btn sm" data-act="season-open" data-team="${esc(t.id)}" aria-label="Seasons of ${esc(M.teamName(t))}">Seasons</button>
+      ${t.archived ? `<button class="btn sm" data-act="team-restore" data-id="${esc(t.id)}">Restore</button>` : t === data ? '' : `<button class="btn sm" data-act="team-pick" data-id="${esc(t.id)}">Switch</button>`}
+      ${t.archived ? '' : `<button class="btn sm" data-act="team-archive" data-id="${esc(t.id)}" ${activeN < 2 ? 'disabled title="At least one team stays active"' : ''}>Archive</button>`}
+    </div>`;
+  };
+  const sortT = ts => ts.slice().sort((a, b) => (a.archived - b.archived) || M.teamName(a).localeCompare(M.teamName(b)));
+  const clubs = arr(ws.clubs).filter(c => (!clubId || c.id === clubId) && (!sport || c.sport === sport || M.clubTeams(ws,c.id).some(t=>M.teamSport(t.team,c)===sport)))
+    .slice().sort((a, b) => a.name.localeCompare(b.name));
+  const visibleTeams = ts => sortT(ts.filter(t => (!sport || M.teamSport(t.team, M.clubOf(ws,t))===sport) && (!q || [M.teamName(t),t.team.division].some(x=>finderMatch(x,q)))));
+  const sections = clubs.map(c => {
+    const ts=visibleTeams(M.clubTeams(ws,c.id));
+    if (q && !finderMatch(c.name,q) && !finderMatch(c.shortName,q) && !ts.length) return '';
+    // A club-name search shows all its teams; a team-name search shows only matching teams.
+    const displayTeams = q && (finderMatch(c.name,q)||finderMatch(c.shortName,q)) ? sortT(M.clubTeams(ws,c.id).filter(t=>!sport||M.teamSport(t.team,c)===sport)) : ts;
+    return `<section class="sec club-group">
+      <div class="club-head">${crest(clubBadge(c))}<span class="grow"><span class="name" style="display:block">${sportIcon(c.sport,18)} ${esc(c.name)}</span><span class="sub">${esc([c.sport,c.governingBody,`${displayTeams.length} team${displayTeams.length===1?'':'s'}`].filter(Boolean).join(' · '))}</span></span>
+      <button class="btn sm" data-act="club-edit" data-id="${esc(c.id)}">Edit club</button><button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
+      ${displayTeams.length ? `<div class="list">${displayTeams.map(row).join('')}</div>` : '<p class="muted small">No matching teams in this club.</p>'}
+    </section>`;
+  }).filter(Boolean);
+  const loose = !clubId ? visibleTeams(all.filter(t => !M.clubOf(ws,t))) : [];
+  if (loose.length) sections.push(`<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name">Not in a club</span></span></div><div class="list">${loose.map(row).join('')}</div></section>`);
+  return sections.join('') || '<div class="empty"><p>No clubs or teams match. Change your filters or clear the search.</p></div>';
+}
+function clubDirectoryResults() {
+  const filtered = filterClubDirectory({query:clubFinder.text,sport:clubFinder.sport,state:clubFinder.state});
+  const cap = clubFinder.limit;
+  const rows = filtered.slice(0,cap).map(c => `<div class="row directory-row">
+    <span class="directory-sport">${sportIcon(c.sport,22)}</span><span class="grow">
+      <span class="name" style="display:block">${esc(c.name)}</span>
+      <span class="sub" style="display:block">${esc([c.sport,c.state,c.region||c.suburb].filter(Boolean).join(' · '))}</span>
+      ${c.venues?.length > 1 ? `<span class="sub" style="display:block">${c.venues.length} listed venues (verify)</span>` : c.ground ? `<span class="sub" style="display:block">Ground: ${esc(c.ground)}</span>` : ''}
+      ${c.registrationLinks?.length > 1 ? `<span class="sub" style="display:block">${c.registrationLinks.length} registration portals (review junior/senior details)</span>` : ''}
+      ${c.colours ? `<span class="sub" style="display:block">Published colours (verify): ${esc(c.colours)}</span>` : ''}
+      ${c.sourceClass === 'historical_location' ? '<span class="pill neutral">Historical lead</span>' : '<span class="pill neutral">Unverified listing</span>'}
+      ${directorySource(c.sourceUrl) ? ` <a href="${esc(directorySource(c.sourceUrl))}" target="_blank" rel="noopener noreferrer">Source ↗</a>` : ''}
+      ${directorySource(c.website) ? ` <a href="${esc(c.website)}" target="_blank" rel="noopener noreferrer">Website ↗</a>` : ''}
+      ${directorySource(c.brandSource) ? ` <a href="${esc(directorySource(c.brandSource))}" target="_blank" rel="noopener noreferrer" title="Logo research source; verify current branding and usage rights">Brand research ↗</a>` : ''}
+    </span><button class="btn sm" data-act="directory-use" data-id="${esc(c.id)}">Use details</button>
+  </div>`).join('');
+  return `<p class="muted small" role="status">${filtered.length} research candidate${filtered.length===1?'':'s'}; showing ${Math.min(cap,filtered.length)}. Not an authoritative current-registration list.</p>
+    <div class="list">${rows || '<p class="muted small">No entries match these filters.</p>'}</div>
+    ${filtered.length>cap ? `<button class="btn block" data-act="directory-more">Show more (${filtered.length-cap} remaining)</button>` : ''}`;
+}
 function viewTeams() {
   if (!isCoach()) return '';
-  const all = M.teamsOf(ws), activeN = all.filter(t => !t.archived).length;
-  const row = t => `<div class="row team-row ${t === data ? 'current' : ''}">
-      <span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}${t === data ? ' <span class="pill ok">On screen</span>' : ''}${t.archived ? ' <span class="pill neutral">Archived</span>' : ''}</span>
-      <span class="sub" style="display:block">${esc([t.team.division, M.TEAM_CATEGORIES[t.team.category], (M.activeSeason(t) || {}).name || 'No active season', `${M.activeLens(t).players.length} players`].filter(Boolean).join(' · '))}</span></span>
-      <button class="btn sm" data-act="season-open" data-team="${t.id}" aria-label="Seasons of ${esc(M.teamName(t))}">Seasons</button>
-      ${t.archived ? `<button class="btn sm" data-act="team-restore" data-id="${t.id}">Restore</button>` : t === data ? '' : `<button class="btn sm" data-act="team-pick" data-id="${t.id}">Switch</button>`}
-      ${t.archived ? '' : `<button class="btn sm" data-act="team-archive" data-id="${t.id}" ${activeN < 2 ? 'disabled title="At least one team stays active"' : ''}>Archive</button>`}
-    </div>`;
-  const sortT = ts => ts.slice().sort((a, b) => (a.archived - b.archived) || M.teamName(a).localeCompare(M.teamName(b)));
-  const clubs = arr(ws.clubs).slice().sort((a, b) => a.name.localeCompare(b.name));
-  const loose = sortT(all.filter(t => !M.clubOf(ws, t)));
-  return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus', 18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button><button class="btn sm" data-act="team-template-choose">Use existing setup</button></div></div>
-    ${clubs.map(c => { const ts = sortT(M.clubTeams(ws, c.id)); return `<section class="sec club-group">
-      <div class="club-head">${crest(clubBadge(c))}<span class="grow"><span class="name" style="display:block">${esc(c.name)}</span><span class="sub">${esc([c.sport, c.governingBody, `${ts.length} team${ts.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</span></span>
-        <button class="btn sm" data-act="club-edit" data-id="${esc(c.id)}">Edit club</button><button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
-      ${ts.length ? `<div class="list">${ts.map(row).join('')}</div>` : '<p class="muted small">No teams in this club yet.</p>'}
-    </section>`; }).join('')}
-    ${loose.length ? `<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name" style="display:block">Not in a club</span><span class="sub">Choose a club in Settings › Team</span></span></div><div class="list">${loose.map(row).join('')}</div></section>` : ''}
-    <p class="hint">A club keeps what its teams share: contacts, home ground, links and officials. Each team has its own division, staff, players’ file and team password, so players only ever see their own team (and their club’s public details). Archiving takes a team’s file off the site until you restore it.</p>`;
+  const clubs = arr(ws.clubs).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus',18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus',18)}New team</button><button class="btn sm" data-act="team-template-choose">Use existing setup</button></div></div>
+    <section class="directory-filters" aria-label="Filter managed clubs and teams">
+      <label class="field-l"><span>Find a club or team</span><input type="search" data-input="managed-find" value="${esc(teamFinder.text)}" placeholder="Club or team name"></label>
+      <label class="field-l"><span>Sport</span><select data-change="managed-sport"><option value="">All sports</option>${M.SPORTS.map(x=>`<option value="${esc(x)}" ${x===teamFinder.sport?'selected':''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="field-l"><span>Club</span><select data-change="managed-club"><option value="">All managed clubs</option>${clubs.map(x=>`<option value="${esc(x.id)}" ${x.id===teamFinder.club?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>
+      <button class="btn sm" data-act="managed-clear">Clear</button>
+    </section>
+    <div id="managed-team-results">${managedTeamResults()}</div>
+    <p class="hint">Managed clubs are private to this coach workspace. Team selection, season history, branding and role permissions are unchanged by the reference directory below.</p>
+    <section class="sec" id="national-club-directory">
+      <div class="sec-h"><h2>Find a club · National directory</h2><span class="pill neutral">${directoryRecords().length} research candidates</span></div>
+      <p class="hint">These are publicly sourced club and association candidates, not verified registrations. Oztag venues may share an association; no official logo is used. Selecting a result <b>only opens an editable draft</b> and never grants club access.</p>
+      <div class="directory-filters" aria-label="Search national club directory">
+        <label class="field-l"><span>Club or location</span><input type="search" data-input="directory-find" value="${esc(clubFinder.text)}" placeholder="Search name, region or venue"></label>
+        <label class="field-l"><span>Sport</span><select data-change="directory-sport"><option value="">Both sports</option>${['Rugby league','Oztag'].map(x=>`<option value="${x}" ${clubFinder.sport===x?'selected':''}>${x}</option>`).join('')}</select></label>
+        <label class="field-l"><span>State</span><select data-change="directory-state"><option value="">All states</option>${DIRECTORY_STATES.map(x=>`<option value="${x}" ${clubFinder.state===x?'selected':''}>${x}</option>`).join('')}</select></label>
+        <button class="btn sm" data-act="directory-clear">Clear</button>
+      </div>
+      <div id="national-directory-results">${clubDirectoryResults()}</div>
+    </section>`;
 }
 // Links from what the coach typed: web addresses, email and phone.
 const webLink = (u, label) => { if (!u) return ''; const href = /^https?:\/\//i.test(u) ? u : `https://${u.replace(/^\/+/, '')}`; return `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(label || u.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))}</a>`; };
@@ -4612,8 +4678,8 @@ function viewClub() {
     </div></div>`;
 }
 const CLUB_SPORTS = M.SPORTS;
-function clubForm(c) {
-  const isNew = !c; c = M.normClub(c || { name: '' });
+function clubForm(c, forceNew = false) {
+  const isNew = !c || forceNew; c = M.normClub(c || { name: '' });
   const f = (name, label, ph = '', type = 'text') => `<label class="field-l"><span>${label}</span><input type="${type}" name="${name}" value="${esc(c[name])}" placeholder="${esc(ph)}"></label>`;
   const rows = [...c.officials, { role: 'President', name: '', phone: '', email: '' }, { role: 'Secretary', name: '', phone: '', email: '' }];
   return `<form data-form="club" autocomplete="off"><input type="hidden" name="id" value="${isNew ? '' : esc(c.id)}">
@@ -6740,6 +6806,22 @@ const actions = {
     state.teamTemplateSource = source.id;
     openSheet('Create from ' + M.teamName(source), teamForm(), 'team-new');
   }),
+  'managed-clear': coachOnly(() => {Object.assign(teamFinder,{text:'',sport:'',club:''});render();}),
+  'directory-clear': coachOnly(() => {Object.assign(clubFinder,{text:'',sport:'',state:'',limit:30});render();}),
+  'directory-more': coachOnly(() => {clubFinder.limit+=40;const v=$('#national-directory-results');if(v)v.innerHTML=clubDirectoryResults();}),
+  'directory-use': coachOnly(el => {
+    const c=directoryRecords().find(x=>x.id===el.dataset.id), draft=directoryClubDraft(c);
+    if (!draft) return;
+    const existing=arr(ws.clubs).find(x=>x.sport===c.sport && clubNameKey(x.name)===clubNameKey(c.name));
+    if (existing && confirm('A managed club with this name and sport already exists. Review that club instead? Choose Cancel if this is a separate club with the same name.')) {
+      openSheet('Existing club · '+existing.name,clubForm(existing),'club');
+      toast('This club already exists in your workspace. Review its current details instead of creating a duplicate.');
+      return;
+    }
+    state.clubFor=null; // Browsing a club cannot assign any team, club role or ownership.
+    openSheet('Review club details · '+c.name,clubForm(draft, true),'club');
+    toast('Research candidate: review the details, colours and logo before creating a local club.');
+  }),
   'club-new': coachOnly(() => { state.clubFor = state.sheet === 'settings' ? data.id : null; openSheet('New club', clubForm(null), 'club'); }),
   'club-brand-open': coachOnly(el => { const c=arr(ws.clubs).find(x=>x.id===el.dataset.id); if(c)openSheet('Edit '+c.name,clubForm(c),'club'); }),
   'club-edit': coachOnly(el => { const c = arr(ws.clubs).find(x => x.id === el.dataset.id); if (c) openSheet(`Edit ${c.name}`, clubForm(c), 'club'); }),
@@ -6888,6 +6970,8 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('input', e => {
   const k = e.target.dataset.input; if (!k) return;
+  if (k === 'managed-find') { teamFinder.text=e.target.value; const v=$('#managed-team-results'); if(v)v.innerHTML=managedTeamResults(); }
+  if (k === 'directory-find') { clubFinder.text=e.target.value; clubFinder.limit=30; const v=$('#national-directory-results'); if(v)v.innerHTML=clubDirectoryResults(); }
   if (k === 'squad-search') { state.squadSearch = e.target.value; const l = $('#squad-list'); if (l) l.innerHTML = squadList(); }
   if (k === 'anim-seek') animSeek(e.target.value);
   if (k === 'team-positions') refreshTeamSportGuide(e.target.closest('form'));
@@ -6912,6 +6996,8 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
+  if (k === 'managed-sport' || k === 'managed-club') { teamFinder[k==='managed-sport'?'sport':'club']=e.target.value; const v=$('#managed-team-results'); if(v)v.innerHTML=managedTeamResults(); }
+  if (k === 'directory-sport' || k === 'directory-state') { clubFinder[k==='directory-sport'?'sport':'state']=e.target.value; clubFinder.limit=30; const v=$('#national-directory-results'); if(v)v.innerHTML=clubDirectoryResults(); }
   if (k === 'player-crop-adjust' && activePlayerCrop) drawPlayerCrop();
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
   if (k === 'crew-team-pick' && isCoach()) {

@@ -108,7 +108,7 @@ with sync_playwright() as p:
     a.evaluate(act, ['go-live', {}]); a.fill('#sheet input[name=coach]', 'coach password one'); a.fill('#sheet input[name=coach2]', 'coach password one')
     a.fill('#sheet input[name=team]', 'team password one'); a.fill('#sheet input[name=team2]', 'team password one'); a.click('#sheet button[type=submit]')
     a.wait_for_function('window.__team.S.trial === false', timeout=20000); done(a)
-    c.ok(Wd(a, 'S.pub') == 'ok' and len(gh.files()) == 6, f'live: the test library published, one players’ file per team ({len(gh.files())} files)')
+    c.ok(Wd(a, 'S.pub') == 'ok' and len(gh.files()) == 7, f'live: the test library published, one players’ file per team ({len(gh.files())} files)')
     cb, bb = device(1280); bb.goto(url + '#home'); bb.wait_for_selector("text=I'm the coach"); bb.click("text=I'm the coach")
     bb.fill('input[name=password]', 'coach password one'); bb.click('button[type=submit]'); bb.wait_for_function('window.__team.ws', timeout=30000); bb.wait_for_timeout(200)
     c.ok(check(a) == check(bb) and Wd(bb, 'W.testLibrary.version') >= 1, 'live: the laptop signs in and holds the same data (same data check)')
