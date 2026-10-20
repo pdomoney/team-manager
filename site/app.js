@@ -1089,6 +1089,15 @@ function playerForm(p) {
     <div class="photo-row"><span class="photo-prev">${playerPic(p, true)}</span>
       <div class="grow"><label class="field-l" style="margin-bottom:6px"><span>Name</span><input type="text" name="name" required value="${esc(p.name)}" autocapitalize="words"></label>
       <div class="btn-row" style="margin:0"><label class="btn sm file-btn"><input type="file" accept="image/*" data-change="player-photo" aria-label="Choose a photo of the player">${p.photo ? 'Change photo' : 'Add photo'}</label><button type="button" class="btn sm" data-act="player-photo-clear" ${p.photo ? '' : 'hidden'}>Remove photo</button></div></div></div>
+    <div class="player-crop-panel" hidden>
+      <p class="hint">Crop before saving. Zoom and move the photo so the player’s face fits the square.</p>
+      <canvas class="photo-crop-preview" width="240" height="240" role="img" aria-label="Player photo crop preview"></canvas>
+      <label class="field-l"><span>Zoom</span><input type="range" name="cropZoom" min="100" max="300" step="5" value="100" data-input="player-crop-adjust"></label>
+      <label class="field-l"><span>Move left or right</span><input type="range" name="cropX" min="0" max="100" step="1" value="50" data-input="player-crop-adjust"></label>
+      <label class="field-l"><span>Move up or down</span><input type="range" name="cropY" min="0" max="100" step="1" value="50" data-input="player-crop-adjust"></label>
+      <div class="btn-row"><button type="button" class="btn primary sm" data-act="player-crop-apply">Use this crop</button>
+        <button type="button" class="btn sm" data-act="player-crop-cancel">Cancel</button></div>
+    </div>
     <input type="hidden" name="photo" value="${esc(p.photo || '')}">
     <p class="hint" style="margin:-2px 0 12px">The photo helps you put names to faces. It stays in the coach’s copy; players never see it.</p>
     <div class="field-l"><span>Gender</span><div class="opts">
@@ -4899,6 +4908,65 @@ const readLogo = file => readImage(file, 160, M.LOGO_MAX, M.validLogo);
 // Preserve existing photos up to PHOTO_MAX, but aim for much smaller new avatars so
 // multi-team encrypted drafts (including their base snapshots) fit mobile storage.
 const readPhoto = file => readImage(file, 180, M.PHOTO_MAX, M.validPhoto, 12000);
+// Player portraits are cropped locally, before they enter the encrypted coach copy.
+// The crop never leaves this browser or changes the current saved photo until accepted.
+let activePlayerCrop=null;
+function stopPlayerCrop(){
+  if(activePlayerCrop?.url) URL.revokeObjectURL(activePlayerCrop.url);
+  const panel=activePlayerCrop?.form?.querySelector('.player-crop-panel');
+  if(panel)panel.hidden=true;
+  activePlayerCrop=null;
+}
+async function beginPlayerCrop(file,form){
+  stopPlayerCrop();
+  if(!file || !/^image\//.test(file.type) || file.size>15e6)
+    throw new Error('Choose a photo under 15 MB.');
+  const url=URL.createObjectURL(file),img=new Image();
+  try{
+    await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('Try a PNG or JPEG image.'));img.src=url;});
+    if(!document.contains(form)){URL.revokeObjectURL(url);return;}
+    activePlayerCrop={url,img,form};
+    const panel=form.querySelector('.player-crop-panel');
+    ['cropZoom','cropX','cropY'].forEach(k=>{form.elements[k].value=k==='cropZoom'?100:50;});
+    panel.hidden=false;drawPlayerCrop();
+    panel.scrollIntoView({block:'nearest'});
+  }catch(err){URL.revokeObjectURL(url);throw err;}
+}
+function cropRectangle(){
+  const a=activePlayerCrop;
+  if(!a)return null;
+  const {img,form}=a,zoom=Number(form.elements.cropZoom.value)/100;
+  const side=Math.min(img.naturalWidth,img.naturalHeight)/zoom;
+  const x=(img.naturalWidth-side)*Number(form.elements.cropX.value)/100;
+  const y=(img.naturalHeight-side)*Number(form.elements.cropY.value)/100;
+  return {img,x,y,side};
+}
+function drawPlayerCrop(){
+  const rec=cropRectangle();if(!rec)return;
+  const canvas=activePlayerCrop.form.querySelector('.photo-crop-preview');
+  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(rec.img,rec.x,rec.y,rec.side,rec.side,0,0,canvas.width,canvas.height);
+}
+function usePlayerCrop(){
+  const rec=cropRectangle();if(!rec)return;
+  const form=activePlayerCrop.form,canvas=document.createElement('canvas');
+  canvas.width=180;canvas.height=180;
+  canvas.getContext('2d').drawImage(rec.img,rec.x,rec.y,rec.side,rec.side,0,0,180,180);
+  let photo='';
+  for(const quality of [0.8,0.65,0.5,0.35]){
+    for(const type of ['image/webp','image/jpeg']){
+      const candidate=canvas.toDataURL(type,quality);
+      if(M.validPhoto(candidate) && candidate.length<=12000){photo=candidate;break;}
+    }
+    if(photo)break;
+  }
+  if(!photo){toast('Unable to fit this crop into the private photo storage limit. Try another photo.');return;}
+  form.querySelector('[name=photo]').value=photo;
+  form.querySelector('.photo-prev').innerHTML='<span class="pphoto big"><img src="'+photo+'" alt=""></span>';
+  form.querySelector('[data-act=player-photo-clear]').hidden=false;
+  stopPlayerCrop();toast('Photo cropped. Save player to keep the change.');
+}
+
 function readImage(file, px, max, valid, target = max) {
   return new Promise((resolve, reject) => {
     if (!file || !/^image\//.test(file.type)) { reject(new Error('Pick an image file')); return; }
@@ -5656,6 +5724,7 @@ function requestCloseSheet() {
   closeSheet();
 }
 function closeSheet() {
+  stopPlayerCrop();
   const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; document.body.classList.remove('locked'); state.sheet = null;
   if (state.stylePreview) { state.stylePreview = false; applyTeamStyle(); }
   BEHIND.forEach(q => { const el = $(q); if (el) el.inert = false; });
@@ -6575,6 +6644,8 @@ const actions = {
       toast(e.status === 403 || e.status === 404 ? 'Your GitHub token can’t start the Rules watch. Run it from the repository’s Actions tab, or give the token Actions: Read and write.' : (e.message || 'Couldn’t start the check'));
     } finally { el.disabled = false; }
   }),
+  'player-crop-apply': coachOnly(() => usePlayerCrop()),
+  'player-crop-cancel': coachOnly(() => stopPlayerCrop()),
   'player-photo-clear': coachOnly(el => {
     const form = el.closest('form'); if (!form) return;
     form.querySelector('[name=photo]').value = '';
@@ -6719,6 +6790,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
+  if (k === 'player-crop-adjust' && activePlayerCrop) drawPlayerCrop();
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
   if (k === 'crew-team-pick' && isCoach()) {
     const t=M.activeTeams(ws).find(t=>t.id===e.target.value);
@@ -6748,12 +6820,9 @@ document.addEventListener('change', e => {
     }).catch(err=>toast(err.message)).finally(()=>{inp.value='';});
   }
   if (k === 'player-photo') {
-    const inp = e.target, form = inp.closest('form');
-    readPhoto(inp.files && inp.files[0]).then(d => {
-      form.querySelector('[name=photo]').value = d;
-      form.querySelector('.photo-prev').innerHTML = `<span class="pphoto big"><img src="${d}" alt=""></span>`;
-      form.querySelector('[data-act=player-photo-clear]').hidden = false;
-    }).catch(err => toast(err.message)).finally(() => { inp.value = ''; });
+    const inp=e.target,form=inp.closest('form');
+    if(form && inp.files?.[0]) beginPlayerCrop(inp.files[0],form).catch(err=>toast(err.message));
+    inp.value='';
   }
   if (k === 'club-logo') {
     const inp = e.target, form = inp.closest('form');
