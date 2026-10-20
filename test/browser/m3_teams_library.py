@@ -44,6 +44,7 @@ with sync_playwright() as p:
     pg.evaluate(act, ['lib-save', {'k': 'plays', 'id': pid}]); pg.wait_for_timeout(100)
     c.ok(W('W.library.plays.length') == 1, 'play saved to the library')
     pg.goto(url + '#home'); pg.wait_for_timeout(100)
+    pg.click('.scope-club[data-kind=all]'); pg.wait_for_timeout(100)
     pg.click(f'.scope-team[data-id="{u16}"]'); pg.wait_for_timeout(100)
     pg.goto(url + '#library'); pg.wait_for_timeout(100)
     c.ok('Not used by' not in pg.inner_text('#view') and 'Used by DragonTag Mixed 20s' in pg.inner_text('#view'), 'library shows usage')
