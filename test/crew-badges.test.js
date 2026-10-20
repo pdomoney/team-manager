@@ -60,7 +60,7 @@ test('badge pictures: one look per role, a corner mark for every status but curr
   ['wwcc', ...Object.keys(CREW_ROLES)].forEach(k => assert.ok(BADGE_LOOK[k], k));
   const svg = s => badgeSvg('blue', s);
   assert.ok(!svg('current').includes('<circle cx="26"'), 'current: no mark');
-  assert.ok(svg('expiring').includes('#B26A00') && svg('expired').includes('#C0283A') && svg('unverified').includes('stroke-dasharray'), 'each other status has its own mark');
+  assert.ok(svg('expiring').includes('#965700') && svg('expired').includes('#C0283A') && svg('unverified').includes('stroke-dasharray'), 'each other status has its own mark');
   assert.ok(svg('expired').includes('#2F7FD0'), 'an expired blue shirt keeps a blue ring');
   assert.match(svg('current'), /aria-hidden="true"/);
   assert.equal(fmtDate('2026-03-05'), '5 Mar 2026'); assert.equal(fmtDate('nope'), '');

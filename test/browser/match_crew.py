@@ -20,10 +20,24 @@ with sync_playwright() as p:
         pg.goto(url + '#crew')
         pg.wait_for_selector('[data-act=crew-new]')
         c.ok('Oztag' in pg.inner_text('#view'), f'[{width}] staff page uses the team sport')
+        c.ok(pg.locator('#view #crew-directory-section').count()==1
+             and pg.locator('#view #crew-rules-section').count()==1
+             and pg.evaluate("document.querySelector('#crew-directory-section').getBoundingClientRect().top < document.querySelector('#crew-rules-section').getBoundingClientRect().top"),
+             f'[{width}] club directory precedes separate team staffing requirements')
+        c.ok(pg.locator('#view [data-act=crew-jump]').count()==2
+             and 'Selected team' in pg.inner_text('#view .crew-team-context'),
+             f'[{width}] clear team context and two navigation shortcuts')
         pg.locator('[data-act=crew-new]').click()
         c.ok(pg.locator('#sheet form[data-form=crew-intake-start] [name=method]').count()==3
              and 'Only clubs in this encrypted coach workspace' in pg.inner_text('#sheet'),
              f'[{width}] club-first entry offers manual, existing and email routes without pretending to have accounts')
+        contrast = pg.evaluate("""() => {
+          const option = document.querySelector('#sheet .crew-entry-choices [name=method]:checked');
+          const helper = option?.nextElementSibling?.querySelector('small');
+          return [getComputedStyle(helper).color, getComputedStyle(option.nextElementSibling).backgroundColor];
+        }""")
+        c.ok(contrast[0]=='rgb(255, 255, 255)' and contrast[1]!='rgb(255, 255, 255)',
+             f'[{width}] selected volunteer method keeps readable white helper text')
         pg.locator('#sheet [data-act=close-sheet]').last.click()
         c.ok('Match-day staff' in pg.inner_text('#view'), f'[{width}] match staff route is coach-only')
         for name, role, member in [('Casey Coach', 'coach','coach'), ('Morgan Manager', 'manager','volunteer'), ('Frances First Aid', 'firstAid','trainer')]:
@@ -133,6 +147,29 @@ with sync_playwright() as p:
              f'[{width}] active match staff context follows chosen team')
         c.ok('Frances First Aid' not in pg.inner_text('#view'),
              f'[{width}] unrelated Oztag club staff are not silently pooled into Titans club')
+        pg.evaluate("""() => {
+          const t=window.__team.data, now=new Date();
+          const d=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+          t.matches.push({id:'unsupported-league-match',date:d,start:'19:00',
+            opponent:'League opponent',status:'scheduled',crew:[],result:{us:0,them:0}});
+        }""")
+        # Refresh the active view after direct synthetic fixture setup, as normal form save does.
+        pg.evaluate(act,['tab',{'tab':'crew'}])
+        pg.evaluate(act,['matchday-open',{'id':'unsupported-league-match'}])
+        probe = pg.evaluate("""() => {
+          const t=window.__team.data, sheet=document.querySelector('#sheet');
+          return {sport:t.team?.sport,team:t.team?.name,
+            matches:t.matches?.map(m=>m.id),sheetHidden:sheet?.hidden,
+            sheetText:sheet?.innerText?.slice(0,180),
+            closeButtons:sheet?.querySelectorAll('[data-act=close-sheet]').length,
+            page:document.location.hash};
+        }""")
+        c.ok(pg.locator('#sheet [data-act=close-sheet]').count()>0
+             and pg.locator('.md-score').count()==0
+             and 'League opponent' in pg.inner_text('#sheet'),
+             f'[{width}] non-Oztag uses match detail without Oztag field/try controls: {probe}')
+        if pg.locator('#sheet [data-act=close-sheet]').count():
+            pg.locator('#sheet [data-act=close-sheet]').last.click()
         # Club-only manual record: team selection and qualifications are optional.
         pg.locator('#view [data-act=crew-new]').click()
         pg.locator('#sheet form[data-form=crew-intake-start] button[type=submit]').click()

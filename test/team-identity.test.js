@@ -36,6 +36,13 @@ test('custom colours are adjusted until they pass, and say what changed', () => 
   assert.equal(r.actionInk, '#16201B', 'a pale button gets dark text');
   const mid = resolveStyle({ custom: { dark: '#123456', action: '#808080', accent: '#FFFFFF' } });
   assert.ok(contrast(mid.action, mid.actionInk) >= 4.5, 'a mid-grey button is darkened until a text colour passes');
+  // The fallback button on a dark card must have readable text too,
+  // even for a custom accent between the light/dark text thresholds.
+  for (const accent of ['#888888','#777777','#989898','#AAAAAA']) {
+    const custom = resolveStyle({ custom: { dark:'#0B2545', action:'#111111', accent } });
+    assert.ok(contrast(custom.onDark, custom.onDarkInk) >= 4.5, accent + ' on-card text');
+    assert.ok(contrast(custom.onDark, custom.dark) >= 3, accent + ' separated from header');
+  }
   const ok = resolveStyle({ custom: { dark: '#0B2545', action: '#1C6FB5', accent: '#8DC8F0' } });
   assert.deepEqual(ok.adjusted, []);
 });

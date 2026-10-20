@@ -242,6 +242,14 @@ with sync_playwright() as p:
     pg.check('#sheet [name=role][value=yellow]'); pg.click('#sheet form[data-form=crew-person] button[type=submit]'); pg.wait_for_selector('#crew-teams')
     c.ok(W("W.matchOfficials[0].rolesBySport['Rugby league']") == ['yellow'] and W("W.matchOfficials[0].rolesBySport.Oztag") == ['manager'],
          'roles saved for that sport only, and back to the profile')
+    # Withdrawing the final current role must not erase historical accreditation.
+    pg.click('#crew-teams [data-act=crew-save-review][data-team=league2026]'); pg.wait_for_selector('#sheet form[data-form=crew-person]')
+    pg.uncheck('#sheet [name=role][value=yellow]')
+    pg.once('dialog',lambda dlg: dlg.accept())
+    pg.click('#sheet form[data-form=crew-person] button[type=submit]'); pg.wait_for_selector('#crew-teams')
+    c.ok(W("W.matchOfficials[0].rolesBySport['Rugby league']") == []
+         and W("W.matchOfficials[0].rolesBySport.Oztag") == ['manager'],
+         'withdrawal of the last rugby league role retains separate Oztag role history')
     pg.uncheck(f'#crew-teams [name=club][value="{club}"]')
     pg.click('#sheet form[data-form=crew-basic] button[type=submit]'); pg.wait_for_timeout(120)
     c.ok(club not in W("W.matchOfficials[0].clubIds") and W("W.matchOfficials[0].teamIds") == ['league2026'], 'unticking the club removes the membership only')
