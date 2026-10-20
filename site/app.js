@@ -4186,9 +4186,12 @@ function minsToStart(m, now = new Date()) {
 // Time for the Match Day screen: on the day, from about three hours before the start until it's over.
 // Until sport-aware lineups and scoring are implemented, the advanced Match Day
 // controls are available for Oztag only. Other sports retain their match sheet.
-const supportsMatchDayControls = () => M.teamSport(data.team,M.clubOf(ws,data)) === 'Oztag';
+const supportsMatchDayControls = (m = null) => {
+  const owner = m ? (M.activeTeams(ws).find(t => arr(t.matches).some(x => x.id === m.id)) || data) : data;
+  return M.teamSport(owner.team,M.clubOf(ws,owner)) === 'Oztag';
+};
 function matchDayDue(m, now = new Date()) {
-  if (!supportsMatchDayControls() || !m || m.status !== 'scheduled' || m.date !== toISODate(now)) return false;
+  if (!m || !supportsMatchDayControls(m) || m.status !== 'scheduled' || m.date !== toISODate(now)) return false;
   const t = minsToStart(m, now); return t === null || (t <= 180 && t >= -180);
 }
 const PHASES = [['before', 'Before game day'], ['day', 'On the day'], ['after', 'Afterwards']];
@@ -4298,7 +4301,7 @@ function mdField(m, lu) {
 }
 function viewMatchDay() {
   const m = matchById(state.matchDayId); if (!m) return '';
-  if (!supportsMatchDayControls()) return `<section class="crew-quiet">
+  if (!supportsMatchDayControls(m)) return `<section class="crew-quiet">
     <span>Oztag-specific field and scoring controls are not available for ${esc(M.teamSport(data.team,M.clubOf(ws,data)))} yet. Use Match details for this sport.</span>
     <button class="btn sm" data-act="matchday-close">Matches</button></section>`;
   const lu = matchLineup(m); if (lu) state.lineupId = lu.id;
@@ -5894,7 +5897,7 @@ const actions = {
   // Match Day
   'matchday-open': coachOnly(el => {
     const m = matchById(el.dataset.id); if (!m) return;
-    if (!supportsMatchDayControls()) {
+    if (!supportsMatchDayControls(m)) {
       openMatch(m.id);
       toast('Advanced field and scoring controls are currently Oztag-only. Use Match details for this sport.');
       return;
