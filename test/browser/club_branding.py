@@ -73,7 +73,6 @@ with sync_playwright() as p:
         # One other club can be configured independently without clearing its team's override.
         pg.evaluate(act,['settings',{'sec':'clubbrand'}])
         pg.locator('#sheet select[name=brandingClubId]').select_option('other-club')
-        pg.wait_for_selector('#sheet [name=brandingClubId][value="other-club"]',state='attached') if False else None
         c.ok(pg.locator('#sheet select[name=brandingClubId]').input_value()=='other-club',
              f'[{width}] admin can change club without changing team')
         pg.locator('#sheet .style-sw:has(input[value=redwhite])').click()
