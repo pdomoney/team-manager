@@ -2423,9 +2423,9 @@ function playLegend(play, side) {
 // Legacy untagged starter plays are Oztag. New custom plays record their actual team sport.
 const visiblePlays = () => {
   const sport = curSport();
-  return V.plays.filter(p => p.sport ? p.sport === sport
-    : p.builtin ? sport === 'Oztag'
-      : (p.set === 'league' ? ['Rugby league', 'League tag'].includes(sport) : sport === 'Oztag'));
+  // Untagged coach-authored legacy plays are still the team's own data. Keep them
+  // discoverable with a review marker rather than silently hiding saved work.
+  return V.plays.filter(p => p.sport ? p.sport === sport : !p.builtin || sport === 'Oztag');
 };
 const playById = id => visiblePlays().find(p => p.id === id);
 const playSteps = (play, side) => {
@@ -2441,10 +2441,10 @@ function viewPlays() {
   state.playId = null;
   const missing = oztag ? STARTER_IDS.filter(id => !V.plays.some(p => p.id === id)).length : 0;
   return `<div class="sec-h"><h2>${esc(sport)} plays</h2><div class="btn-row">${cardToggle('plays')}${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div></div>
-    <p class="hint" style="margin:-4px 0 12px">${oztag ? 'Every play works both ways. Open one and switch between attacking left and right.' : `Only ${esc(sport)} plays are shown for this team. Legacy Oztag starters remain with Oztag teams. New plays use the selected sport; diagrams are an eight-position teaching canvas and not a full-field formation.`}</p>
+    <p class="hint" style="margin:-4px 0 12px">${oztag ? 'Every play works both ways. Open one and switch between attacking left and right.' : `Plays tagged ${esc(sport)} are shown for this team, as well as its earlier untagged custom plays marked for review. Legacy Oztag starters remain with Oztag teams. New plays use the selected sport; diagrams are an eight-position teaching canvas and not a full-field formation.`}</p>
     ${plays.length ? `<div class="list grid plays-grid ${cardClass('plays')}">${plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
-      <span class="grow"><span class="name" style="display:block">${esc(p.name)}${coach && p.lib ? ' <span class="pill neutral">Library</span>' : ''}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
+      <span class="grow"><span class="name" style="display:block">${esc(p.name)}${!p.sport && !p.builtin && !oztag ? ' <span class="pill neutral">Review sport</span>' : ''}${coach && p.lib ? ' <span class="pill neutral">Library</span>' : ''}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
       <span class="pill neutral">${esc(p.category || 'Other')}</span>
     </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add a play for this team.' : 'No plays yet.'}</p></div>`}
     ${coach && missing ? `<button class="link-btn" data-act="plays-restore">Restore the ${missing} missing starter play${missing === 1 ? '' : 's'}</button>` : ''}`;
@@ -2846,6 +2846,7 @@ function openPlayEditor(play) {
       <label class="field-l"><span>Name</span><input type="text" name="name" value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
       <label class="field-l"><span>Type</span><select name="category">${[...PLAY_CATS, ...(PLAY_CATS.includes(draft.category) ? [] : [draft.category])].map(c => `<option ${c === draft.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
     </div>
+    <label class="field-l"><span>Play sport</span><select name="playSport">${[...M.SPORTS, ...(draft.sport && !M.SPORTS.includes(draft.sport) ? [draft.sport] : [])].map(sp => `<option value="${esc(sp)}" ${sp === (draft.sport || curSport()) ? 'selected' : ''}>${esc(sp)}</option>`).join('')}</select><small>Review this choice when adapting an old play to another sport. A diagram's eight drawn positions are not a full team formation.</small></label>
     <div class="seg ped-workspaces" role="group" aria-label="Play editor workspace">
       <button type="button" data-act="ped-tab" data-tab="teach" aria-pressed="true">Teach the play</button>
       <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="false">Advanced diagram</button>
@@ -7685,7 +7686,7 @@ document.addEventListener('submit', async e => {
       refreshPedTeaching(); toast('Every teaching action needs an instruction before saving.'); return;
     }
     if (!str('name')) { toast('Give the play a name'); const n = form.querySelector('[name=name]'); if (n) n.focus(); return; }
-    Object.assign(E.draft, { name: str('name'), category: str('category') || 'Other', headline: str('headline'), when: str('when'), steps: String(f.get('steps') || '').trim() });
+    Object.assign(E.draft, { name: str('name'), sport: M.SPORTS.includes(str('playSport')) ? str('playSport') : curSport(), category: str('category') || 'Other', headline: str('headline'), when: str('when'), steps: String(f.get('steps') || '').trim() });
     if (form.querySelector('[name=rules]')) E.draft.rules = f.getAll('rules').map(String);
     if (E.draft.builtin) E.draft.edited = true;   // keep the coach's version when the starter drawings are updated
     M.libMarkEdited(E.draft);                      // and when the library version is updated
