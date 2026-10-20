@@ -135,14 +135,13 @@ with sync_playwright() as p:
           t.matches=[];t.sessions=[];t.players=[];t.tasks=[];t.seasons=[];
           x.M.addTeam(x.ws,t);
         }""")
-        pg.evaluate(act, ['crew-switch', {}])
-        c.ok(pg.locator('#sheet [name=teamId] option').count()>=2,
-             f'[{width}] team selection includes the other club team')
-        c.ok('Titans League U12' in pg.locator('#sheet [name=teamId]').inner_text()
-             and 'Rugby league' in pg.locator('#sheet [name=teamId]').inner_text(),
-             f'[{width}] picker exposes teams from the other club with their true sport')
-        pg.locator('#sheet [name=teamId]').select_option('league2026')
-        pg.locator('#sheet form[data-form=crew-pick-view] button[type=submit]').click()
+        pg.evaluate(act, ['tab', {'tab':'crew'}])
+        c.ok(pg.locator('#view [name=crewTeamId] option').count()>=2,
+             f'[{width}] inline team selection includes the other club team')
+        c.ok('Titans League U12' in pg.locator('#view [name=crewTeamId]').inner_text()
+             and 'Rugby league' in pg.locator('#view [name=crewTeamId]').inner_text(),
+             f'[{width}] inline picker shows teams from other clubs with true sport')
+        pg.locator('#view [name=crewTeamId]').select_option('league2026')
         c.ok('Titans League U12' in pg.inner_text('#view'),
              f'[{width}] active match staff context follows chosen team')
         c.ok('Frances First Aid' not in pg.inner_text('#view'),
