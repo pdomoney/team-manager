@@ -6809,7 +6809,7 @@ const actions = {
     const c=directoryRecords().find(x=>x.id===el.dataset.id), draft=directoryClubDraft(c);
     if (!draft) return;
     const existing=arr(ws.clubs).find(x=>x.sport===c.sport && x.name.toLocaleLowerCase('en-AU')===c.name.toLocaleLowerCase('en-AU'));
-    if (existing) {
+    if (existing && confirm('A managed club with this name and sport already exists. Review that club instead? Choose Cancel if this is a separate club with the same name.')) {
       openSheet('Existing club · '+existing.name,clubForm(existing),'club');
       toast('This club already exists in your workspace. Review its current details instead of creating a duplicate.');
       return;
