@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { effectiveStyle, normStyle } from '../site/team-style.js';
 import { normClub, clubForPlayers, validLogo } from '../site/model.js';
+import { teamView } from '../site/vault.js';
 
 test('club colours are inherited unless a team explicitly overrides them',()=>{
   const club=normClub({id:'club1',name:'Harbour Club',style:{palette:'maroon'}});
@@ -38,4 +39,15 @@ test('multiple teams share the same club without copying logo bytes to each team
   assert.equal(teams.every(t=>effectiveStyle(t.team,club).palette==='bluegold'),true);
   assert.equal(clubForPlayers(club).logo,club.logo);
   assert.equal(teams.every(t=>!('logo' in t.team)),true);
+});
+test('the actual player projection keeps only the validated public club style and logo',()=>{
+  const logo='data:image/png;base64,AA==';
+  const club=normClub({id:'c',name:'Club',logo,style:{palette:'maroon'},
+    officials:[{role:'Registrar',name:'Private Registrar',email:'secret@example.com'}],
+    notes:'private notes'});
+  const projection=teamView({team:{name:'Youth'},players:[]},club);
+  assert.deepEqual(projection.club.style,{palette:'maroon'});
+  assert.equal(projection.club.logo,logo);
+  assert.equal(JSON.stringify(projection).includes('secret@example.com'),false);
+  assert.equal(JSON.stringify(projection).includes('private notes'),false);
 });
