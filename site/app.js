@@ -4529,7 +4529,7 @@ function viewTeams() {
   return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus', 18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button><button class="btn sm" data-act="team-template-choose">Use existing setup</button></div></div>
     ${clubs.map(c => { const ts = sortT(M.clubTeams(ws, c.id)); return `<section class="sec club-group">
       <div class="club-head">${crest(clubBadge(c))}<span class="grow"><span class="name" style="display:block">${esc(c.name)}</span><span class="sub">${esc([c.sport, c.governingBody, `${ts.length} team${ts.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</span></span>
-        <button class="btn sm" data-act="club-brand-open" data-id="${esc(c.id)}">Branding</button><button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
+        <button class="btn sm" data-act="club-edit" data-id="${esc(c.id)}">Edit club</button><button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
       ${ts.length ? `<div class="list">${ts.map(row).join('')}</div>` : '<p class="muted small">No teams in this club yet.</p>'}
     </section>`; }).join('')}
     ${loose.length ? `<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name" style="display:block">Not in a club</span><span class="sub">Choose a club in Settings › Team</span></span></div><div class="list">${loose.map(row).join('')}</div></section>` : ''}
@@ -4584,6 +4584,9 @@ function clubForm(c) {
     <div class="two"><label class="field-l"><span>Default sport for teams</span><select name="sport">${[...new Set([...CLUB_SPORTS, c.sport])].map(x => `<option ${x === c.sport ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>${f('governingBody', 'Governing body', 'e.g. Australian Oztag')}</div>
     <p class="hint">Teams inherit this sport unless their own Team sport setting overrides it. Changing the club default does not change teams with an explicit sport.</p>
     <div class="two">${f('founded', 'Founded', 'e.g. 1992')}${f('juniorBrand', 'Junior program', 'e.g. DragonTag')}</div>
+    ${teamStyleFields(c,c,true)}
+    <label class="check club-brand-apply"><input type="checkbox" name="applyAll"><span>Use these club colours for all teams (remove individual team colour overrides)</span></label>
+    <p class="hint">Teams without an override already inherit the club palette and logo. Select this only when you want to replace any existing team-specific colours.</p>
     <h3 class="form-sec">Contact</h3>
     <div class="two">${f('email', 'Email', '', 'email')}${f('phone', 'Phone', '', 'tel')}</div>
     ${f('website', 'Website', 'https://')}${f('postal', 'Postal address')}
@@ -4668,10 +4671,10 @@ function formStyle(form) {
 function previewTeamStyle(form) {
   const st = formStyle(form), custom = (form.querySelector('[name=teamStyle]:checked') || {}).value === 'custom';
   const box = form.querySelector('.style-custom'); if (box) box.hidden = !custom;
-  const club = form.dataset.form === 'club-branding'
-    ? arr(ws.clubs).find(c => c.id === form.querySelector('[name=brandingClubId]')?.value)
-    : arr(ws.clubs).find(c => c.id === form.querySelector('[name=clubId]')?.value);
-  const r = applyTeamStyle(st || (form.dataset.form === 'club-branding' ? null : normStyle(club?.style)));
+  const club = form.dataset.form === 'club'
+    ? arr(ws.clubs).find(c=>c.id===form.querySelector('[name=id]')?.value)
+    : arr(ws.clubs).find(c=>c.id===form.querySelector('[name=clubId]')?.value);
+  const r=applyTeamStyle(st || (form.dataset.form==='club' ? null : normStyle(club?.style)));
   state.stylePreview = true;
   const note = form.querySelector('.style-note');
   if (note) note.textContent = custom && r && r.adjusted.length ? `Adjusted so it stays readable: ${r.adjusted.map(k => ({ dark: 'header made darker', action: 'buttons made darker', accent: 'highlight made lighter' })[k]).join(', ')}.` : '';
@@ -5370,7 +5373,7 @@ function settingsBody() {
 // Settings in sections, each opened on its own and saved on its own (it used to be one form five
 // screens long with the Save button halfway down).
 const SETTINGS_SECS = [
-  ['team', 'Team', 'Name, club, sport and rules'], ['clubbrand', 'Club branding', 'Colours and logo for all club teams'], ['season', 'Season and tournament', 'The tournament and its dates'],
+  ['team', 'Team', 'Name, club, sport and rules'], ['season', 'Season and tournament', 'The tournament and its dates'],
   ['contacts', 'Contacts', 'Team contact and team staff'], ['training', 'Training', 'Usual venue and times'],
   ['field', 'Field', 'Zones and channels on the Lineup field'], ['players', 'Jerseys', 'Whether jerseys are lent and handed back'],
   ['publishing', 'Publishing', 'Players’ access, passwords and GitHub'], ['backup', 'Backup', 'Export, import and this phone'],
@@ -5380,7 +5383,6 @@ function settingsSummary(k) {
   const fmtR = (a, b) => [a, b].filter(Boolean).map(fmtTime).join('–');
   return {
     team: [T.name, M.teamSport(T, club), club && club.name].filter(Boolean).join(' · '),
-    clubbrand: arr(ws.clubs).length+' clubs · '+arr(ws.clubs).filter(c=>c.logo||c.style).length+' branded',
     season: T.event ? `${T.event}${T.eventStart ? ` · ${fmtDay(T.eventStart)}${T.eventEnd && T.eventEnd !== T.eventStart ? ` to ${fmtDay(T.eventEnd)}` : ''}` : ''}` : 'No tournament set',
     contacts: [T.tasksContact.name ? `Contact: ${T.tasksContact.name}` : 'No team contact', `${arr(T.staff).length} staff`].join(' · '),
     training: [T.trainingVenue, fmtR(T.trainingStart, T.trainingEnd)].filter(Boolean).join(' · ') || 'No defaults set',
@@ -5430,7 +5432,6 @@ function settingsSection(k) {
   const back = `<button class="btn sm set-back" data-act="settings">${icon('back', 18)}All settings</button>`;
   const form = (body, label = 'Save') => `${back}<form data-form="settings" data-sec="${k}">${body}<button class="btn primary block" type="submit">${esc(label)}</button></form>`;
   const positions = `<label class="field-l"><span>Positions for this team</span><input type="text" name="positions" data-auto-positions="${T.positionsCustom === true ? 'false' : 'true'}" data-last-default="${esc(M.positionsFor(T, club).join(', '))}" data-input="team-positions" value="${esc(M.positionsFor(T, club).join(', '))}"><small>What players can pick as preferred positions, separated by commas. They follow the team’s sport unless you change them. ${esc(M.teamSport(T, club))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, club)] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>`;
-  if (k === 'clubbrand') return clubBrandingSection(state.brandClubId);
   if (k === 'team') return form(`<label class="field-l"><span>Team name</span><input type="text" name="name" value="${esc(T.name)}"></label>
     ${teamDetailsFields(T, { staff: false, maxMales: true, after: positions })}${teamStyleFields(T)}`, 'Save team');
   if (k === 'season') return form(`<h3 class="form-sec">Tournament</h3>
@@ -6536,12 +6537,7 @@ const actions = {
     openSheet('Create from ' + M.teamName(source), teamForm(), 'team-new');
   }),
   'club-new': coachOnly(() => { state.clubFor = state.sheet === 'settings' ? data.id : null; openSheet('New club', clubForm(null), 'club'); }),
-  'club-brand-open': coachOnly(el => {
-    const id=el.dataset.id;
-    if(!arr(ws.clubs).some(c=>c.id===id))return;
-    state.brandClubId=id;
-    openSheet('Club branding',clubBrandingSection(id),'settings');
-  }),
+  'club-brand-open': coachOnly(el => { const c=arr(ws.clubs).find(x=>x.id===el.dataset.id); if(c)openSheet('Edit '+c.name,clubForm(c),'club'); }),
   'club-edit': coachOnly(el => { const c = arr(ws.clubs).find(x => x.id === el.dataset.id); if (c) openSheet(`Edit ${c.name}`, clubForm(c), 'club'); }),
   'club-open': coachOnly(el => { state.clubId = el.dataset.id; goTo('club'); }),
   'updates': () => openUpdates(),
@@ -6971,14 +6967,19 @@ document.addEventListener('submit', async e => {
     const name = str('name'); if (!name) { fieldError(form, 'name', 'Give the club a name'); return; }
     const id = str('id'), old = id && arr(ws.clubs).find(c => c.id === id);
     const fields = Object.fromEntries(M.CLUB_PUBLIC.filter(k => k !== 'id').map(k => [k, str(k)]));
-    const club = M.normClub({ ...(old || {}), ...fields, name, officials: peopleRows(f, 'o'), notes: str('notes') });
-    if (old) Object.assign(old, club);
+    const logo=str('logo');
+    if(logo && !M.validLogo(logo)){fieldError(form,'logo','Choose a supported small logo');return;}
+    const style=formStyle(form);
+    const club = M.normClub({ ...(old || {}), ...fields, name, officials: peopleRows(f, 'o'), notes: str('notes'), style, logo });
+    if (style) club.style=style; else delete club.style;
+    if (old) { Object.assign(old, club); if (!style) delete old.style; }
     else {
       ws.clubs = arr(ws.clubs); ws.clubs.push(club);
       const t = state.clubFor && M.findTeam(ws, state.clubFor); if (t && !t.team.clubId) t.team.clubId = club.id;
     }
-    state.clubFor = null; state.clubId = club.id;
-    save(); closeSheet(); if (state.tab !== 'teams') state.tab = 'club'; render(); toast(old ? 'Club saved' : `${club.name} created`);
+    if(f.get('applyAll')) M.clubTeams(ws,club.id).forEach(t=>{delete t.team.style;});
+    state.stylePreview=false; state.clubFor=null; state.clubId=club.id;
+    save(); closeSheet(); if(state.tab!=='teams') state.tab='club'; render(); toast(old?'Club saved':club.name+' created');
     return;
   }
   if (kind === 'team-new') {
