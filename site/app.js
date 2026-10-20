@@ -3563,8 +3563,15 @@ function viewCrew() {
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div>
-    <div class="crew-context crew-team-context"><span class="sub"><span class="crew-eyebrow">Selected team</span><strong>${esc(data.team.name)}</strong> · ${esc(sport)} · ${esc(profile.provider)}</span>
-    <button class="btn sm" data-act="crew-switch">Change team</button></div>
+    <div class="crew-context crew-team-context">
+      <label class="field-l crew-team-picker"><span>Staffing requirements for team</span>
+        <select name="crewTeamId" data-change="crew-team-pick" aria-label="Choose team for match-day staffing">
+          ${arr(ws.clubs).map(c=>`<optgroup label="${esc(c.name)}">${M.activeTeams(ws).filter(t=>t.team.clubId===c.id).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}</optgroup>`).join('')}
+          ${M.activeTeams(ws).filter(t=>!t.team.clubId).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}
+        </select>
+        <small>${esc(sport)} · ${esc(profile.provider)}. Select another team here without opening a second window.</small>
+      </label>
+    </div>
     <p class="crew-intro">The club directory lists people. Staffing requirements belong to the selected team, sport and competition.</p>
     <nav class="crew-page-nav" aria-label="Match staff sections"><button class="btn sm" data-act="crew-jump" data-to="crew-directory-section">Club volunteers</button><button class="btn sm" data-act="crew-jump" data-to="crew-rules-section">Team requirements</button></nav>
     <details class="info-note crew-help"><summary>${icon('info', 18)}How these records work</summary><div>
@@ -6707,6 +6714,11 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
+  if (k === 'crew-team-pick' && isCoach()) {
+    const t=M.activeTeams(ws).find(t=>t.id===e.target.value);
+    if(!t)return;
+    switchTeam(t.id); state.crewClubId=t.team.clubId||''; render();
+  }
   if (k === 'team-style') previewTeamStyle(e.target.closest('form'));
   if (k === 'club-branding-pick' && isCoach()) {
     const id=e.target.value;
