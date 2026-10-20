@@ -922,7 +922,13 @@ body.wide .ped > .two{grid-template-columns:2fr 1fr}
 /* Seasons */
 #team-title.with-season{display:flex;flex-direction:column;justify-content:center;line-height:1.05}
 #team-title .t-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;min-width:0}
-#team-title.with-season .team-btn{min-height:28px;padding:0 6px 0 0}
+/* Header identity is information, not another team selector. Home owns navigation. */
+#team-title .t-meta{display:flex;align-items:center;gap:8px;max-width:100%;min-width:0;overflow:hidden}
+#team-title .t-meta .season-tag{flex:none}
+#team-title .t-context{display:block;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;color:rgba(255,255,255,.83);font:500 13px/1.3 var(--font-b);letter-spacing:0}
+#team-title .t-context[title]{cursor:default}
+@media (max-width:420px){#team-title .t-meta{gap:5px}#team-title .t-context{font-size:12px}}
 .season-tag{appearance:none;background:none;border:0;color:rgba(255,255,255,.82);font:600 14px/1.2 var(--font-b);padding:2px 0;cursor:pointer;text-align:left;min-height:24px;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 span.season-tag{cursor:default}
 .season-tag.past{color:var(--gold)}

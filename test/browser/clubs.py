@@ -61,7 +61,8 @@ with sync_playwright() as p:
     pg.click(f'[data-act=club-open][data-id="{hills}"]'); pg.wait_for_timeout(100)
     c.ok(pg.inner_text('#view .club-title > span:last-child') == 'Hills Oztag', 'and so does the new club')
     # back to DragonTag; the players' view
-    pg.click('.team-btn'); pg.click('#sheet [data-act=team-pick][data-id=team1]'); pg.wait_for_timeout(100)
+    pg.goto(url + '#home'); pg.wait_for_timeout(100)
+    pg.click('.scope-team[data-id=team1]'); pg.wait_for_timeout(100)
     pg.evaluate(act, ['preview-on', {}]); pg.goto(url + '#more'); pg.wait_for_timeout(150)
     c.ok(pg.locator('.more-item[data-tab=club]').count() == 1 and 'Clubs and teams' not in pg.inner_text('#view'), 'players’ More: their own club only')
     pg.goto(url + '#club'); pg.wait_for_timeout(150)

@@ -6,6 +6,7 @@ The app has five sections: **Home** (the command centre below), **Schedule** (up
 
 **Home** is the coach's command centre across every club and team:
 - **Clubs and teams**: a compact row of club badges and team chips, with a dot on a team that needs attention. Show every club, one club or one team; the choice is kept on this device. Picking a team also makes it the team you're editing. With one team there's nothing to pick.
+- **Header team identity**: the team name is information, not another team-switching dropdown. Below the name, the header shows season, club and sport. Use the Home team chips to change which team you are editing, or Clubs and teams for administration. Choosing a *club* on Home filters the list; choosing a *team* explicitly changes the editing context. The existing season picker remains available. Players see only their team's context.
 - **Spotlight**: the single most urgent thing, from recorded dates and times only.
   - Critical: a match within 24 hours without a ready lineup or enough players confirmed, or riders without a seat or volunteer spots not confirmed within 24 hours.
   - Imminent: training within 24 hours, a match or the tournament within 72 hours.

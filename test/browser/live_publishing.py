@@ -74,7 +74,7 @@ with sync_playwright() as p:
     c.ok(W(d2, 'S.pub') == 'ok', 'laptop published')
     d1.evaluate(act, ['edit-player', {'id': W(d1, "W.players.find(p => p.name.startsWith('Mia')).id")}]) if W(d1, 'D.id') == 'team1' else None
     if W(d1, 'D.id') != 'team1':
-        d1.click('.team-btn'); d1.click('#sheet [data-act=team-pick][data-id=team1]'); d1.wait_for_timeout(100)
+        d1.evaluate(act, ['team-pick', {'id': 'team1'}]); d1.wait_for_timeout(100)
         d1.evaluate(act, ['edit-player', {'id': W(d1, "W.players.find(p => p.name.startsWith('Mia')).id")}])
     d1.fill('#sheet input[name=number]', '99'); d1.click('#sheet button[value=save]'); d1.wait_for_timeout(100)
     d1.evaluate(act, ['publish', {}]); wait_pub(d1)
