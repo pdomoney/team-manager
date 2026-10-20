@@ -293,6 +293,7 @@ const state = {
   system: null, sysFlip: false,
   playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
   taskFilter: 'up', taskPick: null, crewClubId: '',
+  cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
@@ -644,6 +645,13 @@ const ICON = {
   field: '<rect x="4.5" y="3" width="15" height="18" rx="1.5"/><path d="M4.5 12h15"/><circle cx="12" cy="12" r="2.5"/>',
   back: '<path d="M15 6l-6 6 6 6"/>'
 };
+// Page-specific card/list preference lives on this device only, not in team records.
+const CARD_PAGES = ['plays', 'helpers', 'crew', 'matches'];
+const cardMode = page => state.cardViews[page] === 'list' ? 'list' : 'cards';
+const cardClass = page => cardMode(page) === 'list' ? 'view-list' : 'view-cards';
+const cardToggle = page => `<div class="card-mode" role="group" aria-label="${esc(viewLabel(page))} display">
+  <button type="button" data-act="card-view" data-page="${page}" data-mode="cards" aria-pressed="${cardMode(page) === 'cards'}">Cards</button>
+  <button type="button" data-act="card-view" data-page="${page}" data-mode="list" aria-pressed="${cardMode(page) === 'list'}">List</button></div>`;
 const icon = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
 const gBadge = p => { const g = p.gender === 'F' ? 'F' : p.gender === 'M' ? 'M' : 'U'; return `<span class="g ${g}" title="${g === 'F' ? 'Female' : g === 'M' ? 'Male' : 'Gender not set'}">${g === 'U' ? '?' : g}</span>`; };
 const jersey = p => `<span class="jersey ${p.number ? '' : 'none'}">${esc(p.number || initials(p))}</span>`;
@@ -1370,6 +1378,17 @@ function viewAttendance() {
 
 /* ---------- Field / lineup ---------- */
 function viewField() {
+  // Eight-player Oztag game systems are not valid positional diagrams for other sports.
+  if (curSport() !== 'Oztag') {
+    const sport = curSport(), positions = M.positionsFor(V.team, curClub());
+    return `<section class="sec sport-tactics"><div class="sec-h"><h2>${esc(sport)} tactics</h2></div>
+      <p>The selected team is <strong>${esc(V.team.name)}</strong> (${esc(sport)}).</p>
+      <p class="hint">The visual lineup, eight-player positions and game systems currently support Oztag only. They are hidden here rather than presenting Oztag instructions as ${esc(sport)} tactics.</p>
+      ${positions.length ? `<h3>Team positions</h3><p class="hint">${esc(positions.join(' · '))}</p>` : ''}
+      <div class="btn-row"><button class="btn primary" data-act="tab" data-tab="plays">View ${esc(sport)} plays</button><button class="btn" data-act="tab" data-tab="squad">View squad</button></div>
+      <p class="hint">You can still document this team's own plays. The advanced diagram is an eight-position teaching canvas, not a validated full-field ${esc(sport)} formation.</p>
+    </section>`;
+  }
   const lu = curLineup(); state.lineupId = lu.id;
   const onField = lu.slots.map(s => playerById(s.playerId)).filter(Boolean);
   const males = onField.filter(p => p.gender === 'M').length, females = onField.filter(p => p.gender === 'F').length;
@@ -2401,7 +2420,14 @@ function playLegend(play, side) {
     <span><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="${grey}" stroke-width="1.3"/></svg>Defender</span>
   </div>`;
 }
-const playById = id => V.plays.find(p => p.id === id);
+// Legacy untagged starter plays are Oztag. New custom plays record their actual team sport.
+const visiblePlays = () => {
+  const sport = curSport();
+  return V.plays.filter(p => p.sport ? p.sport === sport
+    : p.builtin ? sport === 'Oztag'
+      : (p.set === 'league' ? ['Rugby league', 'League tag'].includes(sport) : sport === 'Oztag'));
+};
+const playById = id => visiblePlays().find(p => p.id === id);
 const playSteps = (play, side) => {
   const text = side !== (play.side || 'right') ? mirrorText(play.steps, textPairs(play)) : play.steps;
   return String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -2410,17 +2436,17 @@ const playWhen = (play, side) => side !== (play.side || 'right') ? mirrorText(pl
 const playHeadline = (play, side) => side !== (play.side || 'right') ? mirrorText(play.headline, textPairs(play)) : (play.headline || '');
 
 function viewPlays() {
-  const coach = isCoach();
+  const coach = isCoach(), sport = curSport(), oztag = sport === 'Oztag', plays = visiblePlays();
   if (state.playId && playById(state.playId)) return viewPlay(playById(state.playId));
   state.playId = null;
-  const missing = STARTER_IDS.filter(id => !V.plays.some(p => p.id === id)).length;
-  return `<div class="sec-h"><h2>Plays</h2>${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div>
-    <p class="hint" style="margin:-4px 0 12px">Every play works both ways. Open one and switch between attacking left and right.</p>
-    ${V.plays.length ? `<div class="list grid plays-grid">${V.plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
+  const missing = oztag ? STARTER_IDS.filter(id => !V.plays.some(p => p.id === id)).length : 0;
+  return `<div class="sec-h"><h2>${esc(sport)} plays</h2><div class="btn-row">${cardToggle('plays')}${coach ? `<button class="btn primary sm" data-act="play-new">${icon('plus', 18)}New play</button>` : ''}</div></div>
+    <p class="hint" style="margin:-4px 0 12px">${oztag ? 'Every play works both ways. Open one and switch between attacking left and right.' : `Only ${esc(sport)} plays are shown for this team. Legacy Oztag starters remain with Oztag teams. New plays use the selected sport; diagrams are an eight-position teaching canvas and not a full-field formation.`}</p>
+    ${plays.length ? `<div class="list grid plays-grid ${cardClass('plays')}">${plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
       <span class="grow"><span class="name" style="display:block">${esc(p.name)}${coach && p.lib ? ' <span class="pill neutral">Library</span>' : ''}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
       <span class="pill neutral">${esc(p.category || 'Other')}</span>
-    </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add one, or restore the starter plays.' : 'No plays yet.'}</p></div>`}
+    </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add a play for this team.' : 'No plays yet.'}</p></div>`}
     ${coach && missing ? `<button class="link-btn" data-act="plays-restore">Restore the ${missing} missing starter play${missing === 1 ? '' : 's'}</button>` : ''}`;
 }
 
@@ -2796,7 +2822,7 @@ const PED_DRAW = ['run', 'pass', 'dummy', 'kick', 'shift'];
 const PED_SIDES = [['l', 'Left'], ['r', 'Right'], ['a', 'Above'], ['b', 'Below'], ['al', 'Above left'], ['ar', 'Above right'], ['bl', 'Below left'], ['br', 'Below right']];
 
 function blankPlay() {
-  return { id: uid(), name: '', category: 'Other', when: '', headline: '', steps: '', side: 'right', builtin: false,
+  return { id: uid(), sport: curSport(), set: ['Rugby league', 'League tag'].includes(curSport()) ? 'league' : 'oztag', name: '', category: 'Other', when: '', headline: '', steps: '', side: 'right', builtin: false,
     players: formation(46), defence: defaultDefence(46), moves: [], focus: [], tags: {}, ghost: [], notes: {}, labels: [] };
 }
 function openPlayEditor(play) {
@@ -3571,7 +3597,7 @@ function viewCrew() {
   const policyScope = selectedPolicyEntry?.comp?.name || 'Friendly / unlinked matches';
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
-  return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div>
+  return `<div class="sec-h"><h2>Match-day staff</h2><div class="btn-row">${cardToggle('crew')}<button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div></div>
     <div class="crew-context crew-team-context">
       <label class="field-l crew-team-picker"><span>Staffing requirements for team</span>
         <select name="crewTeamId" data-change="crew-team-pick" aria-label="Choose team for match-day staffing">
@@ -3597,7 +3623,7 @@ function viewCrew() {
       <button class="btn sm" type="submit">View directory</button>
     </form>
     <div class="crew-directory-results"><h3>${esc(directoryClub?.name || 'Current team')} volunteer directory (${pool.length})</h3>
-      ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="crew-basic" data-id="${esc(p.id)}">
+      ${pool.length ? `<div class="list grid ${cardClass('crew')} crew-directory-list">${pool.map(p => `<button class="row crew-person" data-act="crew-basic" data-id="${esc(p.id)}">
         <span class="crew-avatar">${M.validPhoto(p.photo) ? `<img src="${p.photo}" alt="">` : esc(initials(p)||'?')}</span><span class="grow"><span class="name">${esc(p.name)}</span>${(() => {
           const inPool = inTeamPool(p, data), bs = crewBadges(p, sport, todayISO()), shown = inPool ? bs : bs.slice(0, 1), h = helps(p);
           return `${badgeStrip(shown)}<span class="sub" style="display:block">${inPool ? (bs.length > 1 ? esc(crewRolesForSport(p, sport).map(r => CREW_ROLES[r]).join(' · ')) : 'No roles reviewed for this team sport') : h.length ? 'Helps ' + esc(h.join(', ')) : 'Club member · no team yet. Open to tick their teams.'}</span>
@@ -3870,8 +3896,8 @@ function crewMatchSummary(m) {
 }
 function viewHelpers() {
   const H = sortedHelpers(), load = taskLoad();
-  return `<div class="sec-h"><h2>Helpers</h2><button class="btn primary sm" data-act="helper-new">${icon('plus', 18)}Add</button></div>
-    ${H.length ? `<div class="list grid">${H.map(h => `<div class="row">
+  return `<div class="sec-h"><h2>Helpers</h2><div class="btn-row">${cardToggle('helpers')}<button class="btn primary sm" data-act="helper-new">${icon('plus', 18)}Add</button></div></div>
+    ${H.length ? `<div class="list grid ${cardClass('helpers')}">${H.map(h => `<div class="row helper-card"><span class="helper-avatar" aria-hidden="true">${esc(initials(h))}</span>
       <button class="row-main" data-act="helper-edit" data-id="${h.id}"><span class="grow"><span class="name" style="display:block">${esc(h.name)}</span>
         <span class="sub" style="display:block">${esc([helperTie(h), loadText(loadOf(load, 'h:' + h.id))].filter(Boolean).join(' · '))}</span></span></button>
       ${h.phone ? `<button class="icon-btn" style="color:var(--wa)" data-act="wa-helper" data-id="${h.id}" aria-label="WhatsApp ${esc(h.name)}">${icon('chat', 22)}</button>` : '<span style="width:44px"></span>'}
@@ -4125,7 +4151,7 @@ function viewMatches() {
   const days = M.tournamentDays(V), inT = new Set(days.flatMap(d => d.matches.map(m => m.id)));
   const up = all.filter(m => m.date >= today && !inT.has(m.id)), past = all.filter(m => m.date < today && !inT.has(m.id)).reverse();
   const rec = M.teamRecord(all, today);
-  const head = `<div class="sec-h"><h2>Matches</h2>${coach ? `<div class="btn-row"><button class="btn sm" data-act="match-day-new">Tournament day</button><button class="btn primary sm" data-act="match-new">${icon('plus', 18)}Add match</button></div>` : ''}</div>`;
+  const head = `<div class="sec-h"><h2>Matches</h2><div class="btn-row">${cardToggle('matches')}${coach ? `<button class="btn sm" data-act="match-day-new">Tournament day</button><button class="btn primary sm" data-act="match-new">${icon('plus', 18)}Add match</button>` : ''}</div></div>`;
   const record = rec.withResult || rec.awaiting ? `<div class="stats record" role="group" aria-label="Results so far">
       <div class="stat"><b>${rec.won}</b><span>Won</span></div><div class="stat"><b>${rec.drawn}</b><span>Drawn</span></div><div class="stat"><b>${rec.lost}</b><span>Lost</span></div>
       <div class="stat"><b>${rec.scoredGames ? `${rec.scored}–${rec.conceded}` : '–'}</b><span>Tries for–against</span></div></div>
@@ -4138,9 +4164,9 @@ function viewMatches() {
   return head + nextUp + record
     + (comps.length ? `<p class="hint" style="margin:-4px 0 14px">Playing in ${comps.map(c => `<b>${esc(c.name)}</b>${c.division ? ` (${esc(c.division)})` : ''}${c.start ? `, ${esc(compDates(c))}` : ''}`).join('; ')}.</p>` : '')
     + (days.length ? `<section class="sec"><div class="sec-h"><h2>${esc(V.team.event || 'Tournament')}</h2>${coach ? `<button class="btn wa sm" data-act="t-share">${icon('chat', 18)}Send draw</button>` : ''}</div>
-        ${days.map(d => `<h3 class="ag-date">${esc(fmtLong(d.date))}${coach ? ` <button class="link-btn inline" data-act="day-share" data-date="${d.date}">Send this day</button>` : ''}</h3><div class="list grid sess-grid">${d.matches.map(matchRow).join('')}</div>`).join('')}</section>` : '')
-    + `<section class="sec"><div class="sec-h"><h2>${days.length ? 'Other matches' : 'Coming up'}</h2></div>${up.length ? `<div class="list grid sess-grid">${up.map(matchRow).join('')}</div>` : '<p class="muted small">Nothing else coming up.</p>'}</section>`
-    + (past.length ? `<section class="sec"><div class="sec-h"><h2>Played</h2>${coach ? `<button class="btn sm" data-act="results-share">${icon('chat', 18)}Send results</button>` : ''}</div><div class="list grid sess-grid">${past.map(matchRow).join('')}</div></section>` : '');
+        ${days.map(d => `<h3 class="ag-date">${esc(fmtLong(d.date))}${coach ? ` <button class="link-btn inline" data-act="day-share" data-date="${d.date}">Send this day</button>` : ''}</h3><div class="list grid sess-grid ${cardClass('matches')}">${d.matches.map(matchRow).join('')}</div>`).join('')}</section>` : '')
+    + `<section class="sec"><div class="sec-h"><h2>${days.length ? 'Other matches' : 'Coming up'}</h2></div>${up.length ? `<div class="list grid sess-grid ${cardClass('matches')}">${up.map(matchRow).join('')}</div>` : '<p class="muted small">Nothing else coming up.</p>'}</section>`
+    + (past.length ? `<section class="sec"><div class="sec-h"><h2>Played</h2>${coach ? `<button class="btn sm" data-act="results-share">${icon('chat', 18)}Send results</button>` : ''}</div><div class="list grid sess-grid ${cardClass('matches')}">${past.map(matchRow).join('')}</div></section>` : '');
 }
 function matchForm(m) {
   const isNew = !m || !m.id, T = data.team;
@@ -4769,7 +4795,7 @@ function switchTeam(id) {
   state.correcting = null;
   const pref = homePref();   // Home showing one team follows the switch
   if (pref && pref.kind === 'team') store.set('tm-home-scope', JSON.stringify({ kind: 'team', id: data.id }));
-  Object.assign(state, { lineupId: null, playId: null, msgDraft: null, msgSession: null, msgEvent: null, system: state.system, preview: false });
+  Object.assign(state, { lineupId: null, playId: null, msgDraft: null, msgSession: null, msgEvent: null, system: null, overlaysOpen: false, preview: false });
   closeSheet(); render(); window.scrollTo(0, 0);
   toast(`Now showing ${M.teamName(t)}`);
 }
@@ -5951,6 +5977,11 @@ const actions = {
   'settings': el => { if (state.stylePreview) { state.stylePreview = false; applyTeamStyle(); } const k = el && el.dataset && el.dataset.sec; if (k && S.role === 'coach') openSheet(SETTINGS_SECS.find(x => x[0] === k)?.[1] || 'Settings', settingsSection(k), 'settings'); else openSheet('Settings', settingsBody(), 'settings'); },
   'settings-sec': el => actions.settings(el),
   'layout': el => { store.set('tm-layout', el.dataset.v); applyLayout(); document.querySelectorAll('[data-act="layout"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
+  'card-view': el => {
+    const page = el.dataset.page, mode = el.dataset.mode;
+    if (!CARD_PAGES.includes(page) || !['cards', 'list'].includes(mode)) return;
+    state.cardViews[page] = mode; store.set('tm-card-views', JSON.stringify(state.cardViews)); render();
+  },
   'layout-width': el => { store.set('tm-width', el.dataset.v); applyLayout(); document.querySelectorAll('[data-act="layout-width"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
   'lock-mode': el => { state.lockMode = el.dataset.mode; state.lockMsg = ''; renderLock(); },
   'refresh': async () => {
