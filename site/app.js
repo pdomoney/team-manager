@@ -3577,7 +3577,7 @@ function viewCrew() {
       ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="crew-basic" data-id="${esc(p.id)}">
         <span class="crew-avatar">${M.validPhoto(p.photo) ? `<img src="${p.photo}" alt="">` : esc(initials(p)||'?')}</span><span class="grow"><span class="name">${esc(p.name)}</span>${(() => {
           const inPool = inTeamPool(p, data), bs = crewBadges(p, sport, todayISO()), shown = inPool ? bs : bs.slice(0, 1), h = helps(p);
-          return `${badgeStrip(shown.slice(0,1))}<span class="sub" style="display:block">${inPool ? (bs.length > 1 ? esc(crewRolesForSport(p, sport).map(r => CREW_ROLES[r]).join(' · ')) : 'No roles reviewed for this team sport') : h.length ? 'Helps ' + esc(h.join(', ')) : 'Club member · no team yet. Open to tick their teams.'}</span>
+          return `${badgeStrip(shown)}<span class="sub" style="display:block">${inPool ? (bs.length > 1 ? esc(crewRolesForSport(p, sport).map(r => CREW_ROLES[r]).join(' · ')) : 'No roles reviewed for this team sport') : h.length ? 'Helps ' + esc(h.join(', ')) : 'Club member · no team yet. Open to tick their teams.'}</span>
         <span class="sub" style="display:block">${p.active ? 'Available for selection' : 'Inactive'} · ${esc(shown[0]?.text || 'WWCC not recorded')}</span>`; })()}</span>
         <span class="edit-hint">${icon('edit', 16)}Edit</span>
       </button>`).join('')}</div>`
