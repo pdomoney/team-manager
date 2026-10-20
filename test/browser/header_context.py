@@ -31,8 +31,10 @@ with sync_playwright() as p:
              f'[{width}] Home still offers club and team chips')
         pg.click('.scope-club[data-id=tarenpointtitans]')
         pg.wait_for_timeout(90)
-        c.ok(W('D.id')==current and pg.locator('.scope-club[data-id=tarenpointtitans][aria-pressed=true]').count()==1,
-             f'[{width}] choosing a club filters Home without silently switching editing team')
+        c.ok(W('D.team.clubId')=='tarenpointtitans'
+             and W('D.id')!=current
+             and pg.locator('.scope-club[data-id=tarenpointtitans][aria-pressed=true]').count()==1,
+             f'[{width}] choosing a different club switches its active team and header')
         target=pg.locator('.scope-team').first
         other=target.get_attribute('data-id')
         target.click()

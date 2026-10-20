@@ -1412,3 +1412,16 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
 .club-head .btn{flex:none}
 @media(max-width:600px){.club-head{flex-wrap:wrap}.club-brand-summary{padding:10px}
 .club-brand-apply{padding:10px}}
+
+/* Club editing owns branding; match staffing has inline team context. */
+.crew-team-picker{flex:1;min-width:0;margin:0}
+.crew-team-picker select{font-weight:600;width:100%;max-width:100%;background:var(--paper)}
+.crew-team-picker small{display:block;font-weight:400;color:var(--muted);margin-top:5px}
+.scope-team.editing:not([aria-pressed="true"]){border-color:var(--team-action);box-shadow:inset 0 0 0 1px var(--team-action)}
+.player-crop-panel{margin:12px 0;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--chalk)}
+.player-crop-preview{display:block;width:min(240px,100%);height:auto;aspect-ratio:1;margin:10px auto;
+  border-radius:12px;border:1px solid var(--line);background:var(--paper)}
+.player-crop-panel .field-l{margin:10px 0}
+.player-crop-panel input[type=range]{width:100%;min-height:30px;accent-color:var(--team-action)}
+.player-crop-panel .btn-row{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+@media(max-width:600px){.crew-team-picker{width:100%}.player-crop-panel{padding:10px}}

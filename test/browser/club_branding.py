@@ -28,21 +28,22 @@ with sync_playwright() as p:
           M.addTeam(w,other);
           x.data.team.style={palette:'navyred'};
         }""")
-        pg.evaluate(act,['settings',{'sec':'clubbrand'}])
-        pg.wait_for_selector('#sheet form[data-form=club-branding]')
-        c.ok(pg.locator('#sheet select[name=brandingClubId] option').count()>=2,
-             f'[{width}] club branding offers a club selector without switching team')
-        c.ok(pg.locator('#sheet [name=applyAll]').is_checked(),
-             f'[{width}] explicit apply-to-all choice is on by default')
-        c.ok('2 existing team-specific colour choices will be reset' in pg.inner_text('#sheet'),
-             f'[{width}] warns before replacing colour overrides')
+        pg.evaluate(act,['club-edit',{'id':'stgeorge'}])
+        pg.wait_for_selector('#sheet form[data-form=club]')
+        c.ok(pg.locator('#sheet [name=name]').input_value()=='St George Oztag'
+             and pg.locator('#sheet input[data-change=club-logo]').count()==1
+             and pg.locator('#sheet [name=teamStyle]').count()>3,
+             f'[{width}] colours and logo now live together in Edit club')
+        c.ok(not pg.locator('#sheet [name=applyAll]').is_checked(),
+             f'[{width}] replacing team overrides requires explicit opt-in')
+        pg.check('#sheet [name=applyAll]')
         pg.locator('#sheet .style-sw:has(input[value=maroon])').click()
         png = os.path.join(WORK,'club-brand-logo.png')
         os.makedirs(WORK,exist_ok=True)
         open(png,'wb').write(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='))
         pg.set_input_files('#sheet input[data-change=club-logo]',png)
         pg.wait_for_function("document.querySelector('#sheet [name=logo]').value.startsWith('data:image/')")
-        pg.locator('#sheet form[data-form=club-branding] button[type=submit]').click()
+        pg.locator('#sheet form[data-form=club] button[type=submit]').click()
         pg.wait_for_timeout(160)
         state=pg.evaluate("""() => {
           const x=window.__team, w=x.ws;
@@ -71,13 +72,12 @@ with sync_playwright() as p:
              f'[{width}] published player-style projection inherits club palette and crest')
         pg.evaluate(act,['preview-off',{}]);pg.wait_for_timeout(80)
         # One other club can be configured independently without clearing its team's override.
-        pg.evaluate(act,['settings',{'sec':'clubbrand'}])
-        pg.locator('#sheet select[name=brandingClubId]').select_option('other-club')
-        c.ok(pg.locator('#sheet select[name=brandingClubId]').input_value()=='other-club',
-             f'[{width}] admin can change club without changing team')
+        pg.evaluate(act,['club-edit',{'id':'other-club'}])
+        c.ok(pg.locator('#sheet [name=name]').input_value()=='Other Club',
+             f'[{width}] Edit club selects only the chosen club')
         pg.locator('#sheet .style-sw:has(input[value=redwhite])').click()
         pg.uncheck('#sheet [name=applyAll]')
-        pg.locator('#sheet form[data-form=club-branding] button[type=submit]').click()
+        pg.locator('#sheet form[data-form=club] button[type=submit]').click()
         state2=pg.evaluate("""() => {
           const w=window.__team.ws;
           return {first:w.clubs.find(c=>c.id==='stgeorge').style,

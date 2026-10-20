@@ -876,7 +876,7 @@ function homeSelector(hv) {
   const clubUrg = c => c.teams.some(t => hv.urgency[t.id] === 'critical') ? 'critical' : c.teams.some(t => hv.urgency[t.id] === 'soon') ? 'soon' : '';
   const clubBtn = c => `<button class="scope-club" data-act="home-scope" data-kind="club" data-id="${esc(c.id)}" aria-pressed="${sc.kind === 'club' && sc.id === c.id}" ${clubOfScope === c.id ? 'data-open="1"' : ''} title="${esc(c.name)}">${crest(c)}<span class="scope-name">${esc(c.short)}</span>${urgencyDot(clubUrg(c))}</button>`;
   const teams = clubOfScope ? (hv.clubs.find(c => c.id === clubOfScope) || { teams: [] }).teams : hv.clubs.flatMap(c => c.teams);
-  const teamBtn = t => `<button class="scope-team" data-act="home-scope" data-kind="team" data-id="${esc(t.id)}" aria-pressed="${sc.kind === 'team' && sc.id === t.id}" title="${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}"><span class="scope-name">${sportIcon(sportOfTeam(t), 15, 'sport-ic chip-ic')}${esc(M.teamName(t))}</span>${t === data ? '<span class="sr-only"> (the team you’re editing)</span>' : ''}${urgencyDot(hv.urgency[t.id])}</button>`;
+  const teamBtn = t => `<button class="scope-team${t===data?' editing':''}" data-act="home-scope" data-kind="team" data-id="${esc(t.id)}" aria-pressed="${sc.kind === 'team' && sc.id === t.id}" title="${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}${t===data?' · Active team':''}"><span class="scope-name">${sportIcon(sportOfTeam(t), 15, 'sport-ic chip-ic')}${esc(M.teamName(t))}</span>${t === data ? '<span class="sr-only"> (the team you’re editing)</span>' : ''}${urgencyDot(hv.urgency[t.id])}</button>`;
   return `<nav class="scope" aria-label="Clubs and teams on Home">
     <div class="scope-row">
       <button class="scope-club" data-act="home-scope" data-kind="all" aria-pressed="${sc.kind === 'all'}">${crest(null)}<span class="scope-name">All clubs</span></button>
@@ -1089,6 +1089,15 @@ function playerForm(p) {
     <div class="photo-row"><span class="photo-prev">${playerPic(p, true)}</span>
       <div class="grow"><label class="field-l" style="margin-bottom:6px"><span>Name</span><input type="text" name="name" required value="${esc(p.name)}" autocapitalize="words"></label>
       <div class="btn-row" style="margin:0"><label class="btn sm file-btn"><input type="file" accept="image/*" data-change="player-photo" aria-label="Choose a photo of the player">${p.photo ? 'Change photo' : 'Add photo'}</label><button type="button" class="btn sm" data-act="player-photo-clear" ${p.photo ? '' : 'hidden'}>Remove photo</button></div></div></div>
+    <div class="player-crop-panel" hidden>
+      <p class="hint">Crop before saving. Zoom and move the photo so the player’s face fits the square.</p>
+      <canvas class="photo-crop-preview" width="240" height="240" role="img" aria-label="Player photo crop preview"></canvas>
+      <label class="field-l"><span>Zoom</span><input type="range" name="cropZoom" min="100" max="300" step="5" value="100" data-input="player-crop-adjust"></label>
+      <label class="field-l"><span>Move left or right</span><input type="range" name="cropX" min="0" max="100" step="1" value="50" data-input="player-crop-adjust"></label>
+      <label class="field-l"><span>Move up or down</span><input type="range" name="cropY" min="0" max="100" step="1" value="50" data-input="player-crop-adjust"></label>
+      <div class="btn-row"><button type="button" class="btn primary sm" data-act="player-crop-apply">Use this crop</button>
+        <button type="button" class="btn sm" data-act="player-crop-cancel">Cancel</button></div>
+    </div>
     <input type="hidden" name="photo" value="${esc(p.photo || '')}">
     <p class="hint" style="margin:-2px 0 12px">The photo helps you put names to faces. It stays in the coach’s copy; players never see it.</p>
     <div class="field-l"><span>Gender</span><div class="opts">
@@ -3563,8 +3572,15 @@ function viewCrew() {
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div>
-    <div class="crew-context crew-team-context"><span class="sub"><span class="crew-eyebrow">Selected team</span><strong>${esc(data.team.name)}</strong> · ${esc(sport)} · ${esc(profile.provider)}</span>
-    <button class="btn sm" data-act="crew-switch">Change team</button></div>
+    <div class="crew-context crew-team-context">
+      <label class="field-l crew-team-picker"><span>Staffing requirements for team</span>
+        <select name="crewTeamId" data-change="crew-team-pick" aria-label="Choose team for match-day staffing">
+          ${arr(ws.clubs).map(c=>`<optgroup label="${esc(c.name)}">${M.activeTeams(ws).filter(t=>t.team.clubId===c.id).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}</optgroup>`).join('')}
+          ${M.activeTeams(ws).filter(t=>!t.team.clubId).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}
+        </select>
+        <small>${esc(sport)} · ${esc(profile.provider)}. Select another team here without opening a second window.</small>
+      </label>
+    </div>
     <p class="crew-intro">The club directory lists people. Staffing requirements belong to the selected team, sport and competition.</p>
     <nav class="crew-page-nav" aria-label="Match staff sections"><button class="btn sm" data-act="crew-jump" data-to="crew-directory-section">Club volunteers</button><button class="btn sm" data-act="crew-jump" data-to="crew-rules-section">Team requirements</button></nav>
     <details class="info-note crew-help"><summary>${icon('info', 18)}How these records work</summary><div>
@@ -4529,7 +4545,7 @@ function viewTeams() {
   return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus', 18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button><button class="btn sm" data-act="team-template-choose">Use existing setup</button></div></div>
     ${clubs.map(c => { const ts = sortT(M.clubTeams(ws, c.id)); return `<section class="sec club-group">
       <div class="club-head">${crest(clubBadge(c))}<span class="grow"><span class="name" style="display:block">${esc(c.name)}</span><span class="sub">${esc([c.sport, c.governingBody, `${ts.length} team${ts.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</span></span>
-        <button class="btn sm" data-act="club-brand-open" data-id="${esc(c.id)}">Branding</button><button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
+        <button class="btn sm" data-act="club-edit" data-id="${esc(c.id)}">Edit club</button><button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
       ${ts.length ? `<div class="list">${ts.map(row).join('')}</div>` : '<p class="muted small">No teams in this club yet.</p>'}
     </section>`; }).join('')}
     ${loose.length ? `<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name" style="display:block">Not in a club</span><span class="sub">Choose a club in Settings › Team</span></span></div><div class="list">${loose.map(row).join('')}</div></section>` : ''}
@@ -4584,6 +4600,9 @@ function clubForm(c) {
     <div class="two"><label class="field-l"><span>Default sport for teams</span><select name="sport">${[...new Set([...CLUB_SPORTS, c.sport])].map(x => `<option ${x === c.sport ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>${f('governingBody', 'Governing body', 'e.g. Australian Oztag')}</div>
     <p class="hint">Teams inherit this sport unless their own Team sport setting overrides it. Changing the club default does not change teams with an explicit sport.</p>
     <div class="two">${f('founded', 'Founded', 'e.g. 1992')}${f('juniorBrand', 'Junior program', 'e.g. DragonTag')}</div>
+    ${teamStyleFields(c,c,true)}
+    <label class="check club-brand-apply"><input type="checkbox" name="applyAll"><span>Use these club colours for all teams (remove individual team colour overrides)</span></label>
+    <p class="hint">Teams without an override already inherit the club palette and logo. Select this only when you want to replace any existing team-specific colours.</p>
     <h3 class="form-sec">Contact</h3>
     <div class="two">${f('email', 'Email', '', 'email')}${f('phone', 'Phone', '', 'tel')}</div>
     ${f('website', 'Website', 'https://')}${f('postal', 'Postal address')}
@@ -4668,10 +4687,10 @@ function formStyle(form) {
 function previewTeamStyle(form) {
   const st = formStyle(form), custom = (form.querySelector('[name=teamStyle]:checked') || {}).value === 'custom';
   const box = form.querySelector('.style-custom'); if (box) box.hidden = !custom;
-  const club = form.dataset.form === 'club-branding'
-    ? arr(ws.clubs).find(c => c.id === form.querySelector('[name=brandingClubId]')?.value)
-    : arr(ws.clubs).find(c => c.id === form.querySelector('[name=clubId]')?.value);
-  const r = applyTeamStyle(st || (form.dataset.form === 'club-branding' ? null : normStyle(club?.style)));
+  const club = form.dataset.form === 'club'
+    ? arr(ws.clubs).find(c=>c.id===form.querySelector('[name=id]')?.value)
+    : arr(ws.clubs).find(c=>c.id===form.querySelector('[name=clubId]')?.value);
+  const r=applyTeamStyle(st || (form.dataset.form==='club' ? null : normStyle(club?.style)));
   state.stylePreview = true;
   const note = form.querySelector('.style-note');
   if (note) note.textContent = custom && r && r.adjusted.length ? `Adjusted so it stays readable: ${r.adjusted.map(k => ({ dark: 'header made darker', action: 'buttons made darker', accent: 'highlight made lighter' })[k]).join(', ')}.` : '';
@@ -4889,6 +4908,65 @@ const readLogo = file => readImage(file, 160, M.LOGO_MAX, M.validLogo);
 // Preserve existing photos up to PHOTO_MAX, but aim for much smaller new avatars so
 // multi-team encrypted drafts (including their base snapshots) fit mobile storage.
 const readPhoto = file => readImage(file, 180, M.PHOTO_MAX, M.validPhoto, 12000);
+// Player portraits are cropped locally, before they enter the encrypted coach copy.
+// The crop never leaves this browser or changes the current saved photo until accepted.
+let activePlayerCrop=null;
+function stopPlayerCrop(){
+  if(activePlayerCrop?.url) URL.revokeObjectURL(activePlayerCrop.url);
+  const panel=activePlayerCrop?.form?.querySelector('.player-crop-panel');
+  if(panel)panel.hidden=true;
+  activePlayerCrop=null;
+}
+async function beginPlayerCrop(file,form){
+  stopPlayerCrop();
+  if(!file || !/^image\//.test(file.type) || file.size>15e6)
+    throw new Error('Choose a photo under 15 MB.');
+  const url=URL.createObjectURL(file),img=new Image();
+  try{
+    await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('Try a PNG or JPEG image.'));img.src=url;});
+    if(!document.contains(form)){URL.revokeObjectURL(url);return;}
+    activePlayerCrop={url,img,form};
+    const panel=form.querySelector('.player-crop-panel');
+    ['cropZoom','cropX','cropY'].forEach(k=>{form.elements[k].value=k==='cropZoom'?100:50;});
+    panel.hidden=false;drawPlayerCrop();
+    panel.scrollIntoView({block:'nearest'});
+  }catch(err){URL.revokeObjectURL(url);throw err;}
+}
+function cropRectangle(){
+  const a=activePlayerCrop;
+  if(!a)return null;
+  const {img,form}=a,zoom=Number(form.elements.cropZoom.value)/100;
+  const side=Math.min(img.naturalWidth,img.naturalHeight)/zoom;
+  const x=(img.naturalWidth-side)*Number(form.elements.cropX.value)/100;
+  const y=(img.naturalHeight-side)*Number(form.elements.cropY.value)/100;
+  return {img,x,y,side};
+}
+function drawPlayerCrop(){
+  const rec=cropRectangle();if(!rec)return;
+  const canvas=activePlayerCrop.form.querySelector('.photo-crop-preview');
+  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(rec.img,rec.x,rec.y,rec.side,rec.side,0,0,canvas.width,canvas.height);
+}
+function usePlayerCrop(){
+  const rec=cropRectangle();if(!rec)return;
+  const form=activePlayerCrop.form,canvas=document.createElement('canvas');
+  canvas.width=180;canvas.height=180;
+  canvas.getContext('2d').drawImage(rec.img,rec.x,rec.y,rec.side,rec.side,0,0,180,180);
+  let photo='';
+  for(const quality of [0.8,0.65,0.5,0.35]){
+    for(const type of ['image/webp','image/jpeg']){
+      const candidate=canvas.toDataURL(type,quality);
+      if(M.validPhoto(candidate) && candidate.length<=12000){photo=candidate;break;}
+    }
+    if(photo)break;
+  }
+  if(!photo){toast('Unable to fit this crop into the private photo storage limit. Try another photo.');return;}
+  form.querySelector('[name=photo]').value=photo;
+  form.querySelector('.photo-prev').innerHTML='<span class="pphoto big"><img src="'+photo+'" alt=""></span>';
+  form.querySelector('[data-act=player-photo-clear]').hidden=false;
+  stopPlayerCrop();toast('Photo cropped. Save player to keep the change.');
+}
+
 function readImage(file, px, max, valid, target = max) {
   return new Promise((resolve, reject) => {
     if (!file || !/^image\//.test(file.type)) { reject(new Error('Pick an image file')); return; }
@@ -5370,7 +5448,7 @@ function settingsBody() {
 // Settings in sections, each opened on its own and saved on its own (it used to be one form five
 // screens long with the Save button halfway down).
 const SETTINGS_SECS = [
-  ['team', 'Team', 'Name, club, sport and rules'], ['clubbrand', 'Club branding', 'Colours and logo for all club teams'], ['season', 'Season and tournament', 'The tournament and its dates'],
+  ['team', 'Team', 'Name, club, sport and rules'], ['season', 'Season and tournament', 'The tournament and its dates'],
   ['contacts', 'Contacts', 'Team contact and team staff'], ['training', 'Training', 'Usual venue and times'],
   ['field', 'Field', 'Zones and channels on the Lineup field'], ['players', 'Jerseys', 'Whether jerseys are lent and handed back'],
   ['publishing', 'Publishing', 'Players’ access, passwords and GitHub'], ['backup', 'Backup', 'Export, import and this phone'],
@@ -5380,7 +5458,6 @@ function settingsSummary(k) {
   const fmtR = (a, b) => [a, b].filter(Boolean).map(fmtTime).join('–');
   return {
     team: [T.name, M.teamSport(T, club), club && club.name].filter(Boolean).join(' · '),
-    clubbrand: arr(ws.clubs).length+' clubs · '+arr(ws.clubs).filter(c=>c.logo||c.style).length+' branded',
     season: T.event ? `${T.event}${T.eventStart ? ` · ${fmtDay(T.eventStart)}${T.eventEnd && T.eventEnd !== T.eventStart ? ` to ${fmtDay(T.eventEnd)}` : ''}` : ''}` : 'No tournament set',
     contacts: [T.tasksContact.name ? `Contact: ${T.tasksContact.name}` : 'No team contact', `${arr(T.staff).length} staff`].join(' · '),
     training: [T.trainingVenue, fmtR(T.trainingStart, T.trainingEnd)].filter(Boolean).join(' · ') || 'No defaults set',
@@ -5430,7 +5507,6 @@ function settingsSection(k) {
   const back = `<button class="btn sm set-back" data-act="settings">${icon('back', 18)}All settings</button>`;
   const form = (body, label = 'Save') => `${back}<form data-form="settings" data-sec="${k}">${body}<button class="btn primary block" type="submit">${esc(label)}</button></form>`;
   const positions = `<label class="field-l"><span>Positions for this team</span><input type="text" name="positions" data-auto-positions="${T.positionsCustom === true ? 'false' : 'true'}" data-last-default="${esc(M.positionsFor(T, club).join(', '))}" data-input="team-positions" value="${esc(M.positionsFor(T, club).join(', '))}"><small>What players can pick as preferred positions, separated by commas. They follow the team’s sport unless you change them. ${esc(M.teamSport(T, club))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, club)] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>`;
-  if (k === 'clubbrand') return clubBrandingSection(state.brandClubId);
   if (k === 'team') return form(`<label class="field-l"><span>Team name</span><input type="text" name="name" value="${esc(T.name)}"></label>
     ${teamDetailsFields(T, { staff: false, maxMales: true, after: positions })}${teamStyleFields(T)}`, 'Save team');
   if (k === 'season') return form(`<h3 class="form-sec">Tournament</h3>
@@ -5648,6 +5724,7 @@ function requestCloseSheet() {
   closeSheet();
 }
 function closeSheet() {
+  stopPlayerCrop();
   const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; document.body.classList.remove('locked'); state.sheet = null;
   if (state.stylePreview) { state.stylePreview = false; applyTeamStyle(); }
   BEHIND.forEach(q => { const el = $(q); if (el) el.inert = false; });
@@ -6509,10 +6586,16 @@ const actions = {
   }),
   'season-fix-done': coachOnly(() => { state.correcting = null; render(); toast('Corrections saved'); }),
   'home-scope': coachOnly(el => {
-    const kind = el.dataset.kind, id = el.dataset.id || '';
-    store.set('tm-home-scope', JSON.stringify({ kind, id })); state.homeAllUp = false;
-    if (kind === 'team' && id !== data.id) switchTeam(id);   // picking a team is choosing to work on it
-    else render();
+    const kind=el.dataset.kind,id=el.dataset.id||'';
+    store.set('tm-home-scope',JSON.stringify({kind,id}));state.homeAllUp=false;
+    if(kind==='team' && id!==data.id){switchTeam(id);return;}
+    if(kind==='club' && id!==data.team.clubId){
+      // When a coach opens a different club, activate one of its teams so the
+      // header, colours and editing context cannot point at the previous club.
+      const first=M.activeTeams(ws).find(t=>t.team.clubId===id);
+      if(first){switchTeam(first.id);return;}
+    }
+    render();
   }),
   'home-days': el => { store.set('tm-home-days', el.dataset.v); render(); },
   'home-more': () => { state.homeAllUp = !state.homeAllUp; render(); },
@@ -6536,12 +6619,7 @@ const actions = {
     openSheet('Create from ' + M.teamName(source), teamForm(), 'team-new');
   }),
   'club-new': coachOnly(() => { state.clubFor = state.sheet === 'settings' ? data.id : null; openSheet('New club', clubForm(null), 'club'); }),
-  'club-brand-open': coachOnly(el => {
-    const id=el.dataset.id;
-    if(!arr(ws.clubs).some(c=>c.id===id))return;
-    state.brandClubId=id;
-    openSheet('Club branding',clubBrandingSection(id),'settings');
-  }),
+  'club-brand-open': coachOnly(el => { const c=arr(ws.clubs).find(x=>x.id===el.dataset.id); if(c)openSheet('Edit '+c.name,clubForm(c),'club'); }),
   'club-edit': coachOnly(el => { const c = arr(ws.clubs).find(x => x.id === el.dataset.id); if (c) openSheet(`Edit ${c.name}`, clubForm(c), 'club'); }),
   'club-open': coachOnly(el => { state.clubId = el.dataset.id; goTo('club'); }),
   'updates': () => openUpdates(),
@@ -6566,6 +6644,8 @@ const actions = {
       toast(e.status === 403 || e.status === 404 ? 'Your GitHub token can’t start the Rules watch. Run it from the repository’s Actions tab, or give the token Actions: Read and write.' : (e.message || 'Couldn’t start the check'));
     } finally { el.disabled = false; }
   }),
+  'player-crop-apply': coachOnly(() => usePlayerCrop()),
+  'player-crop-cancel': coachOnly(() => stopPlayerCrop()),
   'player-photo-clear': coachOnly(el => {
     const form = el.closest('form'); if (!form) return;
     form.querySelector('[name=photo]').value = '';
@@ -6710,7 +6790,13 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
+  if (k === 'player-crop-adjust' && activePlayerCrop) drawPlayerCrop();
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
+  if (k === 'crew-team-pick' && isCoach()) {
+    const t=M.activeTeams(ws).find(t=>t.id===e.target.value);
+    if(!t)return;
+    switchTeam(t.id); state.crewClubId=t.team.clubId||''; render();
+  }
   if (k === 'team-style') previewTeamStyle(e.target.closest('form'));
   if (k === 'club-branding-pick' && isCoach()) {
     const id=e.target.value;
@@ -6734,12 +6820,9 @@ document.addEventListener('change', e => {
     }).catch(err=>toast(err.message)).finally(()=>{inp.value='';});
   }
   if (k === 'player-photo') {
-    const inp = e.target, form = inp.closest('form');
-    readPhoto(inp.files && inp.files[0]).then(d => {
-      form.querySelector('[name=photo]').value = d;
-      form.querySelector('.photo-prev').innerHTML = `<span class="pphoto big"><img src="${d}" alt=""></span>`;
-      form.querySelector('[data-act=player-photo-clear]').hidden = false;
-    }).catch(err => toast(err.message)).finally(() => { inp.value = ''; });
+    const inp=e.target,form=inp.closest('form');
+    if(form && inp.files?.[0]) beginPlayerCrop(inp.files[0],form).catch(err=>toast(err.message));
+    inp.value='';
   }
   if (k === 'club-logo') {
     const inp = e.target, form = inp.closest('form');
@@ -6971,14 +7054,19 @@ document.addEventListener('submit', async e => {
     const name = str('name'); if (!name) { fieldError(form, 'name', 'Give the club a name'); return; }
     const id = str('id'), old = id && arr(ws.clubs).find(c => c.id === id);
     const fields = Object.fromEntries(M.CLUB_PUBLIC.filter(k => k !== 'id').map(k => [k, str(k)]));
-    const club = M.normClub({ ...(old || {}), ...fields, name, officials: peopleRows(f, 'o'), notes: str('notes') });
-    if (old) Object.assign(old, club);
+    const logo=str('logo');
+    if(logo && !M.validLogo(logo)){fieldError(form,'logo','Choose a supported small logo');return;}
+    const style=formStyle(form);
+    const club = M.normClub({ ...(old || {}), ...fields, name, officials: peopleRows(f, 'o'), notes: str('notes'), style, logo });
+    if (style) club.style=style; else delete club.style;
+    if (old) { Object.assign(old, club); if (!style) delete old.style; }
     else {
       ws.clubs = arr(ws.clubs); ws.clubs.push(club);
       const t = state.clubFor && M.findTeam(ws, state.clubFor); if (t && !t.team.clubId) t.team.clubId = club.id;
     }
-    state.clubFor = null; state.clubId = club.id;
-    save(); closeSheet(); if (state.tab !== 'teams') state.tab = 'club'; render(); toast(old ? 'Club saved' : `${club.name} created`);
+    if(f.get('applyAll')) M.clubTeams(ws,club.id).forEach(t=>{delete t.team.style;});
+    state.stylePreview=false; state.clubFor=null; state.clubId=club.id;
+    save(); closeSheet(); if(state.tab!=='teams') state.tab='club'; render(); toast(old?'Club saved':club.name+' created');
     return;
   }
   if (kind === 'team-new') {

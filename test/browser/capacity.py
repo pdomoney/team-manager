@@ -77,6 +77,8 @@ with sync_playwright() as p:
             d1.evaluate(act, ['add-player', {}]); d1.wait_for_selector('#sheet form[data-form=player]')
             d1.fill('#sheet input[name=name]', f'Synthetic Player {n:03d}'); d1.fill('#sheet input[name=number]', str(n))
             d1.set_input_files('#sheet input[data-change=player-photo]', imgs[made % len(imgs)])
+            d1.wait_for_selector('#sheet .player-crop-panel:visible',timeout=10000)
+            d1.click('#sheet [data-act=player-crop-apply]')
             d1.wait_for_function("document.querySelector('#sheet [name=photo]') && document.querySelector('#sheet [name=photo]').value.startsWith('data:image')", timeout=10000)
             d1.click('#sheet button[value=save]'); d1.wait_for_function("!document.querySelector('#sheet form[data-form=player]')", timeout=10000)
             made += 1
