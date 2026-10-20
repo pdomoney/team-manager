@@ -72,13 +72,13 @@ const FOCUS_IDEAS = ['Defence line speed', 'Attack shape', 'Ball skills', 'Fitne
 const NAV = [
   { id: 'home', label: 'Home', icon: '<path d="M3.5 11 12 4l8.5 7v9h-5.5v-6h-6v6H3.5z"/>', views: [['home', 'Home']] },
   { id: 'schedule', label: 'Schedule', icon: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
-    views: [['agenda', 'Upcoming'], ['training', 'Training'], ['matches', 'Matches'], ['attendance', 'Attendance', true]] },
+    views: [['agenda', 'Upcoming'], ['training', 'Training'], ['matches', 'Matches'], ['attendance', 'Attendance', true], ['matchday', 'Match day', true, 'hidden']] },
   { id: 'team', label: 'Team', icon: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.5c2.5.1 4.2 1.8 5 5"/>',
-    views: [['squad', 'Squad'], ['tasks', 'Tasks'], ['helpers', 'Helpers', true], ['crew', 'Match staff', true], ['tally', 'Tally', true]] },
+    views: [['squad', 'Squad'], ['tasks', 'Tasks'], ['helpers', 'Helpers', true], ['crew', 'Match staff', true]] },
   { id: 'tactics', label: 'Tactics', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14M5 5.5h14M5 18.5h14"/>',
     views: [['field', 'Lineup'], ['plays', 'Plays'], ['rules', 'Rules'], ['library', 'Library', true]] },
   { id: 'more', label: 'More', icon: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
-    views: [['more', 'More'], ['club', 'Club'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['teams', 'Clubs and teams', true], ['comps', 'Competitions', true], ['notices', 'Notices']] }
+    views: [['more', 'More'], ['club', 'Club'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['teams', 'Clubs and teams', true], ['comps', 'Competitions', true], ['notices', 'Notices'], ['tally', 'Volunteer tally', true]] }
 ];
 const VIEW_IDS = NAV.flatMap(g => g.views.map(v => v[0]));
 
@@ -288,6 +288,7 @@ const state = {
   msgEvent: null, msgRef: '', askSent: null, pending: null, conflict: null, lastView: {}, reportRange: 'season',
   lineupId: null, moveMode: false, msgTpl: 'reminder', msgSession: null, msgDraft: null, postNotice: true,
   layers: { zones: true, channels: true, ...(readJson('tm-field-layers') || {}) },
+  folded: {},
   system: null, sysFlip: false,
   playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
   taskFilter: 'up', taskPick: null, crewClubId: '',
@@ -630,7 +631,17 @@ const ICON = {
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   cog: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   team: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.5c2.5.1 4.2 1.8 5 5"/>',
-  rsvp: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5 1.6 0 3 .5 4.1 1.3"/><path d="M15 17.5l2 2 4.5-4.5"/>'
+  rsvp: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5 1.6 0 3 .5 4.1 1.3"/><path d="M15 17.5l2 2 4.5-4.5"/>',
+  layers: '<path d="M12 3.5 2.5 8.5 12 13.5l9.5-5z"/><path d="M2.5 12.5l9.5 5 9.5-5"/><path d="M2.5 16.5l9.5 5 9.5-5"/>',
+  'chevron-right': '<path d="M9 6l6 6-6 6"/>',
+  'chevron-down': '<path d="M6 9l6 6 6-6"/>',
+  minus: '<path d="M5 12h14"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/>',
+  edit: '<path d="M4 20h4L19.3 8.7a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 7.5l3 3"/>',
+  trash: '<path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  field: '<rect x="4.5" y="3" width="15" height="18" rx="1.5"/><path d="M4.5 12h15"/><circle cx="12" cy="12" r="2.5"/>',
+  back: '<path d="M15 6l-6 6 6 6"/>'
 };
 const icon = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
 const gBadge = p => { const g = p.gender === 'F' ? 'F' : p.gender === 'M' ? 'M' : 'U'; return `<span class="g ${g}" title="${g === 'F' ? 'Female' : g === 'M' ? 'Male' : 'Gender not set'}">${g === 'U' ? '?' : g}</span>`; };
@@ -647,6 +658,8 @@ function render() {
   if (!S.role) return renderLock();
   V = curView();
   if (!VIEW_IDS.includes(state.tab) || !viewsOf(navOf(state.tab)).some(v => v[0] === state.tab)) state.tab = 'home';
+  if (state.tab === 'matchday' && (!state.matchDayId || !matchById(state.matchDayId))) state.tab = 'matches';
+  document.body.classList.toggle('game', GAME_TABS.includes(state.tab));
   renderNav();
   renderStatus();
   const coachSeason = S.role === 'coach' && !state.preview && M.seasonsOf(data).length;
@@ -654,6 +667,8 @@ function render() {
   applyTeamStyle();
   const sp = curSport(), ic = sportIcon(sp, 15, 'sport-ic season-ic');
   const tag = !sName ? '' : coachSeason ? `<button class="season-tag${V.readOnly ? ' past' : ''}" data-act="season-pick" aria-haspopup="dialog" aria-label="${esc(sp)}. Season: ${esc(sName)}${V.readOnly ? ', looking back' : ''}. Change season">${ic}${esc(sName)}${V.readOnly ? ' · looking back' : ''}</button>` : `<span class="season-tag" title="${esc(sp)}">${ic}${esc(sName)}</span>`;
+  const club = curClub(), tc = $('#team-crest');
+  if (tc) { tc.hidden = !club; tc.innerHTML = club ? crest(clubBadge(club)) : ''; tc.title = club ? club.name : ''; }
   $('#team-title').classList.toggle('with-season', !!tag);
   $('#team-title').innerHTML = (multiTeam() && !state.preview ? `<button class="team-btn" data-act="team-switch" aria-haspopup="dialog" aria-label="${esc(V.team.name)}. Switch team"><span class="t-name">${esc(V.team.name || 'Team')}</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>` : `<span class="t-name">${esc(V.team.name || 'Team Manager')}</span>`) + tag;
   document.title = V.team.name || 'Team Manager';
@@ -668,11 +683,13 @@ function render() {
   state.lastView[g.id] = state.tab;
   document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
   v.innerHTML = subNav(g) + (state.tab === 'home' ? '' : seasonBanner()) + VIEWS[state.tab]();
-  if (state.tab === 'field') bindField();
+  if (state.tab === 'field' || state.tab === 'matchday') bindField();
+  fitSubnav();
+  foldLongPage();
   renderAsk();
 }
 const VIEWS = {
-  home: () => viewHome(), agenda: () => viewAgenda(), training: () => viewSchedule(), matches: () => viewMatches(), attendance: () => viewAttendance(),
+  home: () => viewHome(), agenda: () => viewAgenda(), training: () => viewSchedule(), matches: () => viewMatches(), attendance: () => viewAttendance(), matchday: () => viewMatchDay(),
   squad: () => viewSquad(), tasks: () => viewTaskList(), helpers: () => viewHelpers(), crew: () => viewCrew(), tally: () => viewHelped(),
   field: () => viewField(), plays: () => viewPlays(), rules: () => viewRules(), library: () => viewLibrary(),
   more: () => viewMore(), club: () => viewClub(), messages: () => viewMessages(), reports: () => viewReports(), teams: () => viewTeams(), comps: () => viewComps(), notices: () => viewNotices()
@@ -681,9 +698,40 @@ const navOf = tab => NAV.find(g => g.views.some(v => v[0] === tab)) || NAV[0];
 const viewsOf = g => g.views.filter(v => !v[2] || isCoach());
 const viewLabel = tab => (navOf(tab).views.find(v => v[0] === tab) || [, 'Home'])[1];
 // The views in a section, across the top of the page (on a wide screen they're in the side bar).
+const listedViews = g => viewsOf(g).filter(v => !v[3]);
+// Game screens: a slim header and no sub-tabs, so the field and the score get the room.
+const GAME_TABS = ['matchday', 'field'];
 function subNav(g) {
-  const vs = viewsOf(g); if (vs.length < 2 || g.id === 'more') return '';
+  const vs = listedViews(g); if (vs.length < 2 || g.id === 'more' || state.tab === 'matchday') return '';
   return `<nav class="subnav" aria-label="${esc(g.label)}">${vs.map(([id, l]) => `<button data-act="tab" data-tab="${id}" ${id === state.tab ? 'aria-current="page"' : ''}>${esc(l)}</button>`).join('')}</nav>`;
+}
+// Long pages (Reports, Rules): each section folds away, with a jump bar to the sections at the top.
+// Folded sections are remembered for the visit. Sections marked data-fold="shut" start folded.
+function foldLongPage() {
+  const host = $('#view .long-page'); if (!host) return;
+  const key = state.tab, mem = state.folded[key] = state.folded[key] || {};
+  const secs = [...host.querySelectorAll('section.sec')].filter(x => x.querySelector(':scope > .sec-h > h2'));
+  const links = secs.map((sec, i) => {
+    const h = sec.querySelector(':scope > .sec-h > h2'), title = h.textContent.trim(), id = `${key}-sec-${i}`;
+    const shut = title in mem ? mem[title] : sec.dataset.fold === 'shut';
+    const body = document.createElement('div'); body.className = 'fold-body'; body.id = id + '-body'; body.hidden = shut;
+    [...sec.children].filter(c => !c.classList.contains('sec-h')).forEach(c => body.appendChild(c));
+    sec.appendChild(body); sec.id = id; sec.classList.add('fold');
+    h.innerHTML = `<button type="button" class="fold-btn" data-act="fold" data-key="${esc(title)}" aria-expanded="${!shut}" aria-controls="${body.id}">${h.innerHTML}${icon('chevron-down', 20)}</button>`;
+    return [id, h.dataset.jump || title];
+  });
+  // The jump bar goes under the page's own title and filters, just above the sections.
+  const before = host.querySelector(':scope > .cols') || secs[0];
+  if (links.length > 3 && before) before.insertAdjacentHTML('beforebegin', `<nav class="jump" aria-label="Jump to a section">${links.map(([id, t]) => `<button type="button" data-act="jump" data-to="${id}">${esc(t)}</button>`).join('')}</nav>`);
+}
+// A sub-tab row wider than the screen fades at the edge until it's scrolled to the end, and keeps the
+// current tab in view.
+function fitSubnav() {
+  const nav = $('#view .subnav'); if (!nav) return;
+  const end = () => nav.classList.toggle('at-end', nav.scrollLeft + nav.clientWidth >= nav.scrollWidth - 4);
+  const cur = nav.querySelector('[aria-current="page"]');
+  if (cur && cur.offsetLeft + cur.offsetWidth > nav.clientWidth - 24) nav.scrollLeft = cur.offsetLeft - 16;
+  end(); nav.addEventListener('scroll', end, { passive: true });
 }
 function goTo(tab, focus = true) {
   if (tab === 'plays') state.playId = null;
@@ -697,7 +745,7 @@ function renderNav() {
   const nav = $('#tabs'), cur = navOf(state.tab);
   nav.hidden = false;
   nav.style.gridTemplateColumns = `repeat(${NAV.length},1fr)`;
-  nav.innerHTML = NAV.map(g => { const vs = viewsOf(g), on = g === cur;
+  nav.innerHTML = NAV.map(g => { const vs = listedViews(g), on = g === cur;
     return `<div class="nav-group${on ? ' on' : ''}"><button class="nav-main" data-act="nav" data-g="${g.id}" ${on ? 'aria-current="page"' : ''}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${g.icon}</svg>${g.label}</button>
       ${vs.length > 1 && g.id !== 'more' ? `<div class="nav-sub">${vs.map(([id, l]) => `<button data-act="tab" data-tab="${id}" ${id === state.tab ? 'aria-current="page"' : ''}>${esc(l)}</button>`).join('')}</div>` : ''}</div>`; }).join('');
 }
@@ -735,7 +783,8 @@ setInterval(() => { if (S.role === 'coach' && !S.publishing) renderStatus(); }, 
 
 /* ---------- Lock screen and setup ---------- */
 function renderLock() {
-  $('#tabs').hidden = true; $('#status').hidden = true; $('#days-chip').hidden = true; $('#menu-btn').hidden = true; $('#bell-btn').hidden = true;
+  $('#tabs').hidden = true; $('#status').hidden = true; $('#days-chip').hidden = true; $('#menu-btn').hidden = true; $('#bell-btn').hidden = true; $('#team-crest').hidden = true;
+  document.body.classList.remove('game');
   $('#team-title').textContent = 'Team Manager';
   const coach = state.lockMode === 'coach';
   const draft = readDraft();
@@ -812,6 +861,7 @@ function crest(c, big = false) {
 const urgencyDot = u => u ? `<span class="u-dot ${u}" aria-hidden="true"></span><span class="sr-only">${u === 'critical' ? ', needs attention now' : ', needs attention soon'}</span>` : '';
 function homeSelector(hv) {
   const T = data.team, club = M.clubOf(ws, data);
+  if (!hv.multi) return '';   // one team: the header already says which
   if (!hv.multi) return `<div class="scope single">${crestWithSport(club ? clubBadge(club) : { id: M.NO_CLUB, name: 'No club' }, sportOfTeam(data))}
     <span class="grow"><span class="name" style="display:block">${esc(T.name || 'Team')}</span><span class="sub" style="display:block">${esc([club && club.name, T.division, T.season].filter(Boolean).join(' · ') || 'Not in a club')}</span></span></div>`;
   const sc = hv.scope, clubOfScope = sc.kind === 'club' ? sc.id : sc.kind === 'team' ? (hv.clubs.find(c => c.teams.some(t => t.id === sc.id)) || {}).id : null;
@@ -837,12 +887,20 @@ function homeWhy(x) {
 }
 // A dashboard button keeps the team its record belongs to; home-go switches to that team first.
 const goAttrs = (x, act, id) => `data-act="home-go" data-team="${esc(x.teamId)}" data-go="${esc(act)}" data-id="${esc(id)}"${x.k ? ` data-k="${esc(x.k)}"` : ''}${x.tab ? ` data-tab="${esc(x.tab)}"` : ''}`;
+// A match on the spotlight within about three hours of its start: Home opens Match Day for it.
+function dueMatchFor(x) {
+  if (!x || (x.kind !== 'match' && x.kind !== 'tournament')) return null;
+  const t = M.findTeam(ws, x.teamId); if (!t) return null;
+  const ms = arr(M.activeLens(t).matches);
+  return x.kind === 'match' ? ms.find(m => m.id === x.id && matchDayDue(m)) || null
+    : ms.filter(m => matchDayDue(m)).sort((a, b) => (a.start || '').localeCompare(b.start || ''))[0] || null;
+}
 function homeSpotlight(hv) {
   const x = hv.spotlight;
   if (!x) return `<section class="focus calm has-mark" style='--sport-mark:${sportMaskUrl(sportOfTeam(data))}' aria-labelledby="spot-h"><h2 id="spot-h">Nothing coming up</h2>
     <p class="spot-what">No training, matches or tasks ${hv.scope.kind === 'all' ? 'for any team' : hv.scope.kind === 'club' ? 'for this club’s teams' : 'for this team'} yet.</p>
     ${hv.scope.kind === 'team' && hv.scope.id === data.id ? `<div class="btn-row"><button class="btn primary" data-act="add-session">${icon('plus')}Add training</button><button class="btn" data-act="tab" data-tab="matches">Matches</button></div>` : ''}</section>`;
-  const who = [x.team, hv.multi && x.club ? x.club : ''].filter(Boolean).join(' · ');
+  const who = [x.team, hv.multi && x.club ? x.club : ''].filter(Boolean).join(' · '), due = dueMatchFor(x);
   const share = x.kind === 'match' ? `<button class="btn sm on-dark" data-act="home-go" data-team="${esc(x.teamId)}" data-go="day-share" data-date="${esc(x.date)}">${icon('chat', 18)}Send match day</button>` : '';
   return `<section class="focus lvl-${x.level} has-mark" style='--sport-mark:${sportMaskUrl(sportOfTeam(M.findTeam(ws, x.teamId) || data))}' aria-labelledby="spot-h">
     <p class="spot-k"><span class="lvl-pill">${HOME_LEVEL[x.level]}</span>${hv.multi ? `<span>${esc(who)}</span>` : ''}</p>
@@ -850,7 +908,8 @@ function homeSpotlight(hv) {
     <p class="spot-what">${[x.kind === 'session' ? '' : `<b>${esc(x.title)}</b>`, x.comp ? esc(x.comp) : '', x.round ? esc(x.round) : '', x.date ? esc(homeWhen(x)) : '', x.place ? esc(x.place) : ''].filter(Boolean).join(' · ')}</p>
     <p class="spot-why">${esc(homeWhy(x))}</p>
     ${x.issues.length ? `<ul class="spot-issues">${x.issues.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}
-    <div class="btn-row"><button class="btn primary" ${goAttrs(x, x.act, x.id)}>${HOME_OPEN[x.kind]}${x.teamId !== data.id ? `<span class="sr-only"> for ${esc(x.team)}</span>` : ''}</button>${share}${x.compId && x.act !== 'comp-open' ? `<button class="btn sm on-dark" ${goAttrs(x, 'comp-open', x.compId)}>${esc(x.comp)}</button>` : ''}</div>
+    <div class="btn-row">${due ? `<button class="btn primary" ${goAttrs(x, 'matchday-open', due.id)}>${icon('field', 20)}Open Match Day${x.teamId !== data.id ? `<span class="sr-only"> for ${esc(x.team)}</span>` : ''}</button><button class="btn sm on-dark" ${goAttrs(x, 'match-open', due.id)}>Match details</button>`
+      : `<button class="btn primary" ${goAttrs(x, x.act, x.id)}>${HOME_OPEN[x.kind]}${x.teamId !== data.id ? `<span class="sr-only"> for ${esc(x.team)}</span>` : ''}</button>`}${share}${x.compId && x.act !== 'comp-open' ? `<button class="btn sm on-dark" ${goAttrs(x, 'comp-open', x.compId)}>${esc(x.comp)}</button>` : ''}</div>
   </section>`;
 }
 function homeUpcoming(hv) {
@@ -904,7 +963,7 @@ function homeInsight(hv) {
 }
 function homeNotices(n) {
   const notices = V.notices.slice(0, n);
-  return notices.length ? `<section class="sec"><div class="sec-h"><h2>Notices</h2>${isCoach() ? '<button class="btn sm" data-act="tab" data-tab="messages">Manage</button>' : ''}</div>
+  return notices.length ? `<section class="sec"><div class="sec-h"><h2>Notices</h2>${isCoach() ? '<button class="btn sm" data-act="tab" data-tab="notices">Manage</button>' : ''}</div>
       <div class="list">${notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p></div>`).join('')}</div></section>` : '';
 }
 function startSquad() {
@@ -928,7 +987,7 @@ function liveCard(lc, coach) {
   const rows = lc.rows.map(r => {
     const rec = r.record, tag = coach ? 'button' : 'div';
     const today = r.today.map(m => { const res = resultText(m), o = M.matchOutcome(m);
-      return `<li><${tag} class="cl-match" ${go(r, 'match-open', m.id)}><span class="cl-time">${m.start ? esc(fmtTime(m.start)) : 'TBC'}</span><span class="grow"><b>vs ${esc(m.opponent || 'TBC')}</b><small>${esc([m.field && `Field ${m.field}`, m.round].filter(Boolean).join(' · ') || 'Field TBC')}</small></span>${res ? `<span class="cl-res ${o}">${esc(res)}</span>` : m.status !== 'scheduled' ? `<span class="cl-res">${esc(M.MATCH_STATUS[m.status])}</span>` : ''}</${tag}></li>`; }).join('');
+      return `<li><${tag} class="cl-match" ${go(r, coach && matchDayDue(m) ? 'matchday-open' : 'match-open', m.id)}><span class="cl-time">${m.start ? esc(fmtTime(m.start)) : 'TBC'}</span><span class="grow"><b>vs ${esc(m.opponent || 'TBC')}</b><small>${esc([m.field && `Field ${m.field}`, m.round].filter(Boolean).join(' · ') || 'Field TBC')}</small></span>${res ? `<span class="cl-res ${o}">${esc(res)}</span>` : m.status !== 'scheduled' ? `<span class="cl-res">${esc(M.MATCH_STATUS[m.status])}</span>` : ''}</${tag}></li>`; }).join('');
     const next = r.next && !r.today.includes(r.next) ? `<${tag} class="cl-line" ${go(r, 'match-open', r.next.id)}><span class="cl-lbl">Next</span><span><b>vs ${esc(r.next.opponent || 'TBC')}</b> · ${esc(when(r.next))}${r.next.round ? ` · ${esc(r.next.round)}` : ''}</span></${tag}>` : '';
     const last = r.last && !r.today.includes(r.last) ? `<${tag} class="cl-line" ${go(r, 'match-open', r.last.id)}><span class="cl-lbl">Last</span><span>vs ${esc(r.last.opponent || 'TBC')} · <b>${esc(resultText(r.last))}</b></span></${tag}>` : '';
     return `<div class="cl-team">${many ? `<p class="cl-tname">${esc(r.team)}${r.entry.division ? ` · ${esc(r.entry.division)}` : ''}</p>` : ''}
@@ -985,7 +1044,7 @@ function viewSquad() {
   const cnt = { all: P.length, F: P.filter(p => p.gender === 'F').length, M: P.filter(p => p.gender === 'M').length, out: P.filter(p => p.status && p.status !== 'available').length };
   if (!isCoach() && state.squadFilter === 'out') state.squadFilter = 'all';
   const chip = (k, l) => `<button class="chip" data-act="squad-filter" data-f="${k}" aria-pressed="${state.squadFilter === k}">${l} (${cnt[k]})</button>`;
-  return `<div class="sec-h"><h2>Squad</h2>${isCoach() ? `<div class="btn-row"><button class="btn sm" data-act="bulk-add">Paste list</button><button class="btn sm" data-act="player-import">From another team</button><button class="btn primary sm" data-act="add-player">${icon('plus', 18)}Add</button></div>` : ''}</div>
+  return `<div class="sec-h"><h2>Squad</h2>${isCoach() ? `<button class="btn primary sm" data-act="squad-add" aria-haspopup="dialog">${icon('plus', 18)}Add</button>` : ''}</div>
     <input type="text" placeholder="Search players" aria-label="Search players" data-input="squad-search" value="${esc(state.squadSearch)}" style="margin-bottom:10px">
     <div class="chips">${chip('all', 'All')}${chip('F', 'Female')}${chip('M', 'Male')}${isCoach() ? chip('out', 'Injured / unavailable') : ''}</div>
     <div id="squad-list">${squadList()}</div>
@@ -1029,7 +1088,7 @@ function playerForm(p) {
       <label class="opt"><input type="radio" name="gender" value="M" ${p.gender === 'M' ? 'checked' : ''}><span>Male</span></label>
     </div><small>Used for the mixed ratio check on the lineup screen.</small></div>
     <div class="two">
-      <label class="field-l"><span>Jersey no. · this team</span><input type="text" name="number" inputmode="numeric" maxlength="3" value="${esc(p.number)}"><small>Allocating a number records the jersey as issued on save. ${data.team.jerseyLoan ? 'Loan returns are tracked below.' : 'Enable loaned jerseys in Settings › Team to record returns.'}</small></label>
+      <label class="field-l"><span>Jersey no. · this team</span><input type="text" name="number" inputmode="numeric" maxlength="3" value="${esc(p.number)}"><small>Allocating a number records the jersey as issued on save. ${data.team.jerseyLoan ? 'Loan returns are tracked below.' : 'Enable loaned jerseys in Settings › Jerseys to record returns.'}</small></label>
       <label class="field-l"><span>Status</span><select name="status">${Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>
     <label class="field-l"><span>Mobile</span><input type="tel" name="phone" placeholder="04xx xxx xxx" value="${esc(p.phone)}"><small>Coach only. For messaging them directly on WhatsApp.</small></label>
@@ -1104,14 +1163,14 @@ function jerseyReportHtml() {
       return `<tr><th scope="row">${esc(x.name)}${x.inSquad ? '' : '<small class="muted" style="display:block">Left this squad</small>'}</th><td>${esc(x.open.map(o => '#' + o.number).join(', ') || (j ? '#' + j.number : x.number ? '#' + x.number : '–'))}${j && j.out && x.status === 'out' ? `<small class="muted" style="display:block">since ${esc(fmtDM(j.out))}</small>` : ''}</td><td>${status(x)}</td>
       ${lend ? `<td>${x.open.map(o => `<button class="btn sm" data-act="jersey-back" data-player="${esc(x.id)}" data-id="${esc(o.id)}" aria-label="${esc(x.name)} returned jersey ${esc(o.number)}">Returned</button>`).join(' ')}${x.open.length && (data.players.find(p => p.id === x.id) || {}).phone ? ` <button class="btn sm" data-act="jersey-remind" data-player="${esc(x.id)}" data-season="${esc(V.viewSeason.id)}" aria-label="Remind ${esc(x.name)} to return their jersey">${icon('chat', 16)}</button>` : ''}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>` : '<p class="muted small">No jersey issues recorded for this season.</p>';
   const outstanding = inventory.rows.map(x => `<div class="row"><span class="grow"><span class="name">${esc(x.name)}${x.inSquad ? '' : ' · Former squad member'}</span><span class="sub" style="display:block">${esc(x.open.map(o => '#' + o.number + ' (' + ((M.findSeason(data, o.seasonId) || {}).name || 'earlier season') + ')').join(', '))}</span></span>${lend && (data.players.find(p => p.id === x.id) || {}).phone ? `<button class="btn sm" data-act="jersey-remind" data-player="${esc(x.id)}">Remind</button>` : ''}</div>`).join('');
-  return `<section class="sec"><div class="sec-h"><h2>Jerseys · ${esc(V.viewSeason.name)}</h2>${lend && r.out ? `<button class="btn sm" data-act="jersey-share">${icon('copy', 18)}Copy list</button>` : ''}</div>
+  return `<section class="sec"><div class="sec-h"><h2 data-jump="Jerseys">Jerseys · ${esc(V.viewSeason.name)}</h2>${lend && r.out ? `<button class="btn sm" data-act="jersey-share">${icon('copy', 18)}Copy list</button>` : ''}</div>
     <p class="small" style="margin-bottom:8px">${lend ? `<b>${r.out}</b> still out · <b>${r.returned}</b> returned` : `<b>${r.out}</b> given out`} · ${r.none} without an issue this season${r.gone ? ` · ${r.gone} former squad member${r.gone === 1 ? '' : 's'} still holding a jersey issued in this season` : ''}.</p>
     ${seasonTable}
     <p class="hint">This season only: return status belongs to the season in which the jersey was issued.</p>
     <details class="more"><summary>Currently outstanding across all seasons (${inventory.outstanding} jersey${inventory.outstanding === 1 ? '' : 's'}${inventory.formerPlayers ? `, ${inventory.formerPlayers} former player${inventory.formerPlayers === 1 ? '' : 's'}` : ''})</summary>
       <div class="list">${outstanding || '<p class="muted small">All issued jerseys have been returned.</p>'}</div>
     </details>
-    <p class="hint">${lend ? 'Returns may be marked on a player card or against a season issue.' : 'Turn on lent jerseys in Settings › Team to track returns.'}</p></section>`;
+    <p class="hint">${lend ? 'Returns may be marked on a player card or against a season issue.' : 'Turn on lent jerseys in Settings › Jerseys to track returns.'}</p></section>`;
 }
 function bulkForm() {
   return `<form data-form="bulk">
@@ -1207,10 +1266,10 @@ function sessionRow(s) {
       <span style="display:block;margin-top:4px">${s.cancelled ? '<span class="pill bad">Cancelled</span>' : taken ? `<span class="pill ok">${attended} attended</span>${apol ? ` <span class="pill neutral">${apol} apolog${apol === 1 ? 'y' : 'ies'}</span>` : ''}` : isPast ? '<span class="pill neutral">No roll taken</span>' : ''}</span>
       ${!s.cancelled && !isPast && asking(s) ? `<span class="ag-meta">${rsvpPills(s)}</span>` : ''}
     </button>
-    ${s.cancelled ? '' : `<div class="acts">
-      ${!isPast ? `<button class="btn wa sm" data-act="remind" data-id="${s.id}" aria-label="Send reminder for ${esc(fmtDay(s.date))}">${icon('chat', 18)}</button>
-      <button class="btn sm" data-act="rsvp-open" data-k="session" data-id="${s.id}" aria-label="Availability for ${esc(fmtDay(s.date))}">${icon('rsvp', 18)}</button>` : ''}
-      <button class="btn sm" data-act="roll" data-id="${s.id}" aria-label="Roll call for ${esc(fmtDay(s.date))}">${icon('clip', 18)}</button>
+    ${s.cancelled ? '' : `<div class="sess-acts">
+      ${!isPast ? `<button class="btn wa sm" data-act="remind" data-id="${s.id}" aria-label="Send reminder for ${esc(fmtDay(s.date))}">${icon('chat', 16)}Remind</button>
+      <button class="btn sm" data-act="rsvp-open" data-k="session" data-id="${s.id}" aria-label="Availability for ${esc(fmtDay(s.date))}">${icon('rsvp', 16)}Replies</button>` : ''}
+      <button class="btn sm" data-act="roll" data-id="${s.id}" aria-label="Roll call for ${esc(fmtDay(s.date))}">${icon('clip', 16)}Roll call</button>
     </div>`}
   </div>`;
 }
@@ -1300,23 +1359,31 @@ function viewField() {
   const max = M.maxMalesOf(V.team, curClub());
   const bench = sortedPlayers().filter(p => !onField.includes(p));
   const coach = isCoach(), sys = curSystem(), ownSpots = sys && sys.pos;
+  // What's drawn on the field sits behind one Show button, so the field comes first.
+  const shown = [state.layers.zones && 'Zones', state.layers.channels && 'Channels', sys && sys.name].filter(Boolean);
   return `<div class="cols lineup-cols"><div class="lineup-ctrl">
     <div class="lineup-bar">
       <select aria-label="Choose lineup" data-change="lineup">${(() => { const opt = l => `<option value="${l.id}" ${l.id === lu.id ? 'selected' : ''}>${esc(l.name)}</option>`, ml = V.lineups.filter(matchOfLineup), saved = V.lineups.filter(l => !matchOfLineup(l));
         return ml.length ? `<optgroup label="Saved lineups">${saved.map(opt).join('')}</optgroup><optgroup label="Match lineups">${ml.map(opt).join('')}</optgroup>` : saved.map(opt).join(''); })()}</select>
+      <button class="btn sm show-btn" data-act="overlays" aria-expanded="${!!state.overlaysOpen}" aria-controls="overlays" title="${esc(shown.length ? 'Showing: ' + shown.join(', ') : 'Nothing extra on the field')}">${icon('layers', 18)}Show${shown.length ? `<span class="count" aria-label="${shown.length} on">${shown.length}</span>` : ''}</button>
       ${coach ? `<button class="btn sm" data-act="lineup-menu" aria-label="Lineup options">${icon('dots', 20)}</button>` : ''}
     </div>
-    ${coach ? `<div class="seg" role="group" aria-label="Field mode">
+    <div class="overlays" id="overlays" ${state.overlaysOpen ? '' : 'hidden'}>
+      <p class="ov-h">On the field</p>
+      <div class="chips layer-chips" role="group" aria-label="Show on the field">
+        <button class="chip" data-act="layer" data-k="zones" aria-pressed="${!!state.layers.zones}">Zones</button>
+        <button class="chip" data-act="layer" data-k="channels" aria-pressed="${!!state.layers.channels}">Channels</button>
+      </div>
+      <p class="ov-h">Game systems</p>
+      <div class="sys-chips" role="group" aria-label="Game systems">
+        ${SYSTEMS.map(x => `<button class="chip sys-chip g-${x.group.toLowerCase()}" data-act="system" data-id="${x.id}" aria-pressed="${state.system === x.id}">${esc(x.name)}</button>`).join('')}
+      </div>
+      <button class="btn sm block" data-act="overlays">Done</button>
+    </div>
+    ${coach ? `<div class="seg lineup-mode" role="group" aria-label="Field mode">
       <button data-act="move-mode" data-on="0" aria-pressed="${!state.moveMode}">Pick players</button>
       <button data-act="move-mode" data-on="1" aria-pressed="${state.moveMode}">Move positions</button>
     </div>` : ''}
-    <div class="chips layer-chips" role="group" aria-label="Show on the field">
-      <button class="chip" data-act="layer" data-k="zones" aria-pressed="${!!state.layers.zones}">Zones</button>
-      <button class="chip" data-act="layer" data-k="channels" aria-pressed="${!!state.layers.channels}">Channels</button>
-    </div>
-    <div class="sys-chips" role="group" aria-label="Game systems">
-      ${SYSTEMS.map(x => `<button class="chip sys-chip g-${x.group.toLowerCase()}" data-act="system" data-id="${x.id}" aria-pressed="${state.system === x.id}">${esc(x.name)}</button>`).join('')}
-    </div>
     </div><div class="col lineup-pitch">
     <div class="field-wrap">${fieldSVG(lu, coach)}</div>
     </div><div class="col lineup-side">
@@ -1348,12 +1415,14 @@ function matchBanner(lu) {
   return `<div class="match-banner"><b>Match lineup: vs ${esc(m.opponent || 'TBC')}</b>, ${esc(fmtDay(m.date))}${m.start ? ` ${esc(fmtTime(m.start))}` : ''}
     ${chk ? (chk.ready ? '<span class="pill ok">Ready</span>' : `<ul class="diff-list issues">${chk.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`) + (chk.checks.length ? `<p class="small muted">To check: ${esc(chk.checks.join('; '))}</p>` : '') + `<button class="link-btn inline" data-act="match-open" data-id="${m.id}">Match details</button>` : ''}</div>`;
 }
-function fieldSVG(lu, interactive) {
-  let s = `<svg id="field" class="field ${state.moveMode && interactive ? 'moving' : ''} ${interactive ? 'interactive' : ''}${state.system ? ' has-sys' : ''}" viewBox="-3 -1 56 82" role="group" aria-label="Field positions for ${esc(lu.name)}">`;
+// `plain` (Match Day) draws the players without zones, channels or a game system, and never in move mode.
+function fieldSVG(lu, interactive, { plain = false } = {}) {
+  const moving = state.moveMode && interactive && !plain;
+  let s = `<svg id="field" class="field ${moving ? 'moving' : ''} ${interactive ? 'interactive' : ''}${state.system && !plain ? ' has-sys' : ''}" viewBox="-3 -1 56 82" role="group" aria-label="Field positions for ${esc(lu.name)}">`;
   s += `<rect x="0" y="0" width="50" height="80" fill="var(--turf)"/>`;
   for (let y = 5, i = 0; y < 75; y += 5, i++) if (i % 2) s += `<rect x="0" y="${y}" width="50" height="5" fill="var(--turf-2)"/>`;
   s += `<rect x="0" y="0" width="50" height="5" fill="var(--turf-3)"/><rect x="0" y="75" width="50" height="5" fill="var(--turf-3)"/>`;
-  const F = fieldDims(V.team.field), L = state.layers, sys = curSystem();
+  const F = fieldDims(V.team.field), L = plain ? {} : state.layers, sys = plain ? null : curSystem();
   const at = id => { const sl = lu.slots.find(x => x.id === id); return sl ? sysSpot(sys, sl) : null; };
   if (L.channels) s += channelsSVG(F);
   if (L.zones) s += zonesSVG(F);
@@ -2406,8 +2475,6 @@ function playFigure(p, side, i) {
     ${n > 1 ? `<div class="seg phase-bar" role="group" aria-label="Phase">${Array.from({ length: n }, (_, j) => `<button data-act="play-phase" data-i="${j}" aria-pressed="${j === i}">Phase ${j + 1}</button>`).join('')}</div>` : ''}
     ${title ? `<p class="phase-title">${esc(title)}</p>` : ''}
     ${playSVG(view, side, { anim: true })}
-    ${playLegend(view, side)}
-    ${castKey(view, side)}
     <div class="anim-bar">
       <button type="button" class="btn sm primary" data-act="anim-play">${anim.playing ? 'Pause' : anim.done ? 'Play again' : 'Play'}</button>
       <button type="button" class="btn sm${anim.slow ? ' on' : ''}" data-act="anim-slow" aria-pressed="${!!anim.slow}">Slow</button>
@@ -2416,7 +2483,9 @@ function playFigure(p, side, i) {
     </div>
     <div class="anim-timeline"><label for="anim-seek">Animation progress</label>
       <input id="anim-seek" data-input="anim-seek" type="range" min="0" max="100" step="1" value="0" aria-label="Seek within this phase">
-      <output id="anim-pct" for="anim-seek">0%</output></div>`;
+      <output id="anim-pct" for="anim-seek">0%</output></div>
+    ${playLegend(view, side)}
+    ${castKey(view, side)}`;
 }
 
 // What the labels mean, when they aren't Oztag's: "7 Halfback · 9 Hooker ..."
@@ -3483,35 +3552,39 @@ function viewCrew() {
     .find(({comp})=>comp.id===rules.competitionId) : null;
   const contextValid = policyFitsContext(rules,{team:{...data.team,sport}},selectedPolicyEntry);
   const policyScope = selectedPolicyEntry?.comp?.name || 'Friendly / unlinked matches';
+  // Which of the workspace's teams a person helps, for their directory row.
+  const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div>
     <div class="crew-context"><span class="sub">Team: <strong>${esc(data.team.name)}</strong> · ${esc(sport)} · ${esc(profile.provider)}</span>
     <button class="btn sm" data-act="crew-switch">Change team</button></div>
-    <p class="hint">A person can appear in more than one club. Club membership, registration and accreditation are reviewed separately. These records stay in the encrypted coach workspace, not a global member directory.</p>
+    <details class="info-note"><summary>${icon('info', 18)}How these records work</summary><div>
+      <p class="hint">A person can appear in more than one club and help several teams: open their profile and tick the teams. Club membership, registration and accreditation are reviewed separately for each sport. These records stay in the encrypted coach copy, not a global member directory.</p>
+      <p class="hint">Club directory records are entered by the coach, not verified by a governing body. Club-wide membership never automatically grants a match-day role. Do not store WWCC numbers, identity documents or registration passwords.</p>
+      <p class="hint">Requirements can differ between competitions, age groups and categories. Record only the current official competition rules.</p></div></details>
     <form class="crew-directory-picker" data-form="crew-directory">
       <label class="field-l"><span>Volunteer directory for club</span><select name="clubId">
       <option value="" ${!selectedId?'selected':''}>Current team without a club</option>
       ${arr(ws.clubs).map(c=>'<option value="'+esc(c.id)+'" '+(c.id===selectedId?'selected':'')+'>'+esc(c.name)+'</option>').join('')}</select></label>
       <button class="btn sm" type="submit">View directory</button>
     </form>
-    <section class="sec crew-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">Configure</button></div>
-      <p class="hint">Current team: <strong>${esc(sport)}</strong> · ${esc(M.TEAM_CATEGORIES[context.category] || 'Category unrecorded')} · ${esc(context.ageGroup || 'Age group unrecorded')} · ${esc(context.division || 'Division unrecorded')}. Requirements can differ between competitions, age groups and categories. Record only the current official competition rules.</p>
+    <section class="sec crew-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">${rules.source ? 'Configure' : 'Set up'}</button></div>
+      <p class="sub" style="white-space:normal">${esc(sport)} · ${esc(M.TEAM_CATEGORIES[context.category] || 'Category unrecorded')} · ${esc(context.ageGroup || 'Age group unrecorded')} · ${esc(context.division || 'Division unrecorded')}</p>
       ${rules.source && rules.rows.length && contextValid ? `<div class="crew-status"><strong>Season ${esc(rules.year || 'not set')}</strong>
         <span class="sub">${esc(policyScope)} · ${esc(rules.source)}${rules.reviewedAt ? ' · recorded '+esc(rules.reviewedAt):''}</span></div>
         ${rules.sourceUrl ? `<p class="hint"><a href="${esc(rules.sourceUrl)}" target="_blank" rel="noopener noreferrer">Open recorded competition rule reference</a></p>` : ''}
         <ul class="crew-req">${rules.rows.map(r => `<li>${r.min} × ${esc(REQUIREMENT_ROLES[r.role])}</li>`).join('')}</ul>`
-        : `<p class="crew-notready">${rules.source ? 'Existing requirements were reviewed for another age group, category, division or competition. Configure the current context before marking staffing ready.' : 'No reviewed staffing requirements configured. Staffing cannot be marked ready.'}</p>`}
+        : `<p class="crew-quiet">${icon('info', 18)}<span>${rules.source ? 'Staff requirements: set up for another age group, category, division or competition. Configure this one before relying on the check.' : 'Staff requirements: not set up. Matches can’t be marked as fully staffed until they are.'}</span></p>`}
     </section>
     <section class="sec crew-section"><h3>${esc(directoryClub?.name || 'Current team')} volunteer directory (${pool.length})</h3>
       ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="crew-basic" data-id="${esc(p.id)}">
         <span class="crew-avatar">${M.validPhoto(p.photo) ? `<img src="${p.photo}" alt="">` : esc(initials(p)||'?')}</span><span class="grow"><span class="name">${esc(p.name)}</span>${(() => {
-          const inPool = inTeamPool(p, data), bs = crewBadges(p, sport, todayISO()), shown = inPool ? bs : bs.slice(0, 1);
-          return `${badgeStrip(shown)}<span class="sub" style="display:block">${inPool ? (bs.length > 1 ? esc(crewRolesForSport(p, sport).map(r => CREW_ROLES[r]).join(' · ')) : 'No roles reviewed for this team sport') : 'Member of this club. Select its team to review eligible roles.'}</span>
+          const inPool = inTeamPool(p, data), bs = crewBadges(p, sport, todayISO()), shown = inPool ? bs : bs.slice(0, 1), h = helps(p);
+          return `${badgeStrip(shown)}<span class="sub" style="display:block">${inPool ? (bs.length > 1 ? esc(crewRolesForSport(p, sport).map(r => CREW_ROLES[r]).join(' · ')) : 'No roles reviewed for this team sport') : h.length ? 'Helps ' + esc(h.join(', ')) : 'Club member · no team yet. Open to tick their teams.'}</span>
         <span class="sub" style="display:block">${p.active ? 'Available for selection' : 'Inactive'} · ${esc(badgeSummary(shown))}</span>`; })()}</span>
-        ${icon('chevron-right', 18)}
+        <span class="edit-hint">${icon('edit', 16)}Edit</span>
       </button>`).join('')}</div>`
         : '<div class="empty"><p>No volunteers are recorded for this club. Add someone manually, link an existing workspace record or prepare an email invitation.</p></div>'}
       ${pool.length ? badgeLegend(sport) : ''}
-      <p class="hint">Club directory records are entered by the coach, not verified by a governing body. Club-wide membership never automatically grants a match-day role. Do not store WWCC numbers, identity documents or registration passwords.</p>
     </section>`;
 }
 
@@ -3582,6 +3655,25 @@ function crewInviteForm(clubId) {
     '</select></label><button class="btn primary block" type="submit">Open email draft</button>' +
     '<button class="btn block" type="button" data-act="crew-intake-back">Back</button></form>';
 }
+// The teams a volunteer helps, grouped by club, ticked on their profile. Club members can be picked for
+// any of the club's teams; ticking a team says they help that one (needed for a team outside their clubs).
+function crewTeamsFields(p) {
+  const teams = M.activeTeams(ws), clubs = arr(ws.clubs).filter(c => teams.some(t => t.team?.clubId === c.id) || memberOfClub(p, c.id));
+  const loose = teams.filter(t => !t.team?.clubId || !arr(ws.clubs).some(c => c.id === t.team.clubId));
+  const row = t => { const sp = sportOfTeam(t), roles = crewRolesForSport(p, sp), viaClub = !p.teamIds.includes(t.id) && memberOfClub(p, t.team?.clubId);
+    return `<div class="ct-row"><label class="check"><input type="checkbox" name="team" value="${esc(t.id)}" ${p.teamIds.includes(t.id) ? 'checked' : ''}>
+        <span>${sportIcon(sp, 16, 'sport-ic chip-ic')}<b>${esc(M.teamName(t))}</b> <small>${esc(sp)}</small></span></label>
+      <span class="ct-roles">${roles.length ? esc(roles.map(r => CREW_ROLES[r]).join(' · ')) : `No ${esc(sp)} roles yet`}${viaClub ? ' · <em>via club</em>' : ''}</span>
+      <button class="btn sm ct-btn" type="button" data-act="crew-save-review" data-team="${esc(t.id)}" aria-label="Save, then review ${esc(sp)} roles for ${esc(M.teamName(t))}">Roles</button></div>`; };
+  return `<fieldset class="crew-teams" id="crew-teams"><legend>Clubs and teams</legend><input type="hidden" name="review" value="">
+    <p class="hint">Tick every team this person helps. Roles and accreditation are kept per sport, so teams in the same sport share them; <b>Roles</b> saves and opens that sport’s roles.</p>
+    ${clubs.map(c => `<div class="ct-club">${crest(clubBadge(c))}<span class="grow"><b>${esc(c.name)}</b></span>
+      <label class="check ct-member"><input type="checkbox" name="club" value="${esc(c.id)}" ${memberOfClub(p, c.id) ? 'checked' : ''}><span>Club member</span></label></div>
+      ${teams.filter(t => t.team?.clubId === c.id).map(row).join('') || '<p class="muted small ct-none">No teams in this club yet.</p>'}`).join('')}
+    ${loose.length ? `<div class="ct-club"><span class="crest all" aria-hidden="true">–</span><span class="grow"><b>Teams without a club</b></span></div>${loose.map(row).join('')}` : ''}
+    ${teams.length ? '' : '<p class="muted small">No teams in this workspace yet.</p>'}
+  </fieldset>`;
+}
 function crewBasicForm(person) {
   const p=normCrewPerson(person), id=intakeClubId();
   const selected = arr(ws.clubs).find(c=>c.id===id);
@@ -3592,33 +3684,26 @@ function crewBasicForm(person) {
   const bySport = crewBadgesBySport(p, todayISO(), M.teamSport(data.team, M.clubOf(ws, data)));
   const qualifications = bySport.map(({ sport, badges }) => '<div class="cbadge-card"><strong>' + esc(sport) + '</strong><span class="sub" style="display:block">' + esc(badgeSummary(badges)) + '</span>' +
     badgeList(badges, b => { const from = p.qualificationSinceBySport?.[sport]?.[b.key] || ''; return from ? ' · qualified since ' + esc(from) : ''; }) + '</div>');
-  const eligibleTeams=intakeClubTeams(id).filter(t=>inTeamPool(p,t));
   return '<form data-form="crew-basic" autocomplete="off"><input type="hidden" name="id" value="'+esc(p.id)+'">' +
     '<input type="hidden" name="clubId" value="'+esc(sameClub?id:'')+'">' +
-    '<p class="hint">Private club personnel record. Registration and accreditation are checked separately for every sport and team, not verified automatically.</p>' +
     '<div class="photo-row"><span class="photo-prev">'+(M.validPhoto(p.photo)
       ? '<span class="pphoto big"><img src="'+p.photo+'" alt=""></span>'
       : '<span class="pphoto big none" aria-hidden="true">'+esc(initials(p)||'?')+'</span>')+'</span>' +
     '<div><label class="btn sm file-btn"><input type="file" accept="image/*" data-change="crew-photo" aria-label="Choose volunteer photo">Choose photo</label>' +
     '<button class="btn sm" type="button" data-act="crew-photo-clear" '+(!p.photo?'hidden':'')+'>Remove photo</button></div></div>' +
     '<input type="hidden" name="photo" value="'+esc(p.photo)+'">' +
-    '<p class="hint">Photo remains in the encrypted coach workspace only. Keep photos small and obtain the volunteer’s permission.</p>' +
     crewField('name','Full name',p.name,'text','required maxlength="120"') +
     '<div class="two">'+crewField('email','Email (optional)',p.email,'email','maxlength="254"')+
     crewField('phone','Mobile / contact phone (optional)',p.phone,'tel','maxlength="40"')+'</div>' +
     (sameClub ? crewField('joined','First joined '+esc(selected.name)+' (year)',since,'number','min="1900" max="'+validYear+'" placeholder="e.g. 2020"')+
       '<p class="hint">'+(years===null?'Club service start has not been recorded.':esc(years)+' calendar years since first joining; this does not prove uninterrupted service.')+'</p>' : '')+
+    crewTeamsFields(p) +
     '<h3 class="form-sec">Qualifications and accreditation</h3>' +
-    '<p class="hint">Years first qualified, expiry dates, training and registration are maintained by sport and team. No qualification is assumed by having a club profile.</p>' +
     (qualifications.length ? qualifications.join('') : '<div class="cbadge-card">' + badgeList(crewBadges(p, M.teamSport(data.team, M.clubOf(ws, data)), todayISO())) + '<p class="muted small">No accredited roles reviewed yet.</p></div>') +
-    (eligibleTeams.length?'<label class="field-l"><span>Review qualifications for team</span><select name="reviewTeam">'+
-      '<option value="">Choose a team</option>'+eligibleTeams.map(t=>'<option value="'+esc(t.id)+'">'+esc(M.teamName(t))+' · '+esc(M.teamSport(t.team,M.clubOf(ws,t)))+'</option>').join('')+'</select></label>'+
-      '<button class="btn block" type="button" data-act="crew-profile-review">Review sport roles and accreditation</button>':
-      '<p class="hint">Link this person to a team using Add volunteer → Existing volunteer before editing team-specific qualifications.</p>')+
     '<label class="check"><input type="checkbox" name="active" '+(p.active?'checked':'')+'><span>Available for consideration</span></label>'+
-    '<button class="btn primary block" type="submit">Save volunteer profile</button></form>';
+    '<button class="btn primary block" type="submit">Save volunteer profile</button>' +
+    '<details class="info-note"><summary>'+icon('info',18)+'About this record</summary><div><p class="hint">Private club personnel record, kept in the encrypted coach copy only. Registration and accreditation are checked separately for every sport and team, not verified automatically. Photos stay with the coach; keep them small and get the volunteer’s permission.</p></div></details></form>';
 }
-
 function crewChooseTeamForm(view=false) {
   return `<form data-form="${view?'crew-pick-view':'crew-pick-team'}">
     <p class="hint">Choose a team in this workspace. The staff roles and registration checks will follow that team's sport, not the club default.</p>
@@ -3627,18 +3712,20 @@ function crewChooseTeamForm(view=false) {
     <small>Only teams already managed in this workspace are listed. Create another team in Team management if it is missing.</small></label>
     <button class="btn primary block" type="submit">${view?'Show this team':'Continue'}</button></form>`;
 }
-function crewPersonForm(person) {
+// Roles, registration and accreditation for one team's sport. `T` is any team in the workspace (the team
+// on screen unless the volunteer profile chose another), so reviewing roles never switches teams.
+function crewPersonForm(person, T = data, { back = false } = {}) {
   const p = normCrewPerson(person || {});
-  const club = M.clubOf(ws, data), currentClub = data.team.clubId || '';
-  const sport = M.teamSport(data.team, club), profile = crewProfile(sport), registration = p.registrationBySport?.[sport] || (sport === 'Rugby league' || sport === 'League tag' ? p.registration : {});
+  const club = M.clubOf(ws, T);
+  const sport = M.teamSport(T.team, club), profile = crewProfile(sport), registration = p.registrationBySport?.[sport] || (sport === 'Rugby league' || sport === 'League tag' ? p.registration : {});
   const roles = Object.entries(CREW_ROLES).filter(([r]) => crewRoleAllowed(sport, r)).map(([r,label]) =>
     `<label class="check"><input type="checkbox" name="role" value="${r}" ${crewRolesForSport(p,sport).includes(r) ? 'checked' : ''}><span>${esc(label)}</span></label>`).join('');
   return `<form data-form="crew-person" autocomplete="off">
-    <input type="hidden" name="id" value="${esc(p.id)}"><input type="hidden" name="sport" value="${esc(sport)}">
-    <p class="hint"><strong>${esc(data.team.name)} · ${esc(sport)}</strong>. Registration and qualification details are checked against the relevant sport’s official records. This does not register anyone. ${M.activeTeams(ws).length>1 && !p.id ? '<button class="link-btn inline" type="button" data-act="crew-reassign">Choose another team</button>' : ''}</p>
+    <input type="hidden" name="id" value="${esc(p.id)}"><input type="hidden" name="sport" value="${esc(sport)}"><input type="hidden" name="teamId" value="${esc(T.id)}">${back ? '<input type="hidden" name="back" value="profile">' : ''}
+    <p class="hint"><strong>${sportIcon(sport, 16, 'sport-ic chip-ic')}${esc(T.team.name)} · ${esc(sport)}</strong>. Registration and qualification details are checked against the relevant sport’s official records. This does not register anyone. ${M.activeTeams(ws).length>1 && !p.id ? '<button class="link-btn inline" type="button" data-act="crew-reassign">Choose another team</button>' : ''}</p>
     ${crewField('name', 'Full name', p.name, 'text', 'required maxlength="120"')}
     ${p.id ? `<div class="cbadge-card"><strong>Recorded now for ${esc(sport)}</strong>${badgeStrip(crewBadges(p, sport, todayISO()), { size: 30 })}<span class="sub" style="display:block">${esc(badgeSummary(crewBadges(p, sport, todayISO())))}</span></div>` : ''}
-    <p class="hint">Club directory: ${esc(club?.name || 'No club')}. You are reviewing roles for ${esc(data.team.name)}. Club memberships are managed separately using Add volunteer → Existing volunteer; this page does not remove another club's association.</p>
+    <p class="hint">Club directory: ${esc(club?.name || 'No club')}. Roles apply to every ${esc(sport)} team this person helps. To add or remove teams, use Edit on their volunteer profile.</p>
     <div class="field-l"><span>Match-day roles for ${esc(sport)}</span><div class="opts crew-role-list">${roles}</div><small>A role for another sport does not establish eligibility here.</small></div>
     <h3 class="form-sec">Registration checked with ${esc(profile.provider)}</h3>
     <p class="hint">Enter a season only after checking this person’s relevant registration for ${esc(sport)}. These planning categories do not replace the governing body’s official registration categories.</p>
@@ -3646,8 +3733,8 @@ function crewPersonForm(person) {
       ${crewField('reg-volunteer', 'Volunteer registration year', registration.volunteer || '', 'number', 'min="2020" max="2100" placeholder="2026"')}</div>
     ${crewField('reg-trainer', (sport === 'Rugby league' || sport === 'League tag') ? 'Trainer registration year' : 'First aid / health-support registration year', registration.trainer || '', 'number', 'min="2020" max="2100" placeholder="2026"')}
     <h3 class="form-sec">Team association verified</h3>
-    <p class="hint">Check this person’s association with ${esc(data.team.name)} in ${esc(profile.provider)} or authorised club records. Club-wide availability is not team eligibility.</p>
-    ${crewField('squad-year','Team association confirmed for this season', p.squadYears?.[data.id] || '', 'number','min="2020" max="2100" placeholder="2026"')}
+    <p class="hint">Check this person’s association with ${esc(T.team.name)} in ${esc(profile.provider)} or authorised club records. Club-wide availability is not team eligibility.</p>
+    ${crewField('squad-year','Team association confirmed for this season', p.squadYears?.[T.id] || '', 'number','min="2020" max="2100" placeholder="2026"')}
     <h3 class="form-sec">Sport-specific accreditation history</h3>
     <p class="hint">Record the year first qualified and the latest confirmed expiry for each relevant ${esc(sport)} role. This is not proof of registration or currency.</p>
     <div class="crew-qual-grid">${Object.entries(CREW_ROLES).filter(([r]) => crewRoleAllowed(sport,r) && !['manager','matchDelegate','groundMarshal'].includes(r)).map(([r,label]) => `<fieldset class="crew-qual-row"><legend>${esc(label)}</legend><div class="two">${crewField('qualified-'+r,'Qualified since (year)',p.qualificationSinceBySport?.[sport]?.[r]||'','number','min="1900" max="2100" placeholder="e.g. 2018"')}${crewField('acc-'+r,'Accreditation expires',p.accreditationBySport?.[sport]?.[r] ?? p.accreditation[r],'date')}</div></fieldset>`).join('')}</div>
@@ -3656,7 +3743,8 @@ function crewPersonForm(person) {
     ${crewField('wwccExpiry', 'WWCC expiry', p.wwccExpiry, 'date')}
     <label class="check"><input type="checkbox" name="active" ${p.active ? 'checked' : ''}><span>Available for match assignment</span></label>
     <button class="btn primary block" type="submit">${p.id ? 'Save staff member' : 'Add staff member'}</button>
-    ${p.id ? `<button class="btn danger block" type="button" data-act="crew-delete" data-id="${esc(p.id)}">Remove from directory</button>` : ''}
+    ${back ? `<button class="btn block" type="button" data-act="crew-basic" data-id="${esc(p.id)}">Back to profile</button>` : ''}
+    ${p.id && !back ? `<button class="btn danger block" type="button" data-act="crew-delete" data-id="${esc(p.id)}">Remove from directory</button>` : ''}
   </form>`;
 }
 function crewPolicyForm(match = null) {
@@ -3723,23 +3811,31 @@ function crewMatchForm(m) {
     <p class="hint">Only confirmed people with checked registration, team association, safeguarding and relevant accreditation count towards reviewed minima. This is a planning check, not permission to play.</p>
   </form>`;
 }
+// Staff on a match. Red is kept for real shortfalls; requirements nobody has set up are one grey line,
+// and a finished match only lists who was there.
 function crewMatchSummary(m) {
-  const c = crewStatus(m);
-  const label = !c.configured ? 'Requirements not configured for this season' :
-    c.ready ? 'All configured roles covered (coach-recorded)' : 'Match-day staffing needs attention';
+  const c = crewStatus(m), rules = crewPolicy(m), past = matchPhase(m) === 'after' || matchPhase(m) === 'off';
+  const sport = M.teamSport(data.team, M.clubOf(ws, data));
+  const slots = c.slots.length ? `<ul class="crew-slots">${c.slots.map(a => { const p = crewPerson(a.personId), bs = p ? crewBadges(p, sport, crewDay(m)) : [];
+      return `<li>${badgeStrip(bs.filter(b => b.key === 'wwcc' || b.key === a.role), { size: 24 })}<span><strong>${esc(a.name)}</strong> · ${esc(CREW_ROLES[a.role] || a.role)}${a.confirmed ? '' : ' · not confirmed'}<span class="sr-only">. ${esc(bs.filter(b => b.key === 'wwcc' || b.key === a.role).map(b => b.text).join('. '))}</span></span></li>`; }).join('')}</ul>` : '';
+  const buttons = `<div class="btn-row"><button class="btn sm${!past && c.configured && !c.ready ? ' primary' : ''}" data-act="crew-match-open" data-id="${esc(m.id)}">Assign / check staff</button>
+      <button class="btn sm" data-act="crew-policy-open" data-id="${esc(m.id)}">${rules.source ? 'Match requirements' : 'Set up requirements'}</button></div>`;
+  if (past) return `<section class="crew-match-summary"><h3 class="form-sec">Match-day staff</h3>${slots || '<p class="muted small">No staff were recorded for this match.</p>'}
+    <div class="btn-row"><button class="btn sm" data-act="crew-match-open" data-id="${esc(m.id)}">${c.slots.length ? 'Change who helped' : 'Record who helped'}</button></div></section>`;
+  // Nothing set up (or set up for another season or competition): one quiet line, not two red errors.
+  const slotIssues = c.slots.filter(a => !a.valid).map(a => `${a.name}: ${a.issue}`);
+  if (!c.configured) return `<section class="crew-match-summary"><h3 class="form-sec">Match-day staff</h3>
+      <p class="crew-quiet">${icon('info', 18)}<span>${rules.source ? 'Staff requirements: set up for another season, competition or age group' : 'Staff requirements: not set up'}</span></p>
+      ${slots}${slotIssues.length ? `<ul class="diff-list warn-list">${slotIssues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${buttons}</section>`;
   return `<section class="crew-match-summary"><h3 class="form-sec">Match-day staff</h3>
-    <div class="crew-status ${c.ready ? 'crew-okay' : 'crew-alert'}"><strong>${esc(label)}</strong>
-    <span class="sub">${c.configured ? esc(c.source) : 'Verify the official local competition requirements before relying on this check.'}</span></div>
-    ${c.slots.length ? `<ul class="crew-slots">${c.slots.map(a => { const p = crewPerson(a.personId), bs = p ? crewBadges(p, M.teamSport(data.team, M.clubOf(ws, data)), crewDay(m)) : [];
-      return `<li>${badgeStrip(bs.filter(b => b.key === 'wwcc' || b.key === a.role), { size: 24 })}<span><strong>${esc(a.name)}</strong> · ${esc(CREW_ROLES[a.role] || a.role)}${a.confirmed ? '' : ' · not confirmed'}<span class="sr-only">. ${esc(bs.filter(b => b.key === 'wwcc' || b.key === a.role).map(b => b.text).join('. '))}</span></span></li>`; }).join('')}</ul>` : ''}
+    <div class="crew-status ${c.ready ? 'crew-okay' : 'crew-alert'}"><strong>${c.ready ? 'All configured roles covered (coach-recorded)' : 'Match-day staffing needs attention'}</strong>
+    <span class="sub">${esc(c.source)}</span></div>
+    ${slots}
     ${c.shortages.length ? `<ul class="crew-req">${c.shortages.map(r => `<li>${esc(r.name)}: ${r.have}/${r.min}${r.missing ? ' · ' + r.missing + ' missing' : ' · covered'}</li>`).join('')}</ul>` : ''}
     ${c.issues.length ? `<ul class="diff-list issues">${c.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-    <div class="btn-row"><button class="btn sm primary" data-act="crew-match-open" data-id="${esc(m.id)}">Assign / check staff</button>
-      <button class="btn sm" data-act="crew-policy-open" data-id="${esc(m.id)}">Match requirements</button></div>
+    ${buttons}
   </section>`;
 }
-
-/* Helpers: family, friends and people from the community who aren't on the squad */
 function viewHelpers() {
   const H = sortedHelpers(), load = taskLoad();
   return `<div class="sec-h"><h2>Helpers</h2><button class="btn primary sm" data-act="helper-new">${icon('plus', 18)}Add</button></div>
@@ -3774,7 +3870,7 @@ function viewHelped() {
   const n = v => v ? v : '<span class="muted">0</span>';
   return `<div class="sec-h"><h2>Who’s helped</h2></div>
     <div class="list helped" role="table" aria-label="Volunteering by person"><div class="helped-row helped-h" role="row"><span role="columnheader">Name</span><span role="columnheader">Done</span><span role="columnheader">Accepted</span><span role="columnheader">Invited</span><span role="columnheader">Declined</span></div>
-    ${rows.map(({ w, L }) => `<div class="helped-row" role="row"><span class="hn" role="cell"><span class="name" style="display:block">${esc(whoName(w))}</span>${w[0] === 'h' ? '<span class="tagline">Helper</span>' : ''}</span><b role="cell">${n(L.done)}</b><span role="cell">${n(L.accepted)}</span><span role="cell">${n(L.invited)}</span><span role="cell">${n(L.declined)}</span></div>`).join('')}</div>
+    ${rows.map(({ w, L }) => `<div class="helped-row" role="row"><span class="hn" role="cell"><span class="name" style="display:block">${esc(whoName(w))}</span>${w[0] === 'h' ? '<span class="tagline">Helper</span>' : ''}</span><b role="cell" data-l="Done">${n(L.done)}</b><span role="cell" data-l="Accepted">${n(L.accepted)}</span><span role="cell" data-l="Invited">${n(L.invited)}</span><span role="cell" data-l="Declined">${n(L.declined)}</span></div>`).join('')}</div>
     <p class="hint">Done counts tasks marked done. Accepted and Invited are for tasks still to come.${unmarked ? ` ${unmarked} past spot${unmarked === 1 ? ' was' : 's were'} accepted but never marked done, so ${unmarked === 1 ? 'it isn’t' : 'they aren’t'} counted.` : ''}</p>
     ${none.length ? `<p class="hint">${none.length} ${none.length === 1 ? 'person hasn’t' : 'people haven’t'} helped or been asked yet. When you add people to a task, they’re listed least busy first.</p>` : ''}`;
 }
@@ -3834,14 +3930,14 @@ function trendChart(trend) {
   const squad = Math.max(1, V.players.length), last = trend.slice(-16), n = last.length;
   const W = 340, H = 150, top = 20, base = 112, gap = 6, bw = Math.min(26, (W - 20 - gap * (n - 1)) / n), x0 = (W - (n * bw + (n - 1) * gap)) / 2;
   let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Training attendance, last ${n} sessions: ${last.map(x => `${fmtShort(x.date)} ${x.status === 'recorded' ? x.attended : x.status === 'cancelled' ? 'cancelled' : 'not recorded'}`).join(', ')}">`;
-  s += `<line x1="8" x2="${W - 8}" y1="${base}" y2="${base}" stroke="#DCE1D9"/><line x1="8" x2="${W - 8}" y1="${top}" y2="${top}" stroke="#DCE1D9" stroke-dasharray="3 3"/><text x="${W - 8}" y="${top - 6}" text-anchor="end" font-size="10" fill="#5B6861" font-family="Barlow, sans-serif">Squad (${squad})</text>`;
+  s += `<line x1="8" x2="${W - 8}" y1="${base}" y2="${base}" stroke="#DCE1D9"/><line x1="8" x2="${W - 8}" y1="${top}" y2="${top}" stroke="#DCE1D9" stroke-dasharray="3 3"/><text x="${W - 8}" y="${top - 6}" text-anchor="end" font-size="12" fill="#5B6861" font-family="Barlow, sans-serif">Squad (${squad})</text>`;
   last.forEach((x, i) => {
     const cx = x0 + i * (bw + gap);
     if (x.status === 'recorded') {
       const h = (base - top) * Math.min(1, x.attended / squad);
-      s += `<rect x="${cx}" y="${base - h}" width="${bw}" height="${h}" rx="3" fill="#123D2B"/><text x="${cx + bw / 2}" y="${base - h - 4}" text-anchor="middle" font-size="11" font-weight="700" fill="#16201B" font-family="Barlow Condensed, sans-serif">${x.attended}</text>`;
-    } else s += `<rect x="${cx}" y="${base - 22}" width="${bw}" height="22" rx="3" fill="none" stroke="#AEB8B0" stroke-dasharray="3 2"/><text x="${cx + bw / 2}" y="${base - 7}" text-anchor="middle" font-size="10" fill="#5B6861" font-family="Barlow, sans-serif">${x.status === 'cancelled' ? '✕' : '?'}</text>`;
-    s += `<text x="${cx + bw / 2}" y="${base + 14}" text-anchor="middle" font-size="9.5" fill="#5B6861" font-family="Barlow, sans-serif">${fmtShort(x.date)}</text>`;
+      s += `<rect x="${cx}" y="${base - h}" width="${bw}" height="${h}" rx="3" fill="#123D2B"/><text x="${cx + bw / 2}" y="${base - h - 4}" text-anchor="middle" font-size="13" font-weight="700" fill="#16201B" font-family="Barlow Condensed, sans-serif">${x.attended}</text>`;
+    } else s += `<rect x="${cx}" y="${base - 22}" width="${bw}" height="22" rx="3" fill="none" stroke="#AEB8B0" stroke-dasharray="3 2"/><text x="${cx + bw / 2}" y="${base - 7}" text-anchor="middle" font-size="12" fill="#5B6861" font-family="Barlow, sans-serif">${x.status === 'cancelled' ? '✕' : '?'}</text>`;
+    s += `<text x="${cx + bw / 2}" y="${base + 14}" text-anchor="middle" font-size="11" fill="#5B6861" font-family="Barlow, sans-serif">${fmtShort(x.date)}</text>`;
   });
   return s + `</svg><p class="legend" style="justify-content:center"><span><i style="background:#123D2B"></i>Attended (incl. late)</span><span>? Roll call not taken</span><span>✕ Cancelled</span></p>`;
 }
@@ -3865,11 +3961,11 @@ function viewReports() {
   const helpers = Object.entries(load).filter(([w]) => personOf(w)).sort((a, b) => b[1].done - a[1].done || loadBusy(b[1]) - loadBusy(a[1]));
   const notHelped = everyone().filter(w => !loadBusy(loadOf(load, w))).length;
   const posRows = Object.entries(pos.use).sort((a, b) => SLOT_IDS.indexOf(a[0]) - SLOT_IDS.indexOf(b[0]));
-  return `<div class="sec-h"><h2>Reports</h2><button class="btn sm" data-act="report-share">${icon('copy', 18)}Copy summary</button></div>
+  return `<div class="long-page"><div class="sec-h"><h2>Reports</h2><button class="btn sm" data-act="report-share">${icon('copy', 18)}Copy summary</button></div>
     <div class="chips" role="group" aria-label="Period">${ranges.map(([k, l]) => `<button class="chip" data-act="report-range" data-v="${k}" aria-pressed="${(state.reportRange || 'season') === k}">${esc(l)}</button>`).join('')}</div>
     <p class="hint" style="margin:-4px 0 14px">${esc(r.label)}${r.from ? `: ${esc(fmtDay(r.from))} to ${esc(fmtDay(r.to))}` : ''}. Worked out from what was recorded. “Not recorded” means there’s nothing to go on, which isn’t the same as zero.</p>
     <div class="cols"><div class="col">
-    <section class="sec"><div class="sec-h"><h2>At a glance</h2></div>
+    <section class="sec"><div class="sec-h"><h2 data-jump="At a glance">At a glance</h2></div>
       <div class="stats report-stats">
         <div class="stat"><b>${sum.sessions.held}</b><span>Sessions held${sum.sessions.cancelled ? `, ${sum.sessions.cancelled} cancelled` : ''}</span></div>
         <div class="stat"><b>${sum.sessions.avgPct === null ? '–' : sum.sessions.avgPct + '%'}</b><span>${sum.sessions.avgPct === null ? 'Attendance not recorded' : `Average attendance (${sum.sessions.recorded} roll call${sum.sessions.recorded === 1 ? '' : 's'})`}</span></div>
@@ -3880,18 +3976,18 @@ function viewReports() {
       ${rec.awaiting ? `<p class="hint">${rec.awaiting} match${rec.awaiting === 1 ? '' : 'es'} without a result entered ${rec.awaiting === 1 ? 'isn’t' : 'aren’t'} counted.</p>` : ''}
       ${rec.scoredGames ? `<p class="hint">Tries: ${rec.scored} for, ${rec.conceded} against (${rec.diff >= 0 ? '+' : ''}${rec.diff}) over ${rec.scoredGames} match${rec.scoredGames === 1 ? '' : 'es'} with a score${rec.forfeits ? `; ${rec.forfeits} forfeit${rec.forfeits === 1 ? '' : 's'} not included` : ''}.</p>` : ''}
     </section>
-    <section class="sec"><div class="sec-h"><h2>Training turnout</h2></div>
+    <section class="sec"><div class="sec-h"><h2 data-jump="Turnout">Training turnout</h2></div>
       ${trend.length ? `<div class="chart">${trendChart(trend)}</div>` : '<p class="muted small">No past sessions in this period.</p>'}</section>
-    <section class="sec"><div class="sec-h"><h2>Said they’d come, and did</h2></div>
+    <section class="sec"><div class="sec-h"><h2 data-jump="Said vs came">Said they’d come, and did</h2></div>
       ${pva.used ? `<table class="rtable"><thead><tr><th scope="col">They said</th><th scope="col">Came</th><th scope="col">Didn’t</th><th scope="col">Came %</th></tr></thead><tbody>
         ${[['yes', 'Attending'], ['maybe', 'Unsure'], ['no', 'Not attending'], ['none', 'No reply']].map(([k, l]) => { const x = pva.rows[k]; return `<tr><th scope="row">${l}</th><td>${x.came}</td><td>${x.missed}</td><td>${pct(x.came, x.came + x.missed)}</td></tr>`; }).join('')}</tbody></table>
         <p class="hint">From ${pva.used} session${pva.used === 1 ? '' : 's'} with both RSVPs and a roll call.${pva.noRoll ? ` ${pva.noRoll} with RSVPs but no roll call left out.` : ''}${pva.noRsvp ? ` ${pva.noRsvp} with a roll call but no RSVPs left out.` : ''}${pva.cancelled ? ` ${pva.cancelled} cancelled left out.` : ''}</p>`
         : `<p class="muted small">Not recorded: no session in this period has both RSVPs and a roll call yet.</p>`}
     </section>
-    <section class="sec"><div class="sec-h"><h2>Loose ends</h2></div>
+    <section class="sec"><div class="sec-h"><h2 data-jump="Loose ends">Loose ends</h2></div>
       ${outItems.length ? `<ul class="todo">${outItems.join('')}</ul>` : '<p class="muted small">Nothing outstanding in the next four weeks.</p>'}</section>
     </div><div class="col">
-    <section class="sec"><div class="sec-h"><h2>Players</h2></div>
+    <section class="sec"><div class="sec-h"><h2 data-jump="Players">Players</h2></div>
       ${part.length ? `<div class="rtable-wrap"><table class="rtable players"><thead><tr><th scope="col">Player</th><th scope="col">Training</th><th scope="col">RSVPs</th><th scope="col">Matches</th></tr></thead><tbody>
         ${part.slice().sort((a, b) => a.name.localeCompare(b.name)).map(x => `<tr><th scope="row">${esc(x.name)}</th>
           <td>${x.training.recorded ? `${x.training.attended}/${x.training.recorded} <small class="muted">${x.training.pct}%</small>` : NR}</td>
@@ -3899,12 +3995,12 @@ function viewReports() {
           <td>${x.matches.withLineup ? `${x.matches.named}/${x.matches.withLineup}` : NR}</td></tr>`).join('')}</tbody></table></div>
         <p class="hint">Training: sessions attended (late counts) out of roll calls they were marked on. RSVPs: only sessions where you recorded any. Matches: named in the match lineup, out of past matches with a lineup.</p>` : '<p class="muted small">No players yet.</p>'}
     </section>
-    <section class="sec"><div class="sec-h"><h2>Positions in match lineups</h2></div>
+    <section class="sec"><div class="sec-h"><h2 data-jump="Positions">Positions in match lineups</h2></div>
       ${pos.matches ? `<table class="rtable"><thead><tr><th scope="col">Position</th><th scope="col">Filled</th><th scope="col">Most often</th></tr></thead><tbody>
         ${posRows.map(([id, u]) => { const top = Object.entries(u.players).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([pid, n]) => `${esc(shortName(playerById(pid) || { name: 'Removed player' }))} (${n})`).join(', '); return `<tr><th scope="row">${esc(u.label)}</th><td>${u.filled}/${pos.matches}</td><td>${top || NR}</td></tr>`; }).join('')}</tbody></table>
         <p class="hint">From ${pos.matches} past match${pos.matches === 1 ? '' : 'es'} with a lineup.</p>` : '<p class="muted small">Not recorded: no past match in this period has a lineup.</p>'}
     </section>
-    <section class="sec"><div class="sec-h"><h2>Volunteering</h2><button class="btn sm" data-act="tab" data-tab="tasks">Tasks</button></div>
+    <section class="sec"><div class="sec-h"><h2 data-jump="Volunteering">Volunteering</h2><button class="btn sm" data-act="tab" data-tab="tasks">Tasks</button></div>
       ${helpers.length ? `<table class="rtable"><thead><tr><th scope="col">Person</th><th scope="col">Done</th><th scope="col">Coming up</th><th scope="col">Declined</th></tr></thead><tbody>
         ${helpers.slice(0, 12).map(([w, L]) => `<tr><th scope="row">${esc(whoName(w))}</th><td>${L.done}</td><td>${L.accepted + L.invited}${L.invited ? ` <small class="muted">(${L.invited} invited)</small>` : ''}</td><td>${L.declined}</td></tr>`).join('')}</tbody></table>
         <p class="hint">${helpers.length > 12 ? `Top 12 of ${helpers.length}. ` : ''}${notHelped} ${notHelped === 1 ? 'person hasn’t' : 'people haven’t'} helped or been asked. Accepted spots on past tasks that were never marked done aren’t counted as done.</p>` : '<p class="muted small">Not recorded: nobody has been put on a task in this period.</p>'}
@@ -3912,7 +4008,7 @@ function viewReports() {
     ${jerseyReportHtml()}
     ${compResults()}
     ${seasonCompare()}
-    </div></div>`;
+    </div></div></div>`;
 }
 // Our results in each competition this season (no tables: only our own results are recorded).
 function compResults() {
@@ -3920,7 +4016,7 @@ function compResults() {
   const list = M.teamEntries(ws, data.id, V.viewSeason.id);
   if (!list.length) return '';
   const today = todayISO(), loose = V.matches.filter(m => !m.entryId && !m.friendly).length, friendly = V.matches.filter(m => m.friendly);
-  return `<section class="sec"><div class="sec-h"><h2>Competitions</h2><button class="btn sm" data-act="tab" data-tab="comps">Competitions</button></div>
+  return `<section class="sec"><div class="sec-h"><h2 data-jump="Competitions">Competitions</h2><button class="btn sm" data-act="tab" data-tab="comps">Competitions</button></div>
     <div class="table-wrap"><table class="rtable"><thead><tr><th scope="col">Competition</th><th scope="col">Fixtures</th><th scope="col">Results</th><th scope="col">For–against</th></tr></thead><tbody>
     ${list.map(({ comp, entry }) => { const ms = V.matches.filter(m => m.entryId === entry.id), r = M.teamRecord(ms, today);
       return `<tr><th scope="row">${esc(comp.name)}${entry.division ? `<small class="muted" style="display:block">${esc(entry.division)}</small>` : ''}</th><td>${ms.length}</td><td>${r.withResult ? `W${r.won} D${r.drawn} L${r.lost}` : NR}</td><td>${r.scoredGames ? `${r.scored}–${r.conceded}` : NR}</td></tr>`; }).join('')}
@@ -3932,7 +4028,7 @@ function seasonCompare() {
   const st = M.seasonStats(data, todayISO()).filter(x => x.status !== 'archived');
   if (st.length < 2) return '';
   const cur = V.viewSeason && V.viewSeason.id;
-  return `<section class="sec"><div class="sec-h"><h2>Seasons compared</h2><button class="btn sm" data-act="season-open">Seasons</button></div>
+  return `<section class="sec"><div class="sec-h"><h2 data-jump="Seasons">Seasons compared</h2><button class="btn sm" data-act="season-open">Seasons</button></div>
     <div class="table-wrap"><table class="rtable"><thead><tr><th scope="col">Season</th><th scope="col">Squad</th><th scope="col">Training</th><th scope="col">Turnout</th><th scope="col">Results</th><th scope="col">Volunteer spots</th></tr></thead><tbody>
     ${st.map(x => `<tr${x.id === cur ? ' class="on"' : ''}><th scope="row">${esc(x.name)}<small class="muted" style="display:block">${esc(M.SEASON_STATUS[x.status])}</small></th><td>${x.squad}</td><td>${x.sessions.held}</td><td>${x.sessions.avgPct === null ? NR : `${x.sessions.avgPct}%`}</td>
       <td>${x.matches.withResult ? `W${x.matches.won} D${x.matches.drawn} L${x.matches.lost}` : NR}</td><td>${x.volunteers.spotsNeeded ? `${x.volunteers.spotsDone} of ${x.volunteers.spotsNeeded}` : NR}</td></tr>`).join('')}</tbody></table></div>
@@ -3970,15 +4066,27 @@ function matchPills(m) {
   }
   return out.filter(Boolean).join(' ');
 }
+// A time in large type: "9:00" with a small "am".
+function bigTime(t) {
+  if (!t) return '<b class="m-time tbc">TBC</b>';
+  const [h, mi] = t.split(':').map(Number);
+  return `<b class="m-time">${((h + 11) % 12) + 1}:${pad(mi)}<small>${h >= 12 ? 'pm' : 'am'}</small></b>`;
+}
+// A venue on one line: the first part of the name, without "Complex", "Sports ground" padding.
+const shortVenue = v => String(v || '').split(/\s*[,(–-]\s+/)[0].trim();
 function matchRow(m) {
-  const info = `<span class="t" style="display:block">vs ${esc(m.opponent || 'TBC')}${m.start ? ` <span class="muted">· ${esc(fmtTime(m.start))}</span>` : ''}</span>
-    <span class="sub" style="display:block">${esc([matchWhere(m), m.round].filter(Boolean).join(' · ') || 'Venue TBC')}</span>
+  const d = parseDate(m.date), where = [m.field ? `Field ${m.field}` : '', m.round].filter(Boolean).join(' · ');
+  const info = `<span class="m-opp">vs ${esc(m.opponent || 'TBC')}</span>
+    <span class="m-where">${esc(where || 'Field TBC')}</span>
+    ${m.venue ? `<span class="m-venue sub">${esc(shortVenue(m.venue))}</span>` : ''}
     ${matchCompLabel(m) ? `<span class="comp-tag">${esc(matchCompLabel(m))}</span>` : ''}
     ${m.notes && !isCoach() ? `<span class="sub" style="display:block;white-space:normal">${esc(m.notes)}</span>` : ''}
     <span class="ag-meta">${matchPills(m)}</span>`;
-  const cls = `sess match ${m.status === 'cancelled' || m.status === 'postponed' ? 'cancelled' : ''} ${m.date === todayISO() ? 'today' : ''}`;
-  if (isCoach()) return `<div class="${cls}">${calBlock(m.date)}<button class="sess-main" data-act="match-open" data-id="${m.id}">${info}</button></div>`;
-  return `<div class="${cls}">${calBlock(m.date)}<div class="sess-main">${info}${replyBtns('match', m)}</div></div>`;
+  const when = `<span class="m-when"><span class="m-day">${esc(d.toLocaleDateString('en-AU', { weekday: 'short' }))} ${d.getDate()} ${esc(d.toLocaleDateString('en-AU', { month: 'short' }))}</span>${bigTime(m.start)}</span>`;
+  const cls = `sess match m-card ${m.status === 'cancelled' || m.status === 'postponed' ? 'cancelled' : ''} ${m.date === todayISO() ? 'today' : ''}`;
+  const day = isCoach() && matchDayDue(m) ? `<button class="btn primary sm md-go" data-act="matchday-open" data-id="${m.id}">${icon('field', 18)}Match day</button>` : '';
+  if (isCoach()) return `<div class="${cls}">${when}<button class="sess-main" data-act="match-open" data-id="${m.id}">${info}</button>${day}</div>`;
+  return `<div class="${cls}">${when}<div class="sess-main">${info}${replyBtns('match', m)}</div></div>`;
 }
 function viewMatches() {
   const coach = isCoach(), today = todayISO(), all = sortedMatches();
@@ -3992,7 +4100,10 @@ function viewMatches() {
       ${rec.awaiting && coach ? `<p class="hint">${rec.awaiting} match${rec.awaiting === 1 ? ' has' : 'es have'} no result entered yet, so ${rec.awaiting === 1 ? 'it isn’t' : 'they aren’t'} counted.</p>` : ''}` : '';
   if (!all.length) return head + `<div class="empty"><p>${coach ? 'No matches yet. Add trial games and the tournament draw here: opponent, time, venue and field.' : 'No matches yet.'}</p>${coach ? `<div class="btn-row" style="justify-content:center"><button class="btn primary" style="flex:0" data-act="match-new">${icon('plus')}Add match</button><button class="btn" style="flex:0" data-act="match-day-new">Tournament day</button></div>` : ''}</div>`;
   const comps = !coach ? arr(V.competitions).filter(c => c.entryStatus !== 'withdrawn') : [];
-  return head + record
+  // The next game first, wherever it sits in the lists below (a March tournament can't push next Saturday down).
+  const next = all.find(m => m.date >= today && m.status === 'scheduled');
+  const nextUp = next ? `<section class="sec next-up" aria-labelledby="next-h"><div class="sec-h"><h2 id="next-h">Next up</h2></div><div class="list">${matchRow(next)}</div></section>` : '';
+  return head + nextUp + record
     + (comps.length ? `<p class="hint" style="margin:-4px 0 14px">Playing in ${comps.map(c => `<b>${esc(c.name)}</b>${c.division ? ` (${esc(c.division)})` : ''}${c.start ? `, ${esc(compDates(c))}` : ''}`).join('; ')}.</p>` : '')
     + (days.length ? `<section class="sec"><div class="sec-h"><h2>${esc(V.team.event || 'Tournament')}</h2>${coach ? `<button class="btn wa sm" data-act="t-share">${icon('chat', 18)}Send draw</button>` : ''}</div>
         ${days.map(d => `<h3 class="ag-date">${esc(fmtLong(d.date))}${coach ? ` <button class="link-btn inline" data-act="day-share" data-date="${d.date}">Send this day</button>` : ''}</h3><div class="list grid sess-grid">${d.matches.map(matchRow).join('')}</div>`).join('')}</section>` : '')
@@ -4051,27 +4162,43 @@ function parseMatchLine(line) {
   m.round = (m.roundParts || []).join(', '); delete m.roundParts;
   return m;
 }
+// Where a match is in its day: before game day, on the day, afterwards, or called off.
+function matchPhase(m, today = todayISO()) {
+  if (m.status === 'cancelled' || m.status === 'postponed') return 'off';
+  if (m.status === 'played' || m.status === 'forfeit' || m.date < today) return 'after';
+  return m.date === today ? 'day' : 'before';
+}
+const minsOf = t => /^\d{2}:\d{2}$/.test(t || '') ? +t.slice(0, 2) * 60 + +t.slice(3) : null;
+// Minutes until the start (negative once it's started); null when it's not today or has no start time.
+function minsToStart(m, now = new Date()) {
+  const st = minsOf(m.start); if (st === null || m.date !== toISODate(now)) return null;
+  return st - (now.getHours() * 60 + now.getMinutes());
+}
+// Time for the Match Day screen: on the day, from about three hours before the start until it's over.
+function matchDayDue(m, now = new Date()) {
+  if (!m || m.status !== 'scheduled' || m.date !== toISODate(now)) return false;
+  const t = minsToStart(m, now); return t === null || (t <= 180 && t >= -180);
+}
+const PHASES = [['before', 'Before game day'], ['day', 'On the day'], ['after', 'Afterwards']];
 function matchBody(m) {
   const lu = matchLineup(m), chk = lu ? M.lineupCheck(V, lu, m) : null, c = M.rsvpCounts(m, V.players);
-  const tasks = M.linkedTasks(data, 'match', m.id), live = m.status === 'scheduled';
+  const tasks = M.linkedTasks(data, 'match', m.id), live = m.status === 'scheduled', ph = matchPhase(m);
   const r = m.result || {};
-  return `<p class="task-when"><b>${esc(fmtLong(m.date))}${m.start ? `, ${esc(fmtTime(m.start))}` : ''}</b>${matchWhere(m) ? `<br>${esc(matchWhere(m))}` : ''}${m.round ? `<br>${esc(m.round)}` : ''}</p>
-    <p>${matchPills(m)}</p>
-    ${m.notes ? `<p class="task-notes-full">${esc(m.notes)}</p>` : ''}${m.coachNotes ? `<p class="task-notes-full coach-only"><span class="tagline">Coach notes</span><br>${esc(m.coachNotes)}</p>` : ''}
-    <h3 class="form-sec">Availability</h3>
-    <div class="roll-sum">${rsvpPills(m)}</div>
-    <div class="btn-row"><button class="btn" data-act="rsvp-open" data-k="match" data-id="${m.id}">${icon('rsvp', 18)}Record replies</button><button class="btn wa" data-act="rsvp-ask" data-k="match" data-id="${m.id}">${icon('chat', 18)}Ask for replies</button></div>
-    ${c.none && live ? `<p class="hint">${c.none} player${c.none === 1 ? ' hasn’t' : 's haven’t'} replied.</p>` : ''}
-    ${crewMatchSummary(m)}
-    <h3 class="form-sec">Lineup</h3>
+  const sec = {
+    avail: `<h3 class="form-sec">Availability${ph === 'day' ? ' and who’s here' : ''}</h3>
+      <div class="roll-sum">${rsvpPills(m)}${ph === 'day' ? ` <span class="pill neutral">${Object.keys(obj(m.arrived)).length} here</span>` : ''}</div>
+      ${ph === 'after' ? '' : `<div class="btn-row"><button class="btn" data-act="rsvp-open" data-k="match" data-id="${m.id}">${icon('rsvp', 18)}Record replies</button><button class="btn wa" data-act="rsvp-ask" data-k="match" data-id="${m.id}">${icon('chat', 18)}Ask for replies</button></div>`}
+      ${c.none && live ? `<p class="hint">${c.none} player${c.none === 1 ? ' hasn’t' : 's haven’t'} replied.</p>` : ''}`,
+    staff: crewMatchSummary(m),
+    lineup: `<h3 class="form-sec">Lineup</h3>
     ${lu ? `<p><b>${esc(lu.name)}</b></p>
       ${chk.issues.length ? `<ul class="diff-list issues">${chk.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="small" style="color:var(--ok);font-weight:600">Ready: eight on, mixed rule met, nobody unavailable.</p>'}
       ${chk.checks.length ? `<p class="hint">To check: ${esc(chk.checks.join('; '))}.</p>` : ''}
       <div class="btn-row" style="margin-top:8px"><button class="btn" data-act="match-lineup-open" data-id="${m.id}">Open in Lineup</button><button class="btn" data-act="match-lineup-unlink" data-id="${m.id}">Use a different lineup</button></div>`
       : `<form data-form="match-lineup" class="inline-form"><input type="hidden" name="id" value="${m.id}">
         <label class="field-l"><span>Start from</span><select name="from">${V.lineups.filter(l => !matchOfLineup(l)).map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('')}<option value="">An empty lineup</option></select><small>Makes a copy for this match with the same shape and players, so your saved lineup stays as it is.</small></label>
-        <button class="btn primary block" type="submit">Make the match lineup</button></form>`}
-    <h3 class="form-sec">Result</h3>
+        <button class="btn primary block" type="submit">Make the match lineup</button></form>`}`,
+    result: `<h3 class="form-sec">${ph === 'after' ? 'Score and notes' : 'Result'}</h3>
     <form data-form="match-result" autocomplete="off"><input type="hidden" name="id" value="${m.id}">
       <div class="seg" role="radiogroup" aria-label="How it finished">${[['played', 'Played'], ['forfeit', 'Forfeit'], ['scheduled', 'Not played yet']].map(([k, l]) => `<label class="seg-opt"><input type="radio" name="status" value="${k}" ${(m.status === k || (k === 'scheduled' && !['played', 'forfeit'].includes(m.status))) ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
       <div class="two"><label class="field-l"><span>Our tries</span><input type="number" name="us" min="0" max="99" inputmode="numeric" value="${esc(r.us ?? '')}"></label>
@@ -4080,13 +4207,104 @@ function matchBody(m) {
       <label class="field-l"><span>Match notes</span><input type="text" name="rnotes" value="${esc(r.notes || '')}" placeholder="Coach only: what worked, injuries"></label>
       <button class="btn primary block" type="submit">Save result</button>
     </form>
-    ${tasks.length ? `<h3 class="form-sec">Tasks for this match</h3><div class="list">${tasks.map(t => `<button class="pick" data-act="task-open" data-id="${t.id}"><span class="grow"><span class="name" style="display:block">${esc(t.title)}</span>${t.kind === 'lift' ? liftHtml(t) : spotsHtml(t)}</span></button>`).join('')}</div>` : ''}
+    ${ph === 'after' && M.matchOutcome(m) ? `<button class="btn wa block" style="margin-top:10px" data-act="result-share" data-id="${m.id}">${icon('chat', 18)}Send results</button>` : ''}`,
+    tasks: tasks.length ? `<h3 class="form-sec">Tasks for this match</h3><div class="list">${tasks.map(t => `<button class="pick" data-act="task-open" data-id="${t.id}"><span class="grow"><span class="name" style="display:block">${esc(t.title)}</span>${t.kind === 'lift' ? liftHtml(t) : spotsHtml(t)}</span></button>`).join('')}</div>` : ''
+  };
+  // Ordered by when each part is needed.
+  const order = { before: ['avail', 'lineup', 'tasks', 'staff', 'result'], day: ['lineup', 'avail', 'result', 'staff', 'tasks'],
+    after: ['result', 'lineup', 'avail', 'staff', 'tasks'], off: ['avail', 'lineup', 'tasks', 'staff', 'result'] }[ph];
+  return `<p class="task-when"><b>${esc(fmtLong(m.date))}${m.start ? `, ${esc(fmtTime(m.start))}` : ''}</b>${matchWhere(m) ? `<br>${esc(matchWhere(m))}` : ''}${m.round ? `<br>${esc(m.round)}` : ''}</p>
+    <p>${matchPills(m)}</p>
+    ${ph === 'off' ? '' : `<ol class="m-steps" aria-label="Where this match is up to">${PHASES.map(([k, l]) => `<li${k === ph ? ' aria-current="step"' : ''}>${l}</li>`).join('')}</ol>`}
+    ${ph === 'day' && live ? `<button class="btn primary block md-open" data-act="matchday-open" data-id="${m.id}">${icon('field', 20)}Open Match Day</button>` : ''}
+    ${m.notes ? `<p class="task-notes-full">${esc(m.notes)}</p>` : ''}${m.coachNotes ? `<p class="task-notes-full coach-only"><span class="tagline">Coach notes</span><br>${esc(m.coachNotes)}</p>` : ''}
+    ${order.map(k => sec[k]).join('')}
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" data-act="match-edit" data-id="${m.id}">Edit details</button>
       <button class="btn" data-act="match-task" data-id="${m.id}">${icon('plus', 18)}Task</button>
       <button class="btn wa" data-act="match-share" data-id="${m.id}">${icon('chat', 18)}Send</button>
     </div>
     <button class="btn danger block" style="margin-top:10px" data-act="match-del" data-id="${m.id}">Delete this match</button>`;
+}
+/* ---------- Match Day: everything for one match on one screen ---------- */
+// Time, field and opponent in large type; who's turned up (ticked off as they arrive); the field and the
+// bench; the score with big + and − buttons; Send lineup. Before kick-off the arrivals come first; once
+// it's started (or a try is scored) the score moves to the top.
+const arrivedOf = m => obj(m && m.arrived);
+function mdWhen(m) {
+  const t = minsToStart(m);
+  if (m.status === 'played' || m.status === 'forfeit') return 'Full time';
+  if (t === null) return m.date === todayISO() ? 'Today' : fmtDay(m.date);
+  if (t > 90) return `Starts at ${fmtTime(m.start)}`;
+  if (t > 0) return `Starts in ${t} min`;
+  if (t > -5) return 'Starting now';
+  return `Started ${-t} min ago`;
+}
+function mdScore(m) {
+  const r = obj(m.result), us = Number(r.us) || 0, them = Number(r.them) || 0, done = m.status === 'played' || m.status === 'forfeit';
+  const side = (k, label, n) => `<div class="md-side"><span class="md-team">${esc(label)}</span>
+    <div class="md-ctl">${done ? '' : `<button class="md-btn" data-act="md-score" data-id="${m.id}" data-side="${k}" data-d="-1" aria-label="Take a try off ${esc(label)}" ${n ? '' : 'disabled'}>${icon('minus', 28)}</button>`}
+      <output class="md-n" aria-live="polite" aria-label="${esc(label)} tries">${n}</output>
+      ${done ? '' : `<button class="md-btn plus" data-act="md-score" data-id="${m.id}" data-side="${k}" data-d="1" aria-label="Try to ${esc(label)}">${icon('plus', 28)}</button>`}</div></div>`;
+  return `<section class="md-score" aria-labelledby="md-score-h"><h3 id="md-score-h" class="md-h">Score${done ? ` · ${esc(resultText(m) || M.MATCH_STATUS[m.status])}` : ''}</h3>
+    <div class="md-board">${side('us', data.team.name || 'Us', us)}${side('them', m.opponent || 'Them', them)}</div>
+    ${done ? `<div class="btn-row"><button class="btn wa" data-act="result-share" data-id="${m.id}">${icon('chat', 18)}Send results</button><button class="btn" data-act="md-reopen" data-id="${m.id}">Change the score</button></div>`
+      : `<button class="btn primary block" data-act="md-fulltime" data-id="${m.id}">Full time: save ${us}–${them}</button>`}
+  </section>`;
+}
+function mdArrivals(m, lu) {
+  const here = arrivedOf(m), on = new Map((lu ? lu.slots : []).filter(x => x.playerId).map(x => [x.playerId, x]));
+  const rank = p => (on.has(p.id) ? 0 : 2) + (M.rsvpOf(m, p.id) === 'no' || p.status !== 'available' ? 4 : 0);
+  const players = V.players.slice().sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  const n = players.filter(p => here[p.id]).length;
+  return `<section class="md-here" aria-labelledby="md-here-h"><h3 id="md-here-h" class="md-h">Who’s here <span class="md-count">${n} of ${players.length}</span></h3>
+    ${players.length ? `<div class="md-arrive">${players.map(p => { const sl = on.get(p.id), said = M.rsvpOf(m, p.id);
+      const note = [sl ? sl.label : 'Bench', said === 'no' ? 'said no' : said === 'maybe' ? 'unsure' : '', p.status !== 'available' ? STATUS[p.status].toLowerCase() : ''].filter(Boolean).join(' · ');
+      return `<button class="md-p${here[p.id] ? ' on' : ''}" data-act="md-arrive" data-id="${m.id}" data-pid="${p.id}" aria-pressed="${!!here[p.id]}">
+        <span class="md-tick" aria-hidden="true">${here[p.id] ? icon('check', 20) : ''}</span>
+        <span class="grow"><span class="name">${esc(shortName(p))}</span><span class="md-note">${esc(note)}</span></span>${gBadge(p)}</button>`; }).join('')}</div>`
+      : '<p class="muted">Add players in Squad first.</p>'}
+  </section>`;
+}
+function mdField(m, lu) {
+  if (!lu) return `<section class="md-pitch"><h3 class="md-h">Field</h3><div class="empty"><p>No lineup for this match yet.</p>
+    <button class="btn primary" data-act="md-lineup" data-id="${m.id}">Make the match lineup</button></div></section>`;
+  const here = arrivedOf(m), onIds = lu.slots.map(x => x.playerId).filter(Boolean);
+  const bench = sortedPlayers().filter(p => !onIds.includes(p.id));
+  const onField = lu.slots.map(x => playerById(x.playerId)).filter(Boolean), males = onField.filter(p => p.gender === 'M').length, max = M.maxMalesOf(V.team, curClub());
+  return `<section class="md-pitch" aria-labelledby="md-field-h"><h3 id="md-field-h" class="md-h">Field and bench</h3>
+    <div class="md-play">
+      <div class="field-wrap">${fieldSVG(lu, true, { plain: true })}</div>
+      <div class="md-side-list">
+        <div class="ratio">${isMixed(V.team) ? `<span class="pill ${males > max ? 'bad' : 'ok'}">${males} of ${max} males</span>` : ''}<span class="pill ${onField.length === 8 ? 'ok' : 'neutral'}">${onField.length}/8 on</span></div>
+        <p class="md-bench-h">Bench (${bench.length})</p>
+        ${bench.length ? `<ul class="md-bench">${bench.map(p => `<li class="${here[p.id] ? '' : 'away'}${isOut(p) ? ' out' : ''}">${gBadge(p)}<span>${esc(shortName(p))}</span>${here[p.id] ? '' : '<small>not here</small>'}</li>`).join('')}</ul>` : '<p class="muted small">Everyone is on the field.</p>'}
+        <p class="hint">Tap a position to swap someone in.</p>
+        <button class="btn wa block" data-act="md-send-lineup" data-id="${m.id}">${icon('chat', 18)}Send lineup</button>
+      </div>
+    </div></section>`;
+}
+function viewMatchDay() {
+  const m = matchById(state.matchDayId); if (!m) return '';
+  const lu = matchLineup(m); if (lu) state.lineupId = lu.id;
+  const t = minsToStart(m), r = obj(m.result), started = (t !== null && t <= 0) || Number(r.us) > 0 || Number(r.them) > 0 || m.status !== 'scheduled';
+  const c = crewStatus(m), staff = c.slots.length ? `${c.slots.length} staff assigned${c.configured ? (c.ready ? ' · all covered' : ' · needs attention') : ''}` : 'No staff assigned';
+  const head = `<header class="md-head">
+      <div class="md-topline"><button class="btn sm md-back" data-act="matchday-close">${icon('back', 18)}Matches</button><span class="md-status${t !== null && t <= 0 && m.status === 'scheduled' ? ' live' : ''}">${icon('clock', 16)}${esc(mdWhen(m))}</span></div>
+      <p class="md-big">${bigTime(m.start)}${m.field ? `<span class="md-fieldno">Field ${esc(m.field)}</span>` : ''}</p>
+      <h2 class="md-opp">vs ${esc(m.opponent || 'TBC')}</h2>
+      ${m.venue || m.round ? `<p class="md-venue">${esc([shortVenue(m.venue), m.round].filter(Boolean).join(' · '))}</p>` : ''}
+    </header>`;
+  const parts = started ? [mdScore(m), mdField(m, lu), mdArrivals(m, lu)] : [mdArrivals(m, lu), mdField(m, lu), mdScore(m)];
+  return `<div class="md">${head}${parts.join('')}
+    <section class="md-foot"><p class="sub">${esc(staff)}</p>
+      <div class="btn-row"><button class="btn" data-act="match-open" data-id="${m.id}">Match details</button><button class="btn" data-act="crew-match-open" data-id="${m.id}">Staff</button></div></section></div>`;
+}
+function matchLineupText(m) {
+  return `🏉 *${data.team.name} vs ${m.opponent || 'TBC'}*\n📅 ${fmtLong(m.date)}${m.start ? `, ${fmtTime(m.start)}` : ''}${m.field ? `, field ${m.field}` : ''}${matchLines(m)}`;
+}
+function oneResultText(m) {
+  return `🏉 *${data.team.name} vs ${m.opponent || 'TBC'}*\n${resultText(m) || M.MATCH_STATUS[m.status]}${m.round ? ` · ${m.round}` : ''}\n📅 ${fmtLong(m.date)}`;
 }
 function openMatch(id) { const m = matchById(id); if (m) openSheet(`vs ${m.opponent || 'TBC'}`, matchBody(m), 'match:' + id); }
 function refreshMatch(id) {
@@ -4216,10 +4434,7 @@ function viewMessages() {
     </div>
     <p class="hint">WhatsApp opens with the message ready. Choose your team group, check it and send, then tell the app it went. *Stars* make text bold in WhatsApp.</p>
   </section></div><div class="col">
-  <section class="sec"><div class="sec-h"><h2>Noticeboard</h2><button class="btn sm" data-act="add-notice">${icon('plus', 18)}Post</button></div>
-    ${V.notices.length ? `<div class="list">${V.notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p>
-      <button class="btn sm danger" data-act="del-notice" data-id="${n.id}">Take down</button></div>`).join('')}</div>` : `<p class="muted small">Players see notices on their home screen.</p>`}
-  </section>
+  <button class="pick link-card" data-act="tab" data-tab="notices"><span class="more-ic">${icon('clip', 22)}</span><span class="grow"><span class="name" style="display:block">Noticeboard</span><span class="tagline">${V.notices.length ? `${V.notices.length} notice${V.notices.length === 1 ? '' : 's'} up · latest ${esc(fmtStamp(V.notices[0].at))}` : 'Nothing posted yet'}</span></span>${icon('chevron-right', 18)}</button>
   <section class="sec"><div class="sec-h"><h2>Message log</h2></div>
     ${V.messages.length ? `<div class="list">${V.messages.slice(0, 30).map(m => { const sent = M.msgStatus(m) === 'sent'; return `<div class="msg-item">
       <span class="sub">${esc(fmtStamp(m.at))}${m.to ? ` — to ${esc(m.to)}` : ''} <span class="pill ${sent ? 'ok' : 'neutral'}">${sent ? `Sent${m.sentAt ? ' ' + esc(fmtStamp(m.sentAt)) : ''}` : 'Opened, not confirmed sent'}</span></span>
@@ -4292,7 +4507,7 @@ function viewTeams() {
         <button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
       ${ts.length ? `<div class="list">${ts.map(row).join('')}</div>` : '<p class="muted small">No teams in this club yet.</p>'}
     </section>`; }).join('')}
-    ${loose.length ? `<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name" style="display:block">Not in a club</span><span class="sub">Choose a club in Settings › Team details</span></span></div><div class="list">${loose.map(row).join('')}</div></section>` : ''}
+    ${loose.length ? `<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name" style="display:block">Not in a club</span><span class="sub">Choose a club in Settings › Team</span></span></div><div class="list">${loose.map(row).join('')}</div></section>` : ''}
     <p class="hint">A club keeps what its teams share: contacts, home ground, links and officials. Each team has its own division, staff, players’ file and team password, so players only ever see their own team (and their club’s public details). Archiving takes a team’s file off the site until you restore it.</p>`;
 }
 // Links from what the coach typed: web addresses, email and phone.
@@ -4302,8 +4517,8 @@ const telLink = ph => ph ? `<a href="tel:${esc(String(ph).replace(/[^\d+]/g, '')
 function viewClub() {
   const coach = isCoach();
   const c = coach && state.clubId ? arr(ws.clubs).find(x => x.id === state.clubId) || curClub() : curClub();
-  if (!c) return `<div class="sec-h"><h2>Club</h2></div><div class="empty"><p>${coach ? `${esc(V.team.name)} isn’t in a club yet. Pick its club in Settings › Team details, or create one.` : 'Your coach hasn’t added the club’s details yet.'}</p>
-    ${coach ? `<div class="btn-row" style="justify-content:center"><button class="btn primary" style="flex:0" data-act="club-new">${icon('plus')}New club</button><button class="btn" style="flex:0" data-act="settings">Team details</button></div>` : ''}</div>`;
+  if (!c) return `<div class="sec-h"><h2>Club</h2></div><div class="empty"><p>${coach ? `${esc(V.team.name)} isn’t in a club yet. Pick its club in Settings › Team, or create one.` : 'Your coach hasn’t added the club’s details yet.'}</p>
+    ${coach ? `<div class="btn-row" style="justify-content:center"><button class="btn primary" style="flex:0" data-act="club-new">${icon('plus')}New club</button><button class="btn" style="flex:0" data-act="settings" data-sec="team">Team details</button></div>` : ''}</div>`;
   const line = (label, val) => val ? `<div><dt>${label}</dt><dd>${val}</dd></div>` : '';
   const teams = coach ? M.clubTeams(ws, c.id) : [];
   const staff = coach ? arr(data.team.staff) : arr(V.staff);
@@ -4319,8 +4534,8 @@ function viewClub() {
       ${line('Registration', webLink(c.registration, 'Register'))}${line('Code of conduct', webLink(c.conduct, 'Read it'))}
     </dl>${!c.homeGround && !c.nights && coach ? '<p class="hint">Add the home ground and the nights played so players have them.</p>' : ''}</section>
     </div><div class="col">
-    ${staff.length || coach ? `<section class="sec"><div class="sec-h"><h2>${esc(V.team.name)} staff</h2>${coach ? '<button class="btn sm" data-act="settings">Edit</button>' : ''}</div>
-      ${staff.length ? `<div class="list">${staff.map(x => `<div class="row"><span class="grow"><span class="name" style="display:block">${esc(x.name)}</span><span class="sub">${esc(x.role)}</span></span>${coach && x.phone ? `<a class="icon-btn" style="color:var(--wa)" href="https://wa.me/${esc(waNumber(x.phone))}" target="_blank" rel="noopener" aria-label="WhatsApp ${esc(x.name)}">${icon('chat', 22)}</a>` : ''}</div>`).join('')}</div>` : '<p class="muted small">No staff listed yet. Add the coach, team manager and trainer in Settings › Team details.</p>'}</section>` : ''}
+    ${staff.length || coach ? `<section class="sec"><div class="sec-h"><h2>${esc(V.team.name)} staff</h2>${coach ? '<button class="btn sm" data-act="settings" data-sec="contacts">Edit</button>' : ''}</div>
+      ${staff.length ? `<div class="list">${staff.map(x => `<div class="row"><span class="grow"><span class="name" style="display:block">${esc(x.name)}</span><span class="sub">${esc(x.role)}</span></span>${coach && x.phone ? `<a class="icon-btn" style="color:var(--wa)" href="https://wa.me/${esc(waNumber(x.phone))}" target="_blank" rel="noopener" aria-label="WhatsApp ${esc(x.name)}">${icon('chat', 22)}</a>` : ''}</div>`).join('')}</div>` : '<p class="muted small">No staff listed yet. Add the coach, team manager and trainer in Settings › Team.</p>'}</section>` : ''}
     ${coach ? `<section class="sec"><div class="sec-h"><h2>Club officials</h2></div>
       ${c.officials.length ? `<div class="list">${c.officials.map(o => `<div class="row"><span class="grow"><span class="name" style="display:block">${esc(o.name)}</span><span class="sub">${esc([o.role, o.phone, o.email].filter(Boolean).join(' · '))}</span></span></div>`).join('')}</div>` : '<p class="muted small">None added yet: president, secretary, registrar, representative coordinator, member protection officer.</p>'}
       <p class="hint">Officials are only shown to coaches.</p></section>
@@ -4425,7 +4640,7 @@ function previewTeamStyle(form) {
   const note = form.querySelector('.style-note');
   if (note) note.textContent = custom && r && r.adjusted.length ? `Adjusted so it stays readable: ${r.adjusted.map(k => ({ dark: 'header made darker', action: 'buttons made darker', accent: 'highlight made lighter' })[k]).join(', ')}.` : '';
 }
-function teamDetailsFields(T) {
+function teamDetailsFields(T, { staff: withStaff = true, maxMales = false, after = '' } = {}) {
   const staff = [...arr(T.staff), { role: 'Head coach', name: '', phone: '', email: '' }];
   return `<h3 class="form-sec">Team details</h3>
     <div class="two"><label class="field-l"><span>Club</span><select name="clubId" data-change="team-context"><option value="">Not in a club</option>${arr(ws.clubs).map(c => `<option value="${esc(c.id)}" ${T.clubId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select><small><button type="button" class="link-btn inline" data-act="club-new">New club</button></small></label>
@@ -4434,10 +4649,15 @@ function teamDetailsFields(T) {
       <label class="field-l"><span>Age group</span><input type="text" name="ageGroup" value="${esc(T.ageGroup)}" placeholder="e.g. 20 and over, Under 16"></label></div>
     <label class="field-l"><span>Team sport</span>${sportSelect('teamSport', T.sport || '', 'Use club default', 'team-context')}<small>Choose a different sport for this team if needed. The team's choice takes priority over its club's default.</small></label>
     <p class="hint team-sport-guide" data-sport-guide role="status" aria-live="polite">${esc(M.teamSport(T, M.clubOf(ws, data)))} positions will be offered to new players.</p>
+    ${after}
     ${ruleSetField(T)}
+    ${maxMales ? `<label class="field-l"><span>Max males on field</span><input type="number" name="maxMales" min="0" max="8" value="${esc(T.maxMales)}" placeholder="${M.maxMalesOf({ ...T, maxMales: '' }, M.clubOf(ws, data))}"><small>Leave blank to follow the rule set (${M.maxMalesOf({ ...T, maxMales: '' }, M.clubOf(ws, data))}). Change it only for a competition by-law.</small></label>` : ''}
     <div class="two"><div class="field-l"><span>Season</span><p class="field-static">${esc((M.activeSeason(data) || {}).name || 'No active season')} <button type="button" class="link-btn inline" data-act="season-open">Seasons</button></p></div>
       <label class="field-l"><span>Team colours</span><input type="text" name="colours" value="${esc(T.colours)}" placeholder="Blank: the club’s"></label></div>
-    <h3 class="form-sec">Team staff</h3>
+    ${withStaff ? staffFields(staff) : ''}`;
+}
+function staffFields(staff) {
+  return `<h3 class="form-sec">Team staff</h3>
     ${staff.map((x, i) => `<fieldset class="person-row"><legend class="sr-only">Staff member ${i + 1}</legend>
       <div class="two"><label class="field-l"><span>Role</span><select name="st-role">${M.TEAM_ROLES.map(r => `<option ${r === x.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label><label class="field-l"><span>Name</span><input type="text" name="st-name" value="${esc(x.name)}"></label></div>
       <div class="two"><label class="field-l"><span>Mobile</span><input type="tel" name="st-phone" value="${esc(x.phone)}"></label><label class="field-l"><span>Email</span><input type="email" name="st-email" value="${esc(x.email)}"></label></div></fieldset>`).join('')}
@@ -4920,7 +5140,9 @@ function viewMore() {
   const coach = isCoach();
   const item = (act, attrs, title, sub, ic) => `<button class="pick more-item" data-act="${act}" ${attrs}><span class="more-ic">${icon(ic, 22)}</span><span class="grow"><span class="name" style="display:block">${title}</span><span class="tagline">${sub}</span></span></button>`;
   return `<div class="sec-h"><h2>More</h2></div><div class="list">
-    ${coach ? item('tab', 'data-tab="messages"', 'Messages and noticeboard', 'WhatsApp messages, the message log and notices', 'chat') : item('tab', 'data-tab="notices"', 'Notices', 'Everything the coach has posted', 'clip')}
+    ${coach ? item('tab', 'data-tab="messages"', 'Messages', 'WhatsApp messages and the message log', 'chat') : ''}
+    ${item('tab', 'data-tab="notices"', coach ? 'Noticeboard' : 'Notices', coach ? 'Post notices for players to see on Home' : 'Everything the coach has posted', 'clip')}
+    ${coach ? item('tab', 'data-tab="tally"', 'Volunteer tally', 'Who has helped, and how often', 'check') : ''}
     ${coach ? item('tab', 'data-tab="reports"', 'Reports', 'Attendance, results, volunteering and loose ends', 'chart') : ''}
     ${coach ? '' : item('tab', 'data-tab="club"', curClub() ? esc(curClub().name) : 'Club', 'Club contacts, ground and links', 'team')}
     ${coach ? item('tab', 'data-tab="comps"', 'Competitions', (n => `${n} competition${n === 1 ? '' : 's'}: entries, fixtures and results`)(M.compsOf(ws).filter(c => c.status !== 'archived').length), 'chart') : ''}
@@ -4929,9 +5151,12 @@ function viewMore() {
   </div>
   ${coach ? '' : `<p class="hint">${S.fromCache ? 'No connection: you’re seeing the copy saved on this phone. ' : ''}The coach keeps everything up to date. Use Settings › Check for updates to get the latest.</p>`}`;
 }
+// The noticeboard on its own page: players read it; the coach posts and takes notices down here.
 function viewNotices() {
-  return `<div class="sec-h"><h2>Notices</h2>${isCoach() ? `<button class="btn sm" data-act="tab" data-tab="messages">Manage</button>` : ''}</div>
-    ${V.notices.length ? `<div class="list">${V.notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p></div>`).join('')}</div>` : '<div class="empty"><p>No notices yet.</p></div>'}`;
+  const coach = isCoach();
+  return `<div class="sec-h"><h2>${coach ? 'Noticeboard' : 'Notices'}</h2>${coach ? `<button class="btn primary sm" data-act="add-notice">${icon('plus', 18)}Post a notice</button>` : ''}</div>
+    ${coach ? '<p class="hint" style="margin:-4px 0 12px">Players see notices on their Home screen. To send one to the WhatsApp group as well, use Messages.</p>' : ''}
+    ${V.notices.length ? `<div class="list">${V.notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p>${coach ? `<button class="btn sm danger" data-act="del-notice" data-id="${n.id}">Take down</button>` : ''}</div>`).join('')}</div>` : '<div class="empty"><p>No notices yet.</p></div>'}`;
 }
 
 /* ---------- Rules ---------- */
@@ -4986,7 +5211,7 @@ function viewRules() {
   if (values.maxMales != null) values.maxMales = mm;
   const ruleOf = id => rs.rules.find(r => r.id === id);
   const topics = [...new Set(rs.rules.map(r => r.topic))];
-  return `<div class="sec-h"><h2>Rules</h2>${coach ? '<button class="btn sm" data-act="settings">Change rule set</button>' : ''}</div>
+  return `<div class="long-page"><div class="sec-h"><h2>Rules</h2>${coach ? '<button class="btn sm" data-act="settings" data-sec="team">Change rule set</button>' : ''}</div>
     <div class="card rules-head"><span class="sub">${esc(rs.sportName)}</span><h3>${esc(rs.name)}</h3>
       ${rs.source ? `<p class="muted small">From the <a href="${esc(rs.source.url)}" target="_blank" rel="noopener">${esc(rs.source.title)}</a> (${esc(rs.source.edition)}). Each rule shows its number in the rule book.</p>` : ''}
       ${rs.note ? `<p class="note">${esc(rs.note)}</p>` : ''}</div>
@@ -5001,7 +5226,7 @@ function viewRules() {
     ${topics.map(tp => `<section class="sec"><div class="sec-h"><h2>${esc(tp)}</h2></div><ul class="rule-list">${rs.rules.filter(r => r.topic === tp).map(r => { const b = replaced.get(r.id);
       return `<li class="${b ? 'replaced' : ''}"><p>${esc(r.text)}</p><span class="ref">Rule ${esc(r.ref)}</span>${fresh.has(r.id) ? ' <span class="pill ok">Updated</span>' : ''}${b ? ' <span class="pill neutral">Our by-law applies instead</span>' : ''}</li>`; }).join('')}</ul></section>`).join('')}
     ${coach ? rulesWatchPanel() : ''}
-    <p class="hint">Rule set version ${M.RULES.pack}, ${esc(fmtLong(M.RULES.updated))}. The app’s owner keeps the official rules up to date; check anything that matters on the day with your competition.</p>`;
+    <p class="hint">Rule set version ${M.RULES.pack}, ${esc(fmtLong(M.RULES.updated))}. The app’s owner keeps the official rules up to date; check anything that matters on the day with your competition.</p></div>`;
 }
 // By-laws of the competitions this season is entered in: they sit between the official rules and the
 // team's own variations.
@@ -5104,16 +5329,44 @@ function settingsBody() {
       <h3 class="form-sec">This phone</h3>
       <button class="btn danger block" data-act="sign-out">Sign out</button>`;
   }
-  const T = data.team;
-  return layoutSettings() + `<h3 class="form-sec">Teams</h3>
-    <p class="muted small" style="margin-bottom:10px">${multiTeam() ? `These settings are for ${esc(T.name)}. ` : ''}You can run more than one team, each with its own squad and players’ password.</p>
-    <button class="btn block" data-act="teams">Manage teams</button>
-    <form data-form="settings">
-    <h3 class="form-sec">Team and tournament</h3>
-    <label class="field-l"><span>Team name</span><input type="text" name="name" value="${esc(T.name)}"></label>
-    ${teamDetailsFields(T)}
-    ${teamStyleFields(T)}
-    <h3 class="form-sec">Tournament</h3>
+  return settingsIndex();
+}
+// Settings in sections, each opened on its own and saved on its own (it used to be one form five
+// screens long with the Save button halfway down).
+const SETTINGS_SECS = [
+  ['team', 'Team', 'Name, club, sport, rules and colours'], ['season', 'Season and tournament', 'The tournament and its dates'],
+  ['contacts', 'Contacts', 'Team contact and team staff'], ['training', 'Training', 'Usual venue and times'],
+  ['field', 'Field', 'Zones and channels on the Lineup field'], ['players', 'Jerseys', 'Whether jerseys are lent and handed back'],
+  ['publishing', 'Publishing', 'Players’ access, passwords and GitHub'], ['backup', 'Backup', 'Export, import and this phone'],
+  ['layout', 'Screen layout', 'Phone or wide layout on this device'], ['teams', 'Teams', 'Run more than one team']];
+function settingsSummary(k) {
+  const T = data.team, club = M.clubOf(ws, data);
+  const fmtR = (a, b) => [a, b].filter(Boolean).map(fmtTime).join('–');
+  return {
+    team: [T.name, M.teamSport(T, club), club && club.name].filter(Boolean).join(' · '),
+    season: T.event ? `${T.event}${T.eventStart ? ` · ${fmtDay(T.eventStart)}${T.eventEnd && T.eventEnd !== T.eventStart ? ` to ${fmtDay(T.eventEnd)}` : ''}` : ''}` : 'No tournament set',
+    contacts: [T.tasksContact.name ? `Contact: ${T.tasksContact.name}` : 'No team contact', `${arr(T.staff).length} staff`].join(' · '),
+    training: [T.trainingVenue, fmtR(T.trainingStart, T.trainingEnd)].filter(Boolean).join(' · ') || 'No defaults set',
+    field: `Zones ${T.field.zone} m · touch ${T.field.touch} m · middle ${T.field.middle} m`,
+    players: T.jerseyLoan ? 'Lent to players and handed back' : 'Given to players to keep',
+    publishing: S.trial ? 'Test mode: nothing is shared yet' : ghReady() ? `GitHub connected${gh.autoPublish ? ' · publishes automatically' : ''}` : 'GitHub not connected',
+    backup: 'Encrypted backup of every team',
+    layout: { auto: 'Auto', phone: 'Phone', wide: 'Wide' }[layoutPref()] || 'Auto',
+    teams: `${M.activeTeams(ws).length} team${M.activeTeams(ws).length === 1 ? '' : 's'}`
+  }[k] || '';
+}
+function settingsIndex() {
+  return `${multiTeam() ? `<p class="hint" style="margin:0 0 10px">Settings for <b>${esc(data.team.name)}</b>.</p>` : ''}
+    <div class="list set-list">${SETTINGS_SECS.map(([k, t, sub]) => `<button class="pick" data-act="settings-sec" data-sec="${k}"><span class="grow"><span class="name" style="display:block">${esc(t)}</span><span class="tagline">${esc(settingsSummary(k) || sub)}</span></span>${icon('chevron-right', 18)}</button>`).join('')}</div>`;
+}
+function settingsSection(k) {
+  const T = data.team, club = M.clubOf(ws, data);
+  const back = `<button class="btn sm set-back" data-act="settings">${icon('back', 18)}All settings</button>`;
+  const form = (body, label = 'Save') => `${back}<form data-form="settings" data-sec="${k}">${body}<button class="btn primary block" type="submit">${esc(label)}</button></form>`;
+  const positions = `<label class="field-l"><span>Positions for this team</span><input type="text" name="positions" data-auto-positions="${T.positionsCustom === true ? 'false' : 'true'}" data-last-default="${esc(M.positionsFor(T, club).join(', '))}" data-input="team-positions" value="${esc(M.positionsFor(T, club).join(', '))}"><small>What players can pick as preferred positions, separated by commas. They follow the team’s sport unless you change them. ${esc(M.teamSport(T, club))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, club)] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>`;
+  if (k === 'team') return form(`<label class="field-l"><span>Team name</span><input type="text" name="name" value="${esc(T.name)}"></label>
+    ${teamDetailsFields(T, { staff: false, maxMales: true, after: positions })}${teamStyleFields(T)}`, 'Save team');
+  if (k === 'season') return form(`<h3 class="form-sec">Tournament</h3>
     <label class="field-l"><span>Tournament</span><input type="text" name="event" value="${esc(T.event)}"></label>
     <div class="two">
       <label class="field-l"><span>Starts</span><input type="date" name="eventStart" value="${esc(T.eventStart)}"></label>
@@ -5121,43 +5374,48 @@ function settingsBody() {
     </div>
     <p class="note">The 2027 dates are a placeholder. Check them against the official draw and update them here.</p>
     <label class="field-l"><span>Tournament venue</span><input type="text" name="venue" value="${esc(T.venue)}"></label>
-    <label class="field-l"><span>Max males on field</span><input type="number" name="maxMales" min="0" max="8" value="${esc(T.maxMales)}" placeholder="${M.maxMalesOf({ ...T, maxMales: '' }, M.clubOf(ws, data))}"><small>Leave blank to follow the rule set (${M.maxMalesOf({ ...T, maxMales: '' }, M.clubOf(ws, data))}). Change it only for a competition by-law.</small></label>
-    <h3 class="form-sec">Team contact</h3>
+    <p class="hint" style="margin:-4px 0 14px">Seasons and competitions: <button type="button" class="link-btn inline" data-act="season-open">Seasons</button> · <button type="button" class="link-btn inline" data-act="tab" data-tab="comps">Competitions</button></p>`, 'Save tournament');
+  if (k === 'contacts') return form(`<h3 class="form-sec">Team contact</h3>
     <p class="muted small" style="margin-bottom:10px">Who players and helpers reply to. “I can help” and replies about training and matches open WhatsApp with a message to this person. Everyone in the team can see this name and number.</p>
     <div class="two">
       <label class="field-l"><span>Name</span><input type="text" name="tasksName" value="${esc(T.tasksContact.name)}" placeholder="e.g. Sarah (team manager)"></label>
       <label class="field-l"><span>Mobile</span><input type="tel" name="tasksPhone" value="${esc(T.tasksContact.phone)}" placeholder="04xx xxx xxx"></label>
-    </div>
-    <h3 class="form-sec">Training defaults</h3>
+    </div>${staffFields([...arr(T.staff), { role: 'Head coach', name: '', phone: '', email: '' }])}`, 'Save contacts');
+  if (k === 'training') return form(`<h3 class="form-sec">Training defaults</h3>
     <label class="field-l"><span>Usual venue</span><input type="text" name="trainingVenue" value="${esc(T.trainingVenue)}"></label>
     <div class="two">
       <label class="field-l"><span>Usual start</span><input type="time" name="trainingStart" value="${esc(T.trainingStart)}"></label>
       <label class="field-l"><span>Usual finish</span><input type="time" name="trainingEnd" value="${esc(T.trainingEnd)}"></label>
-    </div>
-    <h3 class="form-sec">Field zones and channels</h3>
+    </div>`, 'Save training');
+  if (k === 'field') return form(`<h3 class="form-sec">Field zones and channels</h3>
     <label class="field-l"><span>Zone depth from each try line (m)</span><input type="number" name="fieldZone" min="5" max="30" step="1" value="${esc(T.field.zone)}"><small>Sets the red zone (our end) and where good ball ends (their end). League uses 20 m on a 100 m field; 14 m is the same share of a 70 m Oztag field.</small></label>
     <div class="two">
       <label class="field-l"><span>Touch channels (m)</span><input type="number" name="fieldTouch" min="2" max="10" step="0.5" value="${esc(T.field.touch)}"></label>
       <label class="field-l"><span>Red middle channel (m)</span><input type="number" name="fieldMiddle" min="4" max="20" step="0.5" value="${esc(T.field.middle)}"></label>
     </div>
-    <p class="hint" style="margin-top:-6px;margin-bottom:14px">The two outside channels share the rest of the 50 m width: ${esc(fieldDims(T.field).outside)} m each now.</p>
-    <label class="field-l"><span>Positions for this team</span><input type="text" name="positions" data-auto-positions="${T.positionsCustom === true ? 'false' : 'true'}" data-last-default="${esc(M.positionsFor(T, M.clubOf(ws, data)).join(', '))}" data-input="team-positions" value="${esc(M.positionsFor(T, M.clubOf(ws, data)).join(', '))}"><small>What players can pick as preferred positions, separated by commas. ${esc(M.teamSport(T, M.clubOf(ws, data)))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, M.clubOf(ws, data))] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>
+    <p class="hint" style="margin-top:-6px;margin-bottom:14px">The two outside channels share the rest of the 50 m width: ${esc(fieldDims(T.field).outside)} m each now.</p>`, 'Save field');
+  if (k === 'players') return form(`<h3 class="form-sec">Jerseys</h3>
     <label class="check"><input type="checkbox" name="jerseyLoan" ${T.jerseyLoan ? 'checked' : ''}><span>Jerseys are lent to players and must be handed back</span></label>
-    <button class="btn primary block" type="submit">Save settings</button>
-  </form>
-  ${S.trial ? trialSettings() : liveSettings()}`;
+    <p class="hint" style="margin:-6px 0 14px">With this on, a player’s card and Reports › Jerseys track who still has one. Players’ positions follow the team’s sport (Settings › Team).</p>`, 'Save jerseys');
+  if (k === 'publishing') return back + (S.trial ? trialSettings() : liveSettings());
+  if (k === 'backup') return back + backupSection() + phoneSettings();
+  if (k === 'layout') return back + layoutSettings();
+  if (k === 'teams') return back + `<h3 class="form-sec" style="margin-top:0">Teams</h3>
+    <p class="muted small" style="margin-bottom:10px">${multiTeam() ? `These settings are for ${esc(T.name)}. ` : ''}You can run more than one team, each with its own squad and players’ password.</p>
+    <button class="btn block" data-act="teams">Manage teams</button>`;
+  return settingsIndex();
+}
+function phoneSettings() {
+  return `<h3 class="form-sec">This phone</h3>
+  ${S.trial ? '' : '<div class="btn-row"><button class="btn" data-act="sign-out">Sign out</button></div>'}
+  <button class="btn danger block" style="margin-top:10px" data-act="start-over">Clear team data…</button>
+  <p class="hint">Choose what to clear: the squad, training, matches, tasks, helpers, lineups, notices or the message log. Team settings${S.trial ? '' : ', plays and passwords'} stay.</p>`;
 }
 function trialSettings() {
   return `<h3 class="form-sec">Going live</h3>
   <p class="muted small" style="margin-bottom:10px">You're in test mode: everything is saved on this phone only and nobody else can see it. When you're ready to share the app with players, go live. You'll choose a coach password and a team password, and connect GitHub so the app can publish.</p>
   <button class="btn primary block" data-act="go-live">Go live</button>
-  <button class="btn block" data-act="preview-on" style="margin-top:10px">${icon('eye', 18)}See what players will see</button>
-
-  ${backupSection()}
-
-  <h3 class="form-sec">This phone</h3>
-  <button class="btn danger block" data-act="start-over">Clear team data…</button>
-  <p class="hint">Choose what to clear: the squad, training, matches, tasks, helpers, lineups, notices or the message log. Team settings and plays stay.</p>`;
+  <button class="btn block" data-act="preview-on" style="margin-top:10px">${icon('eye', 18)}See what players will see</button>`;
 }
 function liveSettings() {
   return `<h3 class="form-sec">Players' access${multiTeam() ? `: ${esc(data.team.name)}` : ''}</h3>
@@ -5181,14 +5439,7 @@ function liveSettings() {
     </form></details>
 
   <h3 class="form-sec">Publishing</h3>
-  ${githubSection()}
-
-  ${backupSection()}
-
-  <h3 class="form-sec">This phone</h3>
-  <div class="btn-row"><button class="btn" data-act="sign-out">Sign out</button></div>
-  <button class="btn danger block" style="margin-top:10px" data-act="start-over">Clear team data…</button>
-  <p class="hint">Choose what to clear: the squad, training, matches, tasks, helpers, lineups, notices or the message log. Team settings, plays and passwords stay.</p>`;
+  ${githubSection()}`;
 }
 function githubSection() {
   return `<p class="muted small" style="margin-bottom:10px">Changes are encrypted on this phone, saved to the repository's <code>data</code> branch and published to the site.</p>
@@ -5403,7 +5654,8 @@ const actions = {
   'tab': el => { if (el.dataset.tab === 'club') state.clubId = null; goTo(el.dataset.tab); },
   'nav': el => { const g = NAV.find(x => x.id === el.dataset.g); if (!g) return; const last = state.lastView[g.id]; goTo(last && viewsOf(g).some(v => v[0] === last) && navOf(state.tab) !== g ? last : viewsOf(g)[0][0]); },
   'close-sheet': () => requestCloseSheet(),
-  'settings': () => openSheet('Settings', settingsBody(), 'settings'),
+  'settings': el => { if (state.stylePreview) { state.stylePreview = false; applyTeamStyle(); } const k = el && el.dataset && el.dataset.sec; if (k && S.role === 'coach') openSheet(SETTINGS_SECS.find(x => x[0] === k)?.[1] || 'Settings', settingsSection(k), 'settings'); else openSheet('Settings', settingsBody(), 'settings'); },
+  'settings-sec': el => actions.settings(el),
   'layout': el => { store.set('tm-layout', el.dataset.v); applyLayout(); document.querySelectorAll('[data-act="layout"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
   'layout-width': el => { store.set('tm-width', el.dataset.v); applyLayout(); document.querySelectorAll('[data-act="layout-width"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
   'lock-mode': el => { state.lockMode = el.dataset.mode; state.lockMsg = ''; renderLock(); },
@@ -5462,7 +5714,48 @@ const actions = {
   'report-share': coachOnly(() => copyText(reportText(), 'Summary copied')),
   'match-new': coachOnly(() => openSheet('Add match', matchForm(null), 'match-new')),
   'match-day-new': coachOnly(() => openSheet('Tournament day', matchDayForm(), 'match-day')),
+  'squad-add': coachOnly(() => openSheet('Add players', `<div class="list">
+    <button class="pick" data-act="add-player">${icon('plus')}<span class="grow"><span class="name" style="display:block">Add a player</span><span class="tagline">One at a time, with their number and positions</span></span></button>
+    <button class="pick" data-act="bulk-add">${icon('copy')}<span class="grow"><span class="name" style="display:block">Paste a list</span><span class="tagline">Names from a spreadsheet or the team chat</span></span></button>
+    <button class="pick" data-act="player-import">${icon('team')}<span class="grow"><span class="name" style="display:block">From another team</span><span class="tagline">Players already in one of your teams</span></span></button></div>`, 'squad-add')),
   'match-open': coachOnly(el => openMatch(el.dataset.id)),
+  // Match Day
+  'matchday-open': coachOnly(el => {
+    const m = matchById(el.dataset.id); if (!m) return;
+    state.matchDayId = m.id; state.moveMode = false; const lu = matchLineup(m); if (lu) state.lineupId = lu.id;
+    goTo('matchday');
+  }),
+  'matchday-close': coachOnly(() => goTo('matches')),
+  'md-score': coachOnly(el => {
+    const m = matchById(el.dataset.id); if (!m || m.status !== 'scheduled') return;
+    const r = { us: 0, them: 0, ...obj(m.result) }, k = el.dataset.side === 'them' ? 'them' : 'us';
+    r[k] = Math.max(0, Math.min(99, (Number(r[k]) || 0) + Number(el.dataset.d || 0)));
+    m.result = r; save(); render();
+  }),
+  'md-fulltime': coachOnly(el => {
+    const m = matchById(el.dataset.id); if (!m) return;
+    const r = obj(m.result); m.result = { ...r, us: Number(r.us) || 0, them: Number(r.them) || 0 }; m.status = 'played';
+    save(); render(); toast(`Saved: ${resultText(m)}`);
+  }),
+  'md-reopen': coachOnly(el => {
+    const m = matchById(el.dataset.id); if (!m) return;
+    if (m.status !== 'played') { openMatch(m.id); return; }
+    m.status = 'scheduled'; save(); render();
+  }),
+  'md-arrive': coachOnly(el => {
+    const m = matchById(el.dataset.id), pid = el.dataset.pid; if (!m || !playerById(pid)) return;
+    const a = { ...obj(m.arrived) }; if (a[pid]) delete a[pid]; else a[pid] = true;
+    m.arrived = a; save(); render();
+  }),
+  'md-lineup': coachOnly(el => {
+    const m = matchById(el.dataset.id); if (!m || matchLineup(m)) return;
+    const from = data.lineups.find(l => !matchOfLineup(l)), lu = from ? { ...clone(from), id: uid() } : makeLineup('');
+    lu.name = `vs ${m.opponent || 'TBC'} (${fmtShort(m.date)})`;
+    data.lineups.push(lu); m.lineupId = lu.id; state.lineupId = lu.id; save(); render();
+    toast(`Match lineup made from ${from ? from.name : 'an empty lineup'}. Tap a position to change it.`);
+  }),
+  'md-send-lineup': coachOnly(el => { const m = matchById(el.dataset.id); if (m) sendWa(matchLineupText(m), { ref: 'match:' + m.id }); }),
+  'result-share': coachOnly(el => { const m = matchById(el.dataset.id); if (m && (M.matchOutcome(m) || m.status !== 'scheduled')) sendWa(oneResultText(m), { ref: 'result:' + m.id }); }),
   'match-edit': coachOnly(el => { const m = matchById(el.dataset.id); if (m) openSheet('Edit match', matchForm(m), 'match-edit'); }),
   'match-del': coachOnly(el => {
     const m = matchById(el.dataset.id); if (!m) return;
@@ -5541,8 +5834,19 @@ const actions = {
 
   'lineup-menu': coachOnly(() => lineupMenu()),
   'layer': el => { const k = el.dataset.k; state.layers[k] = !state.layers[k]; store.set('tm-field-layers', JSON.stringify(state.layers)); render(); },
+  'overlays': () => { state.overlaysOpen = !state.overlaysOpen; render(); },
+  'fold': el => {
+    const open = el.getAttribute('aria-expanded') !== 'true', body = document.getElementById(el.getAttribute('aria-controls'));
+    el.setAttribute('aria-expanded', String(open)); if (body) body.hidden = !open;
+    (state.folded[state.tab] = state.folded[state.tab] || {})[el.dataset.key] = !open;
+  },
+  'jump': el => {
+    const sec = document.getElementById(el.dataset.to); if (!sec) return;
+    const btn = sec.querySelector('.fold-btn'); if (btn && btn.getAttribute('aria-expanded') !== 'true') actions.fold(btn);
+    sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
   'system': el => {
-    const id = el.dataset.id; state.system = state.system === id ? null : id; state.sysFlip = false;
+    const id = el.dataset.id; state.system = state.system === id ? null : id; state.sysFlip = false; state.overlaysOpen = false;
     store.set('tm-field-system', state.system || ''); render();
   },
   'sys-side': el => { state.sysFlip = el.dataset.flip === '1'; render(); },
@@ -5615,8 +5919,13 @@ const actions = {
     const teamId=form?.querySelector('[name=reviewTeam]')?.value;
     const chosen=M.activeTeams(ws).find(t=>t.id===teamId);
     if(!p||!chosen||!inTeamPool(p,chosen)){toast('Choose a team for which this volunteer is available');return;}
-    pickTeam(chosen.id); state.crewClubId=chosen.team?.clubId||'';
-    openSheet('Review sport qualifications',crewPersonForm(p),'crew-person');
+    openSheet('Roles for ' + M.teamName(chosen),crewPersonForm(p, chosen, { back: true }),'crew-person');
+  }),
+  // Roles on the volunteer profile: save the profile first, then open that team's sport roles.
+  'crew-save-review': coachOnly(el => {
+    const form = el.closest('form'); if (!form) return;
+    form.querySelector('[name=review]').value = el.dataset.team || '';
+    if (form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
   }),
   'crew-photo-clear': coachOnly(el => {
     const form=el.closest('form');if(!form)return;
@@ -6513,7 +6822,7 @@ document.addEventListener('submit', async e => {
         registrationBySport:{},rolesBySport:{},wwccStatus:'unverified'
       },clubId,teamId));
       ws.matchOfficials=arr(ws.matchOfficials);ws.matchOfficials.push(p);save();
-      if(chosenTeam){pickTeam(chosenTeam.id);openSheet('Review sport roles and registration',crewPersonForm(p),'crew-person');}
+      if(chosenTeam){render();openSheet('Roles for '+M.teamName(chosenTeam),crewPersonForm(p,chosenTeam),'crew-person');}
       else{closeSheet();render();toast('Volunteer saved in this club directory. No team or accreditation has been assumed.');}
       return;
     }
@@ -6521,7 +6830,7 @@ document.addEventListener('submit', async e => {
     if(!p){fieldError(form,'personId','Choose an existing volunteer');return;}
     const joined=normCrewPerson(withClubAssociation(p,clubId,teamId));
     Object.assign(p,joined);save();
-    if(chosenTeam){pickTeam(chosenTeam.id);openSheet('Review sport roles and registration',crewPersonForm(p),'crew-person');}
+    if(chosenTeam){render();openSheet('Roles for '+M.teamName(chosenTeam),crewPersonForm(p,chosenTeam),'crew-person');}
     else{closeSheet();render();toast('Existing person linked to this club. Team eligibility still requires review.');}
     return;
   }
@@ -6533,11 +6842,24 @@ document.addEventListener('submit', async e => {
     if (joined && (!/^(?:19|20)\d{2}$/.test(joined) || Number(joined)>new Date().getFullYear())) {
       fieldError(form,'joined','Enter a valid year no later than this year');return;
     }
+    // Clubs and teams: what's ticked, keeping links to teams and clubs not listed (archived ones).
+    const listedTeams = M.activeTeams(ws).map(t => t.id), listedClubs = arr(ws.clubs).map(c => c.id);
+    const teamIds = [...new Set(arr(p.teamIds).filter(x => !listedTeams.includes(x)).concat(f.getAll('team').map(String).filter(x => listedTeams.includes(x))))];
+    const shownClubs = [...form.querySelectorAll('[name=club]')].map(x => x.value);
+    const clubIds = [...new Set(arr(p.clubIds).filter(x => !shownClubs.includes(x)).concat(f.getAll('club').map(String).filter(x => listedClubs.includes(x))))];
+    const dropped = M.activeTeams(ws).filter(t => inTeamPool(p, t) && !inTeamPool({ ...p, clubId: shownClubs.includes(p.clubId) ? '' : p.clubId, clubIds, teamIds }, t));
+    const onMatches = dropped.filter(t => arr(t.matches).some(m => m.status === 'scheduled' && m.date >= todayISO() && arr(m.crew).some(a => a.personId === p.id)));
     const saved=normCrewPerson({...p,name:str('name'),email:str('email'),phone:str('phone'),
       photo:str('photo'),clubSince:clubId ?
         {...p.clubSince,[clubId]:joined} : p.clubSince,
+      clubId: shownClubs.includes(p.clubId) && !clubIds.includes(p.clubId) ? '' : p.clubId,
+      clubIds, teamIds,
       active:!!f.get('active')});
-    Object.assign(p,saved);save();closeSheet();render();toast('Volunteer profile updated');return;
+    Object.assign(p,saved);save();
+    const review = str('review') && M.activeTeams(ws).find(t => t.id === str('review'));
+    if (review) { render(); openSheet('Roles for ' + M.teamName(review), crewPersonForm(p, review, { back: true }), 'crew-person'); return; }
+    closeSheet();render();
+    toast(onMatches.length ? `Profile saved. ${p.name} is still on upcoming matches for ${onMatches.map(t => M.teamName(t)).join(', ')}; check those.` : 'Volunteer profile updated');return;
   }
   if (kind === 'crew-pick-team' || kind === 'crew-pick-view') {
     const target=M.activeTeams(ws).find(t=>t.id===str('teamId'));
@@ -6552,7 +6874,8 @@ document.addEventListener('submit', async e => {
     const id = str('id'), p = id ? crewPerson(id) : null;
     if (id && !p) { toast('The staff member no longer exists.'); return; }
     if (!str('name')) { fieldError(form, 'name', 'Enter the staff member’s name'); return; }
-    const sport=M.teamSport(data.team,M.clubOf(ws,data));
+    const T = M.activeTeams(ws).find(t => t.id === str('teamId')) || data;
+    const sport=M.teamSport(T.team,M.clubOf(ws,T));
     const rolesSelected=f.getAll('role').filter(x=>crewRoleAllowed(sport,x));
     const roles=[...new Set([...(p?.roles||[]),...rolesSelected])]; // Keep historical labels; rolesBySport controls eligibility
     if (!rolesSelected.length) { toast('Select at least one role for ' + sport); return; }
@@ -6561,11 +6884,11 @@ document.addEventListener('submit', async e => {
       clubId: p?.clubId || '',
       clubIds: [...new Set(p?.clubIds || [])],
       email: p?.email || '',
-      teamIds: [...new Set([...(p?.teamIds || []), data.id])],
+      teamIds: [...new Set([...(p?.teamIds || []), ...(p && inTeamPool(p, T) ? [] : [T.id])])],
       roles, rolesBySport: { ...(p?.rolesBySport || {}), [sport]: rolesSelected }, active: !!f.get('active'),
       registrationBySport: { ...(p?.registrationBySport||{}), [sport]: Object.fromEntries(['coach','volunteer','trainer'].map(k=>[k,str('reg-'+k)])) },
       registration: p?.registration || {},
-      squadYears: { ...(p?.squadYears || {}), [data.id]: str('squad-year') },
+      squadYears: { ...(p?.squadYears || {}), [T.id]: str('squad-year') },
       accreditation: p?.accreditation || {},
       qualificationSinceBySport: { ...(p?.qualificationSinceBySport||{}),
         [sport]: { ...(p?.qualificationSinceBySport?.[sport]||{}),
@@ -6580,7 +6903,9 @@ document.addEventListener('submit', async e => {
     });
     ws.matchOfficials = arr(ws.matchOfficials);
     if (p) Object.assign(p,saved); else ws.matchOfficials.push(saved);
-    save(); closeSheet(); render(); toast(id ? 'Staff member updated' : 'Staff member added');
+    save();
+    if (str('back') === 'profile') { render(); openSheet('Volunteer profile', crewBasicForm(p || saved), 'crew-basic'); toast(`${sport} roles saved`); return; }
+    closeSheet(); render(); toast(id ? 'Staff member updated' : 'Staff member added');
     return;
   }
   if (kind === 'crew-policy') {
@@ -6790,31 +7115,42 @@ document.addEventListener('submit', async e => {
     return;
   }
   if (kind === 'settings') {
-    const T = data.team, before = clone(T), oldClub = M.clubOf(ws, data);
-    T.name = str('name') || T.name; T.event = str('event'); T.eventStart = str('eventStart'); T.eventEnd = str('eventEnd');
-    T.venue = str('venue');
-    const ec = M.findComp(ws, T.eventCompId);   // the tournament is a competition: keep them the same
-    if (ec) Object.assign(ec, { name: T.event || ec.name, start: T.eventStart, end: T.eventEnd, venue: T.venue });
-    T.maxMales = str('maxMales') === '' ? '' : clamp(Math.round(Number(str('maxMales'))) || 0, 0, 8);
-    T.rules = M.ruleSet(str('rules')) ? str('rules') : '';
-    T.clubId = arr(ws.clubs).some(c => c.id === str('clubId')) ? str('clubId') : '';
-    T.division = str('division'); T.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
-    T.ageGroup = str('ageGroup'); T.colours = str('colours');
-    T.staff = peopleRows(f, 'st');
-    T.tasksContact = { name: str('tasksName'), phone: str('tasksPhone') };
-    T.trainingVenue = str('trainingVenue'); T.trainingStart = str('trainingStart'); T.trainingEnd = str('trainingEnd');
-    const sp = str('teamSport');
-    T.sport = M.SPORTS.includes(sp) || sp === before.sport ? sp : '';
-    const entered = str('positions').split(',').map(x => x.trim()).filter(Boolean);
-    const resolved = M.changedSportPositions(before, oldClub, T, M.clubOf(ws, data), entered);
-    T.positions = resolved.positions; T.positionsCustom = resolved.positionsCustom;
-    T.jerseyLoan = !!f.get('jerseyLoan');
+    // Each section saves only its own fields.
+    const T = data.team, before = clone(T), oldClub = M.clubOf(ws, data), has = k => !!form.querySelector(`[name="${k}"]`);
+    if (has('name')) T.name = str('name') || T.name;
+    if (has('event')) {
+      T.event = str('event'); T.eventStart = str('eventStart'); T.eventEnd = str('eventEnd'); T.venue = str('venue');
+      const ec = M.findComp(ws, T.eventCompId);   // the tournament is a competition: keep them the same
+      if (ec) Object.assign(ec, { name: T.event || ec.name, start: T.eventStart, end: T.eventEnd, venue: T.venue });
+    }
+    if (has('maxMales')) T.maxMales = str('maxMales') === '' ? '' : clamp(Math.round(Number(str('maxMales'))) || 0, 0, 8);
+    if (has('rules')) T.rules = M.ruleSet(str('rules')) ? str('rules') : '';
+    if (has('clubId')) {
+      T.clubId = arr(ws.clubs).some(c => c.id === str('clubId')) ? str('clubId') : '';
+      T.division = str('division'); T.category = M.TEAM_CATEGORIES[str('category')] ? str('category') : 'mixed';
+      T.ageGroup = str('ageGroup'); T.colours = str('colours');
+    }
+    if (has('st-name')) T.staff = peopleRows(f, 'st');
+    if (has('tasksName')) T.tasksContact = { name: str('tasksName'), phone: str('tasksPhone') };
+    if (has('trainingVenue')) { T.trainingVenue = str('trainingVenue'); T.trainingStart = str('trainingStart'); T.trainingEnd = str('trainingEnd'); }
+    if (has('teamSport')) { const sp = str('teamSport'); T.sport = M.SPORTS.includes(sp) || sp === before.sport ? sp : ''; }
+    if (has('positions') || has('teamSport') || has('clubId')) {
+      // A sport or club change can change the positions on offer; the Players section edits them directly.
+      const entered = has('positions') ? str('positions').split(',').map(x => x.trim()).filter(Boolean) : M.positionsFor(before, oldClub);
+      const resolved = M.changedSportPositions(before, oldClub, T, M.clubOf(ws, data), entered);
+      T.positions = resolved.positions; T.positionsCustom = resolved.positionsCustom;
+    }
+    if (has('jerseyLoan')) T.jerseyLoan = !!f.get('jerseyLoan');
     if (form.querySelector('[name=teamStyle]')) { const st = formStyle(form); if (st) T.style = st; else delete T.style; state.stylePreview = false; }
-    const zone = Number(str('fieldZone')), touch = Number(str('fieldTouch')), middle = Number(str('fieldMiddle'));
-    const fits = zone >= 5 && zone <= 30 && touch >= 2 && middle >= 4 && (50 - middle - 2 * touch) / 2 >= 3;
-    if (fits) T.field = { zone, touch, middle };
+    let fits = true;
+    if (has('fieldZone')) {
+      const zone = Number(str('fieldZone')), touch = Number(str('fieldTouch')), middle = Number(str('fieldMiddle'));
+      fits = zone >= 5 && zone <= 30 && touch >= 2 && middle >= 4 && (50 - middle - 2 * touch) / 2 >= 3;
+      if (fits) T.field = { zone, touch, middle };
+    }
     save(); render();
-    toast(fits ? 'Settings saved' : "Saved, except the field sizes: they don't fit a 50 m wide field.");
+    const sec = SETTINGS_SECS.find(x => x[0] === form.dataset.sec);
+    toast(fits ? `${sec ? sec[1] : 'Settings'} saved` : "Saved, except the field sizes: they don't fit a 50 m wide field.");
   }
   if (kind === 'github') {
     const changed = gh.owner !== str('owner') || gh.repo !== str('repo');

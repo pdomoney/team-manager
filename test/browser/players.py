@@ -21,7 +21,7 @@ with sync_playwright() as p:
     c.ok(all(x in opts for x in ['Oztag', 'Rugby league', 'League tag', 'Touch football', 'Rugby union', 'Netball']), 'sport is a drop-down of the sports')
     pg.keyboard.press('Escape')
     # the team plays rugby league: positions follow
-    pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#sheet select[name=teamSport]')
+    pg.evaluate(act, ['settings', {'sec': 'team'}]); pg.wait_for_selector('#sheet select[name=teamSport]')
     hs = set(pg.evaluate(HEIGHTS, "#sheet form[data-form=settings] input[type=text], #sheet form[data-form=settings] input[type=date], #sheet form[data-form=settings] select"))
     c.ok(len(hs) == 1, f'Settings: fields the same height {hs}')
     pg.select_option('#sheet select[name=teamSport]', 'Rugby league'); pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(200)
@@ -45,7 +45,7 @@ with sync_playwright() as p:
     pg.goto(url + '#squad'); pg.wait_for_timeout(150)
     c.ok(pg.locator('.pphoto img').count() == 1, 'the squad list shows the photo')
     # jerseys: lent, returned, report
-    pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#sheet input[name=jerseyLoan]')
+    pg.evaluate(act, ['settings', {'sec': 'players'}]); pg.wait_for_selector('#sheet input[name=jerseyLoan]')
     pg.check('#sheet input[name=jerseyLoan]'); pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(150); pg.keyboard.press('Escape')
     c.ok(W(f"M.openLoans(D.players.find(p => p.id === '{pid}')).length") == 1, 'a player with a number has their jersey')
     pg.evaluate(act, ['edit-player', {'id': pid}]); pg.wait_for_selector('#sheet .jersey-block')
@@ -92,7 +92,7 @@ with sync_playwright() as p:
     pg.evaluate(act, ['preview-off', {}]); pg.wait_for_timeout(100)
     # Switching to a different club sport must update New Player even with saved Oztag defaults.
     W("(() => { W.clubs.push(M.normClub({ id: 'netball-club', name: 'Netball club', sport: 'Netball' })); D.team.sport = ''; D.team.positions = M.SPORT_POSITIONS.Oztag.slice(); D.team.positionsCustom = false; return 1; })()")
-    pg.evaluate(act, ['settings', {}]); pg.wait_for_selector('#sheet select[name=clubId]')
+    pg.evaluate(act, ['settings', {'sec': 'team'}]); pg.wait_for_selector('#sheet select[name=clubId]')
     pg.select_option('#sheet select[name=clubId]', 'netball-club')
     pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(200)
     c.ok(W('M.teamSport(D.team, M.clubOf(W,D))') == 'Netball', 'new club makes Netball the effective sport')

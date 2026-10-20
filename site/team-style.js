@@ -30,7 +30,7 @@ export const TEAM_STYLES = [
   { id: 'blackgold', name: 'Black & Gold', dark: '#141414', action: '#2B2B2B', accent: '#FDB913', swatch: ['#141414', '#FDB913'] },
 ];
 // The classic look (no style chosen), for the chooser's first swatch.
-export const CLASSIC = { name: 'Classic', dark: '#123D2B', action: '#D3263A', accent: '#FFD24D', swatch: ['#123D2B', '#D3263A'] };
+export const CLASSIC = { name: 'Classic', dark: '#123D2B', action: '#1D6B45', accent: '#FFD24D', swatch: ['#123D2B', '#FFD24D'] };
 export const styleById = id => TEAM_STYLES.find(s => s.id === id) || null;
 
 const HEX = /^#[0-9a-f]{6}$/i;

@@ -21,7 +21,7 @@ with sync_playwright() as p:
     ctx, pg, errs = page(b, url + '#home', width=390, height=844)
     W = lambda js: pg.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M; return {js}; }})()')
     pg.wait_for_selector('text=Load a sample squad')
-    c.ok(pg.locator('.scope.single').count() == 1 and pg.locator('[data-act=home-scope]').count() == 0, 'one team: the team shown, no choosing')
+    c.ok(pg.locator('.scope').count() == 0 and pg.locator('[data-act=home-scope]').count() == 0, 'one team: no repeated team card, no choosing (the header names the team)')
     pg.click('[data-act=sample]'); pg.wait_for_timeout(300)
     txt = pg.inner_text('#view')
     c.ok(pg.locator('.focus h2').count() == 1 and 'Coming up' in txt and 'Outstanding actions' in txt and 'at a glance' in txt, 'one team: spotlight, coming up, actions and the team summary')
@@ -89,7 +89,7 @@ with sync_playwright() as p:
     pg.goto(url + '#teams'); pg.wait_for_timeout(100); pg.click(f'[data-act=team-archive][data-id="{u16}"]'); pg.wait_for_timeout(150)
     pg.goto(url + '#home'); pg.wait_for_timeout(200)
     txt = pg.inner_text('#view')
-    c.ok('Hills Hornets Under 16' not in txt and 'Wolves' not in txt and pg.locator('.scope.single').count() == 1, 'an archived team is left out (one active team again)')
+    c.ok('Hills Hornets Under 16' not in txt and 'Wolves' not in txt and pg.locator('#view .scope').count() == 0, 'an archived team is left out (one active team again: no team card)')
     pg.goto(url + '#teams'); pg.wait_for_timeout(100); pg.click(f'[data-act=team-restore][data-id="{u16}"]'); pg.wait_for_timeout(150)
     # the players' Home
     pg.evaluate(act, ['team-pick', {'id': 'team1'}]); pg.evaluate(act, ['preview-on', {}]); pg.goto(url + '#home'); pg.wait_for_timeout(200)
