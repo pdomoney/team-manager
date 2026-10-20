@@ -5579,7 +5579,7 @@ function testLibrarySection() {
   const lib = ws.testLibrary, can = canLoadTestLibrary();
   return `<h3 class="form-sec" style="margin-top:0">Test data</h3>
     <div class="data-check"><span class="sub">Data check</span><b>${esc(dataCheck(ws))}</b><span class="sub">Two devices showing the same code hold the same data.</span></div>
-    <p class="muted small" style="margin:12px 0">The test library is made-up data that comes out the same on every device: the Mixed 20s with training, tasks and lifts, a gala day today with five games (so Match Day always has one coming up), the State Cup draw, a second St George team, teams at Penrith Oztag, Taren Point Titans and Engadine Dragons (real clubs, made-up teams), six match-day volunteers with current, expiring, expired and unchecked accreditations, and staffing requirements with one shortfall. No real people.</p>
+    <p class="muted small" style="margin:12px 0">The test library uses fictional people and fixtures. It includes Oztag, League Tag and Rugby League teams, completed/current/planned seasons, several leagues and tournaments, past results and upcoming games, a gala day today, and match-day volunteer accreditation scenarios. All competition details and participants are illustrative, not an official draw.</p>
     ${lib ? `<p class="note">This copy is the test library from ${esc(fmtLong(lib.day))} (version ${esc(lib.version)}).</p>` : ''}
     ${can ? `<button class="btn primary block" data-act="test-library">${lib ? 'Load a fresh test library' : 'Load the test library'}</button>`
       : '<p class="note">This copy has real players, so the test library can’t replace it.</p>'}
@@ -5944,6 +5944,96 @@ function extendTestLibrary(day) {
   penrith.sessions = [session(weekday(0, 1), 'Ruck speed', 'The Kingsway Playing Fields')];
   penrith.matches = [match('St Marys Mixed', weekday(0, 2), '19:45', { venue: 'The Kingsway Playing Fields', field: '6', round: 'Summer, round 3' })];
   M.addTeam(ws, penrith);
+
+  // Additional synthetic Rugby league team to exercise 13-role sport context as well as League tag.
+  const league = team('testleague', 'Titans Under 16 Boys Rugby League', 'tarenpointtitans',
+    { sport: 'Rugby league', category: 'men', division: 'Under 16 Boys', ageGroup: 'U16', trainingVenue: 'Gwawley Park' });
+  league.players = [
+    'Aiden Cole', 'Bailey Finch', 'Carter Ross', 'Dylan Shaw', 'Eli Dawson', 'Finn Archer', 'George Brooks',
+    'Hudson Clarke', 'Isaiah Burke', 'Jack Sutton', 'Kai Foster', 'Luca Bennett', 'Mason Reed'
+  ].map((name, i) => P(name, 'M', String(i + 1), []));
+  league.sessions = [session(weekday(0, 4), 'Defensive alignment', 'Gwawley Park'),
+    session(weekday(1, 4), 'Attack structure', 'Gwawley Park')];
+  M.addTeam(ws, league);
+
+  // Multiple reviewable seasons per team. Earlier results belong only to the completed season;
+  // future seasons have no fixtures or copied registrations, just a plan.
+  const year = Number(day.slice(0, 4)), priorYear = year - 1, nextYear = year + 1;
+  const seedSeasons = t => {
+    const active = M.activeSeason(t);
+    if (!active) return;
+    active.name = String(year); active.year = String(year);
+    const prev = M.normSeason({ id: uid(), name: String(priorYear), year: String(priorYear),
+      start: `${priorYear}-03-01`, end: `${priorYear}-09-30`, status: 'completed',
+      squad: t.players.slice(0, Math.min(8, t.players.length)).map(p => ({
+        playerId: p.id, number: p.number, positions: p.positions, status: 'available', reg: 'registered' })) });
+    const future = M.normSeason({ id: uid(), name: String(nextYear), year: String(nextYear),
+      start: `${nextYear}-03-01`, end: `${nextYear}-09-30`, status: 'planned', squad: [] });
+    t.seasons.unshift(prev); t.seasons.push(future); t.team.season = active.name;
+    return { active: active.id, prior: prev.id, planned: future.id };
+  };
+  const titansSeasons = seedSeasons(titans), dragonsSeasons = seedSeasons(engadine);
+  const leagueSeasons = seedSeasons(league), penrithSeasons = seedSeasons(penrith);
+  const womenSeasons = seedSeasons(women);
+
+  const reviewComp = (id, name, sport, format, start, end, status, venue) => {
+    const c = M.normComp({ id, name, sport, format, edition: String(year), start, end,
+      status, venue, organiser: 'Test library, synthetic competition', entries: [] });
+    ws.competitions.push(c); return c;
+  };
+  const reviewEntry = (comp, t, sid, division, pool = '') =>
+    M.addEntry(ws, comp.id, t.id, sid, { division, pool }).entry;
+  const reviewFixture = (t, entry, opponent, offset, start, extra = {}) => {
+    const m = match(opponent, M.addDays(day, offset), start,
+      { venue: extra.venue || 'Synthetic community sports ground', seasonId: entry.seasonId,
+        ...extra });
+    t.matches.push(m); M.linkMatch(ws, t, m, entry.id); return m;
+  };
+  const leagueTagSeason = reviewComp('test-tag-season', `Southern Sydney League Tag ${year}`,
+    'League tag', 'league', M.addDays(day, -70), M.addDays(day, 65), 'active', 'Sydney district grounds');
+  const tagTitans = reviewEntry(leagueTagSeason, titans, titansSeasons.active, 'Open Women');
+  const tagDragons = reviewEntry(leagueTagSeason, engadine, dragonsSeasons.active, 'Senior Women');
+  reviewFixture(titans, tagTitans, 'Como Crocs Women', -21, '12:00',
+    { round: 'Round 6', status: 'played', result: { us: 18, them: 12 } });
+  reviewFixture(titans, tagTitans, 'Cronulla Bayside Women', 8, '11:15',
+    { round: 'Round 9', field: '2', venue: 'Gwawley Park' });
+  reviewFixture(titans, tagTitans, 'Sutherland Swifts', 15, '13:30', { round: 'Round 10', field: '1' });
+  reviewFixture(engadine, tagDragons, 'Miranda Magpies', -7, '10:00',
+    { round: 'Round 7', status: 'played', result: { us: 12, them: 12 } });
+  reviewFixture(engadine, tagDragons, 'Heathcote Hawks', 7, '10:45',
+    { round: 'Round 9', venue: 'ANZAC Oval' });
+  reviewFixture(engadine, tagDragons, 'Como Crocs Women', 21, '11:30', { round: 'Round 11' });
+
+  const tagCup = reviewComp('test-tag-cup', `Southern League Tag Carnival ${year}`,
+    'League tag', 'roundrobin', M.addDays(day, 28), M.addDays(day, 29),
+    'planned', 'Made-up carnival venue');
+  const tagCupTitans = reviewEntry(tagCup, titans, titansSeasons.active, 'Open Women', 'Pool A');
+  const tagCupDragons = reviewEntry(tagCup, engadine, dragonsSeasons.active, 'Senior Women', 'Pool B');
+  reviewFixture(titans, tagCupTitans, 'South Coast Dolphins', 28, '09:00', { round: 'Pool A, game 1', field: '1' });
+  reviewFixture(titans, tagCupTitans, 'Eastern Eagles', 28, '12:20', { round: 'Pool A, game 2', field: '3' });
+  reviewFixture(engadine, tagCupDragons, 'Parramatta Panthers', 29, '09:40', { round: 'Pool B, game 1', field: '2' });
+  reviewFixture(engadine, tagCupDragons, 'St George Stars', 29, '13:00', { round: 'Pool B, game 2', field: '1' });
+
+  const jrLeague = reviewComp('test-jr-league', `District Junior League ${year}`,
+    'Rugby league', 'league', M.addDays(day, -50), M.addDays(day, 75),
+    'active', 'District grounds');
+  const jrEntry = reviewEntry(jrLeague, league, leagueSeasons.active, 'U16 Boys');
+  reviewFixture(league, jrEntry, 'Cronulla Junior Sharks', -14, '09:00',
+    { round: 'Round 5', status: 'played', result: { us: 24, them: 18 } });
+  reviewFixture(league, jrEntry, 'Menai Mustangs', 4, '09:30',
+    { round: 'Round 8', field: '2', venue: 'Gwawley Park' });
+  reviewFixture(league, jrEntry, 'Gymea Gorillas', 11, '10:15', { round: 'Round 9' });
+
+  const archiveCup = reviewComp('test-archive-cup', `Community Cup ${priorYear}`,
+    'League tag', 'knockout', `${priorYear}-08-01`, `${priorYear}-08-03`,
+    'completed', 'Synthetic regional sports field');
+  const priorEntry = reviewEntry(archiveCup, engadine, dragonsSeasons.prior, 'Senior Women');
+  const oldMatch = match('Coastal Women', `${priorYear}-08-02`, '11:00',
+    { venue: 'Synthetic regional sports field', round: 'Quarter final',
+      status: 'played', result: { us: 10, them: 8 }, seasonId: dragonsSeasons.prior });
+  engadine.matches.push(oldMatch); M.linkMatch(ws, engadine, oldMatch, priorEntry.id);
+  // Retain these other teams' season comparisons, without copying match fixtures across seasons.
+  void penrithSeasons; void womenSeasons;
 
   // Match-day volunteers: current, expiring, expired and unchecked accreditations, across both clubs.
   const hills = data.matches.find(m => m.opponent === 'Hills Hornets'), yr = hills.date.slice(0, 4), soon = M.addDays(day, 40), later = M.addDays(day, 700), past = M.addDays(day, -30);
