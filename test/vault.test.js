@@ -75,6 +75,16 @@ test('players get the whole play drawing, including its notes and labels', () =>
   assert.deepEqual(v.plays[0], play);
 });
 
+test('sport-tagged plays stay sport-tagged in published player copies', () => {
+  const tagged = { id: 'league-sweep', name: 'League Tag Sweep', sport: 'League tag', set: 'league',
+    players: { RM: [25, 46] }, moves: [], coachDraft: 'private comment' };
+  const v = teamView({ ...sample, team: { ...sample.team, sport: 'League tag' }, plays: [tagged] });
+  assert.equal(v.team.sport, 'League tag');
+  assert.equal(v.plays[0].sport, 'League tag');
+  assert.equal(v.plays[0].set, 'league');
+  assert.ok(!JSON.stringify(v).includes('private comment'));
+});
+
 test('coach-authored teaching cues reach only the intended encrypted players copy', () => {
   const play = { id: 't1', name: 'Teach me', moves: [{ t: 'run', pts: [[25,46],[25,40]] }], study: [
     { title: 'First action', text: 'RM runs', roles: ['RM'], moves: [0] }
