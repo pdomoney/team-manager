@@ -76,7 +76,13 @@ export function resolveStyle(v) {
   const accent = until(base.accent, c => contrast(c, dark) >= 3, c => mixWhite(c, 0.15));
   if (accent !== base.accent) adjusted.push('accent');
   const actionEdge = until(action, c => contrast(c, CHALK) >= 3, c => darken(c, 0.88));
-  const onDark = contrast(action, dark) >= 3 ? action : accent;
+  // An accent can separate from the dark header at 3:1 but still be unreadable
+  // with either text colour. Resolve the final on-card button independently.
+  let onDark = contrast(action, dark) >= 3 ? action : accent;
+  if (Math.max(contrast(onDark, WHITE), contrast(onDark, INK)) < 4.5) {
+    onDark = until(onDark, c => contrast(c, WHITE) >= 4.5 && contrast(c, dark) >= 3, c => darken(c, 0.88));
+    if (!adjusted.includes('onDark')) adjusted.push('onDark');
+  }
   const onDarkInk = contrast(onDark, WHITE) >= 4.5 ? WHITE : INK;
   return {
     id: base.id, name: base.name, dark, dark2: darken(dark, 0.75), dark3: mixWhite(dark, 0.12), action, actionInk,
