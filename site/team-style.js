@@ -29,6 +29,14 @@ export const TEAM_STYLES = [
   { id: 'brown', name: 'Brown & Gold', dark: '#3D2314', action: '#6B4423', accent: '#F2B705', swatch: ['#4D2C17', '#F2B705'] },
   { id: 'ocean', name: 'Ocean & Silver', dark: '#0A2342', action: '#1B6CA8', accent: '#C9D3DC', swatch: ['#1B6CA8', '#C9D3DC'] },
   { id: 'blackgold', name: 'Black & Gold', dark: '#141414', action: '#2B2B2B', accent: '#FDB913', swatch: ['#141414', '#FDB913'] },
+  // Generic options, not claims about a specific club's current branding.
+  { id: 'bluewhite', name: 'Royal Blue & White', dark: '#102D60', action: '#1F52A3', accent: '#FFFFFF', swatch: ['#1F52A3', '#FFFFFF'] },
+  { id: 'greenwhite', name: 'Green & White', dark: '#143F2F', action: '#19764B', accent: '#FFFFFF', swatch: ['#19764B', '#FFFFFF'] },
+  { id: 'navywhite', name: 'Navy & White', dark: '#111F3C', action: '#234C82', accent: '#FFFFFF', swatch: ['#111F3C', '#FFFFFF'] },
+  { id: 'redgold', name: 'Red & Gold', dark: '#641620', action: '#BB2435', accent: '#FFCC46', swatch: ['#BB2435', '#FFCC46'] },
+  { id: 'purplewhite', name: 'Purple & White', dark: '#321B54', action: '#694299', accent: '#FFFFFF', swatch: ['#694299', '#FFFFFF'] },
+  { id: 'redbluewhite', name: 'Red, Blue & White', dark: '#0B2C50', action: '#B32239', accent: '#FFFFFF', swatch: ['#B32239', '#1C63A1'] },
+  { id: 'royalskyred', name: 'Royal Blue, Sky & Red', dark: '#0D3061', action: '#176BA4', accent: '#E44550', swatch: ['#2375B7', '#E44550'] },
 ];
 // The classic look (no style chosen), for the chooser's first swatch.
 export const CLASSIC = { name: 'Classic', dark: '#123D2B', action: '#1D6B45', accent: '#FFD24D', swatch: ['#123D2B', '#FFD24D'] };
@@ -108,6 +116,9 @@ const MATCH = [
   [['maroon'], 'maroon'], [['claret'], 'claret'], [['burgundy'], 'claret'], [['lime'], 'lime'], [['teal'], 'teal'], [['aqua'], 'teal'],
   [['purple'], 'purple'], [['orange'], 'orange'], [['brown'], 'brown'], [['silver'], 'ocean'],
   [['sky'], 'skynavy'], [['light', 'blue'], 'skynavy'],
+  [['royal', 'sky', 'red'], 'royalskyred'], [['blue', 'sky', 'red'], 'royalskyred'],
+  [['red', 'blue', 'white'], 'redbluewhite'], [['red', 'gold'], 'redgold'], [['purple', 'white'], 'purplewhite'],
+  [['green', 'white'], 'greenwhite'], [['navy', 'white'], 'navywhite'], [['blue', 'white'], 'bluewhite'],
   [['red', 'black'], 'redblack'], [['navy', 'red'], 'navyred'], [['blue', 'red'], 'navyred'], [['red', 'white'], 'redwhite'],
   [['black', 'white'], 'blackwhite'], [['black', 'gold'], 'blackgold'], [['black', 'yellow'], 'blackgold'],
   [['green', 'gold'], 'greengold'], [['green', 'yellow'], 'greengold'], [['blue', 'gold'], 'bluegold'], [['blue', 'yellow'], 'bluegold'],
