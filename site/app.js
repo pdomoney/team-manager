@@ -32,6 +32,7 @@ import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClub
 import { TEAM_STYLES, CLASSIC, styleById, normStyle, effectiveStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
 import { sportIcon, sportMaskUrl } from './sport-icons.js';
 import { directoryRecords, filterClubDirectory, directoryClubDraft, DIRECTORY_STATES } from './club-directory.js';
+import { clubNameKey, managedClubCandidates, clubLinkPreview, applyClubDirectoryMatch, linkedDirectoryRecord } from './club-link.js';
 import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-badges.js';
 import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
 import * as M from './model.js';
@@ -4561,9 +4562,6 @@ const multiTeam = () => S.role === 'coach' && M.activeTeams(ws).length > 1;
 const teamFinder = { text: '', sport: '', club: '' };
 const clubFinder = { text: '', sport: '', state: '', limit: 30 };
 const finderMatch = (txt, needle) => String(txt || '').toLocaleLowerCase('en-AU').includes(needle.toLocaleLowerCase('en-AU'));
-const clubNameKey = n => String(n || '').toLocaleLowerCase('en-AU')
-  .replace(/\b(junior rugby league football club|rugby league football club|jrlfc|rlfc|jrfc|football club|oztag association)\b/g, '')
-  .replace(/[^a-z0-9]+/g, ' ').trim();
 const directorySource = u => {
   const url = String(u || '').split(/[;|\s]+/)[0];
   return /^https:\/\/[^\s<>"]+$/.test(url) ? url : '';
@@ -4600,10 +4598,61 @@ function managedTeamResults() {
   if (loose.length) sections.push(`<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name">Not in a club</span></span></div><div class="list">${loose.map(row).join('')}</div></section>`);
   return sections.join('') || '<div class="empty"><p>No clubs or teams match. Change your filters or clear the search.</p></div>';
 }
+let directoryLinkState = null;
+
+function directoryLinkReview() {
+  if (!directoryLinkState) return '';
+  const candidate=directoryRecords().find(c => c.id===directoryLinkState.refId);
+  const managed=arr(ws.clubs).find(c => c.id===directoryLinkState.clubId);
+  if (!candidate || !managed) return '<p class="hint">Choose a managed club to compare its details.</p>';
+  const preview=clubLinkPreview(managed,candidate,{includeColours:directoryLinkState.colours});
+  if (!preview) return '<p class="hint">This is not the same sport. Choose a different club.</p>';
+  const listing = (values, format) => values.length ? `<ul class="club-link-list">${values.map(format).join('')}</ul>` : '<p class="hint">None.</p>';
+  return `<p class="hint"><b>Your saved club:</b> ${esc(managed.name)} · ${M.clubTeams(ws,managed.id).length} existing team(s). Its ID, logo, branding, roles, people, seasons and teams stay unchanged.</p>
+    ${preview.blocked ? '<p class="note">Already linked to a different directory candidate. This link must be reviewed separately; no replacement is offered.</p>' : ''}
+    <h3>Blank fields that will be filled (${preview.additions.length})</h3>
+    ${listing(preview.additions, a => `<li><b>${esc(a.label)}:</b> ${esc(a.value)}</li>`)}
+    <h3>Existing values that will be kept (${preview.kept.length})</h3>
+    ${listing(preview.kept, a => `<li><b>${esc(a.label)}:</b> ${esc(a.current)}<small class="sub" style="display:block">Directory suggests: ${esc(a.proposed)} (not used)</small></li>`)}
+    <p class="hint">This confirms the two records describe the same club in your workspace, not that the directory listing is officially verified. No new club or team is created.</p>
+    <button type="button" class="btn primary block" data-act="directory-link-confirm" ${preview.blocked?'disabled':''}>Confirm same club and fill ${preview.additions.length} blank field${preview.additions.length===1?'':'s'}</button>`;
+}
+
+function directoryLinkSheet() {
+  const c=directoryRecords().find(x=>x.id===directoryLinkState?.refId);
+  if(!c)return;
+  const options=managedClubCandidates(c,arr(ws.clubs));
+  const match=options.find(x=>x.club.id===directoryLinkState.clubId);
+  const source=directorySource(c.sourceUrl);
+  openSheet('Confirm club match · '+c.name,`<p class="hint">This is an <b>unverified research listing</b> for ${esc(c.name)} (${esc(c.sport)} · ${esc(c.state)}). Check it against your own club before linking. ${source?`<a href="${esc(source)}" target="_blank" rel="noopener noreferrer">View research source ↗</a>`:''}</p>
+    <label class="field-l"><span>Which of your managed clubs is this?</span>
+      <select data-change="directory-link-pick" aria-label="Existing managed club">
+        <option value="">Choose existing club</option>
+        ${options.map(({club,score})=>`<option value="${esc(club.id)}" ${club.id===directoryLinkState.clubId?'selected':''}>${esc(club.name)}${score>=100?' · likely name match':''}</option>`).join('')}
+      </select>
+    </label>
+    ${c.colours?`<label class="check"><input type="checkbox" data-change="directory-link-colours" ${directoryLinkState.colours?'checked':''}><span>Also use published colour words if my club has none (unverified, no theme or logo changes)</span></label>`:''}
+    <div id="club-link-review" aria-live="polite">${directoryLinkReview()}</div>
+    <div class="btn-row" style="margin-top:14px">
+      <button type="button" class="btn" data-act="directory-link-new">Not the same · create separate club</button>
+      <button type="button" class="btn" data-act="close-sheet">Cancel</button>
+    </div>`, 'club-directory-link');
+}
+
+function openDirectoryLink(refId, preferred='') {
+  const c=directoryRecords().find(x=>x.id===refId);
+  if(!c)return;
+  const choices=managedClubCandidates(c,arr(ws.clubs));
+  if(!choices.length){toast('No managed clubs of this sport yet. Choose Use details to create one.');return;}
+  const initial=choices.some(x=>x.club.id===preferred)?preferred:(choices[0].score>=50?choices[0].club.id:'');
+  directoryLinkState={refId:c.id,clubId:initial,colours:false};
+  directoryLinkSheet();
+}
+
 function clubDirectoryResults() {
   const filtered = filterClubDirectory({query:clubFinder.text,sport:clubFinder.sport,state:clubFinder.state});
   const cap = clubFinder.limit;
-  const rows = filtered.slice(0,cap).map(c => `<div class="row directory-row">
+  const rows = filtered.slice(0,cap).map(c => { const matches=managedClubCandidates(c,arr(ws.clubs)); const suggested=matches.find(x=>x.score>=100); return `<div class="row directory-row">
     <span class="directory-sport">${sportIcon(c.sport,22)}</span><span class="grow">
       <span class="name" style="display:block">${esc(c.name)}</span>
       <span class="sub" style="display:block">${esc([c.sport,c.state,c.region||c.suburb].filter(Boolean).join(' · '))}</span>
@@ -4614,8 +4663,9 @@ function clubDirectoryResults() {
       ${directorySource(c.sourceUrl) ? ` <a href="${esc(directorySource(c.sourceUrl))}" target="_blank" rel="noopener noreferrer">Source ↗</a>` : ''}
       ${directorySource(c.website) ? ` <a href="${esc(c.website)}" target="_blank" rel="noopener noreferrer">Website ↗</a>` : ''}
       ${directorySource(c.brandSource) ? ` <a href="${esc(directorySource(c.brandSource))}" target="_blank" rel="noopener noreferrer" title="Logo research source; verify current branding and usage rights">Brand research ↗</a>` : ''}
-    </span><button class="btn sm" data-act="directory-use" data-id="${esc(c.id)}">Use details</button>
-  </div>`).join('');
+    </span><span class="directory-actions"><button class="btn sm" data-act="directory-use" data-id="${esc(c.id)}">${suggested?.score===200?'Review link':'Use details'}</button>
+    ${matches.length? `<button class="link-btn" data-act="directory-match" data-id="${esc(c.id)}">Match existing club</button>` : ''}</span>
+  </div>`; }).join('');
   return `<p class="muted small" role="status">${filtered.length} research candidate${filtered.length===1?'':'s'}; showing ${Math.min(cap,filtered.length)}. Not an authoritative current-registration list.</p>
     <div class="list">${rows || '<p class="muted small">No entries match these filters.</p>'}</div>
     ${filtered.length>cap ? `<button class="btn block" data-act="directory-more">Show more (${filtered.length-cap} remaining)</button>` : ''}`;
@@ -4658,6 +4708,7 @@ function viewClub() {
   const staff = coach ? arr(data.team.staff) : arr(V.staff);
   return `${coach ? '<button class="link-btn" data-act="tab" data-tab="teams" style="padding-top:0">‹ Clubs and teams</button>' : ''}<div class="sec-h"><h2 class="club-title">${crest(clubBadge(c), true)}<span>${esc(c.name)}</span></h2>${coach ? `<button class="btn sm" data-act="club-edit" data-id="${esc(c.id)}">Edit club</button>` : ''}</div>
     <p class="muted" style="margin:-4px 0 14px">${esc([c.sport, c.governingBody && `under ${c.governingBody}`, c.founded && `since ${c.founded}`].filter(Boolean).join(' · '))}</p>
+    ${coach && linkedDirectoryRecord(c)?'<p class="hint">Linked to a user-confirmed directory research record. This is not proof of current official registration.</p>':''}
     <div class="cols"><div class="col">
     <section class="sec"><div class="sec-h"><h2>Contact</h2></div><dl class="club-dl">
       ${line('Website', webLink(c.website))}${line('Email', mailLink(c.email))}${line('Phone', telLink(c.phone))}${line('Post', esc(c.postal))}
@@ -4683,6 +4734,7 @@ function clubForm(c, forceNew = false) {
   const f = (name, label, ph = '', type = 'text') => `<label class="field-l"><span>${label}</span><input type="${type}" name="${name}" value="${esc(c[name])}" placeholder="${esc(ph)}"></label>`;
   const rows = [...c.officials, { role: 'President', name: '', phone: '', email: '' }, { role: 'Secretary', name: '', phone: '', email: '' }];
   return `<form data-form="club" autocomplete="off"><input type="hidden" name="id" value="${isNew ? '' : esc(c.id)}">
+    ${!isNew ? `<p class="hint">${linkedDirectoryRecord(c)?'Linked to directory research (user confirmed).':'Entered as a managed club.'} <button type="button" class="link-btn inline" data-act="club-find-directory" data-id="${esc(c.id)}">Find or review directory details</button></p>` : ''}
     <div class="two">${f('name', 'Club name', 'e.g. St George Oztag')}${f('shortName', 'Short name', 'e.g. St George')}</div>
     <div class="field-l logo-field"><span id="club-logo-l">Logo</span>
       <div class="logo-row"><span class="logo-prev">${crest(clubBadge(c), true)}</span>
@@ -6812,15 +6864,37 @@ const actions = {
   'directory-use': coachOnly(el => {
     const c=directoryRecords().find(x=>x.id===el.dataset.id), draft=directoryClubDraft(c);
     if (!draft) return;
-    const existing=arr(ws.clubs).find(x=>x.sport===c.sport && clubNameKey(x.name)===clubNameKey(c.name));
-    if (existing && confirm('A managed club with this name and sport already exists. Review that club instead? Choose Cancel if this is a separate club with the same name.')) {
-      openSheet('Existing club · '+existing.name,clubForm(existing),'club');
-      toast('This club already exists in your workspace. Review its current details instead of creating a duplicate.');
-      return;
-    }
-    state.clubFor=null; // Browsing a club cannot assign any team, club role or ownership.
-    openSheet('Review club details · '+c.name,clubForm(draft, true),'club');
+    const likely=managedClubCandidates(c,arr(ws.clubs)).find(x=>x.score>=100);
+    if(likely){openDirectoryLink(c.id,likely.club.id);return;}
+    state.clubFor=null;
+    openSheet('Review club details · '+c.name,clubForm(draft,true),'club');
     toast('Research candidate: review the details, colours and logo before creating a local club.');
+  }),
+  'directory-match': coachOnly(el => openDirectoryLink(el.dataset.id)),
+  'directory-link-new': coachOnly(() => {
+    const c=directoryRecords().find(x=>x.id===directoryLinkState?.refId), draft=directoryClubDraft(c);
+    if(!draft)return;
+    directoryLinkState=null;state.clubFor=null;
+    openSheet('Create separate club · '+c.name,clubForm(draft,true),'club');
+  }),
+  'directory-link-confirm': coachOnly(() => {
+    const c=directoryRecords().find(x=>x.id===directoryLinkState?.refId);
+    const managed=arr(ws.clubs).find(x=>x.id===directoryLinkState?.clubId);
+    const preview=clubLinkPreview(managed,c,{includeColours:!!directoryLinkState?.colours});
+    if(!preview || preview.blocked){toast('Choose a compatible, unlinked club to confirm.');return;}
+    const merged=applyClubDirectoryMatch(managed,c,{includeColours:!!directoryLinkState?.colours});
+    if(!merged){toast('Could not link those clubs.');return;}
+    Object.assign(managed,merged);const n=preview.additions.length;
+    state.clubId=managed.id;directoryLinkState=null;
+    save();closeSheet();render();
+    openSheet('Review club · '+managed.name,clubForm(managed),'club');
+    toast('Club linked. '+n+' blank field'+(n===1?'':'s')+' filled; existing information preserved.');
+  }),
+  'club-find-directory': coachOnly(el => {
+    const club=arr(ws.clubs).find(x=>x.id===el.dataset.id);if(!club)return;
+    clubFinder.text=clubNameKey(club.name);clubFinder.sport=club.sport;clubFinder.limit=30;
+    goTo('teams');
+    const d=$('#national-club-directory');if(d)d.scrollIntoView({block:'start',behavior:'instant'});
   }),
   'club-new': coachOnly(() => { state.clubFor = state.sheet === 'settings' ? data.id : null; openSheet('New club', clubForm(null), 'club'); }),
   'club-brand-open': coachOnly(el => { const c=arr(ws.clubs).find(x=>x.id===el.dataset.id); if(c)openSheet('Edit '+c.name,clubForm(c),'club'); }),
@@ -6997,6 +7071,14 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'managed-sport' || k === 'managed-club') { teamFinder[k==='managed-sport'?'sport':'club']=e.target.value; const v=$('#managed-team-results'); if(v)v.innerHTML=managedTeamResults(); }
+  if (k === 'directory-link-pick' && directoryLinkState) {
+    directoryLinkState.clubId=e.target.value;
+    const v=$('#club-link-review');if(v)v.innerHTML=directoryLinkReview();
+  }
+  if (k === 'directory-link-colours' && directoryLinkState) {
+    directoryLinkState.colours=e.target.checked;
+    const v=$('#club-link-review');if(v)v.innerHTML=directoryLinkReview();
+  }
   if (k === 'directory-sport' || k === 'directory-state') { clubFinder[k==='directory-sport'?'sport':'state']=e.target.value; clubFinder.limit=30; const v=$('#national-directory-results'); if(v)v.innerHTML=clubDirectoryResults(); }
   if (k === 'player-crop-adjust' && activePlayerCrop) drawPlayerCrop();
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
