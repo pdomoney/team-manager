@@ -11,7 +11,7 @@ const words = v => String(v || '').trim().toLocaleLowerCase('en-AU');
 export function filterClubDirectory({ query = '', sport = '', state = '' } = {}) {
   const needle = words(query);
   return CLUB_REFERENCE_RECORDS.filter(c => (!sport || c.sport === sport) && (!state || c.state === state)
-    && (!needle || [c.name, ...(c.variants || []), c.suburb, c.region, c.state, c.association, c.ground].some(s => words(s).includes(needle))))
+    && (!needle || [c.name, ...(c.variants || []), ...(c.venues || []), c.suburb, c.region, c.state, c.association, c.ground].some(s => words(s).includes(needle))))
     .sort((a,b) => a.name.localeCompare(b.name) || a.state.localeCompare(b.state));
 }
 export const possibleClubPalette = c => c?.colours ? suggestStyle(c.colours) : '';
@@ -23,9 +23,12 @@ export function directoryClubDraft(c) {
     name: c.name, shortName: c.name, sport: c.sport, founded: c.founded || '',
     governingBody: c.sport === 'Oztag' ? 'Australian Oztag (association to confirm)' : 'Rugby league (affiliation to confirm)',
     website: c.website || '', email: c.email || '', phone: c.phone || '',
-    homeGround: c.ground || '', homeAddress: [c.suburb, c.state, c.postcode].filter(Boolean).join(' '),
-    registration: c.registration || '', colours: c.colours || '',
+    homeGround: c.venues?.length > 1 ? '' : c.ground || '', homeAddress: [c.suburb, c.state, c.postcode].filter(Boolean).join(' '),
+    registration: c.registrationLinks?.length > 1 ? '' : c.registration || '', colours: c.colours || '',
     // Saved privately with the coach's record, not transmitted to other teams as a permission.
-    notes: 'Created from an unverified public directory candidate. Confirm current name, registration, contacts and branding with the organisation. Source: ' + (c.sourceUrl || 'research pilot')
+    notes: 'Created from an unverified public directory candidate. Confirm current name, registration, contacts and branding with the organisation. ' +
+      (c.venues?.length > 1 ? 'Candidate venues: ' + c.venues.join(' | ') + '. ' : '') +
+      (c.registrationLinks?.length > 1 ? 'Registration portals (select applicable junior/senior portal): ' + c.registrationLinks.map(x => x.name + ': ' + x.url).join(' | ') + '. ' : '') +
+      'Source: ' + (c.sourceUrl || 'research pilot')
   };
 }
