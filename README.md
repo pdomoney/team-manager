@@ -17,6 +17,13 @@ The app has five sections: **Home** (the command centre below), **Schedule** (up
 - **At a glance** (one team): availability, next training and match, training turnout, results and the tournament countdown.
 Anything on Home that belongs to another team switches to that team before opening it. Players' Home shows only their team: what's next, the next two weeks, notices, help needed and rule updates.
 
+### PR37 candidate: views, sport-scoped tactics and review fixtures
+
+- **Choose Cards or List** independently on **Tactics → Plays**, **Team → Helpers**, **Team → Match staff** (volunteer directory), and **Schedule → Matches**. The chosen mode is remembered on that device, not written into a club/team file. Selecting List makes wide-screen cards into compact rows; all ordinary click/edit functions remain.
+- **Team-specific tactics:** selecting a team changes the sport context for Plays. Built-in Oztag play diagrams remain on Oztag teams; newly drawn plays record the chosen team's sport and that tag also reaches the player copy. Switching teams clears an old game-system overlay. For a Rugby League or League Tag team the Lineup page explicitly identifies its sport and does **not** display misleading eight-player Oztag lineup or system diagrams. A full-field non-Oztag lineup renderer is not yet implemented. Existing legacy untagged custom plays remain on their original team and can be reviewed/adapted by the coach.
+- **Safe sample reviews:** in test mode, choose **load the full test library** on Home, or **Settings → Test data → Load a fresh test library**. Version 3 adds fictional Rugby League and League Tag leagues, tournaments, match results and future fixtures, and prior/current/planned seasons for several teams. Those are illustrative examples, not official schedules; real club names in the original library do not imply official data. Nothing is added to the user's existing encrypted live data automatically. A fresh test-library load replaces the current test copy with an explicit confirmation.
+- **Test scope:** unit tests plus mobile/desktop browser regression for display modes, per-device preference persistence, team/sport switching, sample competitions and sport-tagged play publication. Browser acceptance on Safari and real production publishing still needs separate testing.
+
 **Site:** https://pdomoney.github.io/team-manager/
 
 ## Two roles
