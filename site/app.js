@@ -4522,7 +4522,7 @@ function viewTeams() {
   return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus', 18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button><button class="btn sm" data-act="team-template-choose">Use existing setup</button></div></div>
     ${clubs.map(c => { const ts = sortT(M.clubTeams(ws, c.id)); return `<section class="sec club-group">
       <div class="club-head">${crest(clubBadge(c))}<span class="grow"><span class="name" style="display:block">${esc(c.name)}</span><span class="sub">${esc([c.sport, c.governingBody, `${ts.length} team${ts.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</span></span>
-        <button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
+        <button class="btn sm" data-act="club-brand-open" data-id="${esc(c.id)}">Branding</button><button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
       ${ts.length ? `<div class="list">${ts.map(row).join('')}</div>` : '<p class="muted small">No teams in this club yet.</p>'}
     </section>`; }).join('')}
     ${loose.length ? `<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name" style="display:block">Not in a club</span><span class="sub">Choose a club in Settings › Team</span></span></div><div class="list">${loose.map(row).join('')}</div></section>` : ''}
@@ -6529,6 +6529,12 @@ const actions = {
     openSheet('Create from ' + M.teamName(source), teamForm(), 'team-new');
   }),
   'club-new': coachOnly(() => { state.clubFor = state.sheet === 'settings' ? data.id : null; openSheet('New club', clubForm(null), 'club'); }),
+  'club-brand-open': coachOnly(el => {
+    const id=el.dataset.id;
+    if(!arr(ws.clubs).some(c=>c.id===id))return;
+    state.brandClubId=id;
+    openSheet('Club branding',clubBrandingSection(id),'settings');
+  }),
   'club-edit': coachOnly(el => { const c = arr(ws.clubs).find(x => x.id === el.dataset.id); if (c) openSheet(`Edit ${c.name}`, clubForm(c), 'club'); }),
   'club-open': coachOnly(el => { state.clubId = el.dataset.id; goTo('club'); }),
   'updates': () => openUpdates(),
