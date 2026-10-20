@@ -5363,7 +5363,7 @@ function settingsBody() {
 // Settings in sections, each opened on its own and saved on its own (it used to be one form five
 // screens long with the Save button halfway down).
 const SETTINGS_SECS = [
-  ['team', 'Team', 'Name, club, sport, rules and colours'], ['season', 'Season and tournament', 'The tournament and its dates'],
+  ['team', 'Team', 'Name, club, sport and rules'], ['clubbrand', 'Club branding', 'Colours and logo for all club teams'], ['season', 'Season and tournament', 'The tournament and its dates'],
   ['contacts', 'Contacts', 'Team contact and team staff'], ['training', 'Training', 'Usual venue and times'],
   ['field', 'Field', 'Zones and channels on the Lineup field'], ['players', 'Jerseys', 'Whether jerseys are lent and handed back'],
   ['publishing', 'Publishing', 'Players’ access, passwords and GitHub'], ['backup', 'Backup', 'Export, import and this phone'],
@@ -5373,6 +5373,7 @@ function settingsSummary(k) {
   const fmtR = (a, b) => [a, b].filter(Boolean).map(fmtTime).join('–');
   return {
     team: [T.name, M.teamSport(T, club), club && club.name].filter(Boolean).join(' · '),
+    clubbrand: arr(ws.clubs).length+' clubs · '+arr(ws.clubs).filter(c=>c.logo||c.style).length+' branded',
     season: T.event ? `${T.event}${T.eventStart ? ` · ${fmtDay(T.eventStart)}${T.eventEnd && T.eventEnd !== T.eventStart ? ` to ${fmtDay(T.eventEnd)}` : ''}` : ''}` : 'No tournament set',
     contacts: [T.tasksContact.name ? `Contact: ${T.tasksContact.name}` : 'No team contact', `${arr(T.staff).length} staff`].join(' · '),
     training: [T.trainingVenue, fmtR(T.trainingStart, T.trainingEnd)].filter(Boolean).join(' · ') || 'No defaults set',
@@ -5389,11 +5390,40 @@ function settingsIndex() {
   return `${multiTeam() ? `<p class="hint" style="margin:0 0 10px">Settings for <b>${esc(data.team.name)}</b>.</p>` : ''}
     <div class="list set-list">${SETTINGS_SECS.map(([k, t, sub]) => `<button class="pick" data-act="settings-sec" data-sec="${k}"><span class="grow"><span class="name" style="display:block">${esc(t)}</span><span class="tagline">${esc(settingsSummary(k) || sub)}</span></span>${icon('chevron-right', 18)}</button>`).join('')}</div>`;
 }
+// Club branding is managed centrally, without changing the selected team.
+function clubBrandingSection(id = '') {
+  const club = arr(ws.clubs).find(c => c.id === id) ||
+    arr(ws.clubs).find(c => c.id === data.team.clubId) || arr(ws.clubs)[0];
+  if (!club) return '<button class="btn sm set-back" data-act="settings">All settings</button><p class="hint">Create a club first in Clubs and teams.</p>';
+  const teams = M.clubTeams(ws,club.id), overrides = teams.filter(t => normStyle(t.team.style));
+  const options = arr(ws.clubs).map(c => '<option value="'+esc(c.id)+'" '+(c.id===club.id?'selected':'')+'>'+esc(c.name)+'</option>').join('');
+  return '<button class="btn sm set-back" data-act="settings">'+icon('back',18)+'All settings</button>'+
+    '<form data-form="club-branding" autocomplete="off">'+
+    '<h3 class="form-sec">Club branding</h3>'+
+    '<p class="hint">Choose a club in this coach workspace. One logo and palette can apply to every team, including player views, without switching teams.</p>'+
+    '<label class="field-l"><span>Club to manage</span><select name="brandingClubId" data-change="club-branding-pick">'+options+
+    '</select><small>Switching clubs discards unsaved changes here.</small></label>'+
+    '<div class="club-brand-summary"><span class="logo-prev">'+crest(clubBadge(club),true)+'</span>'+
+    '<span><strong>'+esc(club.name)+'</strong><small>'+teams.length+' team'+(teams.length===1?'':'s')+' · shared badge and palette</small></span></div>'+
+    '<div class="field-l logo-field"><span id="brand-logo-label">Club logo</span>'+
+    '<div class="logo-row"><label class="btn sm file-btn"><input type="file" accept="image/png,image/jpeg,image/webp" data-change="club-logo" aria-labelledby="brand-logo-label">Choose logo</label>'+
+    '<button type="button" class="btn sm" data-act="club-logo-clear" '+(club.logo?'':'hidden')+'>Remove logo</button></div>'+
+    '<input type="hidden" name="logo" value="'+esc(club.logo||'')+'">'+
+    '<small>Shared with this club’s teams and included in their player copies. Square PNG, JPEG or WebP works best.</small></div>'+
+    teamStyleFields(club,club,true)+
+    '<label class="check club-brand-apply"><input type="checkbox" name="applyAll" checked>'+
+    '<span>Apply club colours to every team in '+esc(club.name)+' ('+teams.length+')</span></label>'+
+    '<p class="hint">'+(overrides.length ? overrides.length+' existing team-specific colour choice'+(overrides.length===1?'':'s')+' will be reset if checked.' : 'No teams currently have a separate colour choice.')+
+    ' Uncheck to preserve existing overrides. New teams inherit the club colours automatically.</p>'+
+    '<button class="btn primary block" type="submit">Save branding for '+esc(club.name)+'</button></form>';
+}
+
 function settingsSection(k) {
   const T = data.team, club = M.clubOf(ws, data);
   const back = `<button class="btn sm set-back" data-act="settings">${icon('back', 18)}All settings</button>`;
   const form = (body, label = 'Save') => `${back}<form data-form="settings" data-sec="${k}">${body}<button class="btn primary block" type="submit">${esc(label)}</button></form>`;
   const positions = `<label class="field-l"><span>Positions for this team</span><input type="text" name="positions" data-auto-positions="${T.positionsCustom === true ? 'false' : 'true'}" data-last-default="${esc(M.positionsFor(T, club).join(', '))}" data-input="team-positions" value="${esc(M.positionsFor(T, club).join(', '))}"><small>What players can pick as preferred positions, separated by commas. They follow the team’s sport unless you change them. ${esc(M.teamSport(T, club))}’s are: ${esc((M.SPORT_POSITIONS[M.teamSport(T, club)] || []).join(', ') || 'none set')}. <button type="button" class="link-btn inline" data-act="positions-default">Use these</button></small></label>`;
+  if (k === 'clubbrand') return clubBrandingSection(state.brandClubId);
   if (k === 'team') return form(`<label class="field-l"><span>Team name</span><input type="text" name="name" value="${esc(T.name)}"></label>
     ${teamDetailsFields(T, { staff: false, maxMales: true, after: positions })}${teamStyleFields(T)}`, 'Save team');
   if (k === 'season') return form(`<h3 class="form-sec">Tournament</h3>
