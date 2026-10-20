@@ -6100,6 +6100,11 @@ const actions = {
     form.querySelector('.photo-prev').innerHTML='<span class="pphoto big none" aria-hidden="true">'+esc(initials({name})||'?')+'</span>';
     el.hidden=true;
   }),
+  'crew-jump': coachOnly(el => {
+    const id = el.dataset.to;
+    if (!['crew-directory-section','crew-rules-section'].includes(id)) return;
+    document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'});
+  }),
   'crew-switch': coachOnly(() => openSheet('Change match-day staff team',crewChooseTeamForm(true),'crew-pick-view')),
   'crew-reassign': coachOnly(() => openSheet('Choose team and sport',crewChooseTeamForm(),'crew-pick-team')),
   'crew-edit': coachOnly(el => { const p = crewPerson(el.dataset.id); if (p) openSheet(p.name, crewPersonForm(p), 'crew-person'); }),
@@ -7044,7 +7049,18 @@ document.addEventListener('submit', async e => {
     const sport=M.teamSport(T.team,M.clubOf(ws,T));
     const rolesSelected=f.getAll('role').filter(x=>crewRoleAllowed(sport,x));
     const roles=[...new Set([...(p?.roles||[]),...rolesSelected])]; // Keep historical labels; rolesBySport controls eligibility
-    if (!rolesSelected.length) { toast('Select at least one role for ' + sport); return; }
+    if (!rolesSelected.length && !id) { toast('Select at least one role for ' + sport); return; }
+    // A volunteer may cease to hold every current role in a sport. Preserve
+    // qualification history but never silently leave them eligible on match day.
+    if (!rolesSelected.length && id) {
+      const future = M.activeTeams(ws).some(t =>
+        M.teamSport(t.team,M.clubOf(ws,t)) === sport &&
+        arr(t.matches).some(m => m.status === 'scheduled' && m.date >= todayISO() &&
+          arr(m.crew).some(a => a.personId === id)));
+      if (!confirm('Remove all current ' + sport + ' roles for this volunteer?' +
+        (future ? ' They are assigned to an upcoming match, which will need review.' : '') +
+        ' Their qualification history and past match records will be retained.')) return;
+    }
     const saved = normCrewPerson({
       ...(p || {}), id: id || uid(), name: str('name'),
       clubId: p?.clubId || '',
