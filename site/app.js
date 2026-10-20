@@ -32,6 +32,7 @@ import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClub
 import { TEAM_STYLES, CLASSIC, styleById, normStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
 import { sportIcon, sportMaskUrl } from './sport-icons.js';
 import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-badges.js';
+import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
 import * as M from './model.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
@@ -101,7 +102,7 @@ const sessionStore = {
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+const uid = () => M.uid();   // random, except while the test library is built (model.js)
 const pad = n => String(n).padStart(2, '0');
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const toISODate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -766,7 +767,7 @@ function renderStatus() {
     text = 'This phone’s storage is full. The latest changes are not saved locally; keep this page open and export an encrypted backup now.';
     btn = `<button data-act="export">Export backup</button>`;
   }
-  else if (S.trial) { cls = 'warn'; text = 'Test mode. Saved on this phone only; nothing is shared.'; btn = `<button data-act="go-live">Go live</button>`; }
+  else if (S.trial) { cls = 'warn'; text = ws && ws.testLibrary ? `Test library (${fmtDay(ws.testLibrary.day)}). Saved on this phone only.` : 'Test mode. Saved on this phone only; nothing is shared.'; btn = `<button data-act="go-live">Go live</button>`; }
   else if (!online() && S.dirty) { cls = 'warn'; text = 'Offline. Changes are saved on this phone and will publish when you’re back online.'; }
   else if (!online()) { cls = 'warn'; text = 'Offline. Everything here is saved on this phone.'; }
   else if (!ghReady()) { cls = 'warn'; text = 'Saved on this phone only.'; btn = `<button data-act="github">Connect GitHub to publish</button>`; }
@@ -971,7 +972,7 @@ function startSquad() {
       <h3>Start with your squad</h3>
       <p>Add your players first. Roll call, lineups and messages all build on the squad list.</p>
       <div class="btn-row"><button class="btn primary" data-act="add-player">${icon('plus')}Add a player</button><button class="btn" data-act="bulk-add">Paste a list</button></div>
-      <p class="hint" style="margin-top:14px">Just exploring? <button class="link-btn inline" data-act="sample">Load a sample squad</button>. Clear it in Settings before you invite players.</p>
+      <p class="hint" style="margin-top:14px">Just exploring? <button class="link-btn inline" data-act="sample">Load a sample squad</button>, or <button class="link-btn inline" data-act="test-library">load the test library</button>: three teams, volunteers and a gala day today, the same on every device. Clear it in Settings before you invite players.</p>
     </section>`;
 }
 // An active competition on Home: where it's up to, our results so far, today's matches (a tournament
@@ -5338,7 +5339,7 @@ const SETTINGS_SECS = [
   ['contacts', 'Contacts', 'Team contact and team staff'], ['training', 'Training', 'Usual venue and times'],
   ['field', 'Field', 'Zones and channels on the Lineup field'], ['players', 'Jerseys', 'Whether jerseys are lent and handed back'],
   ['publishing', 'Publishing', 'Players’ access, passwords and GitHub'], ['backup', 'Backup', 'Export, import and this phone'],
-  ['layout', 'Screen layout', 'Phone or wide layout on this device'], ['teams', 'Teams', 'Run more than one team']];
+  ['layout', 'Screen layout', 'Phone or wide layout on this device'], ['teams', 'Teams', 'Run more than one team'], ['testlib', 'Test data', 'The test library and a data check to compare devices']];
 function settingsSummary(k) {
   const T = data.team, club = M.clubOf(ws, data);
   const fmtR = (a, b) => [a, b].filter(Boolean).map(fmtTime).join('–');
@@ -5352,7 +5353,8 @@ function settingsSummary(k) {
     publishing: S.trial ? 'Test mode: nothing is shared yet' : ghReady() ? `GitHub connected${gh.autoPublish ? ' · publishes automatically' : ''}` : 'GitHub not connected',
     backup: 'Encrypted backup of every team',
     layout: { auto: 'Auto', phone: 'Phone', wide: 'Wide' }[layoutPref()] || 'Auto',
-    teams: `${M.activeTeams(ws).length} team${M.activeTeams(ws).length === 1 ? '' : 's'}`
+    teams: `${M.activeTeams(ws).length} team${M.activeTeams(ws).length === 1 ? '' : 's'}`,
+    testlib: `${ws.testLibrary ? `Test library from ${fmtDay(ws.testLibrary.day)} · ` : ''}data check ${dataCheck(ws)}`
   }[k] || '';
 }
 function settingsIndex() {
@@ -5400,10 +5402,27 @@ function settingsSection(k) {
   if (k === 'publishing') return back + (S.trial ? trialSettings() : liveSettings());
   if (k === 'backup') return back + backupSection() + phoneSettings();
   if (k === 'layout') return back + layoutSettings();
+  if (k === 'testlib') return back + testLibrarySection();
   if (k === 'teams') return back + `<h3 class="form-sec" style="margin-top:0">Teams</h3>
     <p class="muted small" style="margin-bottom:10px">${multiTeam() ? `These settings are for ${esc(T.name)}. ` : ''}You can run more than one team, each with its own squad and players’ password.</p>
     <button class="btn block" data-act="teams">Manage teams</button>`;
   return settingsIndex();
+}
+function testLibrarySection() {
+  const lib = ws.testLibrary, can = canLoadTestLibrary();
+  return `<h3 class="form-sec" style="margin-top:0">Test data</h3>
+    <div class="data-check"><span class="sub">Data check</span><b>${esc(dataCheck(ws))}</b><span class="sub">Two devices showing the same code hold the same data.</span></div>
+    <p class="muted small" style="margin:12px 0">The test library is made-up data that comes out the same on every device: the Mixed 20s with training, tasks and lifts, a gala day today with five games (so Match Day always has one coming up), the State Cup draw, a second St George team, a League tag club, six match-day volunteers with current, expiring, expired and unchecked accreditations, and staffing requirements with one shortfall. No real people.</p>
+    ${lib ? `<p class="note">This copy is the test library from ${esc(fmtLong(lib.day))} (version ${esc(lib.version)}).</p>` : ''}
+    ${can ? `<button class="btn primary block" data-act="test-library">${lib ? 'Load a fresh test library' : 'Load the test library'}</button>`
+      : '<p class="note">This copy has real players, so the test library can’t replace it.</p>'}
+    <h3 class="form-sec">Testing on more than one device</h3>
+    <ul class="todo">
+      <li><b>Same starting point:</b> load the test library on each device on the same day; the data check codes match.</li>
+      <li><b>Changes shared between devices:</b> load it on one device and go live (Settings › Publishing). Sign in on the others with the coach password; they get the same copy, and changes made on any of them publish to the rest. Nothing reaches players until you send an invite link.</li>
+      <li><b>Without going live:</b> Settings › Backup › Export on one device, Import on the other.</li>
+    </ul>
+    <p class="hint">Loading a fresh library replaces everything in this copy${S.trial ? '' : ' (passwords stay the same)'}. Its dates follow the day it’s loaded.</p>`;
 }
 function phoneSettings() {
   return `<h3 class="form-sec">This phone</h3>
@@ -5578,6 +5597,11 @@ async function copyText(text, done = 'Copied') {
 
 /* ---------- sample data ---------- */
 function loadSample() {
+  sampleInto();
+  save(); state.msgDraft = null; render(); toast('Sample squad loaded');
+}
+// The sample squad, training, tasks and matches, put into the team on screen.
+function sampleInto() {
   const people = [
     ['Mia Tuala', 'F', '4', ['Middle', 'Rover']], ['Jade Nguyen', 'F', '7', ['Rover']], ['Chloe Ritchie', 'F', '2', ['Wing']], ['Ava Kelleher', 'F', '11', ['Link']],
     ['Leilani Faleolo', 'F', '9', ['Middle']], ['Grace O’Brien', 'F', '14', ['Wing', 'Link']], ['Sienna Park', 'F', '3', ['Link']], ['Tayla Morgan', 'F', '16', ['Wing']],
@@ -5643,7 +5667,110 @@ function loadSample() {
   // The tournament's matches go in its competition entry for this season.
   const cup = M.findComp(ws, data.team.eventCompId), sid = (M.activeSeason(data) || {}).id, en = cup && cup.entries.find(e => e.teamId === data.id && e.seasonId === sid);
   if (en) data.matches.filter(m => m.tournament).forEach(m => { m.seasonId = sid; M.linkMatch(ws, data, m, en.id); });
-  save(); state.msgDraft = null; render(); toast('Sample squad loaded');
+}
+
+/* ---------- The test library: the same made-up data on every device (see test-library.js) ---------- */
+// In test mode it replaces this phone's copy. Once live it only replaces a copy that's already the test
+// library, or has no players in any team, and it keeps the passwords.
+const canLoadTestLibrary = () => isCoach() && (S.trial || !!ws.testLibrary || M.teamsOf(ws).every(t => !arr(t.players).length));
+function loadTestLibrary() {
+  if (!canLoadTestLibrary()) { toast('The test library can only replace test data.'); return; }
+  const day = todayISO(), since = new Date(Date.now() - 2000).toISOString();
+  const keep = new Map(M.teamsOf(ws).map(t => [t === ws ? ws.id : t.id, { teamPass: t.teamPass, teamSalt: t.teamSalt }]));
+  M.withCountedIds('tst', () => {
+    ws = normalizeWs(null); data = ws;
+    sampleInto();
+    extendTestLibrary(day);
+  });
+  // Saving fills in seasons, jerseys and positions; then the times stamped while building are fixed.
+  M.withCountedIds('tsu', () => { M.syncSportPositions(ws); M.teamsOf(ws).forEach(t => { M.claimRecords(t, ''); M.syncJerseys(t, day); }); M.syncEvents(ws); });
+  const built = fixStamps(JSON.parse(JSON.stringify(ws)), since, day);
+  built.testLibrary = { version: TEST_LIBRARY_VERSION, day };
+  ws = normalizeWs(built);
+  M.teamsOf(ws).forEach(t => {
+    const k = keep.get(t === ws ? ws.id : t.id);
+    if (S.trial) return;
+    t.teamPass = k && k.teamPass ? k.teamPass : newTeamPass(); t.teamSalt = k && k.teamSalt ? k.teamSalt : toB64(newSalt());
+  });
+  state.crewClubId = ''; state.lineupId = null; state.matchDayId = null; state.msgDraft = null; state.viewSeason = {}; state.correcting = null;
+  pickTeam(ws.id); save(); closeSheet(); goTo('home');
+  toast(`Test library loaded. Data check ${dataCheck(ws)}`);
+}
+function extendTestLibrary(day) {
+  const at = (n, h, mi = 0) => { const d = parseDate(M.addDays(day, -n)); d.setHours(h, mi, 0, 0); return d.toISOString(); };   // n days ago (never during the build)
+  const P = (name, gender, number, positions, status = 'available') => ({ id: uid(), name, gender, number, phone: '', positions, status, notes: '' });
+  const session = (date, focus, venue) => ({ id: uid(), date, start: '18:30', end: '20:00', venue, focus, notes: '', cancelled: false, attendance: {} });
+  const match = (opponent, date, start, extra) => ({ id: uid(), date, start, opponent, venue: '', field: '', round: '', notes: '', coachNotes: '', status: 'scheduled', rsvp: {}, result: {}, lineupId: '', ...extra });
+  const weekday = (k, dow) => { const x = parseDate(day); while (x.getDay() !== dow) x.setDate(x.getDate() + 1); x.setDate(x.getDate() + 7 * k); return toISODate(x); };
+  const FAKE = ['0491 570 006', '0491 570 156', '0491 570 157', '0491 570 158', '0491 570 159', '0491 570 110', '0491 570 313', '0491 570 737'];   // numbers set aside for fiction
+
+  // DragonTag Mixed 20s (the sample, plus): staff and contact, jerseys lent, notices, a message log and
+  // a gala day today with five games, so Match Day has something due most of the day.
+  const T = data.team, mixedSid = (M.activeSeason(data) || {}).id;
+  Object.assign(T, { division: 'Mixed 20s', ageGroup: '20 and over', jerseyLoan: true,
+    staff: [{ role: 'Head coach', name: 'Sam Rivera', phone: FAKE[0], email: 'sam.rivera@example.com' }, { role: 'Team manager', name: 'Jordan Price', phone: FAKE[1], email: 'jordan.price@example.com' }],
+    tasksContact: { name: 'Jordan Price (team manager)', phone: FAKE[1] } });
+  data.players.forEach((p, i) => { p.phone = i < 4 ? FAKE[2 + i] : ''; });
+  data.notices = [
+    { id: uid(), at: at(1, 19), text: 'Gala day tomorrow at Riverside Fields: five games from 9am. Bring both tops.' },
+    { id: uid(), at: at(4, 18), text: 'State Cup accommodation is booked. Payment details on the team chat.' }];
+  data.messages = [
+    { ...M.logEntry('🏉 Gala day: five games from 9am at Riverside Fields. Reply YES if you’re coming.', 'WhatsApp', 'day'), at: at(2, 20), status: 'sent', sentAt: at(2, 20, 2) },
+    { ...M.logEntry('Reminder: training Tuesday 6pm, Home ground field 2.', 'WhatsApp', 'reminder'), at: at(1, 9) }];
+  const gala = M.normComp({ id: 'testgala', name: 'Spring Gala Day', format: 'carnival', edition: day.slice(0, 4), start: day, end: day, venue: 'Riverside Fields', organiser: 'Test library (made up)', status: 'active', entries: [] });
+  ws.competitions = arr(ws.competitions); ws.competitions.push(gala);
+  const galaEntry = M.addEntry(ws, gala.id, data.id, mixedSid, { division: 'Mixed 20s', pool: 'Pool B' }).entry;
+  const galaGames = [['Harbour Hawks', '09:00', '1'], ['Coastal Comets', '11:30', '3'], ['Northside Narwhals', '14:00', '2'], ['Southern Stingrays', '16:30', '1'], ['Western Wolves', '19:00', '3']];
+  galaGames.forEach(([opp, start, field], i) => {
+    const m = match(opp, day, start, { venue: 'Riverside Fields', field, round: `Pool B, game ${i + 1}`, seasonId: mixedSid, notes: 'Gala day: meet at the team tent 30 minutes before.' });
+    if (i < 2) { const lu = { ...clone(data.lineups[0]), id: uid(), name: `vs ${opp} (gala)` }; data.lineups.push(lu); m.lineupId = lu.id; }
+    data.matches.push(m); M.linkMatch(ws, data, m, galaEntry.id);
+  });
+
+  // A second St George team and a club in another sport.
+  const women = normalize({ ...defaultData(), id: 'testwomen', team: { ...defaultData().team, name: 'DragonTag Women’s Open', clubId: 'stgeorge', category: 'women', division: 'Women’s Open', ageGroup: 'Open', event: '', eventStart: '', eventEnd: '', venue: '', trainingVenue: 'Home ground, field 1' } });
+  women.players = [['Hana Kowalski', '7', ['Middle']], ['Erin Matagi', '3', ['Wing']], ['Ruby Achterberg', '11', ['Link']], ['Zara Quinn', '5', ['Rover']], ['Mele Fifita', '9', ['Middle', 'Rover']],
+    ['Tess Langford', '2', ['Wing']], ['Amara Osei', '14', ['Link']], ['Nina Hollis', '10', ['Rover']], ['Freya Dunn', '6', ['Middle']], ['Lani Tuilagi', '12', ['Link', 'Wing']]].map(([n, num, pos], i) => P(n, 'F', num, pos, i === 8 ? 'unavailable' : 'available'));
+  women.sessions = [session(M.addDays(day, -6), 'Defence line speed', 'Home ground, field 1'), session(weekday(0, 4), 'Attack shape', 'Home ground, field 1'), session(weekday(1, 4), 'Kick chase', 'Home ground, field 1')];
+  women.sessions[0].attendance = Object.fromEntries(women.players.map((p, i) => [p.id, i === 8 ? 'apology' : i % 4 === 3 ? 'late' : 'present']));
+  const wlu = women.lineups[0]; wlu.slots.forEach((sl, i) => { sl.playerId = women.players[i] && i !== 8 ? women.players[i].id : null; });
+  M.addTeam(ws, women);
+  const womenSid = (M.activeSeason(women) || {}).id;
+  const summer = M.normComp({ id: 'testsummer', name: 'Summer Oztag League', format: 'league', edition: day.slice(0, 4), start: M.addDays(day, -14), end: M.addDays(day, 70), venue: 'Home ground', organiser: 'Test library (made up)', status: 'active', entries: [] });
+  ws.competitions.push(summer);
+  const sEntry = M.addEntry(ws, summer.id, women.id, womenSid, { division: 'Women’s Open' }).entry;
+  [['Bayside Blaze', -11, 'played', { us: 7, them: 5 }], ['Parkside Pumas', -4, 'played', { us: 3, them: 6 }], ['Eastwood Echidnas', 3, 'scheduled', {}], ['Lakeside Lyrebirds', 10, 'scheduled', {}]].forEach(([opp, n, status, result], i) => {
+    const m = match(opp, M.addDays(day, n), '19:10', { venue: 'Home ground', field: String(i + 1), round: `Round ${i + 1}`, status, result, seasonId: womenSid });
+    women.matches.push(m); M.linkMatch(ws, women, m, sEntry.id);
+  });
+  ws.clubs = arr(ws.clubs);
+  ws.clubs.push(M.normClub({ id: 'kestrelsclub', name: 'Bayside Kestrels', shortName: 'Kestrels', sport: 'League tag', colours: 'Blue and gold', homeGround: 'Kestrel Park (made up)', nights: 'Wednesday', notes: 'Made-up club in the test library.' }));
+  const kes = normalize({ ...defaultData(), id: 'testkestrels', team: { ...defaultData().team, name: 'Kestrels League Tag Open', clubId: 'kestrelsclub', sport: 'League tag', category: 'mixed', division: 'Open', ageGroup: 'Open', event: '', eventStart: '', eventEnd: '', venue: '', trainingVenue: 'Kestrel Park', positions: [] } });
+  kes.players = [['Marcus Webb', 'M', '1'], ['Talia Rahman', 'F', '2'], ['Owen Petrakis', 'M', '3'], ['Sofia Mendes', 'F', '4'], ['Kieran Doyle', 'M', '5'], ['Ivy Nakamura', 'F', '6'], ['Declan Ward', 'M', '7'], ['Maya Thompson', 'F', '8'], ['Rhys Calder', 'M', '9'], ['Leah Fong', 'F', '10']]
+    .map(([n, g, num]) => P(n, g, num, []));
+  kes.sessions = [session(weekday(0, 3), 'Play the ball', 'Kestrel Park'), session(weekday(1, 3), 'Defensive line', 'Kestrel Park')];
+  kes.matches = [match('Riverside Raiders', weekday(0, 6), '13:00', { venue: 'Kestrel Park', field: '2', round: 'Round 4' })];
+  M.addTeam(ws, kes);
+
+  // Match-day volunteers: current, expiring, expired and unchecked accreditations, across both clubs.
+  const hills = data.matches.find(m => m.opponent === 'Hills Hornets'), yr = hills.date.slice(0, 4), soon = M.addDays(day, 40), later = M.addDays(day, 700), past = M.addDays(day, -30);
+  const Vol = (name, extra) => ({ id: uid(), name, email: name.toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com', phone: '', clubIds: [], teamIds: [], roles: [], rolesBySport: {},
+    registrationBySport: {}, accreditationBySport: {}, qualificationSinceBySport: {}, squadYears: {}, wwccStatus: 'unverified', wwccExpiry: '', active: true, ...extra });
+  const casey = Vol('Casey Morgan', { phone: FAKE[6], clubIds: ['stgeorge'], rolesBySport: { Oztag: ['coach', 'assistant'] }, registrationBySport: { Oztag: { coach: yr, volunteer: '', trainer: '' } },
+    squadYears: { [data.id]: yr }, wwccStatus: 'checked', wwccExpiry: later, clubSince: { stgeorge: '2016' } });
+  const frances = Vol('Frances Lee', { phone: FAKE[7], clubIds: ['stgeorge'], rolesBySport: { Oztag: ['firstAid'] }, registrationBySport: { Oztag: { coach: '', volunteer: '', trainer: yr } },
+    accreditationBySport: { Oztag: { firstAid: soon } }, qualificationSinceBySport: { Oztag: { firstAid: '2019' } }, squadYears: { [data.id]: yr }, wwccStatus: 'checked', wwccExpiry: later });
+  const morgan = Vol('Morgan Ellis', { clubIds: ['stgeorge'], rolesBySport: { Oztag: ['manager'] }, registrationBySport: { Oztag: { coach: '', volunteer: yr, trainer: '' } }, squadYears: { [data.id]: yr } });
+  const priya = Vol('Priya Shah', { clubIds: ['stgeorge'], teamIds: ['testkestrels'], rolesBySport: { Oztag: ['firstAid'], 'League tag': ['yellow', 'green'] },
+    accreditationBySport: { Oztag: { firstAid: later }, 'League tag': { yellow: later, green: soon } }, wwccStatus: 'checked', wwccExpiry: later });
+  const ben = Vol('Ben Okafor', { clubIds: ['kestrelsclub'], rolesBySport: { 'League tag': ['coach'] }, accreditationBySport: { 'League tag': { coach: past } }, wwccStatus: 'checked', wwccExpiry: soon });
+  const jordan = Vol('Jordan Tait', { clubIds: ['kestrelsclub'], rolesBySport: { 'League tag': ['manager'] }, active: false });
+  ws.matchOfficials = [casey, frances, morgan, priya, ben, jordan];
+  // Made-up staffing requirements for the Mixed 20s' friendlies, and staff on the Hills game (one not cleared yet).
+  const sport = M.teamSport(T, M.clubOf(ws, data));
+  T.crewPolicy = normCrewRules({ ...crewPolicyContext({ team: { ...T, sport } }), year: yr, source: 'Test library: made-up requirements, not official', reviewedAt: day,
+    rows: [{ role: 'coach', min: 1 }, { role: 'manager', min: 1 }, { role: 'firstAid', min: 1 }] });
+  hills.crew = [{ personId: casey.id, role: 'coach', confirmed: true }, { personId: morgan.id, role: 'manager', confirmed: true }, { personId: frances.id, role: 'firstAid', confirmed: true }];
 }
 
 /* =========================================================
@@ -5669,6 +5796,12 @@ const actions = {
   },
 
   'sample': coachOnly(() => loadSample()),
+  'test-library': coachOnly(() => {
+    if (!canLoadTestLibrary()) { toast('The test library can only replace test data.'); return; }
+    const has = M.teamsOf(ws).some(t => arr(t.players).length);
+    if (has && !confirm(S.trial ? 'Replace everything in this test copy with a fresh test library?' : 'Replace the shared test copy with a fresh test library? Other devices get it when they load the latest.')) return;
+    loadTestLibrary();
+  }),
   'add-player': coachOnly(() => openSheet('Add player', playerForm(null), 'player')),
   'player-import': coachOnly(() => openSheet('From another team', playerImportForm(), 'player-link')),
   'player-link-out': coachOnly(el => {

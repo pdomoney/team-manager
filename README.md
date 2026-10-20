@@ -168,6 +168,16 @@ Each file is JSON with the fields `format`, `version`, `role`, `kdf`, `salt`, `i
 
 The candidate [architecture stabilisation handoff](docs/architecture-stabilisation-20261019.md) describes session-only publishing tokens by default, explicitly authorised long-term retention, a shared-library reuse guard and isolated validation modules. These changes are **not yet merged or production accepted**. The app remains a shared coach workspace without separate accounts or coach-to-coach isolation.
 
+## Testing with the test library
+
+On an empty Home (or **Settings › Test data**), **load the test library**: made-up data that comes out the same on every device. It has three teams in two clubs, training, tasks and lifts, the State Cup draw, a gala day today with five games (so Match Day always has one coming up), six match-day volunteers with current, expiring, expired and unchecked accreditations, and staffing requirements with one shortfall. No real people; phone numbers are from the range set aside for fiction.
+
+**Settings › Test data** shows a six-character **data check**: two devices showing the same code hold the same data.
+
+- **Same starting point on several devices:** load the test library on each, on the same day (its dates follow the day it's loaded).
+- **Changes shared between devices:** load it on one device and go live. Sign in on the others with the coach password; changes made on any of them publish to the rest. Nothing reaches players until you send an invite link. Before inviting players, clear it (Settings › Backup › Clear team data) and add the real squad.
+- Once live, the test library can only replace a copy that is already the test library, or has no players, and it keeps the passwords.
+
 ## Working on it locally
 
 Requires Node.js 20 or later. There are no npm dependencies.
