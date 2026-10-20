@@ -170,7 +170,7 @@ The candidate [architecture stabilisation handoff](docs/architecture-stabilisati
 
 ## Testing with the test library
 
-On an empty Home (or **Settings › Test data**), **load the test library**: made-up data that comes out the same on every device. It has three teams in two clubs, training, tasks and lifts, the State Cup draw, a gala day today with five games (so Match Day always has one coming up), six match-day volunteers with current, expiring, expired and unchecked accreditations, and staffing requirements with one shortfall. No real people; phone numbers are from the range set aside for fiction.
+On an empty Home (or **Settings › Test data**), **load the test library**: made-up data that comes out the same on every device. It has five made-up teams in four real clubs (St George Oztag, Penrith Oztag, Taren Point Titans and Engadine Dragons, with only the public details from their websites), training, tasks and lifts, the State Cup draw, a gala day today with five games (so Match Day always has one coming up), six match-day volunteers with current, expiring, expired and unchecked accreditations, and staffing requirements with one shortfall. No real people: the players and volunteers are made up, and their phone numbers are from the range set aside for fiction.
 
 **Settings › Test data** shows a six-character **data check**: two devices showing the same code hold the same data.
 

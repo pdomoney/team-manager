@@ -415,6 +415,7 @@ body:not(.wide) .report-stats .stat:nth-child(n+3){border-top:1px solid var(--li
 .club-group{margin-bottom:18px}
 .club-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .club-head .name{font-family:var(--font-d);font-size:20px;font-weight:700}
+.club-head .sub{display:block;white-space:normal}
 .club-dl{margin:0;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .club-dl div{display:grid;grid-template-columns:120px 1fr;gap:10px;padding:10px 14px;border-top:1px solid var(--line)}
 .club-dl div:first-child{border-top:0}
