@@ -11,7 +11,8 @@ const words = v => String(v || '').trim().toLocaleLowerCase('en-AU');
 export function filterClubDirectory({ query = '', sport = '', state = '' } = {}) {
   const needle = words(query);
   return CLUB_REFERENCE_RECORDS.filter(c => (!sport || c.sport === sport) && (!state || c.state === state)
-    && (!needle || [c.name, ...(c.variants || []), c.suburb, c.region, c.state, c.association, c.ground].some(s => words(s).includes(needle))));
+    && (!needle || [c.name, ...(c.variants || []), c.suburb, c.region, c.state, c.association, c.ground].some(s => words(s).includes(needle))))
+    .sort((a,b) => a.name.localeCompare(b.name) || a.state.localeCompare(b.state));
 }
 export const possibleClubPalette = c => c?.colours ? suggestStyle(c.colours) : '';
 export function directoryClubDraft(c) {
@@ -19,7 +20,7 @@ export function directoryClubDraft(c) {
   // Deliberately omit third-party imagery, colour styles, provisional organisation IDs and permissions.
   // A coach can edit/review this draft and must explicitly press Create club to copy it to their workspace.
   return {
-    name: c.name, shortName: c.name, sport: c.sport,
+    name: c.name, shortName: c.name, sport: c.sport, founded: c.founded || '',
     governingBody: c.sport === 'Oztag' ? 'Australian Oztag (association to confirm)' : 'Rugby league (affiliation to confirm)',
     website: c.website || '', email: c.email || '', phone: c.phone || '',
     homeGround: c.ground || '', homeAddress: [c.suburb, c.state, c.postcode].filter(Boolean).join(' '),
