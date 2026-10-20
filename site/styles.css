@@ -1465,3 +1465,24 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   #view .sec-h>.btn-row{gap:6px}
   .view-list.sess-grid .m-time{font-size:17px}
 }
+
+
+/* Managed-team and national research club filters. No branding applied from unverified sources. */
+.directory-filters { display:grid;grid-template-columns:minmax(180px,2fr) minmax(130px,1fr) minmax(125px,1fr) auto;gap:10px;align-items:end;margin:12px 0 18px; }
+.directory-filters .field-l { margin:0;min-width:0; }
+.directory-filters .field-l input,.directory-filters .field-l select { width:100%;min-width:0; }
+.directory-filters .btn { align-self:end;min-height:40px; }
+#national-club-directory { margin-top:30px; }
+.directory-row .directory-sport { width:28px;flex-shrink:0;color:var(--pitch);align-self:flex-start;margin-top:3px; }
+.directory-row .sport-ic { vertical-align:-3px; }
+.directory-row .sub { font-size:12px; }
+.directory-row .pill { display:inline-block;margin-top:4px; }
+.directory-row a { font-size:12px;display:inline-block;margin:5px 10px 0 0; }
+.team-row .sport-ic,.club-head .sport-ic { vertical-align:-4px;margin-right:4px;opacity:.7; }
+@media(max-width:660px) {
+  .directory-filters { grid-template-columns:repeat(2,minmax(0,1fr));gap:8px; }
+  .directory-filters .field-l:first-child { grid-column:1 / -1; }
+  .directory-row { flex-wrap:wrap; }
+  .directory-row > .btn { margin-left:36px; }
+}
+@media(max-width:380px) { .directory-filters { grid-template-columns:1fr; } .directory-filters .field-l:first-child { grid-column:auto; } }
