@@ -36,7 +36,7 @@ export const TEAM_STYLES = [
   { id: 'redgold', name: 'Red & Gold', dark: '#641620', action: '#BB2435', accent: '#FFCC46', swatch: ['#BB2435', '#FFCC46'] },
   { id: 'purplewhite', name: 'Purple & White', dark: '#321B54', action: '#694299', accent: '#FFFFFF', swatch: ['#694299', '#FFFFFF'] },
   { id: 'redbluewhite', name: 'Red, Blue & White', dark: '#0B2C50', action: '#B32239', accent: '#FFFFFF', swatch: ['#B32239', '#1C63A1'] },
-  { id: 'royalskyred', name: 'Royal Blue, Sky & Red', dark: '#0D3061', action: '#176BA4', accent: '#E44550', swatch: ['#2375B7', '#E44550'] },
+  { id: 'royalskyred', name: 'Royal Blue, Sky & Red', dark: '#0D3061', action: '#176BA4', accent: '#FFBFC3', swatch: ['#2375B7', '#E44550'] },
 ];
 // The classic look (no style chosen), for the chooser's first swatch.
 export const CLASSIC = { name: 'Classic', dark: '#123D2B', action: '#1D6B45', accent: '#FFD24D', swatch: ['#123D2B', '#FFD24D'] };
