@@ -163,7 +163,7 @@ with sync_playwright() as p:
     setup(pg)
     pg.click('#menu-btn'); pg.wait_for_selector('#sheet .set-list')
     names = pg.evaluate("[...document.querySelectorAll('#sheet .set-list .name')].map(x => x.textContent)")
-    c.ok(names[:9] == ['Team', 'Club branding', 'Season and tournament', 'Contacts', 'Training', 'Field', 'Jerseys', 'Publishing', 'Backup'], f'Settings lists its sections {names}')
+    c.ok(names[:8] == ['Team', 'Season and tournament', 'Contacts', 'Training', 'Field', 'Jerseys', 'Publishing', 'Backup'], f'Settings lists its sections {names}')
     c.ok(pg.locator('#sheet form').count() == 0, 'no five-screen form: a list to choose from')
     event = W('D.team.event')
     pg.click('#sheet [data-sec=team]'); pg.wait_for_selector('#sheet form[data-form=settings][data-sec=team]')
