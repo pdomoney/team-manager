@@ -72,7 +72,7 @@ export const BADGE_LOOK = {
   groundMarshal: { glyph: 'flag', bg: '#3D5A80', fg: '#FFFFFF' },
 };
 const MARK = {
-  expiring: '<circle cx="26" cy="6" r="5.6" fill="#B26A00" stroke="#fff" stroke-width="1.4"/><path d="M26 3.4V6l1.8 1.2" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
+  expiring: '<circle cx="26" cy="6" r="5.6" fill="#965700" stroke="#fff" stroke-width="1.4"/><path d="M26 3.4V6l1.8 1.2" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
   expired: '<circle cx="26" cy="6" r="5.6" fill="#C0283A" stroke="#fff" stroke-width="1.4"/><path d="M26 3.2v3.4" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><circle cx="26" cy="8.9" r=".95" fill="#fff"/>',
   unverified: '<circle cx="26" cy="6" r="5.6" fill="#6B756F" stroke="#fff" stroke-width="1.4"/><path d="M24.3 4.6a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.5-.7 1v.3" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round"/><circle cx="26" cy="9.3" r=".8" fill="#fff"/>',
 };
