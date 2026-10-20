@@ -37,6 +37,7 @@ test('adopting a directory entry requires an explicit editable draft; branding c
 });
 
 import { managedClubCandidates, clubLinkPreview, applyClubDirectoryMatch, clubNameKey, linkedDirectoryRecord } from '../site/club-link.js';
+import { clubForPlayers, normClub } from '../site/model.js';
 
 test('same-sport name variants suggest a link but never create or change a managed record', () => {
   const candidate = directoryRecords().find(x => x.name === 'Engadine Dragons' && x.sport === 'Rugby league');
@@ -96,4 +97,17 @@ test('unverified colours require opt-in and multi-venue Oztag grounds are never 
   const wa=directoryRecords().find(x=>x.venues?.length>1 && x.sport==='Oztag');
   assert.ok(wa);
   assert.ok(!clubLinkPreview({id:'wa',name:wa.name,sport:'Oztag',homeGround:''},wa).additions.some(x=>x.key==='homeGround'));
+});
+
+test('source reconciliation metadata stays coach-only in the player projection', () => {
+  const source=directoryRecords().find(x=>x.name==='Engadine Dragons'&&x.sport==='Rugby league');
+  const managed=normClub({id:'existing',name:'Engadine Dragons JRLFC',sport:'Rugby league',
+    notes:'Private note',officials:[{role:'President',name:'Private contact',phone:'0400 123 123'}]});
+  const saved=normClub(applyClubDirectoryMatch(managed,source));
+  const published=clubForPlayers(saved);
+  assert.equal(saved.directoryMatch?.id,source.id);
+  assert.equal(published.email,source.email);
+  assert.ok(!Object.hasOwn(published,'directoryMatch'));
+  assert.ok(!Object.hasOwn(published,'notes'));
+  assert.ok(!Object.hasOwn(published,'officials'));
 });
