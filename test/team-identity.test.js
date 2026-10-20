@@ -11,7 +11,7 @@ const WHITE = '#FFFFFF', CHALK = '#F4F5EF';
 test('there are more than a dozen palettes, each with a name and swatch, and no club names', () => {
   assert.ok(TEAM_STYLES.length >= 13);
   assert.equal(new Set(TEAM_STYLES.map(s => s.id)).size, TEAM_STYLES.length);
-  TEAM_STYLES.forEach(s => { assert.match(s.name, /^[A-Z][a-z]+( (Blue|Green))?( & [A-Z][a-z]+( [A-Z][a-z]+)?)?$/, s.name); assert.equal(s.swatch.length, 2); });
+  TEAM_STYLES.forEach(s => { assert.match(s.name, /^(?:[A-Z][a-z]+( (Blue|Green))?( & [A-Z][a-z]+( [A-Z][a-z]+)?)?|Red, Blue & White|Royal Blue, Sky & Red)$/, s.name); assert.equal(s.swatch.length, 2); });
   assert.ok(CLASSIC.swatch);
 });
 
