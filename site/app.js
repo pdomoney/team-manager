@@ -4561,6 +4561,9 @@ const multiTeam = () => S.role === 'coach' && M.activeTeams(ws).length > 1;
 const teamFinder = { text: '', sport: '', club: '' };
 const clubFinder = { text: '', sport: '', state: '', limit: 30 };
 const finderMatch = (txt, needle) => String(txt || '').toLocaleLowerCase('en-AU').includes(needle.toLocaleLowerCase('en-AU'));
+const clubNameKey = n => String(n || '').toLocaleLowerCase('en-AU')
+  .replace(/\b(junior rugby league football club|rugby league football club|jrlfc|rlfc|jrfc|football club|oztag association)\b/g, '')
+  .replace(/[^a-z0-9]+/g, ' ').trim();
 const directorySource = u => {
   const url = String(u || '').split(/[;|\s]+/)[0];
   return /^https:\/\/[^\s<>"]+$/.test(url) ? url : '';
@@ -6808,7 +6811,7 @@ const actions = {
   'directory-use': coachOnly(el => {
     const c=directoryRecords().find(x=>x.id===el.dataset.id), draft=directoryClubDraft(c);
     if (!draft) return;
-    const existing=arr(ws.clubs).find(x=>x.sport===c.sport && x.name.toLocaleLowerCase('en-AU')===c.name.toLocaleLowerCase('en-AU'));
+    const existing=arr(ws.clubs).find(x=>x.sport===c.sport && clubNameKey(x.name)===clubNameKey(c.name));
     if (existing && confirm('A managed club with this name and sport already exists. Review that club instead? Choose Cancel if this is a separate club with the same name.')) {
       openSheet('Existing club · '+existing.name,clubForm(existing),'club');
       toast('This club already exists in your workspace. Review its current details instead of creating a duplicate.');
