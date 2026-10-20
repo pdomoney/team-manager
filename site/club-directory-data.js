@@ -3167,7 +3167,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Ballina",
+        "url": "https://assemble.oztag.com.au/balllina"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_baulkham-hills",
@@ -3188,7 +3195,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Baulkham Hills",
+        "url": "https://assemble.oztag.com.au/hills"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_bingara",
@@ -3209,7 +3223,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Bingara",
+        "url": "https://assemble.oztag.com.au/bingara"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_blacktown-city",
@@ -3234,6 +3255,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Blacktown City Jnrs",
       "Blacktown City Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Blacktown City Jnrs",
+        "url": "https://assemble.oztag.com.au/blacktownjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Blacktown City Snrs",
+        "url": "https://assemble.oztag.com.au/blacktownsnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -3255,7 +3292,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Blue Mountains",
+        "url": "https://assemble.oztag.com.au/bluemts"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_camden",
@@ -3279,6 +3323,16 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Camden Seniors"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Seniors",
+        "name": "Camden Seniors",
+        "url": "https://assemble.oztag.com.au/camden"
+      }
+    ],
+    "categories": [
+      "Seniors"
     ]
   },
   {
@@ -3300,7 +3354,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Camden Cobras",
+        "url": "https://assemble.oztag.com.au/camdencobras"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_campbelltown",
@@ -3324,6 +3385,16 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Campbelltown Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Seniors",
+        "name": "Campbelltown Snrs",
+        "url": "https://assemble.oztag.com.au/campbelltown"
+      }
+    ],
+    "categories": [
+      "Seniors"
     ]
   },
   {
@@ -3349,6 +3420,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Canterbury Junior Oztag",
       "Canterbury Senior Oztag"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Canterbury Junior Oztag",
+        "url": "https://assemble.oztag.com.au/canterburyjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Canterbury Senior Oztag",
+        "url": "https://assemble.oztag.com.au/canterburysnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -3373,6 +3460,13 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Carlingford Oztag"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Carlingford Oztag",
+        "url": "https://assemble.oztag.com.au/carlingford"
+      }
     ]
   },
   {
@@ -3398,6 +3492,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Central Coast Jnrs",
       "Central Coast Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Central Coast Jnrs",
+        "url": "https://assemble.oztag.com.au/ccjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Central Coast Snrs",
+        "url": "https://assemble.oztag.com.au/ccoastsnr"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -3419,7 +3529,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Clarence Valley",
+        "url": "https://assemble.oztag.com.au/clarence"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_coffs-harbour",
@@ -3444,6 +3561,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Coffs Harbour Jnrs",
       "Coffs Harbour Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Coffs Harbour Jnrs",
+        "url": "https://assemble.oztag.com.au/coffsjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Coffs Harbour Snrs",
+        "url": "https://assemble.oztag.com.au/coffssnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -3468,6 +3601,16 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Cronulla Jnrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Cronulla Jnrs",
+        "url": "https://assemble.oztag.com.au/cronullajnrs"
+      }
+    ],
+    "categories": [
+      "Juniors"
     ]
   },
   {
@@ -3492,6 +3635,13 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Dubbo Oztag"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Dubbo Oztag",
+        "url": "https://assemble.oztag.com.au/dubbo"
+      }
     ]
   },
   {
@@ -3516,6 +3666,13 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Dural Oztag"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Dural Oztag",
+        "url": "https://assemble.oztag.com.au/dural"
+      }
     ]
   },
   {
@@ -3541,6 +3698,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "East Hills Jnrs",
       "East Hills Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "East Hills Jnrs",
+        "url": "https://assemble.oztag.com.au/easthillsjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "East Hills Snrs",
+        "url": "https://assemble.oztag.com.au/easthillssnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -3566,6 +3739,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Easts Jnrs",
       "Easts Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Easts Jnrs",
+        "url": "https://assemble.oztag.com.au/eastsjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Easts Snrs",
+        "url": "https://assemble.oztag.com.au/eastssnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -3591,6 +3780,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Engadine-Heathcote Snrs",
       "Heathcote/Engadine Jnrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Seniors",
+        "name": "Engadine-Heathcote Snrs",
+        "url": "https://assemble.oztag.com.au/engadineheath"
+      },
+      {
+        "type": "Juniors",
+        "name": "Heathcote/Engadine Jnrs",
+        "url": "https://assemble.oztag.com.au/heathcotejnrs"
+      }
+    ],
+    "categories": [
+      "Seniors",
+      "Juniors"
     ]
   },
   {
@@ -3612,7 +3817,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Fairfield City",
+        "url": "https://assemble.oztag.com.au/fairfield"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_gosford",
@@ -3633,7 +3845,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Gosford",
+        "url": "https://assemble.oztag.com.au/gosford"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_greater-west",
@@ -3657,6 +3876,16 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Greater West Jnrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Greater West Jnrs",
+        "url": "https://assemble.oztag.com.au/greaterwest"
+      }
+    ],
+    "categories": [
+      "Juniors"
     ]
   },
   {
@@ -3678,7 +3907,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Griffith",
+        "url": "https://assemble.oztag.com.au/griffith"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_gunnedah",
@@ -3699,7 +3935,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Gunnedah",
+        "url": "https://assemble.oztag.com.au/gunnedah"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_homebush",
@@ -3724,6 +3967,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Homebush Junior Oztag",
       "Homebush Senior Oztag"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Homebush Junior Oztag",
+        "url": "https://assemble.oztag.com.au/homebushjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Homebush Senior Oztag",
+        "url": "https://assemble.oztag.com.au/homebushsnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -3748,6 +4007,16 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Hornbsy Jnrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Hornbsy Jnrs",
+        "url": "https://assemble.oztag.com.au/hornsbyjnrs"
+      }
+    ],
+    "categories": [
+      "Juniors"
     ]
   },
   {
@@ -3772,6 +4041,13 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Hornsby Oztag"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Hornsby Oztag",
+        "url": "https://assemble.oztag.com.au/hornsby"
+      }
     ]
   },
   {
@@ -3797,6 +4073,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Inner West Junior Oztag",
       "Inner West Senior Oztag"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Inner West Junior Oztag",
+        "url": "https://assemble.oztag.com.au/innerwestjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Inner West Senior Oztag",
+        "url": "https://assemble.oztag.com.au/innerwestsnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -3821,6 +4113,16 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Kareela Jnrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Kareela Jnrs",
+        "url": "https://assemble.oztag.com.au/kareelajnrs"
+      }
+    ],
+    "categories": [
+      "Juniors"
     ]
   },
   {
@@ -3842,7 +4144,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Kiama",
+        "url": "https://assemble.oztag.com.au/kiama"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_kuringai",
@@ -3867,6 +4176,21 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Kuringai Jnrs",
       "Kuringai Oztag"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Kuringai Jnrs",
+        "url": "https://assemble.oztag.com.au/kuringaijnrs"
+      },
+      {
+        "type": "Unspecified",
+        "name": "Kuringai Oztag",
+        "url": "https://assemble.oztag.com.au/kuringai"
+      }
+    ],
+    "categories": [
+      "Juniors"
     ]
   },
   {
@@ -3888,7 +4212,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Lake Macquarie",
+        "url": "https://assemble.oztag.com.au/lakemac"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_liverpool",
@@ -3909,7 +4240,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Liverpool",
+        "url": "https://assemble.oztag.com.au/liverpool"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_maitland",
@@ -3930,7 +4268,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Maitland",
+        "url": "https://assemble.oztag.com.au/maitland"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_menai",
@@ -3955,6 +4300,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Menai Jnrs",
       "Menai Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Menai Jnrs",
+        "url": "https://assemble.oztag.com.au/menaijnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Menai Snrs",
+        "url": "https://assemble.oztag.com.au/menaisnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -3976,7 +4337,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Murwillimbah",
+        "url": "https://assemble.oztag.com.au/murwillimbah"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_narrabri",
@@ -3997,7 +4365,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Narrabri",
+        "url": "https://assemble.oztag.com.au/narrabri"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_nepean",
@@ -4021,6 +4396,16 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Nepean Jnrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Nepean Jnrs",
+        "url": "https://assemble.oztag.com.au/nepeanjnrs"
+      }
+    ],
+    "categories": [
+      "Juniors"
     ]
   },
   {
@@ -4046,6 +4431,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Newcastle Jnrs",
       "Newcastle Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Newcastle Jnrs",
+        "url": "https://assemble.oztag.com.au/newcastlejnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Newcastle Snrs",
+        "url": "https://assemble.oztag.com.au/newcastlesnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -4067,7 +4468,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "North Sydney",
+        "url": "https://assemble.oztag.com.au/nthsydney"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_northern-beaches",
@@ -4088,7 +4496,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Northern Beaches",
+        "url": "https://assemble.oztag.com.au/nthbeaches"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_northern-districts",
@@ -4112,6 +4527,16 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Northern Districts Junior Oztag"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Northern Districts Junior Oztag",
+        "url": "https://assemble.oztag.com.au/ndjnrs"
+      }
+    ],
+    "categories": [
+      "Juniors"
     ]
   },
   {
@@ -4136,6 +4561,16 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Norwest Jnrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Norwest Jnrs",
+        "url": "https://assemble.oztag.com.au/nwjnrs"
+      }
+    ],
+    "categories": [
+      "Juniors"
     ]
   },
   {
@@ -4157,7 +4592,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Norwest Sydney",
+        "url": "https://assemble.oztag.com.au/nwsydney"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_orange",
@@ -4178,7 +4620,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Orange",
+        "url": "https://assemble.oztag.com.au/orange"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_parramatta",
@@ -4203,6 +4652,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Parramatta Jnrs",
       "Parramatta Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Parramatta Jnrs",
+        "url": "https://assemble.oztag.com.au/parrajnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Parramatta Snrs",
+        "url": "https://assemble.oztag.com.au/parrasnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -4224,7 +4689,17 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://live.oztagaustralia.assemblesports.io/c/club/penrith/tabs/schedule",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "venues": [
+      "The Kingsway Playing Fields, Werrington/St Marys NSW"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Penrith",
+        "url": "https://assemble.oztag.com.au/penrith"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_port-macquarie",
@@ -4249,6 +4724,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Port Macquarie Jnrs",
       "Port Macquarie Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Port Macquarie Jnrs",
+        "url": "https://assemble.oztag.com.au/portmacjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Port Macquarie Snrs",
+        "url": "https://assemble.oztag.com.au/portmacsnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -4270,7 +4761,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Port Stephens",
+        "url": "https://assemble.oztag.com.au/portstephens"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_ryde-eastwood",
@@ -4294,6 +4792,13 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Ryde-Eastwood Oztag"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Ryde-Eastwood Oztag",
+        "url": "https://assemble.oztag.com.au/ryde"
+      }
     ]
   },
   {
@@ -4315,7 +4820,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Scone",
+        "url": "https://assemble.oztag.com.au/scone"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_shellharbour",
@@ -4339,6 +4851,21 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Shellharbour Jnrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Shellharbour",
+        "url": "https://assemble.oztag.com.au/shellharbour"
+      },
+      {
+        "type": "Juniors",
+        "name": "Shellharbour Jnrs",
+        "url": "https://assemble.oztag.com.au/shellharbourjnrs"
+      }
+    ],
+    "categories": [
+      "Juniors"
     ]
   },
   {
@@ -4360,7 +4887,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Shoalhaven",
+        "url": "https://assemble.oztag.com.au/shoalhaven"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_southern-highlands",
@@ -4381,7 +4915,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Southern Highlands",
+        "url": "https://assemble.oztag.com.au/southernhigh"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_souths",
@@ -4406,6 +4947,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Souths Jnrs",
       "Souths Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Souths Jnrs",
+        "url": "https://assemble.oztag.com.au/southsjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Souths Snrs",
+        "url": "https://assemble.oztag.com.au/southssnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -4427,7 +4984,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Southwest (Picton)",
+        "url": "https://assemble.oztag.com.au/picton"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_st-george",
@@ -4452,6 +5016,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "St George Jnrs",
       "St George Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "St George Jnrs",
+        "url": "https://assemble.oztag.com.au/stgeorgejnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "St George Snrs",
+        "url": "https://assemble.oztag.com.au/stgeorgesnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -4477,6 +5057,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Sutherland Jnrs",
       "Sutherland Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Sutherland Jnrs",
+        "url": "https://assemble.oztag.com.au/sutherlandjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Sutherland Snrs",
+        "url": "https://assemble.oztag.com.au/sutherlandsnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -4502,6 +5098,21 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Sydney City Jnrs",
       "Sydney City Oztag"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Sydney City Jnrs",
+        "url": "https://assemble.oztag.com.au/sydneycityjnrs"
+      },
+      {
+        "type": "Unspecified",
+        "name": "Sydney City Oztag",
+        "url": "https://assemble.oztag.com.au/sydneycity"
+      }
+    ],
+    "categories": [
+      "Juniors"
     ]
   },
   {
@@ -4527,6 +5138,22 @@ export const CLUB_REFERENCE_RECORDS = [
     "variants": [
       "Tamworth Jnrs",
       "Tamworth Snrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Juniors",
+        "name": "Tamworth Jnrs",
+        "url": "https://assemble.oztag.com.au/tamworthjnrs"
+      },
+      {
+        "type": "Seniors",
+        "name": "Tamworth Snrs",
+        "url": "https://assemble.oztag.com.au/tamworthsnrs"
+      }
+    ],
+    "categories": [
+      "Juniors",
+      "Seniors"
     ]
   },
   {
@@ -4548,7 +5175,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Ulladulla",
+        "url": "https://assemble.oztag.com.au/ulladulla"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_umina",
@@ -4569,7 +5203,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Umina",
+        "url": "https://assemble.oztag.com.au/umina"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_warialda",
@@ -4590,7 +5231,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Warialda",
+        "url": "https://assemble.oztag.com.au/warialda"
+      }
+    ]
   },
   {
     "id": "oztag_nsw_wollongong",
@@ -4614,6 +5262,21 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "Wollongong Jnrs"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Wollongong",
+        "url": "https://assemble.oztag.com.au/wollongong"
+      },
+      {
+        "type": "Juniors",
+        "name": "Wollongong Jnrs",
+        "url": "https://assemble.oztag.com.au/wollongongjnrs"
+      }
+    ],
+    "categories": [
+      "Juniors"
     ]
   },
   {
@@ -4635,7 +5298,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Wyong/Lisarow",
+        "url": "https://assemble.oztag.com.au/wyong"
+      }
+    ]
   },
   {
     "id": "oztag_act_act-oztag",
@@ -4659,6 +5329,13 @@ export const CLUB_REFERENCE_RECORDS = [
     "reviewed": "2026-10-20",
     "variants": [
       "ACT"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "ACT",
+        "url": "https://assemble.oztag.com.au/act"
+      }
     ]
   },
   {
@@ -4680,7 +5357,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Pakenham",
+        "url": "https://assemble.oztag.com.au/pakenham"
+      }
+    ]
   },
   {
     "id": "oztag_vic_melbourne",
@@ -4701,7 +5385,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Melbourne",
+        "url": "https://assemble.oztag.com.au/melbourne"
+      }
+    ]
   },
   {
     "id": "oztag_vic_geelong",
@@ -4722,7 +5413,14 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Geelong",
+        "url": "https://assemble.oztag.com.au/geelong"
+      }
+    ]
   },
   {
     "id": "oztag_wa_central-perth-districts-oztag",
@@ -4749,6 +5447,21 @@ export const CLUB_REFERENCE_RECORDS = [
       "Central Perth Districts – Rockingham",
       "Central Perth Districts - North Beach",
       "Central Perth Districts - Rockingham"
+    ],
+    "venues": [
+      "Charles Riley Memorial Reserve, North Beach, WA",
+      "Lark Hill Sportsplex, Port Kennedy, WA"
+    ],
+    "registrationLinks": [
+      {
+        "type": "Unspecified",
+        "name": "Central Perth Districts Oztag",
+        "url": "https://assemble.oztag.com.au/cpdoztag"
+      }
+    ],
+    "categories": [
+      "Seniors",
+      "Juniors; Seniors"
     ]
   },
   {
@@ -6051,6 +6764,9 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.melton.vic.gov.au/Out-n-About/Local-Directory-Listing/West-Melbourne-OzTag",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "venues": [
+      "Mount Carberry Reserve, Exford Rd, Melton South VIC 3338"
+    ]
   }
 ];
