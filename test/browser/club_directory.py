@@ -19,7 +19,7 @@ with sync_playwright() as p:
         c.ok(pg.locator('#national-directory-results .directory-row').count()==30, f'[{width}] capped directory results')
         pg.select_option('[data-change=directory-sport]','Rugby league')
         pg.select_option('[data-change=directory-state]','NSW')
-        pg.fill('[data-input=directory-find]','Engadine Dragons')
+        pg.fill('[data-input=directory-find]','Aquinas Colts')
         c.ok(pg.locator('#national-directory-results .directory-row').count()==1 and 'Rugby league' in pg.inner_text('#national-directory-results'),
              f'[{width}] can filter NSW rugby league club')
         pg.locator('#national-directory-results [data-act=directory-use]').click()
@@ -32,8 +32,14 @@ with sync_playwright() as p:
              f'[{width}] preview grants no access and adds nothing')
         pg.locator('#sheet button[type=submit]').click()
         pg.wait_for_timeout(150)
-        c.ok(W('W.clubs.length')==before+1 and W("W.clubs.some(x=>x.name==='Engadine Dragons' && x.sport==='Rugby league' && !x.logo)"),
+        c.ok(W('W.clubs.length')==before+1 and W("W.clubs.some(x=>x.name==='Aquinas Colts' && x.sport==='Rugby league' && !x.logo)"),
              f'[{width}] explicit creation copies public fields only')
+        pg.fill('[data-input=directory-find]','Engadine Dragons')
+        pg.locator('#national-directory-results [data-act=directory-use]').click()
+        pg.wait_for_selector('#sheet form[data-form=club]')
+        c.ok(pg.locator('#sheet [name=id]').input_value()=='engadinedragons' and W('W.clubs.length')==before+1,
+             f'[{width}] equivalent JRLFC name offers the existing managed club rather than duplicating it')
+        pg.keyboard.press('Escape')
         pg.fill('[data-input=managed-find]','DragonTag Women')
         c.ok(pg.locator('#managed-team-results .team-row').count()==1,
              f'[{width}] managed team name filter narrows list')
