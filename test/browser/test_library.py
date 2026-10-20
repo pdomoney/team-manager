@@ -24,7 +24,7 @@ with sync_playwright() as p:
     ctx1, phone, _ = page(browser, url + '#home', width=390, height=844, errors=errs)
     load(phone)
     W = lambda js: phone.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M, S = window.__team.S; return {js}; }})()')
-    c.ok(W('W.testLibrary.version') >= 1 and W('M.teamsOf(W).length') == 3 and W('W.clubs.length') == 2 and W('W.matchOfficials.length') == 6, 'three teams, two clubs and six volunteers')
+    c.ok(W('W.testLibrary.version') >= 2 and W('M.teamsOf(W).length') == 5 and W('W.clubs.map(c => c.id).sort()') == ['engadinedragons', 'penrithoztag', 'stgeorge', 'tarenpointtitans'] and W('W.matchOfficials.length') == 6, 'five teams in the four real clubs, and six volunteers')
     c.ok(W('D.id') == W('W.id') and W('D.players.length') == 16 and W("D.players.every(p => /^tst\\d+$/.test(p.id))"), 'opens on the Mixed 20s; ids are the numbered test ones')
     today = W("(t => t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'))(new Date())")
     c.ok(W(f"D.matches.filter(m => m.date === '{today}').length") == 5 and W(f"D.matches.filter(m => m.date === '{today}').every(m => m.entryId)"), 'a gala day today with five games, in its competition')
@@ -54,7 +54,7 @@ with sync_playwright() as p:
         for t in TABS:
             phone.evaluate(act, ['tab', {'tab': t}]); phone.wait_for_timeout(40)
             if not phone.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1'): bad.append(f'{tid}/{t} overflow')
-    c.ok(not bad, f'every screen of all three teams opens and fits {bad[:5]}')
+    c.ok(not bad, f'every screen of all five teams opens and fits {bad[:5]}')
     phone.evaluate(f"(() => {{ const b = document.createElement('button'); b.dataset.act = 'home-go'; b.dataset.team = '{W('W.id')}'; b.dataset.go = 'tab'; b.dataset.tab = 'matches'; document.body.appendChild(b); b.click(); b.remove(); }})()")
     phone.wait_for_timeout(100)
     hour = datetime.datetime.now().hour
@@ -108,7 +108,7 @@ with sync_playwright() as p:
     a.evaluate(act, ['go-live', {}]); a.fill('#sheet input[name=coach]', 'coach password one'); a.fill('#sheet input[name=coach2]', 'coach password one')
     a.fill('#sheet input[name=team]', 'team password one'); a.fill('#sheet input[name=team2]', 'team password one'); a.click('#sheet button[type=submit]')
     a.wait_for_function('window.__team.S.trial === false', timeout=20000); done(a)
-    c.ok(Wd(a, 'S.pub') == 'ok' and len(gh.files()) == 4, f'live: the test library published, one players’ file per team ({len(gh.files())} files)')
+    c.ok(Wd(a, 'S.pub') == 'ok' and len(gh.files()) == 6, f'live: the test library published, one players’ file per team ({len(gh.files())} files)')
     cb, bb = device(1280); bb.goto(url + '#home'); bb.wait_for_selector("text=I'm the coach"); bb.click("text=I'm the coach")
     bb.fill('input[name=password]', 'coach password one'); bb.click('button[type=submit]'); bb.wait_for_function('window.__team.ws', timeout=30000); bb.wait_for_timeout(200)
     c.ok(check(a) == check(bb) and Wd(bb, 'W.testLibrary.version') >= 1, 'live: the laptop signs in and holds the same data (same data check)')

@@ -972,7 +972,7 @@ function startSquad() {
       <h3>Start with your squad</h3>
       <p>Add your players first. Roll call, lineups and messages all build on the squad list.</p>
       <div class="btn-row"><button class="btn primary" data-act="add-player">${icon('plus')}Add a player</button><button class="btn" data-act="bulk-add">Paste a list</button></div>
-      <p class="hint" style="margin-top:14px">Just exploring? <button class="link-btn inline" data-act="sample">Load a sample squad</button>, or <button class="link-btn inline" data-act="test-library">load the test library</button>: three teams, volunteers and a gala day today, the same on every device. Clear it in Settings before you invite players.</p>
+      <p class="hint" style="margin-top:14px">Just exploring? <button class="link-btn inline" data-act="sample">Load a sample squad</button>, or <button class="link-btn inline" data-act="test-library">load the test library</button>: five teams in four real clubs, volunteers and a gala day today, the same on every device. Clear it in Settings before you invite players.</p>
     </section>`;
 }
 // An active competition on Home: where it's up to, our results so far, today's matches (a tournament
@@ -5412,7 +5412,7 @@ function testLibrarySection() {
   const lib = ws.testLibrary, can = canLoadTestLibrary();
   return `<h3 class="form-sec" style="margin-top:0">Test data</h3>
     <div class="data-check"><span class="sub">Data check</span><b>${esc(dataCheck(ws))}</b><span class="sub">Two devices showing the same code hold the same data.</span></div>
-    <p class="muted small" style="margin:12px 0">The test library is made-up data that comes out the same on every device: the Mixed 20s with training, tasks and lifts, a gala day today with five games (so Match Day always has one coming up), the State Cup draw, a second St George team, a League tag club, six match-day volunteers with current, expiring, expired and unchecked accreditations, and staffing requirements with one shortfall. No real people.</p>
+    <p class="muted small" style="margin:12px 0">The test library is made-up data that comes out the same on every device: the Mixed 20s with training, tasks and lifts, a gala day today with five games (so Match Day always has one coming up), the State Cup draw, a second St George team, teams at Penrith Oztag, Taren Point Titans and Engadine Dragons (real clubs, made-up teams), six match-day volunteers with current, expiring, expired and unchecked accreditations, and staffing requirements with one shortfall. No real people.</p>
     ${lib ? `<p class="note">This copy is the test library from ${esc(fmtLong(lib.day))} (version ${esc(lib.version)}).</p>` : ''}
     ${can ? `<button class="btn primary block" data-act="test-library">${lib ? 'Load a fresh test library' : 'Load the test library'}</button>`
       : '<p class="note">This copy has real players, so the test library can’t replace it.</p>'}
@@ -5743,14 +5743,39 @@ function extendTestLibrary(day) {
     const m = match(opp, M.addDays(day, n), '19:10', { venue: 'Home ground', field: String(i + 1), round: `Round ${i + 1}`, status, result, seasonId: womenSid });
     women.matches.push(m); M.linkMatch(ws, women, m, sEntry.id);
   });
+  // Real clubs from around Sydney, with the public details on their websites (checked 20 Oct 2026; no
+  // officials' names). The teams in them and their players are made up.
+  const seen = 'Details from the club’s website, checked 20 Oct 2026. The teams and people in the test library are made up.';
   ws.clubs = arr(ws.clubs);
-  ws.clubs.push(M.normClub({ id: 'kestrelsclub', name: 'Bayside Kestrels', shortName: 'Kestrels', sport: 'League tag', colours: 'Blue and gold', homeGround: 'Kestrel Park (made up)', nights: 'Wednesday', notes: 'Made-up club in the test library.' }));
-  const kes = normalize({ ...defaultData(), id: 'testkestrels', team: { ...defaultData().team, name: 'Kestrels League Tag Open', clubId: 'kestrelsclub', sport: 'League tag', category: 'mixed', division: 'Open', ageGroup: 'Open', event: '', eventStart: '', eventEnd: '', venue: '', trainingVenue: 'Kestrel Park', positions: [] } });
-  kes.players = [['Marcus Webb', 'M', '1'], ['Talia Rahman', 'F', '2'], ['Owen Petrakis', 'M', '3'], ['Sofia Mendes', 'F', '4'], ['Kieran Doyle', 'M', '5'], ['Ivy Nakamura', 'F', '6'], ['Declan Ward', 'M', '7'], ['Maya Thompson', 'F', '8'], ['Rhys Calder', 'M', '9'], ['Leah Fong', 'F', '10']]
-    .map(([n, g, num]) => P(n, g, num, []));
-  kes.sessions = [session(weekday(0, 3), 'Play the ball', 'Kestrel Park'), session(weekday(1, 3), 'Defensive line', 'Kestrel Park')];
-  kes.matches = [match('Riverside Raiders', weekday(0, 6), '13:00', { venue: 'Kestrel Park', field: '2', round: 'Round 4' })];
-  M.addTeam(ws, kes);
+  ws.clubs.push(
+    M.normClub({ id: 'penrithoztag', name: 'Penrith Oztag', shortName: 'Penrith', sport: 'Oztag', governingBody: 'Australian Oztag', website: 'https://penrith.oztag.me',
+      phone: '0433 726 497', homeGround: 'The Kingsway Playing Fields', homeAddress: 'The Kingsway, Werrington NSW', nights: 'Tuesday, Wednesday and Thursday, games 7pm to 9.15pm',
+      registration: 'https://assemble.oztag.com.au/penrith', notes: 'Divisions: Mixed, Men’s, Ladies, Masters (over 40) and PremTag; players 15 and over. ' + seen }),
+    M.normClub({ id: 'tarenpointtitans', name: 'Taren Point Titans JRLFC', shortName: 'Titans', sport: 'Rugby league', governingBody: 'NSWRL · Cronulla Junior Rugby League',
+      website: 'https://www.tarenpointtitans.com', facebook: 'https://www.facebook.com/tarenpointtitans', instagram: 'https://www.instagram.com/tarenpointtitans',
+      colours: 'Red and white', homeGround: 'Gwawley Park', homeAddress: '133-139 Taren Point Road, Taren Point NSW 2229', nights: 'Games on Sundays',
+      registration: 'https://www.tarenpointtitans.com/registration/', notes: 'Tag and tackle from Tiny Titans (under 5s) to Open, girls’ tag teams to Open Women’s and Women’s Over 30s. ' + seen }),
+    M.normClub({ id: 'engadinedragons', name: 'Engadine Dragons JRLFC', shortName: 'Engadine', sport: 'Rugby league', founded: '1958', website: 'https://www.engadinedragons.com.au',
+      phone: '0419 258 117', facebook: 'https://www.facebook.com/EngadineDragons', instagram: 'https://www.instagram.com/engadine_dragons/',
+      homeGround: 'ANZAC Oval', homeAddress: 'Engadine NSW 2233',
+      registration: 'https://profile.mysideline.com.au/register/clubsearch?criteria=Engadine%20Dragons%20JRLFC&club=11819&source=rugby-league',
+      notes: 'Mini Dragons, boys’ and girls’ tackle, men’s league, girls’ and senior league tag. ' + seen }));
+  const team = (id, name, clubId, extra) => normalize({ ...defaultData(), id, team: { ...defaultData().team, name, clubId, event: '', eventStart: '', eventEnd: '', venue: '', positions: [], ...extra } });
+  const squad = (list, g) => list.map(([n, num], i) => P(n, g === 'mix' ? (i % 2 ? 'M' : 'F') : g, num, []));
+  const titans = team('testtitans', 'Titans Open Women’s League Tag', 'tarenpointtitans', { sport: 'League tag', category: 'women', division: 'Open Women’s', ageGroup: 'Open', trainingVenue: 'Gwawley Park' });
+  titans.players = squad([['Talia Rahman', '1'], ['Sofia Mendes', '2'], ['Ivy Nakamura', '3'], ['Maya Thompson', '4'], ['Leah Fong', '5'], ['Grace Whitlock', '6'], ['Ella Brannigan', '7'], ['Kiana Morales', '8'], ['Rosa Delacroix', '9'], ['Jess Okoro', '10']], 'F');
+  titans.sessions = [session(weekday(0, 3), 'Play the ball', 'Gwawley Park'), session(weekday(1, 3), 'Defensive line', 'Gwawley Park')];
+  titans.matches = [match('Engadine Dragons', weekday(0, 0), '11:00', { venue: 'Gwawley Park', field: '1', round: 'Round 4' })];
+  M.addTeam(ws, titans);
+  const engadine = team('testengadine', 'Dragons Senior League Tag', 'engadinedragons', { sport: 'League tag', category: 'women', division: 'Senior League Tag', ageGroup: 'Open', trainingVenue: 'ANZAC Oval' });
+  engadine.players = squad([['Bianca Rossi', '1'], ['Caitlin Hughes', '2'], ['Dana Petrovic', '3'], ['Emily Tran', '4'], ['Fiona Malouf', '5'], ['Hayley Burke', '6'], ['Isla McGregor', '7'], ['Jade Kaur', '8'], ['Kate Lindqvist', '9']], 'F');
+  engadine.sessions = [session(weekday(0, 2), 'Attack shape', 'ANZAC Oval')];
+  M.addTeam(ws, engadine);
+  const penrith = team('testpenrith', 'Penrith Mixed Open', 'penrithoztag', { sport: 'Oztag', category: 'mixed', division: 'Mixed', ageGroup: 'Open', trainingVenue: 'The Kingsway Playing Fields' });
+  penrith.players = squad([['Marcus Webb', '1'], ['Owen Petrakis', '2'], ['Kieran Doyle', '3'], ['Declan Ward', '4'], ['Rhys Calder', '5'], ['Tama Ngata', '6'], ['Liv Sorensen', '7'], ['Nadia Haddad', '8'], ['Chris Papadakis', '9'], ['Amy Walsh', '10']], 'mix');
+  penrith.sessions = [session(weekday(0, 1), 'Ruck speed', 'The Kingsway Playing Fields')];
+  penrith.matches = [match('St Marys Mixed', weekday(0, 2), '19:45', { venue: 'The Kingsway Playing Fields', field: '6', round: 'Summer, round 3' })];
+  M.addTeam(ws, penrith);
 
   // Match-day volunteers: current, expiring, expired and unchecked accreditations, across both clubs.
   const hills = data.matches.find(m => m.opponent === 'Hills Hornets'), yr = hills.date.slice(0, 4), soon = M.addDays(day, 40), later = M.addDays(day, 700), past = M.addDays(day, -30);
@@ -5761,10 +5786,10 @@ function extendTestLibrary(day) {
   const frances = Vol('Frances Lee', { phone: FAKE[7], clubIds: ['stgeorge'], rolesBySport: { Oztag: ['firstAid'] }, registrationBySport: { Oztag: { coach: '', volunteer: '', trainer: yr } },
     accreditationBySport: { Oztag: { firstAid: soon } }, qualificationSinceBySport: { Oztag: { firstAid: '2019' } }, squadYears: { [data.id]: yr }, wwccStatus: 'checked', wwccExpiry: later });
   const morgan = Vol('Morgan Ellis', { clubIds: ['stgeorge'], rolesBySport: { Oztag: ['manager'] }, registrationBySport: { Oztag: { coach: '', volunteer: yr, trainer: '' } }, squadYears: { [data.id]: yr } });
-  const priya = Vol('Priya Shah', { clubIds: ['stgeorge'], teamIds: ['testkestrels'], rolesBySport: { Oztag: ['firstAid'], 'League tag': ['yellow', 'green'] },
+  const priya = Vol('Priya Shah', { clubIds: ['stgeorge'], teamIds: ['testtitans'], rolesBySport: { Oztag: ['firstAid'], 'League tag': ['yellow', 'green'] },
     accreditationBySport: { Oztag: { firstAid: later }, 'League tag': { yellow: later, green: soon } }, wwccStatus: 'checked', wwccExpiry: later });
-  const ben = Vol('Ben Okafor', { clubIds: ['kestrelsclub'], rolesBySport: { 'League tag': ['coach'] }, accreditationBySport: { 'League tag': { coach: past } }, wwccStatus: 'checked', wwccExpiry: soon });
-  const jordan = Vol('Jordan Tait', { clubIds: ['kestrelsclub'], rolesBySport: { 'League tag': ['manager'] }, active: false });
+  const ben = Vol('Ben Okafor', { clubIds: ['tarenpointtitans'], rolesBySport: { 'League tag': ['coach'] }, accreditationBySport: { 'League tag': { coach: past } }, wwccStatus: 'checked', wwccExpiry: soon });
+  const jordan = Vol('Jordan Tait', { clubIds: ['engadinedragons'], rolesBySport: { 'League tag': ['manager'] }, active: false });
   ws.matchOfficials = [casey, frances, morgan, priya, ben, jordan];
   // Made-up staffing requirements for the Mixed 20s' friendlies, and staff on the Hills game (one not cleared yet).
   const sport = M.teamSport(T, M.clubOf(ws, data));

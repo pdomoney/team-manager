@@ -6,9 +6,10 @@
 // time on the day it was built (fixStamps). Built on the same day, on any device, the library is
 // identical; `dataCheck` gives a short code to compare two devices.
 //
-// Synthetic data only: no real players, contacts or photos.
+// The teams, players and volunteers are made up. The clubs are real (St George Oztag, Penrith Oztag, Taren
+// Point Titans, Engadine Dragons), with only the public details from their websites; no officials' names.
 
-export const TEST_LIBRARY_VERSION = 1;
+export const TEST_LIBRARY_VERSION = 2;
 const STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
 
