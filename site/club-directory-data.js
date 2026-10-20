@@ -21,7 +21,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/belconnen-united-sharks/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_1004b6ffaa6d1e",
@@ -42,7 +43,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/gungahlin-bulls-juniors/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_6df02696674b6f",
@@ -63,7 +65,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_64f447d8405a50",
@@ -84,7 +87,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.playrugbyleague.com/Competitions/Match/gungahlin-bulls-first-grade-v-tuggeranong-bushrangers-first-grade-1266237259",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_b44f8801a681ad",
@@ -105,7 +109,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.playrugbyleague.com/Competitions/Match/west-belconnen-warriors-first-grade-v-tuggeranong-bushrangers-first-grade-1266246011",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_46f4e3354708ff",
@@ -126,7 +131,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/woden-valley-rams/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_93bcfe1b297b9c",
@@ -147,7 +153,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/albion-park-oak-flats/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_ca06707590d28e",
@@ -168,7 +175,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/aquinas-colts/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_8f96c4e69ea022",
@@ -189,7 +197,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/arncliffe-scots/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_899ef308106fcf",
@@ -210,7 +219,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_7f862996a57d4d",
@@ -231,7 +241,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/avalon-bulldogs/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_97fb726d4ac6fe",
@@ -252,7 +263,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_05943155dd7f69",
@@ -273,7 +285,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_7c50e1629dfc10",
@@ -294,7 +307,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/bomaderry-swamp-rats/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_7950eb463d4a20",
@@ -315,7 +329,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/bondi-united/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_e405a14eac7e1a",
@@ -336,7 +351,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/boorowa-rovers/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_a34a557248a4df",
@@ -357,7 +373,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/brighton-seagulls/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_16ef1f77fad488",
@@ -378,7 +395,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/bungendore-tigers/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_aa509b5a227588",
@@ -399,7 +417,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_f9247cc47de5b0",
@@ -420,7 +439,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/cessnock-goannas/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_004cabdc72bf61",
@@ -441,7 +461,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/collegians/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_d9b4e27b194872",
@@ -462,7 +483,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/como-jannali-crocodiles/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_016ac5913c1927",
@@ -483,7 +505,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/concord-burwood-wolves/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_511a423b9553c6",
@@ -504,7 +527,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/coogee-randwick-wombats/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_f8420d16b58748",
@@ -525,7 +549,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/cromer-kingfishers/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_f0a55c122acfe2",
@@ -546,7 +571,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://cronullacaringbah.com.au/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_e7e1069d489339",
@@ -567,7 +593,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_d5cde401cd4892",
@@ -588,7 +615,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/dapto-canaries/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": "1911"
   },
   {
     "id": "rlc_4a1d0a1867e0f4",
@@ -609,7 +637,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/de-la-salle/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_546e83396d792a",
@@ -630,7 +659,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/dundas-shamrocks/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_309c59a2a0de9e",
@@ -651,7 +681,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "Royal Blue; Sky Blue; Red",
     "brandSource": "https://www.engadinedragons.com.au/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": "1958"
   },
   {
     "id": "rlc_7fd665d89683c1",
@@ -672,7 +703,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/forestville-ferrets/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_1f1398c61c586f",
@@ -693,7 +725,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/googong-goannas/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_a7e6bc1e6cedf8",
@@ -714,7 +747,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_a331c6197f0a32",
@@ -735,7 +769,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/gymea-gorillas/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_d0e0d1145c50f6",
@@ -756,7 +791,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_45ca311c9f694a",
@@ -777,7 +813,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_0047166b72d8a8",
@@ -798,7 +835,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_2a0cbed094b970",
@@ -819,7 +857,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/hurstville-united/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_f477aa627dd6bc",
@@ -840,7 +879,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/kiama-knights/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_42fd70e33e24b6",
@@ -861,7 +901,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/kogarah-cougars/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_b28a369b93af9f",
@@ -882,7 +923,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_e37eddd932ccd9",
@@ -903,7 +945,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_fc86088fbfde98",
@@ -924,7 +967,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_c69a6d5aa44267",
@@ -945,7 +989,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_55a853daab27fc",
@@ -966,7 +1011,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_2b18ee6eabb5e5",
@@ -987,7 +1033,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_c160faa22108a7",
@@ -1008,7 +1055,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_8d4c059a111a31",
@@ -1029,7 +1077,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/maitland-pickers/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_30a367453a85d6",
@@ -1050,7 +1099,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_1aed181c4f7460",
@@ -1071,7 +1121,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/menai-roosters/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_8601b87828f9f8",
@@ -1092,7 +1143,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_5ef183890590e6",
@@ -1113,7 +1165,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_379b53979c0ebe",
@@ -1134,7 +1187,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/narrabeen-sharks/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_dbc7a0d0f4346d",
@@ -1155,7 +1209,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_6f29b06b5a9d4d",
@@ -1176,7 +1231,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_d92da0a292bb02",
@@ -1197,7 +1253,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_7a364b53fd3cbb",
@@ -1218,7 +1275,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_32a73742eaf01c",
@@ -1239,7 +1297,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_bc2c04ec7ff8f5",
@@ -1260,7 +1319,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/queanbeyan-blues/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_10ee6525caf601",
@@ -1281,7 +1341,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_f5b1b526582723",
@@ -1302,7 +1363,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_ece3e345896d6b",
@@ -1323,7 +1385,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_f3699f7f16d920",
@@ -1344,7 +1407,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_23bdb92d0abbb9",
@@ -1365,7 +1429,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_8ec70495325339",
@@ -1386,7 +1451,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/st-john-bosco/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_84f7ad0fc43843",
@@ -1407,7 +1473,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/st-josephs/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_cb11894c99c83e",
@@ -1428,7 +1495,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_46db15d8f4e7ac",
@@ -1449,7 +1517,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_bd3b2d3301b2ee",
@@ -1470,7 +1539,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/taren-point-titans/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_fbab64511e3e2e",
@@ -1491,7 +1561,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_03083f86d1261a",
@@ -1512,7 +1583,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/thirroul-butchers/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": "1913"
   },
   {
     "id": "rlc_3d675245a26569",
@@ -1533,7 +1605,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_829135b14fa68a",
@@ -1554,7 +1627,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_222a3da1eee6bd",
@@ -1575,7 +1649,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/yarrawarrah-tigers/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_44708d24695cdb",
@@ -1596,7 +1671,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_61dc30c261baae",
@@ -1617,7 +1693,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_4ae120f6648be7",
@@ -1638,7 +1715,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_b6979fa9915d0f",
@@ -1659,7 +1737,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_17dcad76196dcb",
@@ -1680,7 +1759,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_41c98b03f12094",
@@ -1701,7 +1781,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_6d6b4da570fe4a",
@@ -1722,7 +1803,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_541f541976ac9e",
@@ -1743,7 +1825,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_d96ae31e45f25c",
@@ -1764,7 +1847,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_a49aae4f84add6",
@@ -1785,7 +1869,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_c41ed23ab962e6",
@@ -1806,7 +1891,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_9d06f1c07dfaf4",
@@ -1827,7 +1913,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_aca2b0660f2803",
@@ -1848,7 +1935,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_1fe318aa2925a3",
@@ -1869,7 +1957,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.playrugbyleague.com/Competitions/Match/litchfield-bears-gatley-shield--v-south-darwin-rabbitohs-gatley-shield--1336466470",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_2cf428767262b5",
@@ -1890,7 +1979,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_9b2daf2f3425e9",
@@ -1911,7 +2001,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_c0311a6e0b6041",
@@ -1932,7 +2023,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_d9cdec196fc67a",
@@ -1953,7 +2045,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/burleigh-bears/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": "1934"
   },
   {
     "id": "rlc_5390541667efa4",
@@ -1974,7 +2067,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_5c574739a08c56",
@@ -1995,7 +2089,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/ipswich-jets/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_a3e532698b6ebd",
@@ -2016,7 +2111,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_7598596d517538",
@@ -2037,7 +2133,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_91a3cd86445714",
@@ -2058,7 +2155,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_b2ceecfffdaa51",
@@ -2079,7 +2177,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/redcliffe-dolphins/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_c9a24500508353",
@@ -2100,7 +2199,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_1103613dc3b6d9",
@@ -2121,7 +2221,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.sunshinecoaststadium.com.au/about/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_eb78acfc06de95",
@@ -2142,7 +2243,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_9ba1ca2c59b840",
@@ -2163,7 +2265,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/tweed-seagulls/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_c28c1faa0e63b4",
@@ -2184,7 +2287,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/western-clydesdales/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_1daffda2b4403f",
@@ -2205,7 +2309,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.bartvsports.com.au/clubs/wynnum-manly-seagulls/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_ce8df119f8231c",
@@ -2226,7 +2331,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://iscsport.com/adelaide-hills-tigers-rl/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_7965f1e4722fea",
@@ -2247,7 +2353,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.nrlsa.com.au/find-a-club",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_93b47468d67676",
@@ -2268,7 +2375,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.nrlsa.com.au/find-a-club",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_0b1dde7f0275cc",
@@ -2289,7 +2397,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.nrlsa.com.au/find-a-club",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_6cc19fcc0ba583",
@@ -2310,7 +2419,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.nrlsa.com.au/find-a-club",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_6c2b296d721f6d",
@@ -2331,7 +2441,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.nrlsa.com.au/find-a-club",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_fb0eeaad11e134",
@@ -2352,7 +2463,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_fdd0a836dcf8ae",
@@ -2373,7 +2485,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_33067457e44c0f",
@@ -2394,7 +2507,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_426d926b921eac",
@@ -2415,7 +2529,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_72e341702593de",
@@ -2436,7 +2551,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.playrugbyleague.com/Competitions/Match/werribee-bears-reserve-grade-men-v-waverley-oakleigh-panthers-reserve-grade-men-3617628",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_70838128e1d972",
@@ -2457,7 +2573,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_a25afc726c990f",
@@ -2478,7 +2595,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_0189f55db5d0ff",
@@ -2499,7 +2617,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_91a9276ceeb2ba",
@@ -2520,7 +2639,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_ad33d343b2d012",
@@ -2541,7 +2661,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_371b64aa786f67",
@@ -2562,7 +2683,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_5bdb5cc703fa87",
@@ -2583,7 +2705,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_ed6b95deeff7cb",
@@ -2604,7 +2727,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_5c39c405cf58dd",
@@ -2625,7 +2749,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_0df2f0dd09fee4",
@@ -2646,7 +2771,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.freoroosters.com/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": "1948"
   },
   {
     "id": "rlc_e83f43eba67278",
@@ -2667,7 +2793,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.playrugbyleague.com/Competitions/Match/joondalup-giants-val-murphy-trophy-v-kwinana-titans-val-murphy-trophy--1273012208",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_fb8d23678db6a3",
@@ -2688,7 +2815,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.playrugbyleague.com/Competitions/Competition/westpac-womens-league-tag-46703315?team=46318952",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_3138613bc30ac1",
@@ -2709,7 +2837,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_7b423f46f20efe",
@@ -2730,7 +2859,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_51e77d737b048d",
@@ -2751,7 +2881,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_ebad9a01401db9",
@@ -2772,7 +2903,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_cee0c9f93ce406",
@@ -2793,7 +2925,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_c029ae102c37f7",
@@ -2814,7 +2947,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_cd070ef15034c4",
@@ -2835,7 +2969,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.nbrlfc.com.au/2025-registrations",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": "1951"
   },
   {
     "id": "rlc_9f074ea0c9d514",
@@ -2856,7 +2991,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_5fa30128e61e83",
@@ -2877,7 +3013,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://www.rockinghamsharks.com/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_182dc5866f6799",
@@ -2898,7 +3035,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_7d48ed4e7f3aa8",
@@ -2919,7 +3057,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_ad3ead62584937",
@@ -2940,7 +3079,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "https://iscsport.com/south-perth-lions-rlc/",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_33138ce728faae",
@@ -2961,7 +3101,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_111863432a2512",
@@ -2982,7 +3123,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "rlc_ae59becd5972ff",
@@ -3003,7 +3145,8 @@ export const CLUB_REFERENCE_RECORDS = [
     "status": "research_candidate",
     "colours": "",
     "brandSource": "",
-    "reviewed": "2026-10-20"
+    "reviewed": "2026-10-20",
+    "founded": ""
   },
   {
     "id": "oztag_nsw_ballina",
