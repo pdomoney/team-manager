@@ -1333,3 +1333,10 @@ body.game .md-head{margin-top:0}
 .fold-btn[aria-expanded="false"] svg{transform:rotate(-90deg)}
 .fold .fold-body[hidden]{display:none}
 body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;top:calc(var(--top-h,64px) + 8px)}
+/* Phones: room between the two sides of the scoreboard */
+@media (max-width:480px){
+  .md-btn{width:48px;height:48px}
+  .md-n{font-size:44px}
+  .md-ctl{gap:4px}
+  .md-board{column-gap:12px}
+}
