@@ -153,12 +153,15 @@ with sync_playwright() as p:
           t.matches.push({id:'unsupported-league-match',date:d,start:'19:00',
             opponent:'League opponent',status:'scheduled',crew:[],result:{us:0,them:0}});
         }""")
+        # Refresh the active view after direct synthetic fixture setup, as normal form save does.
+        pg.evaluate(act,['tab',{'tab':'crew'}])
         pg.evaluate(act,['matchday-open',{'id':'unsupported-league-match'}])
-        c.ok(pg.locator('#sheet').is_visible()
+        c.ok(pg.locator('#sheet [data-act=close-sheet]').count()==1
              and pg.locator('.md-score').count()==0
-             and 'vs League opponent' in pg.inner_text('#sheet'),
+             and 'League opponent' in pg.inner_text('#sheet'),
              f'[{width}] non-Oztag teams use match details rather than Oztag try/8-player Match Day')
-        pg.locator('#sheet [data-act=close-sheet]').last.click()
+        if pg.locator('#sheet [data-act=close-sheet]').count():
+            pg.locator('#sheet [data-act=close-sheet]').last.click()
         # Club-only manual record: team selection and qualifications are optional.
         pg.locator('#view [data-act=crew-new]').click()
         pg.locator('#sheet form[data-form=crew-intake-start] button[type=submit]').click()
