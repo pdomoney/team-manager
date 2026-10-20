@@ -7,7 +7,7 @@ Built from main commit 1f0acbcacd2feb37c8d2c9d83370f1b4e7ce67a5, following PR29'
 - **Volunteer entry (Issue #24):** one selectable card, not nested pills; white helper text when selected against the palette's dark colour; compact padding and keyboard focus.
 - **Custom palette accessibility:** recheck text contrast of dark-card fallback buttons, not only button-to-header separation. Maintain 17 palettes and semantic colours.
 - **Badges:** expiring accreditation badge marker uses the current warning orange, without changing qualification or eligibility semantics.
-- **Match staff page (#crew):** clear selected-team context; section shortcuts; club volunteer directory first, staffing requirements distinctly team-scoped below it; simpler WWCC summary badge rows. Full sport role and status badges remain available through the profile and assignment workflow.
+- **Match staff page (#crew):** clear selected-team context; section shortcuts; club volunteer directory first, staffing requirements distinctly team-scoped below it; more scannable directory rows while retaining all role-specific accreditation badges, with full context also available in profiles and match assignments.
 - **Volunteer roles:** allow zero current roles for one sport with confirmation and warning for future match assignments. Preserve historic qualifications and other sport roles. No registration source is invented.
 - **Advanced Match Day:** existing eight-player field and increment-by-one Try buttons are Oztag-specific. Hide the advanced Match Day CTA for other sports and route attempts to standard match details. This is a safety limit, not full multisport scoring support.
 - Accepted design deviations from the previous audit are not broadly redesigned.
