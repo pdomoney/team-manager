@@ -80,7 +80,7 @@ export function resolveStyle(v) {
   // with either text colour. Resolve the final on-card button independently.
   let onDark = contrast(action, dark) >= 3 ? action : accent;
   if (Math.max(contrast(onDark, WHITE), contrast(onDark, INK)) < 4.5) {
-    onDark = until(onDark, c => contrast(c, WHITE) >= 4.5 && contrast(c, dark) >= 3, c => darken(c, 0.88));
+    onDark = until(onDark, c => contrast(c, INK) >= 4.5 && contrast(c, dark) >= 3, c => mixWhite(c, 0.15));
     if (!adjusted.includes('onDark')) adjusted.push('onDark');
   }
   const onDarkInk = contrast(onDark, WHITE) >= 4.5 ? WHITE : INK;
