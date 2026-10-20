@@ -6599,7 +6599,10 @@ const actions = {
     const form = el.closest('form'); if (!form) return;
     form.querySelector('[name=logo]').value = '';
     const v = n => (form.querySelector(`[name=${n}]`) || {}).value || '';
-    form.querySelector('.logo-prev').innerHTML = crest({ id: v('id') || 'new', name: v('name'), short: v('shortName'), colours: v('colours') }, true);
+    const existing = arr(ws.clubs).find(c=>c.id===v('brandingClubId'));
+    form.querySelector('.logo-prev').innerHTML = crest(existing ? {...clubBadge(existing),logo:''} : {
+      id:v('id')||'new',name:v('name'),short:v('shortName'),colours:v('colours')
+    },true);
     el.hidden = true;
   }),
   'club-del': coachOnly(el => {
@@ -6696,6 +6699,12 @@ document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
   if (k === 'team-style') previewTeamStyle(e.target.closest('form'));
+  if (k === 'club-branding-pick' && isCoach()) {
+    const id=e.target.value;
+    if (!arr(ws.clubs).some(c=>c.id===id)) return;
+    state.brandClubId=id; state.stylePreview=false; applyTeamStyle();
+    openSheet('Club branding',clubBrandingSection(id),'settings');
+  }
   if (k === 'crew-person') {
     const row = e.target.closest('.crew-assign-row'), box = row && row.querySelector('.crew-row-badges');
     if (box) box.innerHTML = crewAssignBadges(row.querySelector('[name=crew-person]').value, row.querySelector('[name=crew-role]').value, box.dataset.day);
@@ -6924,6 +6933,25 @@ document.addEventListener('submit', async e => {
     m.status = status;
     m.result = status === 'played' ? { us: Number(us), them: Number(them), notes: str('rnotes') } : status === 'forfeit' ? { forfeit, notes: str('rnotes') } : { notes: str('rnotes') };
     save(); refreshMatch(m.id); toast(M.matchOutcome(m) ? `Saved: ${resultText(m)}` : 'Saved');
+    return;
+  }
+  if (kind === 'club-branding') {
+    const id=str('brandingClubId'), club=arr(ws.clubs).find(c=>c.id===id);
+    if(!club){fieldError(form,'brandingClubId','Choose an existing club');return;}
+    const logo=str('logo');
+    if(logo && !M.validLogo(logo)){toast('The logo must be a supported small image.');return;}
+    const style=formStyle(form);
+    club.logo=logo;
+    if(style) club.style=style; else delete club.style;
+    const teams=M.clubTeams(ws,id);
+    let changed=0;
+    if(f.get('applyAll')) {
+      teams.forEach(t=>{if(t.team.style){delete t.team.style;changed++;}});
+    }
+    state.brandClubId=id;state.stylePreview=false;
+    save();closeSheet();render();
+    toast(club.name+' branding saved for '+teams.length+' team'+(teams.length===1?'':'s')+
+      (changed?' ('+changed+' team colour override'+(changed===1?'':'s')+' cleared)':''));
     return;
   }
   if (kind === 'club') {
