@@ -21,6 +21,8 @@ test('directory filters are case insensitive and preserve state/sport boundaries
   const wa = filterClubDirectory({sport:'Oztag',state:'WA',query:'Central Perth Districts'});
   assert.equal(wa.length, 1, 'shared WA venues must not become multiple independent clubs');
   assert.ok(wa[0].variants.length >= 2);
+  assert.equal(wa[0].venues.length,2);
+  assert.equal(directoryClubDraft(wa[0]).homeGround,'','multi-venue association requires choosing a ground');
 });
 test('adopting a directory entry requires an explicit editable draft; branding cannot be assumed', () => {
   const league = directoryRecords().find(x => x.sport === 'Rugby league');
