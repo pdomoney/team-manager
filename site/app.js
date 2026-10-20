@@ -876,7 +876,7 @@ function homeSelector(hv) {
   const clubUrg = c => c.teams.some(t => hv.urgency[t.id] === 'critical') ? 'critical' : c.teams.some(t => hv.urgency[t.id] === 'soon') ? 'soon' : '';
   const clubBtn = c => `<button class="scope-club" data-act="home-scope" data-kind="club" data-id="${esc(c.id)}" aria-pressed="${sc.kind === 'club' && sc.id === c.id}" ${clubOfScope === c.id ? 'data-open="1"' : ''} title="${esc(c.name)}">${crest(c)}<span class="scope-name">${esc(c.short)}</span>${urgencyDot(clubUrg(c))}</button>`;
   const teams = clubOfScope ? (hv.clubs.find(c => c.id === clubOfScope) || { teams: [] }).teams : hv.clubs.flatMap(c => c.teams);
-  const teamBtn = t => `<button class="scope-team" data-act="home-scope" data-kind="team" data-id="${esc(t.id)}" aria-pressed="${sc.kind === 'team' && sc.id === t.id}" title="${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}"><span class="scope-name">${sportIcon(sportOfTeam(t), 15, 'sport-ic chip-ic')}${esc(M.teamName(t))}</span>${t === data ? '<span class="sr-only"> (the team you’re editing)</span>' : ''}${urgencyDot(hv.urgency[t.id])}</button>`;
+  const teamBtn = t => `<button class="scope-team${t===data?' editing':''}" data-act="home-scope" data-kind="team" data-id="${esc(t.id)}" aria-pressed="${sc.kind === 'team' && sc.id === t.id}" title="${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}${t===data?' · Active team':''}"><span class="scope-name">${sportIcon(sportOfTeam(t), 15, 'sport-ic chip-ic')}${esc(M.teamName(t))}</span>${t === data ? '<span class="sr-only"> (the team you’re editing)</span>' : ''}${urgencyDot(hv.urgency[t.id])}</button>`;
   return `<nav class="scope" aria-label="Clubs and teams on Home">
     <div class="scope-row">
       <button class="scope-club" data-act="home-scope" data-kind="all" aria-pressed="${sc.kind === 'all'}">${crest(null)}<span class="scope-name">All clubs</span></button>
@@ -6517,10 +6517,16 @@ const actions = {
   }),
   'season-fix-done': coachOnly(() => { state.correcting = null; render(); toast('Corrections saved'); }),
   'home-scope': coachOnly(el => {
-    const kind = el.dataset.kind, id = el.dataset.id || '';
-    store.set('tm-home-scope', JSON.stringify({ kind, id })); state.homeAllUp = false;
-    if (kind === 'team' && id !== data.id) switchTeam(id);   // picking a team is choosing to work on it
-    else render();
+    const kind=el.dataset.kind,id=el.dataset.id||'';
+    store.set('tm-home-scope',JSON.stringify({kind,id}));state.homeAllUp=false;
+    if(kind==='team' && id!==data.id){switchTeam(id);return;}
+    if(kind==='club' && id!==data.team.clubId){
+      // When a coach opens a different club, activate one of its teams so the
+      // header, colours and editing context cannot point at the previous club.
+      const first=M.activeTeams(ws).find(t=>t.team.clubId===id);
+      if(first){switchTeam(first.id);return;}
+    }
+    render();
   }),
   'home-days': el => { store.set('tm-home-days', el.dataset.v); render(); },
   'home-more': () => { state.homeAllUp = !state.homeAllUp; render(); },
