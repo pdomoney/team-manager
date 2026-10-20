@@ -4607,7 +4607,8 @@ function clubDirectoryResults() {
     <span class="directory-sport">${sportIcon(c.sport,22)}</span><span class="grow">
       <span class="name" style="display:block">${esc(c.name)}</span>
       <span class="sub" style="display:block">${esc([c.sport,c.state,c.region||c.suburb].filter(Boolean).join(' · '))}</span>
-      ${c.ground ? `<span class="sub" style="display:block">Ground: ${esc(c.ground)}</span>` : ''}
+      ${c.venues?.length > 1 ? `<span class="sub" style="display:block">${c.venues.length} listed venues (verify)</span>` : c.ground ? `<span class="sub" style="display:block">Ground: ${esc(c.ground)}</span>` : ''}
+      ${c.registrationLinks?.length > 1 ? `<span class="sub" style="display:block">${c.registrationLinks.length} registration portals (review junior/senior details)</span>` : ''}
       ${c.colours ? `<span class="sub" style="display:block">Published colours (verify): ${esc(c.colours)}</span>` : ''}
       ${c.sourceClass === 'historical_location' ? '<span class="pill neutral">Historical lead</span>' : '<span class="pill neutral">Unverified listing</span>'}
       ${directorySource(c.sourceUrl) ? ` <a href="${esc(directorySource(c.sourceUrl))}" target="_blank" rel="noopener noreferrer">Source ↗</a>` : ''}
