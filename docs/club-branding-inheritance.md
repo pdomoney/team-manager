@@ -8,7 +8,7 @@ Each club can store an optional validated style with the existing palette or cus
 
 The effective style follows: explicit team override, otherwise club style, otherwise Classic. Previously saved team styles remain overrides. The administrator can select Apply club colours to every team to reset overrides for that club in one operation; unticking preserves them. New teams inherit automatically.
 
-The style and shared logo are included in each published team's public club projection, but no private club officials or coach contacts are added. Stored workspace schema, encryption, GitHub repository files, and manual two-device publishing remain unchanged. Coach authority is still workspace-wide, not secure tenant isolation.
+The style and shared logo are included in each published team's public club projection, but no private club officials or coach contacts are added. Stored workspace schema, encryption algorithms and GitHub publishing remain unchanged. The player-data projection in vault.js includes the validated public style object alongside the existing public club logo. Coach authority is still workspace-wide, not secure tenant isolation.
 
 ## User flow
 Settings > Club branding or Clubs and teams > Branding:
