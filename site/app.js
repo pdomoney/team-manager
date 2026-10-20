@@ -3556,19 +3556,37 @@ function viewCrew() {
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div>
-    <div class="crew-context"><span class="sub">Team: <strong>${esc(data.team.name)}</strong> · ${esc(sport)} · ${esc(profile.provider)}</span>
+    <div class="crew-context crew-team-context"><span class="sub"><span class="crew-eyebrow">Selected team</span><strong>${esc(data.team.name)}</strong> · ${esc(sport)} · ${esc(profile.provider)}</span>
     <button class="btn sm" data-act="crew-switch">Change team</button></div>
-    <details class="info-note"><summary>${icon('info', 18)}How these records work</summary><div>
+    <p class="crew-intro">The club directory lists people. Staffing requirements belong to the selected team, sport and competition.</p>
+    <nav class="crew-page-nav" aria-label="Match staff sections"><button class="btn sm" data-act="crew-jump" data-to="crew-directory-section">Club volunteers</button><button class="btn sm" data-act="crew-jump" data-to="crew-rules-section">Team requirements</button></nav>
+    <details class="info-note crew-help"><summary>${icon('info', 18)}How these records work</summary><div>
       <p class="hint">A person can appear in more than one club and help several teams: open their profile and tick the teams. Club membership, registration and accreditation are reviewed separately for each sport. These records stay in the encrypted coach copy, not a global member directory.</p>
       <p class="hint">Club directory records are entered by the coach, not verified by a governing body. Club-wide membership never automatically grants a match-day role. Do not store WWCC numbers, identity documents or registration passwords.</p>
       <p class="hint">Requirements can differ between competitions, age groups and categories. Record only the current official competition rules.</p></div></details>
+    <section class="sec crew-section crew-directory-panel" id="crew-directory-section">
+      <div class="sec-h"><h3>Club volunteers</h3><span class="crew-section-count">Directory and profiles</span></div>
+      <p class="crew-section-help">Choose a club to view its people. This does not change the team whose matches you are managing.</p>
     <form class="crew-directory-picker" data-form="crew-directory">
       <label class="field-l"><span>Volunteer directory for club</span><select name="clubId">
       <option value="" ${!selectedId?'selected':''}>Current team without a club</option>
       ${arr(ws.clubs).map(c=>'<option value="'+esc(c.id)+'" '+(c.id===selectedId?'selected':'')+'>'+esc(c.name)+'</option>').join('')}</select></label>
       <button class="btn sm" type="submit">View directory</button>
     </form>
-    <section class="sec crew-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">${rules.source ? 'Configure' : 'Set up'}</button></div>
+    <div class="crew-directory-results"><h3>${esc(directoryClub?.name || 'Current team')} volunteer directory (${pool.length})</h3>
+      ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="crew-basic" data-id="${esc(p.id)}">
+        <span class="crew-avatar">${M.validPhoto(p.photo) ? `<img src="${p.photo}" alt="">` : esc(initials(p)||'?')}</span><span class="grow"><span class="name">${esc(p.name)}</span>${(() => {
+          const inPool = inTeamPool(p, data), bs = crewBadges(p, sport, todayISO()), shown = inPool ? bs : bs.slice(0, 1), h = helps(p);
+          return `${badgeStrip(shown.slice(0,1))}<span class="sub" style="display:block">${inPool ? (bs.length > 1 ? esc(crewRolesForSport(p, sport).map(r => CREW_ROLES[r]).join(' · ')) : 'No roles reviewed for this team sport') : h.length ? 'Helps ' + esc(h.join(', ')) : 'Club member · no team yet. Open to tick their teams.'}</span>
+        <span class="sub" style="display:block">${p.active ? 'Available for selection' : 'Inactive'} · ${esc(shown[0]?.text || 'WWCC not recorded')}</span>`; })()}</span>
+        <span class="edit-hint">${icon('edit', 16)}Edit</span>
+      </button>`).join('')}</div>`
+        : '<div class="empty"><p>No volunteers are recorded for this club. Add someone manually, link an existing workspace record or prepare an email invitation.</p></div>'}
+      ${pool.length ? badgeLegend(sport) : ''}
+    </div>
+    </section>
+    <section class="sec crew-section crew-rules-panel" id="crew-rules-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">${rules.source ? 'Configure' : 'Set up'}</button></div>
+      <p class="crew-section-help">Requirements apply to the selected team, not the volunteer directory.</p>
       <p class="sub" style="white-space:normal">${esc(sport)} · ${esc(M.TEAM_CATEGORIES[context.category] || 'Category unrecorded')} · ${esc(context.ageGroup || 'Age group unrecorded')} · ${esc(context.division || 'Division unrecorded')}</p>
       ${rules.source && rules.rows.length && contextValid ? `<div class="crew-status"><strong>Season ${esc(rules.year || 'not set')}</strong>
         <span class="sub">${esc(policyScope)} · ${esc(rules.source)}${rules.reviewedAt ? ' · recorded '+esc(rules.reviewedAt):''}</span></div>
@@ -3576,17 +3594,7 @@ function viewCrew() {
         <ul class="crew-req">${rules.rows.map(r => `<li>${r.min} × ${esc(REQUIREMENT_ROLES[r.role])}</li>`).join('')}</ul>`
         : `<p class="crew-quiet">${icon('info', 18)}<span>${rules.source ? 'Staff requirements: set up for another age group, category, division or competition. Configure this one before relying on the check.' : 'Staff requirements: not set up. Matches can’t be marked as fully staffed until they are.'}</span></p>`}
     </section>
-    <section class="sec crew-section"><h3>${esc(directoryClub?.name || 'Current team')} volunteer directory (${pool.length})</h3>
-      ${pool.length ? `<div class="list">${pool.map(p => `<button class="row crew-person" data-act="crew-basic" data-id="${esc(p.id)}">
-        <span class="crew-avatar">${M.validPhoto(p.photo) ? `<img src="${p.photo}" alt="">` : esc(initials(p)||'?')}</span><span class="grow"><span class="name">${esc(p.name)}</span>${(() => {
-          const inPool = inTeamPool(p, data), bs = crewBadges(p, sport, todayISO()), shown = inPool ? bs : bs.slice(0, 1), h = helps(p);
-          return `${badgeStrip(shown)}<span class="sub" style="display:block">${inPool ? (bs.length > 1 ? esc(crewRolesForSport(p, sport).map(r => CREW_ROLES[r]).join(' · ')) : 'No roles reviewed for this team sport') : h.length ? 'Helps ' + esc(h.join(', ')) : 'Club member · no team yet. Open to tick their teams.'}</span>
-        <span class="sub" style="display:block">${p.active ? 'Available for selection' : 'Inactive'} · ${esc(badgeSummary(shown))}</span>`; })()}</span>
-        <span class="edit-hint">${icon('edit', 16)}Edit</span>
-      </button>`).join('')}</div>`
-        : '<div class="empty"><p>No volunteers are recorded for this club. Add someone manually, link an existing workspace record or prepare an email invitation.</p></div>'}
-      ${pool.length ? badgeLegend(sport) : ''}
-    </section>`;
+    `;
 }
 
 function intakeClubId() {
