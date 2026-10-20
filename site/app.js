@@ -4561,7 +4561,10 @@ const multiTeam = () => S.role === 'coach' && M.activeTeams(ws).length > 1;
 const teamFinder = { text: '', sport: '', club: '' };
 const clubFinder = { text: '', sport: '', state: '', limit: 30 };
 const finderMatch = (txt, needle) => String(txt || '').toLocaleLowerCase('en-AU').includes(needle.toLocaleLowerCase('en-AU'));
-const directorySource = u => /^https:\/\/[^\s<>"]+$/.test(String(u || '')) ? u : '';
+const directorySource = u => {
+  const url = String(u || '').split(/[;|\s]+/)[0];
+  return /^https:\/\/[^\s<>"]+$/.test(url) ? url : '';
+};
 function managedTeamResults() {
   const all = M.teamsOf(ws), activeN = all.filter(t => !t.archived).length;
   const q = teamFinder.text.trim(), sport = teamFinder.sport, clubId = teamFinder.club;
@@ -4606,6 +4609,7 @@ function clubDirectoryResults() {
       ${c.sourceClass === 'historical_location' ? '<span class="pill neutral">Historical lead</span>' : '<span class="pill neutral">Unverified listing</span>'}
       ${directorySource(c.sourceUrl) ? ` <a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener noreferrer">Source ↗</a>` : ''}
       ${directorySource(c.website) ? ` <a href="${esc(c.website)}" target="_blank" rel="noopener noreferrer">Website ↗</a>` : ''}
+      ${directorySource(c.brandSource) ? ` <a href="${esc(directorySource(c.brandSource))}" target="_blank" rel="noopener noreferrer" title="Logo research source; verify current branding and usage rights">Brand research ↗</a>` : ''}
     </span><button class="btn sm" data-act="directory-use" data-id="${esc(c.id)}">Use details</button>
   </div>`).join('');
   return `<p class="muted small" role="status">${filtered.length} research candidate${filtered.length===1?'':'s'}; showing ${Math.min(cap,filtered.length)}. Not an authoritative current-registration list.</p>
@@ -6804,6 +6808,12 @@ const actions = {
   'directory-use': coachOnly(el => {
     const c=directoryRecords().find(x=>x.id===el.dataset.id), draft=directoryClubDraft(c);
     if (!draft) return;
+    const existing=arr(ws.clubs).find(x=>x.sport===c.sport && x.name.toLocaleLowerCase('en-AU')===c.name.toLocaleLowerCase('en-AU'));
+    if (existing) {
+      openSheet('Existing club · '+existing.name,clubForm(existing),'club');
+      toast('This club already exists in your workspace. Review its current details instead of creating a duplicate.');
+      return;
+    }
     state.clubFor=null; // Browsing a club cannot assign any team, club role or ownership.
     openSheet('Review club details · '+c.name,clubForm(draft, true),'club');
     toast('Research candidate: review the details, colours and logo before creating a local club.');
