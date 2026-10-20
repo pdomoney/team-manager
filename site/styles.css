@@ -1486,3 +1486,16 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   .directory-row > .btn { margin-left:36px; }
 }
 @media(max-width:380px) { .directory-filters { grid-template-columns:1fr; } .directory-filters .field-l:first-child { grid-column:auto; } }
+
+
+/* Manual-club matching is a deliberate opt-in; avoid cramped actions on mobile. */
+.directory-row .directory-actions { display:flex;flex:0 0 auto;flex-direction:column;align-items:stretch;gap:7px;max-width:155px; }
+.directory-row .directory-actions .link-btn { font-size:12px;line-height:1.35;text-align:center;white-space:normal; }
+.club-link-list { margin:6px 0 18px;padding-left:22px;overflow-wrap:anywhere; }
+.club-link-list li { padding:5px 0;line-height:1.45; }
+#club-link-review { margin-top:14px; }
+#club-link-review h3 { font-size:15px;font-weight:600;margin:20px 0 8px; }
+@media(max-width:410px) {
+  .directory-row .directory-actions { max-width:125px; }
+  .directory-row .directory-actions .btn { white-space:normal;padding:9px 7px; }
+}
