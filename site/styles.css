@@ -1425,3 +1425,43 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
 .player-crop-panel input[type=range]{width:100%;min-height:30px;accent-color:var(--team-action)}
 .player-crop-panel .btn-row{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
 @media(max-width:600px){.crew-team-picker{width:100%}.player-crop-panel{padding:10px}}
+
+
+/* PR37: independent, device-local Cards/List views for plays, helpers, match staff and fixtures. */
+.card-mode{display:inline-flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--line);border-radius:10px;background:var(--chalk)}
+.card-mode button{font:500 13px/1.2 var(--font-b);min-height:34px;padding:6px 12px;border:0;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer}
+.card-mode button[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.card-mode button:focus-visible{outline:2px solid var(--pitch);outline-offset:2px}
+#view .sec-h>.btn-row{flex-wrap:wrap;justify-content:flex-end;gap:8px}
+#view .sec-h>.btn-row .card-mode{flex-shrink:0}
+.helper-avatar{width:42px;height:42px;display:inline-flex;flex:none;align-items:center;justify-content:center;border-radius:12px;background:var(--chalk);border:1px solid var(--line);color:var(--ink);font:600 14px/1 var(--font-b)}
+.helper-card{align-items:center;gap:10px}
+.view-list .helper-avatar{display:none}
+.view-list.plays-grid .play-thumb{display:none}
+.view-list.plays-grid .play-row{align-items:center;gap:12px;min-height:66px}
+.view-list.plays-grid .play-row .play-when{display:block;max-width:78ch}
+.view-list .crew-avatar{height:36px;width:36px;min-width:36px;border-radius:50%}
+.view-list .crew-person .edit-hint{margin-left:auto}
+.view-list .helper-card{min-height:57px}
+.view-list.sess-grid .m-card{min-height:74px}
+.view-list.sess-grid .m-when{min-width:94px}
+.view-list.sess-grid .m-time{font-size:20px}
+.view-list.sess-grid .m-card .sess-main{flex:1}
+.sport-tactics{max-width:760px}
+.sport-tactics h3{font-weight:600;font-size:16px;margin:18px 0 6px}
+.sport-tactics .btn-row{justify-content:flex-start;flex-wrap:wrap;margin:14px 0}
+@media(min-width:900px){
+  body.wide .list.grid.view-list{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:12px;background:var(--paper);overflow:hidden}
+  body.wide .list.grid.view-list>*{border:0;border-radius:0;box-shadow:none;background:transparent}
+  body.wide .list.grid.view-list>*+*{border-top:1px solid var(--line)}
+  body.wide .plays-grid.view-list .play-row{flex-direction:row;align-items:center;gap:12px;padding:10px 14px;border-top:0}
+  body.wide .plays-grid.view-list .play-thumb{display:none}
+  body.wide .plays-grid.view-list .play-row>.pill{align-self:center}
+  body.wide .crew-directory-list.view-cards{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+  body.wide .crew-directory-list.view-cards .crew-person{min-height:128px;align-items:flex-start}
+}
+@media(max-width:650px){
+  .card-mode button{padding:6px 9px;min-height:36px}
+  #view .sec-h>.btn-row{gap:6px}
+  .view-list.sess-grid .m-time{font-size:17px}
+}
