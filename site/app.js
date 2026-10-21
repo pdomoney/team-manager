@@ -5416,7 +5416,7 @@ function viewMore() {
 // P04B: the People screen is only available within the trusted coach copy.
 // Local review records are NOT global Person identities, legal guardian proof,
 // or club/association/child account permissions.
-const peopleScope = () => localPeopleNamespace({ owner: gh.owner, repo: gh.repo, trial: S.trial });
+const peopleScope = () => localPeopleNamespace({ owner: S.trial ? (gh.owner || 'local') : gh.owner, repo: S.trial ? (gh.repo || 'sample') : gh.repo, trial: S.trial });
 const peopleKind = { player:'Player', helper:'Helper', 'match-official':'Match staff',
   'club-official':'Club official', 'team-staff':'Team staff', 'season-staff':'Season staff' };
 const peopleSourceName = x => [x.displayName || 'Unnamed', peopleKind[x.kind] || x.kind,
