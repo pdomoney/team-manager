@@ -5160,7 +5160,7 @@ function afterJersey(p, msg) {
 const SAFE_ACTS = new Set(('tab nav close-sheet settings layout layout-width lock-mode refresh sign-out squad-filter train-view report-range toggle-past attendance '
   + 'lineup-menu layer system sys-side sys-play task-view task-filter task-waiting play-open play-phase anim-play anim-slow anim-restart play-back play-side play-mode study-prev study-next plays-view psets '
   + 'preview-on preview-off teams team-switch team-pick home-scope home-days home-more home-go updates rules-open rules-seen review-system review-play club-open '
-  + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open').split(' '));
+  + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open people-undo').split(' '));
 const pastMsg = () => V && V.viewSeason ? `${V.viewSeason.name} is read-only. Go back to the current season, or make a correction.` : 'Start a season first: Seasons, from the season under the team name.';
 function blockedInPast(act) {
   if (!V || S.role !== 'coach' || state.preview || /^(season|comp|club)-/.test(act) || SAFE_ACTS.has(act)) return false;
