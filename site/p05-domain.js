@@ -90,7 +90,39 @@ export function domainReferenceIssues(ws) {
       const members = arr(s.squad).map(m => m?.playerId);
       if (!unique(members)) issues.push('duplicate-squad-player:' + t.id + ':' + s.id);
       if (members.some(id => !pids.includes(id))) issues.push('dangling-squad-player:' + t.id + ':' + s.id);
+      const staffIds = arr(s.staff).map(r => r?.id).filter(id => str(id));
+      if (!unique(staffIds)) issues.push('duplicate-season-staff-id:' + t.id + ':' + s.id);
     }
   }
   return Object.freeze(issues);
+}
+
+/**
+ * P05 final consolidation: safe read-only season history index.
+ * Uses original team/season/player IDs. Does not fabricate staff identities,
+ * copy jerseys across seasons, or export private player and guardian details.
+ */
+export function seasonHistoryIndex(ws, teamId) {
+  const team = teamRef(ws, teamId);
+  if (!team) return null;
+  const t = findTeam(ws, teamId);
+  const rows = seasonsOf(t).map(season => {
+    const ref = teamSeasonRef(ws, teamId, season?.id);
+    if (!ref) return null;
+    const players = arr(seasonLens(t, season.id).players);
+    const roster = players.map(p => playerParticipationRef(ws, teamId, season.id, p.id));
+    if (roster.some(x => !x)) return null;
+    const stableStaff = arr(season.staff)
+      .filter(r => str(r?.id) && str(r?.role))
+      .map(r => teamAppointmentRef(ws, teamId, season.id, r.id, r.role));
+    if (stableStaff.some(x => !x)) return null;
+    return Object.freeze({
+      teamId, seasonId: season.id, status: ref.status,
+      sport: team.sport, historical: ref.archived,
+      playerRefs: Object.freeze(roster.map(p => p.key)),
+      staffRefs: Object.freeze(stableStaff.map(a => a.key))
+    });
+  });
+  if (rows.some(x => !x)) return null;
+  return Object.freeze(rows);
 }
