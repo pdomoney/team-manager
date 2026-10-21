@@ -4,6 +4,7 @@
 // Not connected to site/app.js or persisted by the current schema-4 app.
 // Actual individual accounts and per-club permission enforcement: post-P10 #55.
 import { teamsOf } from './model.js';
+import { STAFF_SOURCE_ID } from './staff-source-ids.js';
 
 const rows = x => Array.isArray(x) ? x : [];
 const word = x => typeof x === 'string' ? x.trim() : '';
@@ -59,18 +60,18 @@ export function buildLocalPeopleIndex(workspace, namespace) {
         if(!player)reviews.push({type:'missing-helper-player',helperRef:helper.sourceRef});
       }
     }
-    rows(t.team?.staff).forEach((p,i)=>add('team-staff',[t.id,i],p?.name,'',club,p?.role));
+    rows(t.team?.staff).forEach((p,i)=>add('team-staff',[t.id,STAFF_SOURCE_ID.test(p?.id||'')?p.id:i],p?.name,'',club,p?.role));
     for(const season of rows(t.seasons)){
       if (!word(season?.id) || seasonIds.has(season.id)) return {error:'Duplicate/missing season ID requires manual review'};
       seasonIds.add(season.id);
-      rows(season.staff).forEach((p,i)=>add('season-staff',[t.id,season.id,i],p?.name,'',club,p?.role));
+      rows(season.staff).forEach((p,i)=>add('season-staff',[t.id,season.id,STAFF_SOURCE_ID.test(p?.id||'')?p.id:i],p?.name,'',club,p?.role));
     }
   }
   const clubs = new Set();
   for(const c of rows(workspace.clubs)){
     if(!word(c?.id) || clubs.has(c.id)) return {error:'Duplicate/missing club ID requires manual review'};
     clubs.add(c.id);
-    rows(c.officials).forEach((p,i)=>add('club-official',[c.id,i],p?.name,'',c.id,p?.role));
+    rows(c.officials).forEach((p,i)=>add('club-official',[c.id,STAFF_SOURCE_ID.test(p?.id||'')?p.id:i],p?.name,'',c.id,p?.role));
   }
   const crewIds = new Set();
   for(const p of rows(workspace.matchOfficials)){
