@@ -24,7 +24,11 @@ export function projectSchema4DryRun(source, sourceWorkspace) {
     staffSnapshots: [], competitions: [], entries: [], events: [],
     reviewQueue: [], legacyReferences: []
   };
-  const teamRows = [{...source, id: text(source.id || 'team1')}, ...rows(source.teams)];
+  // Root-team compatibility: these arrays belong to workspace, not the first team.
+  // Avoid embedding workspace-level personal records inside root-team snapshots.
+  const { schema, teams: otherTeams, clubs: workspaceClubs, competitions: workspaceComps,
+    matchOfficials: workspaceCrew, library: workspaceLibrary, ...rootTeam } = source;
+  const teamRows = [{...rootTeam, id: text(source.id || 'team1')}, ...rows(otherTeams)];
   const existingKeys = new Set(), persons = new Map(), clubs = new Set(), teams = new Set();
   const remember = (key, kind, value) => {
     if (existingKeys.has(key)) throw new Error('Duplicate legacy key; manual correction required: ' + key);
