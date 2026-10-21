@@ -1,6 +1,8 @@
 # P01 — Canonical domain and tenancy architecture (proposed)
 
-**Status:** Design candidate for owner review. **Not yet an approved schema, implementation or production migration.**  
+**Status:** Design candidate for owner review. **Not yet an approved schema, implementation or production migration.**
+
+> **Sequencing agreed 21 October 2026:** P01–P10 will be developed and accepted **within the current GitHub Pages + encrypted coach-workspace application**. Canonical entities here are forward-compatible models and privacy/permission *design*, not a requirement to implement Supabase, individual login or server-enforced tenancy before P10. Backend/provider selection, secure multi-tenant access and real database cutover are explicitly deferred to [post-P10 Issue #55](https://github.com/pdomoney/team-manager/issues/55), and require separate owner approval. Never enable simulated association, club or guardian roles as production security boundaries.  
 **Phase:** [#43](https://github.com/pdomoney/team-manager/issues/43) · [Roadmap #41](https://github.com/pdomoney/team-manager/issues/41) · P00 accepted baseline [main `1f9f9301a4ed2c6945d59dea5d3e4ca6316cc641`](https://github.com/pdomoney/team-manager/commit/1f9f9301a4ed2c6945d59dea5d3e4ca6316cc641).  
 **Related:** [P00 feature register](p00-baseline-and-preservation.md), [overlap and risk register](p00-data-and-workflow-map.md), [P01 mapping/dry run](p01-schema4-migration-and-dryrun.md), [P01 threat model/platform choice](p01-security-and-platform-options.md).
 
@@ -129,4 +131,4 @@ The table describes **intended grants only after P02 implementation**, not capab
 5. **Independent coach workspace to club transfer:** personal works remain private unless separately shared/licensed; assignment and deletion policies need approval.
 6. **Sources of official fixture and sport-registration data:** only validated agreements/feeds become authoritative; no implied automation.
 
-**Next:** P01 review and a synthetic non-production mapping dry run. P02 implements actual identity and row-level restrictions **only after P01 is accepted**.
+**Next:** P01 architecture review and synthetic dry run; P02 may build **in-app person/account concepts, role definitions, invitation drafts and simulated permission flows** for trusted users without changing the live shared-password security boundary. **Individual authentication, row-level restrictions, backend authorisation and cross-tenant deployment are post-P10 Issue #55**, only after separate owner approval.
