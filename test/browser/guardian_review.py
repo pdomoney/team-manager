@@ -24,20 +24,24 @@ with sync_playwright() as p:
         phone:'PRIVATE ADULT PHONE',playerId:'p04d-child-one'});
       ws.clubs.push({id:'p04d-club',name:'Synthetic P04D Club',sport:'Oztag'});
       ws.teams=ws.teams||[];
-      ws.teams.push({id:'p04d-team2',team:{name:'Other Kids Team',clubId:'p04d-club',sport:'Oztag'},
+      ws.teams.push({id:'p04dteam2',team:{name:'Other Kids Team',clubId:'p04d-club',sport:'Oztag'},
         players:[{id:'p04d-child-two',name:'Child Two Example',notes:'SECOND CHILD PRIVATE'}],
         helpers:[],seasons:[],matches:[],sessions:[],tasks:[],notices:[],messages:[],
         lineups:[],plays:[],playerSets:[],systems:{}});
     }""")
-    pg.goto(url+'#more')
-    pg.click('[data-act=tab][data-tab=people]')
+    # Navigate without reloading, so intentionally unsaved synthetic fixtures
+    # remain in the in-memory coach workspace for the full workflow.
+    pg.evaluate("""() => {
+      const b=document.createElement('button');
+      b.dataset.act='tab';b.dataset.tab='people';
+      document.body.appendChild(b);b.click();b.remove();
+    }""")
     pg.wait_for_timeout(120)
     c.ok(pg.locator('form[data-form=guardian-review]').count()==1,
          'coach-only review form is present')
     txt=pg.inner_text('#view')
-    c.ok('No guardian account or permission' not in txt or
-         'No guardian account' in txt,
-         'no claim of guardian account access')
+    c.ok('This page cannot create logins, grant access' in txt,
+         'People page explicitly disclaims account and access rights')
     c.ok('does not verify legal guardianship' in txt,
          'explicit non-verification notice at point of entry')
     options=lambda name:pg.locator('form[data-form=guardian-review] select[name='+name+'] option').evaluate_all(
@@ -70,7 +74,7 @@ with sync_playwright() as p:
              'correction saved as new immutable event, original remains')
         add(child_two,'carer-reported')
         state=pg.evaluate('window.__team.ws.guardianReviews')
-        c.ok(len(state)==2 and any('p04d-team2' in x['childPlayerRef'] for x in state),
+        c.ok(len(state)==2 and any('p04dteam2' in x['childPlayerRef'] for x in state),
              'one adult recorded for two distinct children and teams')
         pg.click('[data-act=guardian-reverse] >> nth=0')
         pg.wait_for_timeout(140)
