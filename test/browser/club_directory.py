@@ -36,9 +36,21 @@ with sync_playwright() as p:
              f'[{width}] explicit creation copies public fields only')
         pg.fill('[data-input=directory-find]','Engadine Dragons')
         pg.locator('#national-directory-results [data-act=directory-use]').click()
+        pg.wait_for_selector('#sheet [data-change=directory-link-pick]')
+        c.ok(pg.locator('#sheet [data-change=directory-link-pick]').input_value()=='engadinedragons'
+             and 'email' in pg.inner_text('#club-link-review').lower(),
+             f'[{width}] JRLFC variant proposes user-confirmed match and previews missing details')
+        old_ref=W("JSON.stringify(W.clubs.find(x=>x.id==='engadinedragons'))")
+        c.ok(W('W.clubs.length')==before+1 and W("!W.clubs.find(x=>x.id==='engadinedragons').email"),
+             f'[{width}] preview leaves manually managed club unchanged')
+        pg.locator('#sheet [data-act=directory-link-confirm]').click()
         pg.wait_for_selector('#sheet form[data-form=club]')
-        c.ok(pg.locator('#sheet [name=id]').input_value()=='engadinedragons' and W('W.clubs.length')==before+1,
-             f'[{width}] equivalent JRLFC name offers the existing managed club rather than duplicating it')
+        c.ok(pg.locator('#sheet [name=id]').input_value()=='engadinedragons'
+             and W('W.clubs.length')==before+1
+             and W("W.clubs.find(x=>x.id==='engadinedragons').email==='secretary@engadinedragons.com.au'")
+             and W("W.clubs.find(x=>x.id==='engadinedragons').directoryMatch.id==='rlc_309c59a2a0de9e'")
+             and W("M.clubTeams(W,'engadinedragons').length")>=1,
+             f'[{width}] explicit match fills missing contact but keeps managed club ID and teams')
         pg.keyboard.press('Escape')
         pg.fill('[data-input=managed-find]','DragonTag Women')
         c.ok(pg.locator('#managed-team-results .team-row').count()==1,

@@ -222,3 +222,9 @@ On pull requests, GitHub Actions runs unit tests separately and browser qualific
 ## Licence
 
 MIT.
+
+
+### Link an existing manually created club to directory research (pending acceptance)
+
+The national research directory can suggest a likely match to a club already entered by a coach. **Use details** offers a comparison when the names match; **Match existing club** lets the coach select a managed club explicitly. The preview shows the blank fields that would be filled and conflicts that would remain untouched. Nothing is linked or saved until the coach confirms. Existing club records, teams, staff, seasons, logos, colour styles and permissions stay as they are, and public listings are **not** treated as verified current registration. The optional published colour words require a separate choice and never apply a logo/theme. See [club linking safeguards and regression checks](docs/club-research-linking.md).
+
