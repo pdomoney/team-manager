@@ -107,6 +107,7 @@ export function linkPlayerTeams(ws, sourceTeamId, sourcePlayerId, targetTeamId, 
   if (target.archived || !activeSeason(target)) return { error: 'The destination team needs an active season.' };
   if (source.archived) return { error: 'Archived source teams cannot supply new player links.' };
   const sources = arr(source.players).filter(x => x.id === sourcePlayerId);
+  if (!sources.length) return { error: 'Source player not found.' };
   if (sources.length !== 1) return { error: 'Choose one valid, uniquely identified source player.' };
   const p = sources[0];
   const key = personKey(source, p);
@@ -114,6 +115,7 @@ export function linkPlayerTeams(ws, sourceTeamId, sourcePlayerId, targetTeamId, 
   let dest = null;
   if (targetPlayerId) {
     const destinations = arr(target.players).filter(x => x.id === targetPlayerId);
+    if (!destinations.length) return { error: 'The selected destination player was not found.' };
     if (destinations.length !== 1) return { error: 'Choose one valid, uniquely identified destination player.' };
     dest = destinations[0];
     if (dest.personId && dest.personId !== key) return { error: 'That player is already linked to another person.' };
