@@ -9,6 +9,27 @@ const word = v => typeof v === 'string' ? v.trim() : '';
 const rows = v => Array.isArray(v) ? v : [];
 const own = (x,k) => Object.prototype.hasOwnProperty.call(x,k);
 const DURABLE_KINDS = new Set(['player','helper','match-official']);
+const key = (...parts) => JSON.stringify(parts);
+// Match a stable legacy record by its exact local IDs before recording the
+// review. The separate advisor index must not be allowed to go stale between
+// review and save (or refer to a record that another device has removed).
+const currentSourcePersonKey = (ws, namespace, ref) => {
+  if (!parseRef(ref,namespace) || !ws || typeof ws!=='object') return null;
+  const [,kind,...parts]=JSON.parse(ref);
+  if(kind==='match-official'){
+    const matches=rows(ws.matchOfficials).filter(p=>p?.id===parts[0]);
+    return matches.length===1 ? key(namespace,'provisional-person',kind,parts[0]) : null;
+  }
+  const teams=[ws,...rows(ws.teams)].filter(t=>t?.id===parts[0]);
+  if(teams.length!==1) return null;
+  const t=teams[0], list=rows(kind==='player'?t.players:t.helpers);
+  const matches=list.filter(p=>p?.id===parts[1]);
+  if(matches.length!==1) return null;
+  const p=matches[0];
+  return kind==='player' && word(p.personId)
+    ? key(namespace,'existing-explicit-player-personId',p.personId)
+    : key(namespace,'provisional-person',kind,parts[0],parts[1]);
+};
 const iso = v => typeof v === 'string' &&
   /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(v) &&
   Number.isFinite(Date.parse(v)) ? v : '';
@@ -30,9 +51,11 @@ const cleanLedgerRecord = x => {
       !['reviewed','reversed'].includes(x.status) ||
       refs.length!==2 || !refs.every(z=>typeof z==='string' && z.length<=4096 && parseRef(z,namespace)) ||
       refs[0]===refs[1] || refs[0]>refs[1] ||
+      id!==key('local-person-link',namespace,...refs) ||
       prior.length!==2 || !prior.every(z=>word(z)&&typeof z==='string'&&z.length<=4096) ||
       prior[0]===prior[1] || !word(x.reviewedBy) || !iso(x.reviewedAt) ||
-      (x.status==='reversed' && (!word(x.reversedBy)||!iso(x.reversedAt))))
+      (x.status==='reversed' && (!word(x.reversedBy)||!iso(x.reversedAt) ||
+         Date.parse(x.reversedAt)<Date.parse(x.reviewedAt))))
     return null;
   return {
     id,namespace,sourceRefs:refs.slice(),priorPersonKeys:prior.slice(),
@@ -70,8 +93,9 @@ export function appendReviewedPersonLink(workspace,index,reviewed,{reviewedAt}={
     return {error:'Only stable player/helper/match-official references can be saved'};
   }
   const current=refs.map(r=>rows(index.references).find(x=>x.sourceRef===r));
-  if(current.some(x=>!x)||current.some((x,i)=>x.personKey!==peopleKeys[i]))
-    return {error:'Source records or original person IDs changed; review again'};
+  if(current.some(x=>!x)||current.some((x,i)=>x.personKey!==peopleKeys[i]) ||
+      refs.some((ref,i)=>currentSourcePersonKey(workspace,index.namespace,ref)!==peopleKeys[i]))
+    return {error:'Workspace source records or original person IDs changed; review again'};
   if(current[0].personKey===current[1].personKey)
     return {error:'Records already share an explicit local person'};
   const record=cleanLedgerRecord({
@@ -95,6 +119,7 @@ export function reverseReviewedPersonLink(workspace,id,{reversedBy,reversedAt}={
   if(!current||current.status!=='reviewed'||!word(reversedBy)||!iso(reversedAt))
     return {error:'A recorded, active review and identified reviewer/time are required'};
   const next=cleanLedgerRecord({...current,status:'reversed',reversedBy,reversedAt});
+  if(!next) return {error:'Invalid reversal timestamp or record'};
   return {
     workspace:{...workspace,peopleReviews:normalizePersonReviews(
       ledger.map(x=>x.id===id?next:x))},
