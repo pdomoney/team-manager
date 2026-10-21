@@ -5428,10 +5428,10 @@ const peopleSourceName = x => {
     if(Array.isArray(ref)&&['player','helper','team-staff','season-staff'].includes(x.kind))
       teamName=M.findTeam(ws,ref[2])?.team?.name||ref[2];
   }catch{ /* missing display source */ }
+  const clubName=x.clubId && (arr(ws.clubs).find(c=>c.id===x.clubId)?.name||x.clubId);
   return [x.displayName || 'Unnamed', peopleKind[x.kind] || x.kind,
     x.role && x.role !== x.kind ? x.role : '',teamName,
-    x.clubId ? 'Club '+(M.clubOf(ws,M.findTeam(ws,JSON.parse(x.sourceRef||'null')?.[2]))?.name||
-      ws.clubs?.find(c=>c.id===x.clubId)?.name||x.clubId) : ''
+    clubName ? 'Club '+clubName : ''
   ].filter(Boolean).join(' · ');
 };
 function viewPeople() {
