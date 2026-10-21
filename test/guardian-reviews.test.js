@@ -115,6 +115,26 @@ test('P04D invalid, duplicate, stale or unconfirmed sources never create a new r
  const duplicate=clone(w);duplicate.helpers.push({...duplicate.helpers[0]});
  assert.ok(view(duplicate).error);
 });
+test('P04D stale adviser indexes cannot record or correct after the live source changed',()=>{
+ const workspace=baseline(),old=refs(workspace);
+ const removed=clone(workspace);removed.helpers=[];
+ const stale=recordGuardianReview(removed,old.index,{
+   helperRef:old.helperRef,childPlayerRef:old.childPlayerRef,
+   relationship:'parent-reported',by:'coach',at:at0});
+ assert.match(stale.error,/changed/);
+ const changed=clone(workspace);changed.players[0].personId='a-new-local-person';
+ const rejected=recordGuardianReview(changed,old.index,{
+   helperRef:old.helperRef,childPlayerRef:old.childPlayerRef,
+   relationship:'parent-reported',by:'coach',at:at0});
+ assert.match(rejected.error,/changed/);
+ const original=create(workspace).workspace;
+ const stillOld=refs(original);
+ const modified=clone(original);modified.players[0].personId='changed-after-record';
+ const amendStale=amendGuardianReview(modified,stillOld.index,{
+   recordId:original.guardianReviews[0].id,action:'correct',
+   relationship:'relative-reported',by:'coach',at:at1});
+ assert.match(amendStale.error,/changed/);
+});
 test('P04D missing and changed sources are marked stale; reversal remains possible',()=>{
  const w=create(baseline()).workspace;
  const missing=clone(w);missing.helpers=[];
