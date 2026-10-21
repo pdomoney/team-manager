@@ -38,6 +38,7 @@ import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
 import * as M from './model.js';
 import { localPeopleNamespace, localPeopleReviewView, acceptLocalPeopleLink, undoLocalPeopleLink } from './people-ui.js';
 import { prepareStaffSourceIds } from './staff-source-ids.js';
+import { REPORTED_RELATIONSHIPS, recordGuardianReview, amendGuardianReview } from './guardian-reviews.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
 
@@ -5161,7 +5162,7 @@ function afterJersey(p, msg) {
 const SAFE_ACTS = new Set(('tab nav close-sheet settings layout layout-width lock-mode refresh sign-out squad-filter train-view report-range toggle-past attendance '
   + 'lineup-menu layer system sys-side sys-play task-view task-filter task-waiting play-open play-phase anim-play anim-slow anim-restart play-back play-side play-mode study-prev study-next plays-view psets '
   + 'preview-on preview-off teams team-switch team-pick home-scope home-days home-more home-go updates rules-open rules-seen review-system review-play club-open '
-  + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open people-undo people-staff-prepare').split(' '));
+  + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open people-undo people-staff-prepare guardian-correct guardian-reverse').split(' '));
 const pastMsg = () => V && V.viewSeason ? `${V.viewSeason.name} is read-only. Go back to the current season, or make a correction.` : 'Start a season first: Seasons, from the season under the team name.';
 function blockedInPast(act) {
   if (!V || S.role !== 'coach' || state.preview || /^(season|comp|club)-/.test(act) || SAFE_ACTS.has(act)) return false;
@@ -5444,6 +5445,23 @@ function viewPeople() {
     </div>
     ${r.canReverse?`<button class="btn sm" type="button" data-act="people-undo" data-id="${esc(r.id)}">Reverse review</button>`:''}
   </div>`).join('');
+  const guardianOptions=(kind)=>page.sources.filter(x=>x.kind===kind)
+    .map(x=>`<option value="${esc(x.sourceRef)}">${esc(peopleSourceName(x))}</option>`).join('');
+  const guardianHistory=page.guardianLedger.reviews.map(r=>`<div class="row helper-card">
+    <div class="grow">
+      <span class="name" style="display:block">${esc(r.helperName)} · ${esc(r.childName)}</span>
+      <span class="sub" style="display:block">${esc(r.helperTeamId)} → ${esc(r.childTeamId)} · ${esc(
+        r.status==='recorded'?'Reported relationship, NOT legal verification':
+        r.status==='reversed'?'Review reversed':'Source needs checking: '+r.status)}</span>
+      <span class="sub" style="display:block">${esc(REPORTED_RELATIONSHIPS[r.relationship]||'No relationship recorded')} ·
+        ${r.history.length} review event${r.history.length===1?'':'s'}</span>
+      <span class="sub" style="display:block">No guardian account or permission to access child records</span>
+    </div>
+    <div class="btn-row">
+      ${r.canCorrect?`<button type="button" class="btn sm" data-act="guardian-correct" data-id="${esc(r.id)}">Correct</button>`:''}
+      ${r.canReverse?`<button type="button" class="btn sm" data-act="guardian-reverse" data-id="${esc(r.id)}">Reverse</button>`:''}
+    </div>
+  </div>`).join('');
   const guardians=page.guardianCandidates.map(c=>`<div class="row helper-card">
     <div class="grow"><span class="name" style="display:block">${esc(c.helper)} · ${esc(c.child)}</span>
       <span class="sub" style="display:block">${esc(c.teamId)} · ${c.missing?'Player record missing':'Helper-to-player reference only'} · Not a verified guardian</span>
@@ -5477,6 +5495,23 @@ function viewPeople() {
     <section class="card" aria-labelledby="people-ledger-title"><h3 id="people-ledger-title">Reviewed links · ${page.reviews.length}</h3>
       <p class="hint">These are historical coach acknowledgements, not a shared login or verified personal identity. Reversal keeps a record for backup and merge conflicts.</p>
       <div class="list">${reviews||'<p class="hint">No locally reviewed links yet.</p>'}</div>
+    </section>
+    <section class="card" aria-labelledby="guardian-record-title">
+      <h3 id="guardian-record-title">Reported guardian and carer relationships · ${page.guardianLedger.reviews.length}</h3>
+      <p class="hint"><strong>Private coach review only.</strong> Choose a helper/parent/carer record and an individual player record. A reported relationship may be mistaken or out of date. Recording or correcting it <strong>does not verify legal guardianship</strong>, confirm consent, or grant any access to a child's records.</p>
+      <form data-form="guardian-review">
+        <div class="two">
+          <label class="field-l"><span>Adult / helper record</span><select name="guardianRef" required>
+            <option value="">Choose existing helper</option>${guardianOptions('helper')}</select></label>
+          <label class="field-l"><span>Child / player record</span><select name="childPlayerRef" required>
+            <option value="">Choose player and team</option>${guardianOptions('player')}</select></label>
+        </div>
+        <label class="field-l"><span>Reported relationship</span><select name="relationship" required>
+          ${Object.entries(REPORTED_RELATIONSHIPS).map(([k,v])=>`<option value="${esc(k)}">${esc(v)}</option>`).join('')}</select></label>
+        <button class="btn primary" type="submit">Review and record relationship</button>
+      </form>
+      <p class="hint">If an adult is not in the list, add their record as a Helper for one of your teams first. This alone does not make them a volunteer or an authorised guardian.</p>
+      <div class="list">${guardianHistory||'<p class="hint">No reported relationships recorded yet.</p>'}</div>
     </section>
     <section class="card" aria-labelledby="guardian-review-title"><h3 id="guardian-review-title">Guardian relationship candidates · ${page.guardianCandidates.length}</h3>
       <p class="hint">A helper linked to a player may be a guardian, another relative or a volunteer. This is a private review list only. No relationship here is legally verified, and guardians cannot sign in or access child records.</p>
@@ -6256,6 +6291,31 @@ const actions = {
   'tab': el => { if (el.dataset.tab === 'club') state.clubId = null; goTo(el.dataset.tab); },
   'nav': el => { const g = NAV.find(x => x.id === el.dataset.g); if (!g) return; const last = state.lastView[g.id]; goTo(last && viewsOf(g).some(v => v[0] === last) && navOf(state.tab) !== g ? last : viewsOf(g)[0][0]); },
   'close-sheet': () => requestCloseSheet(),
+  'guardian-correct': coachOnly(el => {
+    if(!isCoach())return;
+    const page=localPeopleReviewView(ws,peopleScope());
+    const r=page.guardianLedger?.reviews.find(x=>x.id===el.dataset.id && x.canCorrect);
+    if(!r){toast('Relationship is unavailable or needs a new review');return;}
+    openSheet('Correct reported relationship', `<form data-form="guardian-correct">
+      <input type="hidden" name="recordId" value="${esc(r.id)}">
+      <p class="hint">${esc(r.helperName)} · ${esc(r.childName)}. This correction changes only the coach review history and never verifies legal authority.</p>
+      <label class="field-l"><span>Correct reported relationship</span><select name="relationship" required>
+        ${Object.entries(REPORTED_RELATIONSHIPS).map(([k,v])=>`<option value="${esc(k)}" ${r.relationship===k?'selected':''}>${esc(v)}</option>`).join('')}
+      </select></label><button class="btn primary block" type="submit">Save correction</button>
+    </form>`, 'guardian-correct');
+  }),
+  'guardian-reverse': coachOnly(el => {
+    if(!isCoach())return;
+    const ns=peopleScope(),page=localPeopleReviewView(ws,ns);
+    const r=page.guardianLedger?.reviews.find(x=>x.id===el.dataset.id && x.canReverse);
+    if(!r){toast('Relationship review is no longer available');return;}
+    if(!confirm(`Reverse the reported relationship between ${r.helperName} and ${r.childName}?\n\nThis retains historical review events but does not remove or modify any player, helper or sporting records. A reversed relationship cannot be silently reactivated.`))return;
+    const result=amendGuardianReview(ws,page.index,{recordId:r.id,by:'Shared coach workspace',
+      at:new Date().toISOString(),action:'reverse'});
+    if(result.error){toast(result.error);return;}
+    ws.guardianReviews=result.workspace.guardianReviews;
+    save();render();toast('Reported relationship reversed; history retained');
+  }),
   'people-staff-prepare': coachOnly(() => {
     if(!isCoach())return;
     const ns=peopleScope(),page=localPeopleReviewView(ws,ns);
@@ -7288,11 +7348,45 @@ document.addEventListener('change', e => {
 document.addEventListener('submit', async e => {
   const form = e.target, kind = form.dataset.form; if (!kind) return;
   e.preventDefault();
-  if (readOnlyView() && !/^(season|comp|club|settings|people-link)/.test(kind)) { toast(pastMsg()); return; }
+  if (readOnlyView() && !/^(season|comp|club|settings|people-link|guardian-review|guardian-correct)/.test(kind)) { toast(pastMsg()); return; }
   const f = new FormData(form);
   const str = k => String(f.get(k) ?? '').trim();
   const raw = k => String(f.get(k) ?? '');
 
+  if(kind==='guardian-review'){
+    if(!isCoach())return;
+    const namespace=peopleScope(),page=localPeopleReviewView(ws,namespace);
+    const g=page.sources?.find(x=>x.sourceRef===str('guardianRef')&&x.kind==='helper');
+    const child=page.sources?.find(x=>x.sourceRef===str('childPlayerRef')&&x.kind==='player');
+    if(!g||!child){toast('Select an existing helper and player');return;}
+    const choice=str('relationship');
+    if(!Object.prototype.hasOwnProperty.call(REPORTED_RELATIONSHIPS,choice)){
+      toast('Choose a valid reported relationship');return;
+    }
+    if(!confirm(`Record this UNVERIFIED relationship?\n\n${peopleSourceName(g)}\n${peopleSourceName(child)}\n\n${REPORTED_RELATIONSHIPS[choice]}\n\nNo legal identity, parental consent or access rights are verified or granted.`))return;
+    const result=recordGuardianReview(ws,page.index,{helperRef:g.sourceRef,
+      childPlayerRef:child.sourceRef,relationship:choice,
+      by:'Shared coach workspace',at:new Date().toISOString()});
+    if(result.error){toast(result.error);return;}
+    ws.guardianReviews=result.workspace.guardianReviews;
+    save();render();toast('Reported relationship saved (not legally verified)');
+    return;
+  }
+  if(kind==='guardian-correct'){
+    if(!isCoach())return;
+    const page=localPeopleReviewView(ws,peopleScope()),recordId=str('recordId');
+    const row=page.guardianLedger?.reviews.find(x=>x.id===recordId && x.canCorrect);
+    if(!row){toast('Relationship source has changed; refresh and review');return;}
+    const choice=str('relationship');
+    if(!Object.prototype.hasOwnProperty.call(REPORTED_RELATIONSHIPS,choice)){toast('Invalid reported relationship');return;}
+    if(!confirm(`Correct this UNVERIFIED relationship to ${REPORTED_RELATIONSHIPS[choice]}?\n\nNo legal authority or child data access is created.`))return;
+    const result=amendGuardianReview(ws,page.index,{recordId,relationship:choice,
+      by:'Shared coach workspace',at:new Date().toISOString(),action:'correct'});
+    if(result.error){toast(result.error);return;}
+    ws.guardianReviews=result.workspace.guardianReviews;
+    save();closeSheet();render();toast('Reported relationship corrected; history retained');
+    return;
+  }
   if (kind === 'people-link') {
     if (!isCoach()) return;
     const ns=peopleScope(), firstRef=str('firstRef'), secondRef=str('secondRef');
