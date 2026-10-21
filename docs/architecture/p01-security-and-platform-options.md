@@ -36,6 +36,29 @@ Do not quote current plan limits or prices from old documentation. Before select
 
 Choose **B only if** it supports acceptable Australian data hosting, audited RLS, reliable automated backups and restoration, clear pricing for large association rollouts, practical role management and appropriate contractual/privacy terms. Otherwise evaluate C. Keep GitHub Pages for frontend only if it can provide secure API-origin deployment, CSP and versioned assets. No secrets/service role keys may be bundled into static client code. Subscription permissions cannot rely on client UI toggles.
 
+## 2A. Verified supplier facts and indicative entry costs (checked 21 October 2026)
+
+This is an **official supplier-information snapshot**, not negotiated pricing, a complete TCO, or confirmation of contractual Australian-only processing:
+
+- **Region:** Supabase lists the specific **Oceania (Sydney), `ap-southeast-2`** project region. A broad 'APAC' grouping may place data in Singapore, so choose the **specific Sydney region** if Australian primary data location is required. Selection of a primary region alone is not a guarantee that *all* backup, authentication, email, logging, CDN or support processing remains in Australia. Source: https://supabase.com/docs/guides/platform/regions.
+- **Starter Pro price:** supplier lists **from USD $25/month** for Pro including one project and monthly compute credits, with quotas and overages. This is an indicative **platform starting price, not a price per club licence**. Costs can increase with compute, storage, egress, active users, extra projects and service add-ons. Source: https://supabase.com/pricing.
+- **Paid-backup terms:** supplier lists daily backups **7 days on Pro** and **14 days on Team**. Additional point-in-time recovery is separately charged, shown at approximately **USD $100/month for seven-day PITR** at the time of checking. These controls require documented recovery tests. Sources: https://supabase.com/docs/guides/platform/backups and https://supabase.com/pricing.
+- **Security caveat:** Supabase recommends RLS on every table in exposed schemas, removal of unnecessary `anon`/`authenticated` grants and special care with views which can bypass RLS unless explicitly secured. A `service_role` bypasses RLS and must remain server-side. Source: https://supabase.com/docs/guides/database/postgres/row-level-security.
+- **Changing region:** the vendor describes creating a new project and migrating data to change a region; it is not simply a live setting toggle. Source: https://supabase.com/docs/guides/troubleshooting/change-project-region-eWJo5Z.
+
+### Cost model to approve before implementation
+
+Use a **single carefully partitioned multi-tenant project** as the initial *cost-model candidate*, not one paid Supabase project per club by default. Dedicated project-per-organisation may offer stronger physical isolation but changes per-project cost, operations, migrations and backups; evaluate as a separate priced option.
+
+| Product shape | Required estimate inputs (do not substitute fake numbers) | To be verified |
+| --- | --- | --- |
+| Individual coach | 1–5 teams, people, photos, content library, MAU, local/remote access | Compute/base plan, storage, traffic, recovery |
+| Club | Number of teams, players, volunteers, guardians, invitations, media and peak concurrent usage | Row policy performance, cost per active user and data volume |
+| Association | Clubs × teams × members, fixture results, staff compliance evidence, association dashboards | Aggregate-query scale, operational support, backup/recovery |
+| Multiple associations | Concurrent league tenants, administrator activity, tenant count, audit retention, recovery windows | Cost/load isolation, database scale, storage and egress |
+
+Pricing is in **USD** unless supplier explicitly says otherwise. Allow for AUD FX, GST/taxes, support, security monitoring, email/notification delivery, domain, backup export, CI/staging and commercial support. **No purchase or vendor architecture is approved by this snapshot.**
+
 ## 3. Privacy by design
 
 - Assign explicit **sensitivity categories**: directory/public, club-operational, private contact, junior-sensitive, injury/medical-related, safeguarding, accreditation, account/security, commercial/billing.
