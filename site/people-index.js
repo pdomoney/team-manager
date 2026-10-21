@@ -114,8 +114,10 @@ export function reviewLocalPersonLink(index,proposal,{reviewedBy,confirmed}={}) 
       proposal.status!=='proposed'||!word(reviewedBy)||typeof confirmed!=='boolean')
     return {error:'Valid pending proposal, current workspace and explicit review required'};
   const refs=rows(proposal.sourceRefs), current=refs.map(ref=>getRef(index,ref));
-  if(refs.length!==2||current.some(x=>!x)||current[0].personKey===current[1].personKey)
-    return {error:'Original distinct person records must still exist'};
+  if(refs.length!==2||current.some(x=>!x)||current[0].personKey===current[1].personKey ||
+      rows(proposal.priorPersonKeys).length!==2 ||
+      current.map(x=>x.personKey).sort().join('|')!==rows(proposal.priorPersonKeys).slice().sort().join('|'))
+    return {error:'Original distinct person records must still exist with unchanged identity claims'};
   if(!confirmed) return {...proposal,status:'rejected',humanReviewed:true,reviewedBy:word(reviewedBy),
     authorityVerified:false,changedLegacyRecords:false,accessGrants:[]};
   return {...proposal,status:'locally-reviewed-link-only',humanReviewed:true,reviewedBy:word(reviewedBy),
