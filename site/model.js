@@ -183,7 +183,7 @@ export function normSeason(x) {
   return {
     id: String(s.id || uid()), name: String(s.name || 'Season'), label: String(s.label || ''), year: String(s.year || ''),
     start: String(s.start || ''), end: String(s.end || ''), status: SEASON_STATUS[s.status] ? s.status : 'planned',
-    staff: arr(s.staff).filter(isObj).map(r => ({ role: String(r.role || 'Other'), name: String(r.name || ''), phone: String(r.phone || ''), email: String(r.email || '') })),
+    staff: arr(s.staff).filter(isObj).map(r => ({ ...(typeof r.id==='string'&&r.id?{id:r.id}:{}), role: String(r.role || 'Other'), name: String(r.name || ''), phone: String(r.phone || ''), email: String(r.email || '') })),
     defaults: Object.fromEntries(Object.entries(obj(s.defaults)).filter(([k]) => DEFAULT_KEYS.includes(k)).map(([k, v]) => [k, String(v || '')])),
     squad: arr(s.squad).filter(m => isObj(m) && m.playerId).map(m => ({ playerId: String(m.playerId), number: String(m.number || ''), positions: arr(m.positions).map(String),
       status: ['available', 'injured', 'unavailable'].includes(m.status) ? m.status : 'available', reg: REG_STATUS[m.reg] !== undefined ? m.reg : '' })),
@@ -557,7 +557,7 @@ export function normClub(c) {
   // Old saved clubs simply have no style and continue using the classic theme.
   const style = normStyle(out.style);
   if (style) out.style = style; else delete out.style;
-  out.officials = arr(out.officials).filter(isObj).map(o => ({ role: String(o.role || 'Other'), name: String(o.name || ''), phone: String(o.phone || ''), email: String(o.email || '') }));
+  out.officials = arr(out.officials).filter(isObj).map(o => ({ ...(typeof o.id==='string'&&o.id?{id:o.id}:{}), role: String(o.role || 'Other'), name: String(o.name || ''), phone: String(o.phone || ''), email: String(o.email || '') }));
   out.notes = String(out.notes || '');
   return out;
 }

@@ -3,9 +3,10 @@
 // and not a source of access control. The caller must enforce coach-only UI.
 import { buildLocalPeopleIndex, proposeLocalPersonLink, reviewLocalPersonLink } from './people-index.js';
 import { appendReviewedPersonLink, reverseReviewedPersonLink, normalizePersonReviews } from './people-ledger.js';
+import { inspectStaffSourceIds, STAFF_SOURCE_ID } from './staff-source-ids.js';
 
 const txt=x=>typeof x==='string'?x.trim():'';
-const allow=new Set(['player','helper','match-official']);
+const allow=new Set(['player','helper','match-official','club-official','team-staff','season-staff']);
 // This namespace identifies the caller's trusted data location for record keys;
 // it is NOT proof of account ownership or a secure tenant ID.
 export const localPeopleNamespace=({owner,repo,trial=false}={})=>{
@@ -47,12 +48,15 @@ export function localPeopleReviewView(workspace,namespace){
   const sources=index.references.map(x=>({
     sourceRef:x.sourceRef,kind:x.kind,displayName:x.displayName,
     role:x.role,clubId:x.clubId,
-    durable:allow.has(x.kind),
+    durable:allow.has(x.kind) && (
+      !['club-official','team-staff','season-staff'].includes(x.kind) ||
+      STAFF_SOURCE_ID.test(JSON.parse(x.sourceRef).at(-1))),
     personKey:x.personKey
   }));
   return {
     namespace,index,sources,reviews,guardianCandidates,
     sourceCount:sources.length,reviewedCount:reviews.filter(x=>x.status==='reviewed').length,
+    staffReadiness:inspectStaffSourceIds(workspace),
     safety:{coachOnly:true,noAccountLogin:true,hasLegalGuardianVerification:false,
       grantsPermissions:false,joinsNamesAutomatically:false}
   };
@@ -63,7 +67,7 @@ export function acceptLocalPeopleLink(workspace,namespace,{firstRef,secondRef,re
   if(view.error)return {error:view.error};
   const a=view.sources.find(x=>x.sourceRef===firstRef),b=view.sources.find(x=>x.sourceRef===secondRef);
   if(!a||!b||!a.durable||!b.durable||a.sourceRef===b.sourceRef)
-    return {error:'Choose two different stable records (player, helper or match staff)'};
+    return {error:'Choose two distinct person records with prepared stable IDs'};
   const proposal=proposeLocalPersonLink(view.index,{
     firstRef,secondRef,proposedBy:reviewedBy,
     reason:'Explicit coach review from the People page'
