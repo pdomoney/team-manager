@@ -5421,8 +5421,19 @@ function viewMore() {
 const peopleScope = () => localPeopleNamespace({ owner: S.trial ? (gh.owner || 'local') : gh.owner, repo: S.trial ? (gh.repo || 'sample') : gh.repo, trial: S.trial });
 const peopleKind = { player:'Player', helper:'Helper', 'match-official':'Match staff',
   'club-official':'Club official', 'team-staff':'Team staff', 'season-staff':'Season staff' };
-const peopleSourceName = x => [x.displayName || 'Unnamed', peopleKind[x.kind] || x.kind,
-  x.role && x.role !== x.kind ? x.role : '', x.clubId ? 'Club '+x.clubId : ''].filter(Boolean).join(' · ');
+const peopleSourceName = x => {
+  let teamName='';
+  try {
+    const ref=JSON.parse(x.sourceRef||'null');
+    if(Array.isArray(ref)&&['player','helper','team-staff','season-staff'].includes(x.kind))
+      teamName=M.findTeam(ws,ref[2])?.team?.name||ref[2];
+  }catch{ /* missing display source */ }
+  return [x.displayName || 'Unnamed', peopleKind[x.kind] || x.kind,
+    x.role && x.role !== x.kind ? x.role : '',teamName,
+    x.clubId ? 'Club '+(M.clubOf(ws,M.findTeam(ws,JSON.parse(x.sourceRef||'null')?.[2]))?.name||
+      ws.clubs?.find(c=>c.id===x.clubId)?.name||x.clubId) : ''
+  ].filter(Boolean).join(' · ');
+};
 function viewPeople() {
   if (!isCoach()) return '<div class="empty"><p>People records are available only in the coach workspace.</p></div>';
   const namespace=peopleScope();
