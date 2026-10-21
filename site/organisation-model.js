@@ -7,6 +7,7 @@
 // explicitly deferred to post-P10 GitHub issue #55. Do not wire this module as
 // an authorisation or billing layer in the current GitHub Pages app.
 import { teamsOf } from './model.js';
+import { normStyle } from './team-style.js';
 
 const asText = v => typeof v === 'string' ? v.trim() : '';
 const rows = v => Array.isArray(v) ? v : [];
@@ -19,8 +20,7 @@ const publicBrand = c => ({
   sport: asText(c.sport),
   colours: asText(c.colours),
   hasLogo: typeof c.logo === 'string' && c.logo.startsWith('data:image/'),
-  style: c.style && typeof c.style === 'object' && !Array.isArray(c.style)
-    ? structuredClone(c.style) : null,
+  style: normStyle(c.style),
   directoryResearchId: asText(c.directoryMatch?.id),
   directoryOnlyResearch: !!c.directoryMatch?.id
 });
@@ -170,11 +170,13 @@ export function previewAssociationSummary({ affiliationRecords=[], aggregatedClu
   const reviewed = new Set(affiliationRecords.filter(x=>x?.status==='reviewed')
     .map(x=>x.clubId).filter(Boolean));
   let teams=0, clubs=0;
+  const counted = new Set();
   for(const c of aggregatedClubs) {
     if (!c || typeof c !== 'object' || !reviewed.has(c.clubId) ||
-        !validLimit(c.teamCount) || Object.keys(c).some(k=>!['clubId','teamCount'].includes(k)))
+        !validLimit(c.teamCount) || counted.has(c.clubId) ||
+        Object.keys(c).some(k=>!['clubId','teamCount'].includes(k)))
       return { error:'Only reviewed affiliations with non-sensitive, pre-aggregated counts are allowed' };
-    clubs++;teams+=c.teamCount;
+    counted.add(c.clubId);clubs++;teams+=c.teamCount;
   }
   return { synthetic:true, reviewedClubCount:clubs, teamCount:teams,
     includesPersonalData:false, grantsPrivateDataAccess:false };
