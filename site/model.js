@@ -1533,6 +1533,8 @@ function putRecord(ws, key, value, template) {
       if (i>=0) ws.peopleReviews[i]=clean;
       else ws.peopleReviews.push(clean);
     }
+    // Deterministic order is necessary for round-trips and two-device merges.
+    ws.peopleReviews = normalizePersonReviews(ws.peopleReviews);
     return;
   }
   if (parts[0] === 'club' || parts[0] === 'comp' || parts[0] === 'off') {
