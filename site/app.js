@@ -37,6 +37,7 @@ import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-ba
 import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
 import * as M from './model.js';
 import { localPeopleNamespace, localPeopleReviewView, acceptLocalPeopleLink, undoLocalPeopleLink } from './people-ui.js';
+import { prepareStaffSourceIds } from './staff-source-ids.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
 
@@ -4758,7 +4759,7 @@ function clubForm(c, forceNew = false) {
     <div class="two">${f('nights', 'Nights played', 'e.g. Tue mixed, Wed men’s')}${f('colours', 'Colours', 'e.g. red and white')}</div>
     <div class="two">${f('registration', 'Registration link', 'https://')}${f('conduct', 'Code of conduct link', 'https://')}</div>
     <h3 class="form-sec">Officials <span class="small muted">coaches only</span></h3>
-    ${rows.map((o, i) => `<fieldset class="person-row"><legend class="sr-only">Official ${i + 1}</legend>
+    ${rows.map((o, i) => `<fieldset class="person-row"><legend class="sr-only">Official ${i + 1}</legend><input type="hidden" name="o-id" value="${esc(o.id || '')}">
       <div class="two"><label class="field-l"><span>Role</span><select name="o-role">${M.CLUB_ROLES.map(r => `<option ${r === o.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label><label class="field-l"><span>Name</span><input type="text" name="o-name" value="${esc(o.name)}"></label></div>
       <div class="two"><label class="field-l"><span>Mobile</span><input type="tel" name="o-phone" value="${esc(o.phone)}"></label><label class="field-l"><span>Email</span><input type="email" name="o-email" value="${esc(o.email)}"></label></div></fieldset>`).join('')}
     <p class="hint" style="margin:-4px 0 12px">Leave a name blank to leave that row out. Save and reopen to add more.</p>
@@ -4859,12 +4860,12 @@ function teamDetailsFields(T, { staff: withStaff = true, maxMales = false, after
 }
 function staffFields(staff) {
   return `<h3 class="form-sec">Team staff</h3>
-    ${staff.map((x, i) => `<fieldset class="person-row"><legend class="sr-only">Staff member ${i + 1}</legend>
+    ${staff.map((x, i) => `<fieldset class="person-row"><legend class="sr-only">Staff member ${i + 1}</legend><input type="hidden" name="st-id" value="${esc(x.id || '')}">
       <div class="two"><label class="field-l"><span>Role</span><select name="st-role">${M.TEAM_ROLES.map(r => `<option ${r === x.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label><label class="field-l"><span>Name</span><input type="text" name="st-name" value="${esc(x.name)}"></label></div>
       <div class="two"><label class="field-l"><span>Mobile</span><input type="tel" name="st-phone" value="${esc(x.phone)}"></label><label class="field-l"><span>Email</span><input type="email" name="st-email" value="${esc(x.email)}"></label></div></fieldset>`).join('')}
     <p class="hint" style="margin:-4px 0 14px">Players see staff names and roles; mobiles and emails stay with coaches. Leave a name blank to leave a row out.</p>`;
 }
-const peopleRows = (f, p) => f.getAll(p + '-name').map((name, i) => ({ role: String(f.getAll(p + '-role')[i] || 'Other'), name: String(name).trim(), phone: String(f.getAll(p + '-phone')[i] || '').trim(), email: String(f.getAll(p + '-email')[i] || '').trim() })).filter(x => x.name);
+const peopleRows = (f, p) => f.getAll(p + '-name').map((name, i) => ({ ...(String(f.getAll(p + '-id')[i] || '').trim() ? { id: String(f.getAll(p + '-id')[i]).trim() } : {}), role: String(f.getAll(p + '-role')[i] || 'Other'), name: String(name).trim(), phone: String(f.getAll(p + '-phone')[i] || '').trim(), email: String(f.getAll(p + '-email')[i] || '').trim() })).filter(x => x.name);
 function teamTemplatePicker() {
   const teams = M.activeTeams(ws);
   return `<p class="hint">Choose a team in this coach workspace explicitly. Only selected setup values can be reused; no players, staff, private contacts, passwords, matches, jersey histories or season records will transfer.</p>
@@ -5160,7 +5161,7 @@ function afterJersey(p, msg) {
 const SAFE_ACTS = new Set(('tab nav close-sheet settings layout layout-width lock-mode refresh sign-out squad-filter train-view report-range toggle-past attendance '
   + 'lineup-menu layer system sys-side sys-play task-view task-filter task-waiting play-open play-phase anim-play anim-slow anim-restart play-back play-side play-mode study-prev study-next plays-view psets '
   + 'preview-on preview-off teams team-switch team-pick home-scope home-days home-more home-go updates rules-open rules-seen review-system review-play club-open '
-  + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open people-undo').split(' '));
+  + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open people-undo people-staff-prepare').split(' '));
 const pastMsg = () => V && V.viewSeason ? `${V.viewSeason.name} is read-only. Go back to the current season, or make a correction.` : 'Start a season first: Seasons, from the season under the team name.';
 function blockedInPast(act) {
   if (!V || S.role !== 'coach' || state.preview || /^(season|comp|club)-/.test(act) || SAFE_ACTS.has(act)) return false;
@@ -5428,12 +5429,13 @@ function viewPeople() {
   const page=localPeopleReviewView(ws,namespace);
   if(page.error) return `<div class="sec-h"><h2>People</h2></div><div class="note">${esc(page.error)}. Correct the source data and try again.</div>`;
   const stable=page.sources.filter(x=>x.durable);
+  const prep=page.staffReadiness;
   const opts=stable.map(x=>`<option value="${esc(x.sourceRef)}">${esc(peopleSourceName(x))}</option>`).join('');
   const list=page.sources.map(x=>`<div class="row helper-card" data-people-name="${esc(peopleSourceName(x).toLocaleLowerCase('en-AU'))}">
     <span class="helper-avatar" aria-hidden="true">${esc(initials({name:x.displayName||'?' }))}</span>
     <div class="grow"><span class="name" style="display:block">${esc(x.displayName||'Unnamed')}</span>
       <span class="sub" style="display:block">${esc((peopleKind[x.kind]||x.kind)+(x.role?' · '+x.role:'')+(x.clubId?' · '+x.clubId:''))}</span>
-      ${x.durable?'':'<span class="sub">Historical staff snapshot · linking unavailable until stable IDs are added</span>'}
+      ${x.durable?'':'<span class="sub">Staff snapshot · stable ID needed before linking</span>'}
     </div></div>`).join('');
   const reviews=page.reviews.map(r=>`<div class="row helper-card">
     <div class="grow"><span class="name" style="display:block">${esc(r.sources.map(peopleSourceName).join(' ↔ '))}</span>
@@ -5448,9 +5450,16 @@ function viewPeople() {
     </div></div>`).join('');
   return `<div class="sec-h"><h2>People</h2><span class="sub">Coach-only · ${page.sourceCount} source records · ${page.reviewedCount} local reviews</span></div>
     <p class="hint">One person may be recorded as a player, coach, official or volunteer in several teams. Names alone never join records. This page cannot create logins, grant access or verify a parent's legal authority.</p>
+    <section class="card" aria-labelledby="people-staff-prepare-title">
+      <h3 id="people-staff-prepare-title">Prepare club and team staff records</h3>
+      <p class="hint">Legacy staff entries had no persistent IDs. They are listed for reference but cannot be safely linked until each row has its own identifier. Preparing IDs does not verify identity or merge any records.</p>
+      ${prep.error ? `<p class="hint">${esc(prep.error)}</p>` :
+      `<p class="hint">${prep.ready} prepared · ${prep.missing} needing IDs (club, team and historical season staff)</p>
+      ${prep.missing>0?`<button type="button" class="btn sm" data-act="people-staff-prepare">Prepare ${prep.missing} staff record${prep.missing===1?'':'s'} for linking</button>`:'<p class="hint">All current staff sources have stable IDs.</p>'}`}
+    </section>
     <section class="card" aria-labelledby="people-review-title">
       <h3 id="people-review-title">Review two records</h3>
-      <p class="hint">Choose two <strong>distinct</strong> player, helper or match-staff records. Confirm only when you personally know they refer to the same person. Existing player IDs, jerseys, history and contact details are unchanged.</p>
+      <p class="hint">Choose two <strong>distinct</strong> eligible records, including club or team staff after their IDs have been prepared. Confirm only when you personally know they refer to the same person. Existing player IDs, jerseys, history and contact details are unchanged.</p>
       <form data-form="people-link">
         <div class="two">
           <label class="field-l"><span>First record</span><select name="firstRef" required><option value="">Choose person record</option>${opts}</select></label>
@@ -5458,7 +5467,7 @@ function viewPeople() {
         </div>
         <button class="btn primary" type="submit">Review and record link</button>
       </form>
-      <p class="hint">Club officials, team staff and historical season staff appear below for context but cannot be saved as linked people until stable record IDs are available.</p>
+      <p class="hint">Staff without stable record IDs remain view-only until prepared using the action above.</p>
     </section>
     <section class="card" aria-labelledby="people-sources-title">
       <div class="sec-h"><h3 id="people-sources-title">Existing records</h3></div>
@@ -6247,6 +6256,18 @@ const actions = {
   'tab': el => { if (el.dataset.tab === 'club') state.clubId = null; goTo(el.dataset.tab); },
   'nav': el => { const g = NAV.find(x => x.id === el.dataset.g); if (!g) return; const last = state.lastView[g.id]; goTo(last && viewsOf(g).some(v => v[0] === last) && navOf(state.tab) !== g ? last : viewsOf(g)[0][0]); },
   'close-sheet': () => requestCloseSheet(),
+  'people-staff-prepare': coachOnly(() => {
+    if(!isCoach())return;
+    const ns=peopleScope(),page=localPeopleReviewView(ws,ns);
+    if(page.error || page.staffReadiness?.error){toast(page.error||page.staffReadiness.error);return;}
+    const count=page.staffReadiness.missing;
+    if(!count){toast('All staff records are already prepared');return;}
+    if(!confirm(`Assign stable IDs to ${count} current club/team/season staff records in this coach workspace?\n\nThis preserves all names, roles, contacts and season records, and does not combine or verify people. Save an encrypted backup if you want a rollback copy.`))return;
+    const selected=data.id,result=prepareStaffSourceIds(ws);
+    if(result.error){toast(result.error);return;}
+    ws=result.workspace;pickTeam(selected);save();render();
+    toast(`${result.assigned} staff record${result.assigned===1?'':'s'} prepared and saved`);
+  }),
   'people-undo': coachOnly(el => {
     if (!isCoach()) return;
     const ns=peopleScope();
