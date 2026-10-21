@@ -8,7 +8,8 @@
 const word = v => typeof v === 'string' ? v.trim() : '';
 const rows = v => Array.isArray(v) ? v : [];
 const own = (x,k) => Object.prototype.hasOwnProperty.call(x,k);
-const DURABLE_KINDS = new Set(['player','helper','match-official']);
+import { STAFF_SOURCE_ID } from './staff-source-ids.js';
+const DURABLE_KINDS = new Set(['player','helper','match-official','club-official','team-staff','season-staff']);
 const key = (...parts) => JSON.stringify(parts);
 // Match a stable legacy record by its exact local IDs before recording the
 // review. The separate advisor index must not be allowed to go stale between
@@ -20,15 +21,28 @@ const currentSourcePersonKey = (ws, namespace, ref) => {
     const matches=rows(ws.matchOfficials).filter(p=>p?.id===parts[0]);
     return matches.length===1 ? key(namespace,'provisional-person',kind,parts[0]) : null;
   }
+  if(kind==='club-official'){
+    const clubs=rows(ws.clubs).filter(c=>c?.id===parts[0]);
+    if(clubs.length!==1)return null;
+    const matches=rows(clubs[0].officials).filter(p=>p?.id===parts[1]);
+    return matches.length===1 ? key(namespace,'provisional-person',kind,...parts):null;
+  }
   const teams=[ws,...rows(ws.teams)].filter(t=>t?.id===parts[0]);
-  if(teams.length!==1) return null;
-  const t=teams[0], list=rows(kind==='player'?t.players:t.helpers);
-  const matches=list.filter(p=>p?.id===parts[1]);
-  if(matches.length!==1) return null;
+  if(teams.length!==1)return null;
+  const t=teams[0];
+  let list;
+  if(kind==='season-staff'){
+    const seasons=rows(t.seasons).filter(x=>x?.id===parts[1]);
+    if(seasons.length!==1)return null;
+    list=rows(seasons[0].staff);
+  }else if(kind==='team-staff') list=rows(t.team?.staff);
+  else list=rows(kind==='player'?t.players:t.helpers);
+  const identity=parts[parts.length-1],matches=list.filter(p=>p?.id===identity);
+  if(matches.length!==1)return null;
   const p=matches[0];
   return kind==='player' && word(p.personId)
     ? key(namespace,'existing-explicit-player-personId',p.personId)
-    : key(namespace,'provisional-person',kind,parts[0],parts[1]);
+    : key(namespace,'provisional-person',kind,...parts);
 };
 const iso = v => typeof v === 'string' &&
   /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(v) &&
@@ -40,6 +54,8 @@ const parseRef = (ref,namespace) => {
       !DURABLE_KINDS.has(r[1]) || !r.slice(2).every(x=>word(x)))
       return false;
     if (r[1]==='match-official') return r.length===3;
+    if (r[1]==='season-staff') return r.length===5 && STAFF_SOURCE_ID.test(r[4]);
+    if (['team-staff','club-official'].includes(r[1])) return r.length===4 && STAFF_SOURCE_ID.test(r[3]);
     return r.length===4;
   } catch { return false; }
 };
