@@ -100,10 +100,13 @@ export function proposeLocalPersonLink(index,{firstRef,secondRef,proposedBy,reas
   if(!a||!b||a.sourceRef===b.sourceRef||!word(proposedBy))
     return {error:'Select two distinct existing local records and a reviewer'};
   if(a.personKey===b.personKey) return {error:'These records already share an explicit player identity'};
+  // Align the original identity keys with sorted source references. The
+  // reviewer may select either order, but saved links must be deterministic.
+  const ordered=[a,b].sort((x,y)=>x.sourceRef.localeCompare(y.sourceRef));
   return {
-    id:key('local-person-link',index.namespace,...[a.sourceRef,b.sourceRef].sort()),
-    namespace:index.namespace, sourceRefs:[a.sourceRef,b.sourceRef].sort(),
-    priorPersonKeys:[a.personKey,b.personKey],
+    id:key('local-person-link',index.namespace,...ordered.map(x=>x.sourceRef)),
+    namespace:index.namespace, sourceRefs:ordered.map(x=>x.sourceRef),
+    priorPersonKeys:ordered.map(x=>x.personKey),
     proposedBy:word(proposedBy),reason:word(reason).slice(0,240),
     status:'proposed',humanReviewed:false,authorityVerified:false,
     changedLegacyRecords:false,accessGrants:[],accountId:null
