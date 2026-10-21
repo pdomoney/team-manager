@@ -27,10 +27,11 @@ export { RULES };
 // Bounded, optional schema-4 provenance: reviewed Person-link proposals are
 // coach-only and stored with the existing encrypted workspace, not team files.
 import { normalizePersonReviews } from './people-ledger.js';
+import { normalizeGuardianReviews } from './guardian-reviews.js';
 
 export const SCHEMA = 4;
 export const PRIMARY_ID = 'team1';
-const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions', 'matchOfficials', 'peopleReviews'];
+const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions', 'matchOfficials', 'peopleReviews', 'guardianReviews'];
 const TEAM_ID = /^[a-z0-9]{3,32}$/;
 
 export const arr = v => Array.isArray(v) ? v : [];
@@ -154,6 +155,7 @@ export function migrateWorkspace(raw, normTeam = t => t) {
   ws.competitions = src.competitions === undefined ? seedCompetitions(ws) : arr(src.competitions).filter(isObj).map(normComp);
   ws.matchOfficials = arr(src.matchOfficials).filter(p => isObj(p) && typeof p.id === 'string' && typeof p.name === 'string');
   ws.peopleReviews = normalizePersonReviews(src.peopleReviews);
+  ws.guardianReviews = normalizeGuardianReviews(src.guardianReviews);
   repairCompetitions(ws);
   syncEvents(ws);
   fixDefaultPositions(ws);
@@ -1513,6 +1515,10 @@ export function records(ws) {
   // never lose a person's explicit review or undo during a workspace merge.
   normalizePersonReviews(ws.peopleReviews).forEach(x =>
     put(`person-review/${encodeURIComponent(x.id)}`, x, 'Local person-link review'));
+  // A separately encrypted coach-only relationship review. Source references
+  // and explicit corrections must never leak into a team/player projection.
+  normalizeGuardianReviews(ws.guardianReviews).forEach(x =>
+    put(`guardian-review/${encodeURIComponent(x.id)}`, x, 'Local reported guardian review'));
   const L = normLibrary(ws.library);
   ['plays', 'playerSets'].forEach(c => L[c].forEach(x => { if (x.id) put(`lib/${c}/${x.id}`, x, `Library · ${LABEL[c](x)}`); }));
   Object.entries(L.systems).forEach(([id, v]) => put(`lib/systems/${id}`, v, `Library · Game system: ${id}`));
@@ -1521,6 +1527,21 @@ export function records(ws) {
 // Put one record (or remove it, when value is undefined) into a workspace.
 function putRecord(ws, key, value, template) {
   const parts = key.split('/');
+  if (parts[0] === 'guardian-review') {
+    ws.guardianReviews = normalizeGuardianReviews(ws.guardianReviews);
+    const id=decodeURIComponent(parts[1] || '');
+    const i=ws.guardianReviews.findIndex(x=>x.id===id);
+    if(value===undefined) {
+      if(i>=0) ws.guardianReviews.splice(i,1);
+    } else {
+      const clean=normalizeGuardianReviews([value])[0];
+      if(!clean||clean.id!==id)return;
+      if(i>=0) ws.guardianReviews[i]=clean;
+      else ws.guardianReviews.push(clean);
+    }
+    ws.guardianReviews=normalizeGuardianReviews(ws.guardianReviews);
+    return;
+  }
   if (parts[0] === 'person-review') {
     ws.peopleReviews = normalizePersonReviews(ws.peopleReviews);
     const id=decodeURIComponent(parts[1] || '');

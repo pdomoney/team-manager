@@ -4,6 +4,7 @@
 import { buildLocalPeopleIndex, proposeLocalPersonLink, reviewLocalPersonLink } from './people-index.js';
 import { appendReviewedPersonLink, reverseReviewedPersonLink, normalizePersonReviews } from './people-ledger.js';
 import { inspectStaffSourceIds, STAFF_SOURCE_ID } from './staff-source-ids.js';
+import { guardianReviewView } from './guardian-reviews.js';
 
 const txt=x=>typeof x==='string'?x.trim():'';
 const allow=new Set(['player','helper','match-official','club-official','team-staff','season-staff']);
@@ -53,8 +54,10 @@ export function localPeopleReviewView(workspace,namespace){
       STAFF_SOURCE_ID.test(JSON.parse(x.sourceRef).at(-1))),
     personKey:x.personKey
   }));
+  const guardianLedger=guardianReviewView(workspace,index);
+  if(guardianLedger.error)return guardianLedger;
   return {
-    namespace,index,sources,reviews,guardianCandidates,
+    namespace,index,sources,reviews,guardianCandidates,guardianLedger,
     sourceCount:sources.length,reviewedCount:reviews.filter(x=>x.status==='reviewed').length,
     staffReadiness:inspectStaffSourceIds(workspace),
     safety:{coachOnly:true,noAccountLogin:true,hasLegalGuardianVerification:false,
