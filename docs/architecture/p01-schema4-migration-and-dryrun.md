@@ -1,6 +1,6 @@
 # P01 — Schema-4 coexistence, migration mapping and synthetic dry-run contract
 
-**Status:** Design-only; nothing here migrates an actual user, publishes records or alters runtime schema.  
+**Status:** Design-only; nothing here migrates an actual user, publishes records or alters runtime schema. **No Supabase or other backend migration in P01–P10**; the existing encrypted workspace remains authoritative until a separately approved [post-P10 rollout (#55)](https://github.com/pdomoney/team-manager/issues/55).  
 **Source:** accepted P00/P01 base main commit `1f9f9301a4ed2c6945d59dea5d3e4ca6316cc641`. **Target:** proposed canonical model in [p01-canonical-domain.md](p01-canonical-domain.md).  
 **Demonstrator:** [test/p01-architecture.test.js](../../test/p01-architecture.test.js), [test/support/p01-projector.js](../../test/support/p01-projector.js). Its data and mappings are synthetic, non-production, in-memory and do **not** persist to a backend.
 
@@ -79,4 +79,4 @@ The actual target IDs will use generated UUIDs recorded in LegacyReference, with
 
 Required audit states: `inventory`, `preflight_ok`, `projected`, `needs_review`, `approved`, `staged`, `validated`, `cutover`, `rolled_back`. Record exact old backup hash and encrypted storage location, approved owner, tool/version hash, source manifest counts, target row counts, original→new keys, unresolved review queue, independent verify report and rollback evidence. Logs redact personal contents. Partial batches stop rather than publish.
 
-The implementation must be staged through P02–P10. **P01 does not contain a data migration script for live data**; it produces an in-memory synthetic verification artifact for evaluating the design.
+**P01–P10:** implement compatible data models, explicit record linking, workflow and form consolidation, historical preservation and synthetic migration-readiness checks in the **existing application**. Do not change data ownership, add live backend accounts or cut over encrypted storage. **Post-P10 Issue #55:** subject to separate approval, carry out real backend authorisation, staging, migration and controlled cutover. **P01 does not contain a data migration script for live data**; it produces an in-memory synthetic verification artifact for evaluating the design.
