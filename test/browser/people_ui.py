@@ -27,7 +27,7 @@ with sync_playwright() as p:
          or 'No helper-to-player candidates' in text,
          'guardian section never describes a verified legal relation')
     c.ok('Names alone never join records' in text, 'same names cannot trigger automatic merging')
-    c.ok('stable IDs' in text and 'Coach-only' in text, 'unsupported historical staff scope clearly labelled')
+    c.ok('stable record IDs' in text and 'Coach-only' in text, 'unsupported historical staff scope clearly labelled')
     options=pg.locator('form[data-form=people-link] select[name=firstRef] option').evaluate_all(
         '(items) => items.map(x => ({value:x.value,text:x.textContent.trim()}))')
     first=next((x for x in options if 'Player' in x['text'] and x['value']),None)
