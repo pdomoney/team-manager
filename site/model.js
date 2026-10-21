@@ -99,15 +99,23 @@ export function teamPlayerCandidates(ws, targetTeamId) {
 export function linkPlayerTeams(ws, sourceTeamId, sourcePlayerId, targetTeamId, targetPlayerId = '') {
   const source = findTeam(ws, sourceTeamId), target = findTeam(ws, targetTeamId);
   if (!source || !target || source.id === target.id) return { error: 'Choose two different teams.' };
+  // P05B: do not infer a person from duplicate or ambiguous local player IDs.
+  // Reject ambiguous workspaces before mutating records so historic jerseys remain intact.
+  if (teamsOf(ws).filter(t => t.id === sourceTeamId).length !== 1 ||
+      teamsOf(ws).filter(t => t.id === targetTeamId).length !== 1)
+    return { error: 'Team identifiers are ambiguous; resolve duplicate team IDs before linking.' };
   if (target.archived || !activeSeason(target)) return { error: 'The destination team needs an active season.' };
-  const p = arr(source.players).find(x => x.id === sourcePlayerId);
-  if (!p) return { error: 'Source player not found.' };
+  if (source.archived) return { error: 'Archived source teams cannot supply new player links.' };
+  const sources = arr(source.players).filter(x => x.id === sourcePlayerId);
+  if (sources.length !== 1) return { error: 'Choose one valid, uniquely identified source player.' };
+  const p = sources[0];
   const key = personKey(source, p);
   if (arr(target.players).some(x => x.personId === key)) return { error: 'This player is already linked to that team.' };
   let dest = null;
   if (targetPlayerId) {
-    dest = arr(target.players).find(x => x.id === targetPlayerId);
-    if (!dest) return { error: 'The selected destination player was not found.' };
+    const destinations = arr(target.players).filter(x => x.id === targetPlayerId);
+    if (destinations.length !== 1) return { error: 'Choose one valid, uniquely identified destination player.' };
+    dest = destinations[0];
     if (dest.personId && dest.personId !== key) return { error: 'That player is already linked to another person.' };
   }
   // All validation precedes mutations, so rejected links cannot modify either team.
