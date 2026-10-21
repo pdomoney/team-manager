@@ -3,7 +3,7 @@
 // An appointment, qualification, availability or invitation alone never confirms match coverage.
 const rows = x => Array.isArray(x) ? x : [];
 const value = x => typeof x === 'string' ? x.trim() : '';
-const dateOk = (day, ends) => !ends || ( /^\\d{4}-\\d{2}-\\d{2}$/.test(ends) && ends >= day );
+const dateOk = (day, ends) => !ends || ( /^\d{4}-\d{2}-\d{2}$/.test(ends) && ends >= day );
 
 /**
  * A requirement: {role, count}; an assignment: {personId, role, status,
@@ -15,7 +15,7 @@ export function evaluateMatchCoverage({ sport, matchDate, policy, assignments } 
   const requirements = rows(policy?.requirements);
   const configured = !!value(policy?.source) && !!value(policy?.version) &&
     !!value(policy?.sport) && policy.sport === scope.sport &&
-    /^\\d{4}-\\d{2}-\\d{2}$/.test(scope.matchDate) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(scope.matchDate) &&
     requirements.length > 0 && requirements.every(r => value(r.role) && Number.isInteger(r.count) && r.count > 0);
   if (!configured) return Object.freeze({
     status: 'unverified-policy', ...scope,
