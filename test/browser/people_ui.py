@@ -52,10 +52,26 @@ with sync_playwright() as p:
              'accepted review stored on coach workspace root')
         c.ok(len(result['helpers']) >= 1 and len(result['p'].get('jerseys',[])) >= 0,
              'helper and player legacy records retained')
+        # P04B regression: People is a workspace-wide screen, even while
+        # this team happens to be displaying a completed historical season.
+        pg.evaluate("""() => {
+            const {data,state} = window.__team;
+            data.seasons = data.seasons || [];
+            data.seasons.push({id:'past-p04-ui-test',name:'Historical season',status:'completed',
+                squad:[],staff:[]});
+            state.viewSeason[data.id]='past-p04-ui-test';
+            const button=document.createElement('button');
+            button.dataset.act='tab'; button.dataset.tab='people';
+            document.body.appendChild(button); button.click(); button.remove();
+        }""")
+        pg.wait_for_timeout(120)
+        c.ok(pg.locator('[data-act=people-undo]').count() == 1 and
+             pg.locator('.season-banner').count() == 0,
+             'People review is available during historical-season viewing without misleading read-only banner')
         pg.click('[data-act=people-undo]')
         pg.wait_for_timeout(150)
         c.ok(pg.locator('[data-act=people-undo]').count() == 0,
-             'reversal removes active action but keeps historical row')
+             'reversal works during historical-season view and retains its history')
         result=pg.evaluate('() => window.__team.ws.peopleReviews')
         c.ok(len(result)==1 and result[0]['status']=='reversed',
              'reversed review stored as one tombstone, no deletion')
