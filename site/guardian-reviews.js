@@ -24,6 +24,24 @@ const isRef=(value,namespace,kind)=>{
   }catch{return false;}
 };
 const idFor=(ns,helperRef,childRef)=>canon('local-guardian-review',ns,helperRef,childRef);
+// Recheck the *live* encrypted workspace, not just the adviser index passed by
+// a form. Another edit may remove an ID or change an explicit player personId
+// between display and saving. All source IDs remain scoped to one team.
+const livePersonKey=(ws,ref,namespace)=>{
+  try{
+    const [ns,kind,teamId,rowId]=JSON.parse(ref);
+    if(ns!==namespace||!['helper','player'].includes(kind))return null;
+    const teams=[ws,...arr(ws.teams)].filter(t=>t?.id===teamId);
+    if(teams.length!==1)return null;
+    const people=arr(teams[0][kind==='helper'?'helpers':'players']).filter(x=>x?.id===rowId);
+    if(people.length!==1)return null;
+    const person=people[0];
+    return kind==='player'&&str(person.personId)
+      ? canon(namespace,'existing-explicit-player-personId',person.personId)
+      : canon(namespace,'provisional-person',kind,teamId,rowId);
+  }catch{return null;}
+};
+
 const validEvent=(e,i,total,previous)=>{
   if(!e||typeof e!=='object'||Array.isArray(e)||!['record','correct','reverse'].includes(e.action)||
      !str(e.by)||e.by.length>120||!iso(e.at))return false;
@@ -103,7 +121,10 @@ export function recordGuardianReview(workspace,index,{helperRef,childPlayerRef,r
     return {error:'Choose a stable helper and child player record in this workspace'};
   const g=index.references.find(x=>x.sourceRef===helperRef),
         c=index.references.find(x=>x.sourceRef===childPlayerRef);
-  if(!g||g.kind!=='helper'||!c||c.kind!=='player')return {error:'Selected local source no longer exists'};
+  if(!g||g.kind!=='helper'||!c||c.kind!=='player'||
+     livePersonKey(workspace,helperRef,index.namespace)!==g.personKey||
+     livePersonKey(workspace,childPlayerRef,index.namespace)!==c.personKey)
+    return {error:'Live helper or child record changed since review; reload and confirm'};
   const ledger=normalizeGuardianReviews(workspace?.guardianReviews);
   const id=idFor(index.namespace,helperRef,childPlayerRef);
   if(ledger.some(x=>x.id===id))return {error:'This relationship has existing review history; correct or reverse it instead'};
@@ -123,7 +144,9 @@ export function amendGuardianReview(workspace,index,{recordId,relationship,by,at
   if(last(original).action==='reverse')return {error:'Reversed relationship history cannot be silently reactivated'};
   if(action==='correct'){
     if(!relation(relationship))return {error:'Choose a supported reported relationship category'};
-    if(viewStatus(original,index)!=='recorded')
+    if(viewStatus(original,index)!=='recorded'||
+       livePersonKey(workspace,original.helperRef,index.namespace)!==original.priorPersonKeys[0]||
+       livePersonKey(workspace,original.childPlayerRef,index.namespace)!==original.priorPersonKeys[1])
       return {error:'Relationship sources have changed; do not correct a stale link'};
     if(last(original).relationship===relationship)return {error:'No relationship correction needed'};
   }
