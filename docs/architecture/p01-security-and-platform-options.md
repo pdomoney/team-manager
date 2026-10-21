@@ -2,6 +2,8 @@
 
 **Status:** Architecture option analysis for [Issue #43](https://github.com/pdomoney/team-manager/issues/43). Not a vendor purchase, authentication deployment, legal/privacy certification or pricing quote. **No production service connected.**
 
+> **Owner sequencing requirement:** Finish the existing-app improvement and acceptance programme through **at least P10 before considering backend migration**. No Supabase provisioning, contracts, individual login deployment, server permission enforcement or production data migration is required or authorised by PR #54 or by P01–P10. All backend-specific implementation and tests are deferred to [post-P10 Issue #55](https://github.com/pdomoney/team-manager/issues/55) and will require separate approval. This deferral is **not** a waiver of production privacy, identity or tenancy controls.
+
 ## 1. Threat model and trusted boundaries
 
 | Threat / unsafe default | Assets at risk | Required mitigation and future proof |
@@ -25,7 +27,7 @@ Australian operating context requires a dedicated assessment of the Privacy Act/
 
 | Option | Benefits | Limitations and costs to validate | Fit |
 | --- | --- | --- | --- |
-| **A. Continue GitHub Pages + encrypted data branch only** | Cheapest transition, offline-friendly, accepted rollback, simple static site | Shared coach password/whole-workspace access, no secure row-level organisation grants, conflict burden, unsuitable for independent club privacy | **Retain as legacy during transition, not target multi-tenant backend** |
+| **A. Continue GitHub Pages + encrypted data branch only** | Cheapest transition, offline-friendly, accepted rollback, simple static site | Shared coach password/whole-workspace access, no secure row-level organisation grants, conflict burden, unsuitable for independent club privacy | **Required runtime throughout P01–P10; not production multi-tenant auth** |
 | **B. GitHub Pages frontend + Supabase managed Postgres/Auth/Storage** | Familiar static frontend; managed relational integrity, Auth, Postgres Row-Level Security, storage and migration tooling; matches earlier design direction | RLS is powerful but must be independently tested; hosted plan usage, egress, auth email, storage, regional options, backup/point-in-time restore, provider outages and subscriptions must be assessed | **Preferred design candidate, not approved** |
 | **C. Static frontend + custom API + managed Postgres/identity provider** | Full control over authorisation and data boundary, flexible hosting/region choices | Higher development and operations burden for identity, service API, monitoring, backups, migration, incident response and upgrades | Alternative if provider limits/security or commercial needs require custom policies |
 | **D. Enterprise identity/managed backend bundle** | May support federated organisation sign-in and contractual controls | Higher recurring/licensing complexity, potentially unnecessary at initial club scale; governance/workload remains | Revisit after product and club uptake |
@@ -71,7 +73,7 @@ Pricing is in **USD** unless supplier explicitly says otherwise. Allow for AUD F
 
 ## 4. Permission test plan
 
-Run tests against **real backend policy** during P02, not mocks alone:
+Run tests against **real backend policy** during **post-P10 Issue #55**, not during P02–P10. Before then, run only in-memory/fixture modelling and existing encrypted-projection privacy tests, clearly labelled as simulation:
 
 1. Association licence holder reads approved club directory, but cannot read club B's private junior contacts.
 2. Club A admin can manage club A teams and memberships, but direct API calls to club B are denied even with valid identifiers.
@@ -92,6 +94,6 @@ Propose RPO/RTO **only after** owner review. Validate encrypted snapshots, PITR 
 
 ## 6. Explicit architecture decision to request
 
-**Proposed:** canonical multi-tenant relationship model, single verified Account→Person claim with scoped PersonContext, dedicated club data spaces, separate association entitlement and delegation, Supabase-based proof-of-concept candidate only, not provider lock-in. 
+**Proposed:** canonical multi-tenant relationship model, future verified Account→Person claim with scoped PersonContext, dedicated club data spaces, separate association entitlement and delegation. **Retain current GitHub Pages and encrypted workspace through P10.** Supabase remains an optional, unselected post-P10 candidate, not provider lock-in. 
 
-**Pending acceptance:** data ownership model, association aggregate defaults, identity-linking method, hosting/provider, acceptable privacy/retention criteria, entitlement model and staged cutover. Approval of this document authorises subsequent **P02 design/implementation only when P01 gates close**, not production data movement.
+**Pending for current programme:** privacy-preserving identity model, association aggregate defaults, identity-linking behaviour, entitlement representation and safe local-workspace compatibility. **Explicitly deferred:** provider/hosting selection, production login, live tenancy, backend cost commitment and staged production cutover, under post-P10 #55. Acceptance of P01 authorises only existing-app-safe P02 work, not Supabase or production cross-club use.
