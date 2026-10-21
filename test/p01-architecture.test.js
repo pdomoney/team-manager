@@ -29,7 +29,7 @@ function sample() {
     sessions:[{id:'tr1',date:'2026-10-20',attendance:{p1:'present'}}],
     tasks:[{id:'t1',title:'BBQ',date:'2026-10-23',people:[{who:'h:h1',status:'yes'}],matchId:'m1'}],
     lineups:[{id:'l1',name:'First lineup',slots:[{id:'LW',playerId:'p1'}]}],
-    messages:[],notices:[],plays:[],playerSets:[],systems:{},
+    messages:[],notices:[],plays:[{id:'team-play',name:'Team adapted play',lib:{id:'play-library',rev:1,edited:true}}],playerSets:[],systems:{exit:{pos:{},jobs:{coach:'Retained team edits'}}},
     teams:[{id:'team2',team:{name:'Example Oztag Mixed',sport:'Oztag',clubId:'club-b',
       staff:[{role:'Team manager',name:'Jordan Example'}]},
       players:[{id:'p2',personId:'person:team1:p1',name:'Alex Example',number:'2',positions:['Link'],
@@ -42,7 +42,9 @@ function sample() {
       entries:[{id:'entry1',teamId:'team1',seasonId:'s26',division:'Juniors',pool:'A',status:'entered'}]}],
     matchOfficials:[{id:'crew1',name:'Alex Example',clubIds:['club-a','club-b'],
       rolesBySport:{'League tag':['firstAid']},wwccStatus:'checked',registrationBySport:{'League tag':{trainer:'2026'}}}],
-    library:{plays:[],playerSets:[],systems:{}}
+    library:{plays:[{id:'play-library',name:'Coach private move',phases:[{title:'Move',steps:['Run']}],rev:2}],
+      playerSets:[{id:'set-lib',name:'Private list',slots:[]}],
+      systems:{exit:{pos:{},jobs:{coach:'Prepare'}}}}
   };
 }
 
@@ -64,6 +66,7 @@ test('P01 synthetic dry run is pure, deterministic, repeatable and scoped to sou
   assert.equal(first.matchPersonnel.length,1);
   assert.equal(first.jerseyLoans.length,3,'all issue/return/correction ledger rows retained');
   assert.equal(first.staffSnapshots.length,4,'official, team and season legacy staff snapshots retained');
+  assert.equal(first.contentRecords.length,4,'team system plus three coach-library items retained');
   assert.equal(first.legacyReferences.length,new Set(first.legacyReferences.map(x=>x.key)).size);
 });
 
@@ -106,6 +109,10 @@ test('P01 preserve team-specific kit and season snapshots without copying betwee
  assert.ok(p.participations.find(x=>x.snapshot.playerId==='p2').snapshot.positions.includes('Link'));
  assert.ok(p.events.some(x=>x.legacyKey===sourceKey('owner-a','matches','team1','m1')));
  assert.ok(p.events.some(x=>x.legacyKey===sourceKey('owner-a','tasks','team1','t1')));
+ assert.equal(p.contentRecords.find(x=>x.legacyKey===sourceKey('owner-a','team-system','team1','exit')).snapshot.jobs.coach,'Retained team edits');
+ assert.equal(p.contentRecords.find(x=>x.legacyKey===sourceKey('owner-a','library','plays','play-library')).snapshot.rev,2);
+ assert.ok(p.contentRecords.filter(x=>x.kind==='plays').every(x=>x.publishedToClub===false));
+ assert.ok(p.events.some(x=>x.snapshot?.lib?.edited===true),'team-edited play remains independent from library revision');
 });
 
 test('P01 reviews orphaned source links instead of silently granting access',()=>{
