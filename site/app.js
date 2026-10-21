@@ -701,7 +701,7 @@ function render() {
   const v = $('#view'), g = navOf(state.tab);
   state.lastView[g.id] = state.tab;
   document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
-  v.innerHTML = subNav(g) + (state.tab === 'home' ? '' : seasonBanner()) + VIEWS[state.tab]();
+  v.innerHTML = subNav(g) + (['home', 'people'].includes(state.tab) ? '' : seasonBanner()) + VIEWS[state.tab]();
   if (state.tab === 'field' || state.tab === 'matchday') bindField();
   fitSubnav();
   foldLongPage();
