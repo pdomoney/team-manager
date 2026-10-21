@@ -5467,6 +5467,11 @@ function viewPeople() {
       <span class="sub" style="display:block">${esc(REPORTED_RELATIONSHIPS[r.relationship]||'No relationship recorded')} ·
         ${r.history.length} review event${r.history.length===1?'':'s'}</span>
       <span class="sub" style="display:block">No guardian account or permission to access child records</span>
+      <details><summary>Review history (${r.history.length})</summary>
+        <ol>${r.history.map(e=>`<li>${esc(e.action==='record'?'Recorded':e.action==='correct'?'Corrected':'Reversed')} ·
+          ${esc(e.at)} · ${esc(e.by)}
+          ${e.relationship?` · ${esc(REPORTED_RELATIONSHIPS[e.relationship]||'Unconfirmed')}`:''}</li>`).join('')}</ol>
+      </details>
     </div>
     <div class="btn-row">
       ${r.canCorrect?`<button type="button" class="btn sm" data-act="guardian-correct" data-id="${esc(r.id)}">Correct</button>`:''}
