@@ -17,7 +17,7 @@ const currentWorkspace=()=>({
   helpers:[{id:'h1',name:'Private Guardian',phone:'0400 OTHER'}],
   clubs:[
     {id:'club-a',name:'Example Titans',shortName:'Titans',sport:'Rugby league',
-      logo:'data:image/png;base64,AAA=',colours:'Navy and gold',style:{primary:'#012345'},
+      logo:'data:image/png;base64,AAA=',colours:'Navy and gold',style:{palette:'bluegold'},
       directoryMatch:{id:'research-1',classification:'user_confirmed_same_club_research_candidate'},
       notes:'PRIVATE COACH NOTES',officials:[{name:'Private secretary',phone:'HIDDEN'}]},
     {id:'club-b',name:'Example Oztag',sport:'Oztag',colours:'Red',
@@ -129,7 +129,7 @@ test('P03 current workspace mapping preserves club branding and exact team links
  assert.equal(x.proposedClubs[1].managedTeams[0].legacyId,'team2');
  assert.equal(x.unassignedTeams[0].legacyId,'team3');
  assert.equal(x.proposedClubs[0].branding.colours,'Navy and gold');
- assert.deepEqual(x.proposedClubs[0].branding.style,{primary:'#012345'});
+ assert.deepEqual(x.proposedClubs[0].branding.style,{palette:'bluegold'});
  assert.equal(x.proposedClubs[0].branding.hasLogo,true);
  assert.equal(x.proposedClubs[0].branding.directoryOnlyResearch,true);
  assert.equal(x.proposedClubs[0].claimedOfficial,false);
@@ -173,6 +173,8 @@ test('P03 association dashboard is pre-aggregated only; no person details are ad
    aggregatedClubs:[{clubId:club().id,teamCount:12}]}).error);
  assert.ok(previewAssociationSummary({affiliationRecords:[reviewed],
    aggregatedClubs:[{clubId:club().id,teamCount:-1}]}).error);
+ assert.ok(previewAssociationSummary({affiliationRecords:[reviewed],
+   aggregatedClubs:[{clubId:club().id,teamCount:3},{clubId:club().id,teamCount:4}]}).error);
 });
 
 test('P03 all four use cases are modelled only, not deployed or authenticated',()=>{
@@ -184,4 +186,12 @@ test('P03 all four use cases are modelled only, not deployed or authenticated',(
  ];
  assert.equal(scenarios.length,4);
  assert.ok(scenarios.every(s=>s.status==='scenario-only' && !s.billingActive && !s.productionEntitled));
+});
+
+test('P03 preview does not leak arbitrary nested style fields',()=>{
+ const w=currentWorkspace();
+ w.clubs[0].style={palette:'bluegold',notes:'PRIVATE medical record'};
+ const x=describeManagedOrganisations(w,space);
+ assert.deepEqual(x.proposedClubs[0].branding.style,{palette:'bluegold'});
+ assert.ok(!JSON.stringify(x).includes('PRIVATE medical record'));
 });
