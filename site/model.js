@@ -24,9 +24,13 @@ export { RULES };
 // Schema 4 adds seasons (team.seasons, and a seasonId on training, matches, tasks, messages and
 // notices) and competitions (ws.competitions, with entries for a team's season). Both are additions:
 // an earlier app still opens a schema 4 copy, showing every season's records together.
+// Bounded, optional schema-4 provenance: reviewed Person-link proposals are
+// coach-only and stored with the existing encrypted workspace, not team files.
+import { normalizePersonReviews } from './people-ledger.js';
+
 export const SCHEMA = 4;
 export const PRIMARY_ID = 'team1';
-const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions', 'matchOfficials'];
+const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions', 'matchOfficials', 'peopleReviews'];
 const TEAM_ID = /^[a-z0-9]{3,32}$/;
 
 export const arr = v => Array.isArray(v) ? v : [];
@@ -149,6 +153,7 @@ export function migrateWorkspace(raw, normTeam = t => t) {
   teamsOf(ws).forEach(t => ensureSeasons(t));
   ws.competitions = src.competitions === undefined ? seedCompetitions(ws) : arr(src.competitions).filter(isObj).map(normComp);
   ws.matchOfficials = arr(src.matchOfficials).filter(p => isObj(p) && typeof p.id === 'string' && typeof p.name === 'string');
+  ws.peopleReviews = normalizePersonReviews(src.peopleReviews);
   repairCompetitions(ws);
   syncEvents(ws);
   fixDefaultPositions(ws);
@@ -1504,6 +1509,10 @@ export function records(ws) {
   // Match-day volunteers are their own records, so one added on another device isn't lost when copies combine.
   arr(ws.matchOfficials).forEach(p => { if (p && p.id) put(`off/${p.id}`, p, `Match-day volunteer: ${p.name || '?'}`); });
   compsOf(ws).forEach(c => { if (c && c.id) put(`comp/${c.id}`, c, `Competition: ${c.name || '?'}`); });
+  // Separately tracked review rows enable conflict prompts on two devices:
+  // never lose a person's explicit review or undo during a workspace merge.
+  normalizePersonReviews(ws.peopleReviews).forEach(x =>
+    put(`person-review/${encodeURIComponent(x.id)}`, x, 'Local person-link review'));
   const L = normLibrary(ws.library);
   ['plays', 'playerSets'].forEach(c => L[c].forEach(x => { if (x.id) put(`lib/${c}/${x.id}`, x, `Library · ${LABEL[c](x)}`); }));
   Object.entries(L.systems).forEach(([id, v]) => put(`lib/systems/${id}`, v, `Library · Game system: ${id}`));
@@ -1512,6 +1521,20 @@ export function records(ws) {
 // Put one record (or remove it, when value is undefined) into a workspace.
 function putRecord(ws, key, value, template) {
   const parts = key.split('/');
+  if (parts[0] === 'person-review') {
+    ws.peopleReviews = normalizePersonReviews(ws.peopleReviews);
+    const id=decodeURIComponent(parts[1] || '');
+    const i=ws.peopleReviews.findIndex(x=>x.id===id);
+    if (value===undefined) {
+      if (i>=0) ws.peopleReviews.splice(i,1);
+    } else {
+      const clean=normalizePersonReviews([value])[0];
+      if (!clean || clean.id!==id) return;
+      if (i>=0) ws.peopleReviews[i]=clean;
+      else ws.peopleReviews.push(clean);
+    }
+    return;
+  }
   if (parts[0] === 'club' || parts[0] === 'comp' || parts[0] === 'off') {
     const k = { club: 'clubs', comp: 'competitions', off: 'matchOfficials' }[parts[0]];
     ws[k] = arr(ws[k]);
