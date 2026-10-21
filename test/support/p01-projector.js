@@ -21,7 +21,7 @@ export function projectSchema4DryRun(source, sourceWorkspace) {
     affiliations: [], // Never infer approval, account identity or organisation permissions.
     clubs: [], teams: [], teamSeasons: [], people: [], playerRecords: [],
     participations: [], jerseyLoans: [], helpers: [], matchPersonnel: [],
-    staffSnapshots: [], competitions: [], entries: [], events: [],
+    staffSnapshots: [], competitions: [], entries: [], events: [], contentRecords: [],
     reviewQueue: [], legacyReferences: []
   };
   // Root-team compatibility: these arrays belong to workspace, not the first team.
@@ -102,6 +102,11 @@ export function projectSchema4DryRun(source, sourceWorkspace) {
         if(!playerRecord)result.reviewQueue.push({type:'missing-player-in-season',source:partKey,playerId:text(row.playerId)});
       });
     }
+    // Team systems are keyed objects; retain independent per-team edits.
+    Object.entries(team.systems || {}).forEach(([id,system])=>{
+      const k=sourceKey(sourceWorkspace,'team-system',team.id,id);
+      result.contentRecords.push({...remember(k,'team-system',system),ownerKey:teamKey,kind:'systems',contentId:id});
+    });
     rows(team.helpers).forEach(helper=>{
       if(!helper?.id)throw new Error('Missing helper ID');
       const hk=sourceKey(sourceWorkspace,'helper',team.id,helper.id);
@@ -122,6 +127,20 @@ export function projectSchema4DryRun(source, sourceWorkspace) {
       });
     }
   }
+  // Coach-workspace library is not automatically owned or published by any club.
+  const libraryOwnerKey=sourceKey(sourceWorkspace,'provisional-data-space');
+  for(const kind of ['plays','playerSets']){
+    rows(source.library?.[kind]).forEach((item,i)=>{
+      const k=sourceKey(sourceWorkspace,'library',kind,item.id||i);
+      result.contentRecords.push({...remember(k,'library-'+kind,item),ownerKey:libraryOwnerKey,
+        kind,contentId:text(item.id||i),publishedToClub:false});
+    });
+  }
+  Object.entries(source.library?.systems||{}).forEach(([id,system])=>{
+    const k=sourceKey(sourceWorkspace,'library','systems',id);
+    result.contentRecords.push({...remember(k,'library-systems',system),ownerKey:libraryOwnerKey,
+      kind:'systems',contentId:id,publishedToClub:false});
+  });
   rows(source.matchOfficials).forEach(person=>{
     if(!person?.id)throw new Error('Missing match official ID');
     const key=sourceKey(sourceWorkspace,'match-official',person.id);
