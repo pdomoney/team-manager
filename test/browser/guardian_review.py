@@ -72,6 +72,8 @@ with sync_playwright() as p:
         c.ok(len(state)==1 and len(state[0]['events'])==2 and
              state[0]['events'][1]['relationship']=='relative-reported',
              'correction saved as new immutable event, original remains')
+        c.ok(pg.locator('details',has_text='Review history (2)').count()==1,
+             'coach can expand readable two-event original and correction history')
         add(child_two,'carer-reported')
         state=pg.evaluate('window.__team.ws.guardianReviews')
         c.ok(len(state)==2 and any('p04dteam2' in x['childPlayerRef'] for x in state),
