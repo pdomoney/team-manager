@@ -249,7 +249,13 @@ function syncActive(t) {
   const old = new Map(s.squad.map(m => [m.playerId, m]));
   s.squad = seasonLens(t, s.id).players.map(p => ({ ...memberOf(p), reg: (old.get(p.id) || {}).reg || '' }));
   const T = obj(t.team);
-  s.staff = arr(T.staff).filter(isObj).map(r => ({ role: String(r.role || 'Other'), name: String(r.name || ''), phone: String(r.phone || ''), email: String(r.email || '') }));
+  // Preserve prepared P04C staff IDs when freezing an active season.
+  // Dropping them here made appointment references disappear on rollover.
+  s.staff = arr(T.staff).filter(isObj).map(r => ({
+    ...(typeof r.id === 'string' && r.id ? { id: r.id } : {}),
+    role: String(r.role || 'Other'), name: String(r.name || ''),
+    phone: String(r.phone || ''), email: String(r.email || '')
+  }));
   s.defaults = Object.fromEntries(DEFAULT_KEYS.map(k => [k, String(T[k] || '')]));
   if (t.team) t.team.season = s.name;
 }
