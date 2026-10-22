@@ -159,6 +159,18 @@ with sync_playwright() as p:
           x.M.addTeam(x.ws,t);
         }""")
         pg.evaluate(act, ['tab', {'tab':'crew'}])
+        # P06G: aggregated club comparison stays in the same encrypted coach workspace.
+        c.ok(pg.locator('#view .crew-workspace-overview').count()==1 and
+             'not an association-wide directory' in pg.locator('#view .crew-workspace-overview').inner_text(),
+             f'[{width}] local club overview does not imply association or account access')
+        overview=pg.locator('#view .crew-workspace-overview')
+        c.ok('Taren Point Titans' in overview.inner_text() and 'PRIVATE MEDICAL' not in overview.inner_text()
+             and 'Casey Coach' not in overview.inner_text(),
+             f'[{width}] overview lists workspace clubs but suppresses individual volunteer details')
+        pg.locator('#view select[name=crewOverviewSport]').select_option('Oztag')
+        c.ok('Taren Point Titans' not in pg.locator('#view .crew-workspace-overview').inner_text(),
+             f'[{width}] sport filter excludes clubs with no Oztag fixtures')
+        pg.locator('#view select[name=crewOverviewSport]').select_option('')
         c.ok(pg.locator('#view [name=crewTeamId] option').count()>=2,
              f'[{width}] inline team selection includes the other club team')
         c.ok('Titans League U12' in pg.locator('#view [name=crewTeamId]').inner_text()
