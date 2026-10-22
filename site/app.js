@@ -29,6 +29,7 @@ import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.j
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
+import { crewCoverageSummary } from './p06-crew-summary.js';
 import { TEAM_STYLES, CLASSIC, styleById, normStyle, effectiveStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
 import { sportIcon, sportMaskUrl } from './sport-icons.js';
 import { directoryRecords, filterClubDirectory, directoryClubDraft, DIRECTORY_STATES } from './club-directory.js';
@@ -3879,6 +3880,7 @@ function crewMatchForm(m) {
 // and a finished match only lists who was there.
 function crewMatchSummary(m) {
   const c = crewStatus(m), rules = crewPolicy(m), past = matchPhase(m) === 'after' || matchPhase(m) === 'off';
+  const coverage = crewCoverageSummary(c);
   const sport = M.teamSport(data.team, M.clubOf(ws, data));
   const slots = c.slots.length ? `<ul class="crew-slots">${c.slots.map(a => { const p = crewPerson(a.personId), bs = p ? crewBadges(p, sport, crewDay(m)) : [];
       return `<li>${badgeStrip(bs.filter(b => b.key === 'wwcc' || b.key === a.role), { size: 24 })}<span><strong>${esc(a.name)}</strong> · ${esc(CREW_ROLES[a.role] || a.role)}${a.confirmed ? '' : ' · not confirmed'}<span class="sr-only">. ${esc(bs.filter(b => b.key === 'wwcc' || b.key === a.role).map(b => b.text).join('. '))}</span></span></li>`; }).join('')}</ul>` : '';
@@ -3892,8 +3894,9 @@ function crewMatchSummary(m) {
       <p class="crew-quiet">${icon('info', 18)}<span>${rules.source ? 'Staff requirements: set up for another season, competition or age group' : 'Staff requirements: not set up'}</span></p>
       ${slots}${slotIssues.length ? `<ul class="diff-list warn-list">${slotIssues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${buttons}</section>`;
   return `<section class="crew-match-summary"><h3 class="form-sec">Match-day staff</h3>
-    <div class="crew-status ${c.ready ? 'crew-okay' : 'crew-alert'}"><strong>${c.ready ? 'All configured roles covered (coach-recorded)' : 'Match-day staffing needs attention'}</strong>
-    <span class="sub">${esc(c.source)}</span></div>
+    <div class="crew-status ${coverage.state === 'covered' ? 'crew-okay' : 'crew-alert'}"><strong>${esc(coverage.headline)}</strong>
+    <span class="sub">${esc(c.source)} · Confirmed ${coverage.confirmed} / Required ${coverage.required} · Missing ${coverage.missing}</span>
+    <small class="sub">${esc(coverage.explanation)}</small></div>
     ${slots}
     ${c.shortages.length ? `<ul class="crew-req">${c.shortages.map(r => `<li>${esc(r.name)}: ${r.have}/${r.min}${r.missing ? ' · ' + r.missing + ' missing' : ' · covered'}</li>`).join('')}</ul>` : ''}
     ${c.issues.length ? `<ul class="diff-list issues">${c.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
