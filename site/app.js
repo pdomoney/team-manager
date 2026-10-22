@@ -32,6 +32,8 @@ import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClub
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
+import { reviewVolunteerAppointments } from './p06-appointments.js';
+import { APPOINTMENT_STATES, APPOINTMENT_STATUS_LABELS, upsertVolunteerAppointment } from './p06-appointment-store.js';
 import { TEAM_STYLES, CLASSIC, styleById, normStyle, effectiveStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
 import { sportIcon, sportMaskUrl } from './sport-icons.js';
 import { directoryRecords, filterClubDirectory, directoryClubDraft, DIRECTORY_STATES } from './club-directory.js';
@@ -3606,6 +3608,7 @@ function viewCrew() {
   const policyScope = selectedPolicyEntry?.comp?.name || 'Friendly / unlinked matches';
   const readiness = selectedId ? fixtureReadinessIndex(ws, selectedId) : null;
   const readinessActions = selectedId ? clubCrewActions(ws, selectedId) : [];
+  const appointments = reviewVolunteerAppointments(arr(ws.matchOfficials), arr(ws.volunteerAppointments), {type:'club',id:selectedId});
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><div class="btn-row">${cardToggle('crew')}<button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div></div>
@@ -3648,6 +3651,15 @@ function viewCrew() {
         : '<div class="empty"><p>No volunteers are recorded for this club. Add someone manually, link an existing workspace record or prepare an email invitation.</p></div>'}
       ${pool.length ? badgeLegend(sport) : ''}
     </div>
+    </section>
+    <section class="sec crew-section crew-appointment-panel" id="crew-appointment-section">
+      <div class="sec-h"><h3>Club appointments</h3><button class="btn sm" data-act="crew-appointment-new" ${!selectedId || !pool.length ? 'disabled' : ''}>Record appointment</button></div>
+      <p class="crew-section-help">Manual club role records are separate from sport accreditation, match-day assignments and app permissions. No invitation is sent by this screen.</p>
+      ${appointments.length ? `<ul class="crew-req">${appointments.map(a=>`<li>
+        <button class="btn sm" data-act="crew-appointment-edit" data-id="${esc(a.id)}">${esc(crewPerson(a.personId)?.name || 'Unknown volunteer')}</button>
+        · ${esc(a.role || 'Role not recorded')} · ${esc(APPOINTMENT_STATUS_LABELS[a.status] || 'Status requires review')}
+        ${a.issues.length ? `<span class="sub"> · ${esc(a.issues.join('; '))}</span>` : ''}
+      </li>`).join('')}</ul>` : '<p class="hint">No club appointments recorded. This does not mean no volunteers are registered.</p>'}
     </section>
     <section class="sec crew-section crew-rules-panel" id="crew-rules-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">${rules.source ? 'Configure' : 'Set up'}</button></div>
       <p class="crew-section-help">Requirements apply to the selected team, not the volunteer directory.</p>
@@ -3746,6 +3758,27 @@ function crewTeamsFields(p) {
     ${loose.length ? `<div class="ct-club"><span class="crest all" aria-hidden="true">–</span><span class="grow"><b>Teams without a club</b></span></div>${loose.map(row).join('')}` : ''}
     ${teams.length ? '' : '<p class="muted small">No teams in this workspace yet.</p>'}
   </fieldset>`;
+}
+function crewAppointmentForm(record = null) {
+  const clubId = intakeClubId();
+  const existing = record && record.scopeType === 'club' && record.scopeId === clubId ? record : null;
+  const pool = localClubDirectory(arr(ws.matchOfficials), clubId, M.activeTeams(ws));
+  const person = existing ? crewPerson(existing.personId) : null;
+  return `<form data-form="crew-appointment" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(existing?.id || M.uid())}">
+    <input type="hidden" name="scopeId" value="${esc(clubId)}">
+    <p class="hint">For ${esc(intakeClubLabel(clubId))}. Records are manually maintained in this encrypted workspace. No email or invitation is sent, and an appointment does not confirm match-day eligibility.</p>
+    ${existing ? `<input type="hidden" name="personId" value="${esc(existing.personId)}"><p><strong>${esc(person?.name || 'Volunteer no longer found')}</strong></p>`
+      : `<label class="field-l"><span>Existing club volunteer</span><select name="personId" required>
+        <option value="">Choose a volunteer</option>${pool.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}
+      </select></label>`}
+    <label class="field-l"><span>Organisational role</span><input name="role" required maxlength="80" placeholder="e.g. Volunteer coordinator" value="${esc(existing?.role || '')}"></label>
+    <label class="field-l"><span>Manually recorded status</span><select name="status">
+      ${APPOINTMENT_STATES.map(status=>`<option value="${status}" ${(existing?.status || 'proposed')===status?'selected':''}>${esc(APPOINTMENT_STATUS_LABELS[status])}</option>`).join('')}
+    </select></label>
+    <p class="hint">Choose Ended or Suspended to preserve history rather than deleting the record. This screen does not grant association, club or application access.</p>
+    <button class="btn primary block" type="submit">Save appointment</button>
+  </form>`;
 }
 function crewBasicForm(person) {
   const p=normCrewPerson(person), id=intakeClubId();
@@ -6640,6 +6673,20 @@ const actions = {
     if (!t.cancelled && !confirm(`Mark “${t.title}” on ${fmtDay(t.date)} as cancelled? Everyone stays on it in case it’s back on.`)) return;
     t.cancelled = !t.cancelled; delete t.cancelledWith; save(); refreshTask(t.id); toast(t.cancelled ? 'Task cancelled' : 'Task back on');
   }),
+  'crew-appointment-new': coachOnly(() => {
+    const clubId = intakeClubId();
+    if (!clubId || !arr(ws.clubs).some(c=>c.id===clubId) ||
+        !localClubDirectory(arr(ws.matchOfficials),clubId,M.activeTeams(ws)).length) {
+      toast('Select a club with an existing volunteer first'); return;
+    }
+    openSheet('Record club appointment', crewAppointmentForm(), 'crew-appointment');
+  }),
+  'crew-appointment-edit': coachOnly(el => {
+    const clubId = intakeClubId();
+    const row = arr(ws.volunteerAppointments).find(a => a.id===el.dataset.id && a.scopeType==='club' && a.scopeId===clubId);
+    if (!row) { toast('Appointment is not available for this club'); return; }
+    openSheet('Edit club appointment', crewAppointmentForm(row), 'crew-appointment');
+  }),
   'crew-new': coachOnly(() => openSheet('Add a volunteer',crewIntakeStartForm(),'crew-intake-start')),
   'crew-intake-back': coachOnly(() => openSheet('Add a volunteer',crewIntakeStartForm(),'crew-intake-start')),
   'crew-basic': coachOnly(el => { const p = crewPerson(el.dataset.id); if(p) openSheet('Volunteer profile',crewBasicForm(p),'crew-basic'); }),
@@ -7666,6 +7713,26 @@ document.addEventListener('submit', async e => {
     state.lineupId = null; state.msgDraft = null; state.playId = null;
     save(); closeSheet(); render();
     toast(`Cleared: ${Object.entries(n).map(([k, v]) => `${v} ${k === 'squad' ? 'players' : k === 'training' ? 'sessions' : k}`).join(', ')}`);
+    return;
+  }
+  if (kind === 'crew-appointment') {
+    if (!isCoach()) return;
+    const scopeId=str('scopeId'), id=str('id'), status=str('status');
+    if (!scopeId || scopeId!==intakeClubId() || !arr(ws.clubs).some(c=>c.id===scopeId)) {
+      toast('Choose the correct club before saving this appointment'); return;
+    }
+    const previous=arr(ws.volunteerAppointments).find(a=>a.id===id);
+    const personId=previous?.personId || str('personId');
+    const selectable=localClubDirectory(arr(ws.matchOfficials),scopeId,M.activeTeams(ws));
+    if (!previous && !selectable.some(p=>p.id===personId)) {
+      toast('Select an existing volunteer from this club'); return;
+    }
+    const updated=upsertVolunteerAppointment(ws.volunteerAppointments,
+      {id,personId,scopeType:'club',scopeId,role:str('role'),status},
+      ws.matchOfficials,{type:'club',id:scopeId});
+    if (updated.error) { toast(updated.error); return; }
+    ws.volunteerAppointments=updated.records;
+    save(); closeSheet(); render(); toast('Appointment saved as a manual club record');
     return;
   }
   if (kind === 'crew-directory') {

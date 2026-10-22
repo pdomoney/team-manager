@@ -28,10 +28,11 @@ export { RULES };
 // coach-only and stored with the existing encrypted workspace, not team files.
 import { normalizePersonReviews } from './people-ledger.js';
 import { normalizeGuardianReviews } from './guardian-reviews.js';
+import { normalizeVolunteerAppointments } from './p06-appointment-store.js';
 
 export const SCHEMA = 4;
 export const PRIMARY_ID = 'team1';
-const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions', 'matchOfficials', 'peopleReviews', 'guardianReviews'];
+const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions', 'matchOfficials', 'volunteerAppointments', 'peopleReviews', 'guardianReviews'];
 const TEAM_ID = /^[a-z0-9]{3,32}$/;
 
 export const arr = v => Array.isArray(v) ? v : [];
@@ -164,6 +165,7 @@ export function migrateWorkspace(raw, normTeam = t => t) {
   teamsOf(ws).forEach(t => ensureSeasons(t));
   ws.competitions = src.competitions === undefined ? seedCompetitions(ws) : arr(src.competitions).filter(isObj).map(normComp);
   ws.matchOfficials = arr(src.matchOfficials).filter(p => isObj(p) && typeof p.id === 'string' && typeof p.name === 'string');
+  ws.volunteerAppointments = normalizeVolunteerAppointments(src.volunteerAppointments);
   ws.peopleReviews = normalizePersonReviews(src.peopleReviews);
   ws.guardianReviews = normalizeGuardianReviews(src.guardianReviews);
   repairCompetitions(ws);
@@ -1527,6 +1529,9 @@ export function records(ws) {
   // Match-day volunteers are their own records, so one added on another device isn't lost when copies combine.
   arr(ws.matchOfficials).forEach(p => { if (p && p.id) put(`off/${p.id}`, p, `Match-day volunteer: ${p.name || '?'}`); });
   compsOf(ws).forEach(c => { if (c && c.id) put(`comp/${c.id}`, c, `Competition: ${c.name || '?'}`); });
+  // Appointment records merge individually, never as a single clobberable collection.
+  normalizeVolunteerAppointments(ws.volunteerAppointments).forEach(a =>
+    put(`appointment/${encodeURIComponent(a.id)}`, a, `Local volunteer appointment: ${a.role || '?'}`));
   // Separately tracked review rows enable conflict prompts on two devices:
   // never lose a person's explicit review or undo during a workspace merge.
   normalizePersonReviews(ws.peopleReviews).forEach(x =>
@@ -1543,6 +1548,18 @@ export function records(ws) {
 // Put one record (or remove it, when value is undefined) into a workspace.
 function putRecord(ws, key, value, template) {
   const parts = key.split('/');
+  if (parts[0] === 'appointment') {
+    const id = decodeURIComponent(parts[1] || '');
+    ws.volunteerAppointments = normalizeVolunteerAppointments(ws.volunteerAppointments);
+    const i = ws.volunteerAppointments.findIndex(a => a.id === id);
+    if (value === undefined) { if (i >= 0) ws.volunteerAppointments.splice(i, 1); }
+    else { const a = normalizeVolunteerAppointments([value])[0];
+      if (!a || a.id !== id) return;
+      if (i >= 0) ws.volunteerAppointments[i] = a; else ws.volunteerAppointments.push(a);
+    }
+    ws.volunteerAppointments = normalizeVolunteerAppointments(ws.volunteerAppointments);
+    return;
+  }
   if (parts[0] === 'guardian-review') {
     ws.guardianReviews = normalizeGuardianReviews(ws.guardianReviews);
     const id=decodeURIComponent(parts[1] || '');
