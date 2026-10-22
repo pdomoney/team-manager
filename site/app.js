@@ -30,6 +30,7 @@ import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, move
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
+import { fixtureReadinessIndex } from './p06-readiness.js';
 import { TEAM_STYLES, CLASSIC, styleById, normStyle, effectiveStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
 import { sportIcon, sportMaskUrl } from './sport-icons.js';
 import { directoryRecords, filterClubDirectory, directoryClubDraft, DIRECTORY_STATES } from './club-directory.js';
@@ -3602,6 +3603,7 @@ function viewCrew() {
     .find(({comp})=>comp.id===rules.competitionId) : null;
   const contextValid = policyFitsContext(rules,{team:{...data.team,sport}},selectedPolicyEntry);
   const policyScope = selectedPolicyEntry?.comp?.name || 'Friendly / unlinked matches';
+  const readiness = selectedId ? fixtureReadinessIndex(ws, selectedId) : null;
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><div class="btn-row">${cardToggle('crew')}<button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div></div>
@@ -3615,6 +3617,9 @@ function viewCrew() {
       </label>
     </div>
     <p class="crew-intro">The club directory lists people. Staffing requirements belong to the selected team, sport and competition.</p>
+    ${readiness ? `<section class="sec crew-readiness-summary"><h3>Club fixture readiness (coach-recorded)</h3>
+      <p class="hint">For the selected club: ${readiness.totals.fixtures} fixtures · ${readiness.totals.covered} covered · ${readiness.totals.attention} need attention · ${readiness.totals.unverified} without verified requirements.</p>
+      <p class="hint">Based on manual club records only. Review match requirements and registration evidence before relying on these counts.</p></section>` : ''}
     <nav class="crew-page-nav" aria-label="Match staff sections"><button class="btn sm" data-act="crew-jump" data-to="crew-directory-section">Club volunteers</button><button class="btn sm" data-act="crew-jump" data-to="crew-rules-section">Team requirements</button></nav>
     <details class="info-note crew-help"><summary>${icon('info', 18)}How these records work</summary><div>
       <p class="hint">A person can appear in more than one club and help several teams: open their profile and tick the teams. Club membership, registration and accreditation are reviewed separately for each sport. These records stay in the encrypted coach copy, not a global member directory.</p>
