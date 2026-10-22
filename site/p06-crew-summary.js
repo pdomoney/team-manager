@@ -14,7 +14,7 @@ export function crewCoverageSummary(report) {
   const ready = c.ready === true && missing === 0;
   return Object.freeze({
     state: ready ? 'covered' : 'attention',
-    headline: ready ? 'Configured staffing covered (coach-recorded)' : 'Match-day staffing needs attention',
+    headline: ready ? 'All configured roles covered (coach-recorded)' : 'Match-day staffing needs attention',
     explanation: ready ? 'Coverage is based on recorded confirmations and manually checked credentials, not live governing-body verification.'
       : 'Check missing roles, confirmations, eligibility and any overlapping fixtures.',
     required, confirmed, missing
