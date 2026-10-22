@@ -5,7 +5,8 @@ const word = x => typeof x === 'string' ? x.trim() : '';
 const STATES = new Set(['proposed','invited','accepted','suspended','ended']);
 const SCOPES = new Set(['association','club','team']);
 export function reviewVolunteerAppointments(people, appointments, scope) {
-  const known = new Set(values(people).map(p=>word(p?.id)).filter(Boolean));
+  const peopleById = new Map(values(people).filter(p=>word(p?.id)).map(p=>[word(p.id),p]));
+  const known = new Set(peopleById.keys());
   const seen = new Set();
   return Object.freeze(values(appointments).filter(a=>a && a.scopeId===scope?.id && a.scopeType===scope?.type).map(a=>{
     const personId=word(a.personId), id=word(a.id), state=word(a.status), role=word(a.role);
@@ -13,6 +14,7 @@ export function reviewVolunteerAppointments(people, appointments, scope) {
     if (!id || seen.has(id)) issues.push('Duplicate or missing appointment reference');
     seen.add(id);
     if (!known.has(personId)) issues.push('Person link requires review');
+    if (peopleById.get(personId)?.active === false && state === 'accepted') issues.push('Inactive volunteer must not have an active appointment');
     if (!SCOPES.has(a.scopeType) || !word(a.scopeId)) issues.push('Appointment scope is invalid');
     if (!role) issues.push('Appointment role is missing');
     if (!STATES.has(state)) issues.push('Appointment status is unknown');
