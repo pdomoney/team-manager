@@ -32,6 +32,8 @@ import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClub
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
+import { reviewVolunteerAppointments } from './p06-appointments.js';
+import { APPOINTMENT_STATES, APPOINTMENT_STATUS_LABELS, upsertVolunteerAppointment } from './p06-appointment-store.js';
 import { TEAM_STYLES, CLASSIC, styleById, normStyle, effectiveStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
 import { sportIcon, sportMaskUrl } from './sport-icons.js';
 import { directoryRecords, filterClubDirectory, directoryClubDraft, DIRECTORY_STATES } from './club-directory.js';
@@ -3606,6 +3608,7 @@ function viewCrew() {
   const policyScope = selectedPolicyEntry?.comp?.name || 'Friendly / unlinked matches';
   const readiness = selectedId ? fixtureReadinessIndex(ws, selectedId) : null;
   const readinessActions = selectedId ? clubCrewActions(ws, selectedId) : [];
+  const appointments = reviewVolunteerAppointments(arr(ws.matchOfficials), arr(ws.volunteerAppointments), {type:'club',id:selectedId});
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><div class="btn-row">${cardToggle('crew')}<button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div></div>
@@ -3648,6 +3651,15 @@ function viewCrew() {
         : '<div class="empty"><p>No volunteers are recorded for this club. Add someone manually, link an existing workspace record or prepare an email invitation.</p></div>'}
       ${pool.length ? badgeLegend(sport) : ''}
     </div>
+    </section>
+    <section class="sec crew-section crew-appointment-panel" id="crew-appointment-section">
+      <div class="sec-h"><h3>Club appointments</h3><button class="btn sm" data-act="crew-appointment-new" ${!selectedId || !pool.length ? 'disabled' : ''}>Record appointment</button></div>
+      <p class="crew-section-help">Manual club role records are separate from sport accreditation, match-day assignments and app permissions. No invitation is sent by this screen.</p>
+      ${appointments.length ? `<ul class="crew-req">${appointments.map(a=>`<li>
+        <button class="btn sm" data-act="crew-appointment-edit" data-id="${esc(a.id)}">${esc(crewPerson(a.personId)?.name || 'Unknown volunteer')}</button>
+        · ${esc(a.role || 'Role not recorded')} · ${esc(APPOINTMENT_STATUS_LABELS[a.status] || 'Status requires review')}
+        ${a.issues.length ? `<span class="sub"> · ${esc(a.issues.join('; '))}</span>` : ''}
+      </li>`).join('')}</ul>` : '<p class="hint">No club appointments recorded. This does not mean no volunteers are registered.</p>'}
     </section>
     <section class="sec crew-section crew-rules-panel" id="crew-rules-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">${rules.source ? 'Configure' : 'Set up'}</button></div>
       <p class="crew-section-help">Requirements apply to the selected team, not the volunteer directory.</p>
