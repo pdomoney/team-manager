@@ -19,7 +19,7 @@ test('P06B match readiness always requires the existing eligibility and clash de
 });
 test('P06B successful coverage remains coach-recorded rather than externally verified',()=>{
  const r=crewCoverageSummary({configured:true,ready:true,shortages:[{min:2,have:2,missing:0}]});
- assert.equal(r.state,'covered');assert.match(r.explanation,/not live/);
+ assert.equal(r.state,'covered');assert.match(r.headline,/All configured roles covered/);assert.match(r.explanation,/not live/);
  assert.equal(Object.isFrozen(r),true);
 });
 test('P06B role choices remain specific to selected team sport',()=>{
