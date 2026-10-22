@@ -87,6 +87,29 @@ with sync_playwright() as p:
              x['wwccStatus'] == 'checked' and (scope['club'] in x['clubIds'] if scope['club'] else scope['team'] in x['teamIds'])
              for x in people),
              f'[{width}] directory stores role and verification, scoped to the actual club or team')
+        # P06F: local organisational appointment is separate from game-day credentials.
+        c.ok(pg.locator('#view [data-act=crew-appointment-new]').count()==1,
+             f'[{width}] club appointment editor appears in private staff view')
+        pg.locator('#view [data-act=crew-appointment-new]').click()
+        pg.locator('#sheet form[data-form=crew-appointment] select[name=personId]').select_option(people[0]['id'])
+        pg.fill('#sheet form[data-form=crew-appointment] input[name=role]','Volunteer coordinator')
+        pg.locator('#sheet form[data-form=crew-appointment] select[name=status]').select_option('invited')
+        pg.locator('#sheet form[data-form=crew-appointment] button[type=submit]').click()
+        c.ok(pg.evaluate("window.__team.ws.volunteerAppointments.length") == 1 and
+             pg.evaluate("window.__team.ws.volunteerAppointments[0].status") == 'invited',
+             f'[{width}] recorded invitation persists without sending')
+        pg.locator('#view [data-act=crew-appointment-edit]').click()
+        pg.locator('#sheet form[data-form=crew-appointment] select[name=status]').select_option('accepted')
+        pg.locator('#sheet form[data-form=crew-appointment] button[type=submit]').click()
+        c.ok(pg.evaluate("window.__team.ws.volunteerAppointments[0].status") == 'accepted'
+             and pg.evaluate("window.__team.ws.matchOfficials.length") == len(people),
+             f'[{width}] accepted club appointment updates existing person without duplicate')
+        pg.locator('#view [data-act=crew-appointment-edit]').click()
+        pg.locator('#sheet form[data-form=crew-appointment] select[name=status]').select_option('ended')
+        pg.locator('#sheet form[data-form=crew-appointment] button[type=submit]').click()
+        c.ok(pg.evaluate("window.__team.ws.volunteerAppointments.length") == 1
+             and pg.evaluate("window.__team.ws.volunteerAppointments[0].status") == 'ended',
+             f'[{width}] ended appointment is retained rather than deleted')
         pg.locator('[data-act=crew-policy-open]').click()
         pg.fill('#sheet [name=year]', info['year'])
         pg.fill('#sheet [name=source]', f'{info["year"]} local age-group requirements (synthetic test)')
