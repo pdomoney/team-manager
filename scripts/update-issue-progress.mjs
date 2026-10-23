@@ -75,16 +75,38 @@ export function roadmapBlock(results) {
     `| ${x.phase} | \`${bar(x.done,x.total,10)}\` | ${x.complete}% | **${x.remaining}%** | [#${x.issue}](https://github.com/pdomoney/team-manager/issues/${x.issue}) |`).join('\n');
   return header + '\n' + rows + '\n\n*Each percentage counts configured delivery milestones and acceptance gates—not elapsed effort. Unscoped future phases show 0% until their plan is baselined.*';
 }
-async function github(path, token, method='GET', payload) {
+// Retry only transient provider errors. Authentication/permission errors remain actionable.
+// Dependency injection makes the bounded retry policy testable without network calls.
+export async function github(path, token, method='GET', payload, request=fetch, pause=ms=>new Promise(done=>setTimeout(done,ms))) {
   const url = `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/${path}`;
-  const response = await fetch(url,{method,headers:{
-    'Accept':'application/vnd.github+json',
-    'Authorization':`Bearer ${token}`,
-    'X-GitHub-Api-Version':'2022-11-28',
-    'Content-Type':'application/json'
-  },...(payload ? {body:JSON.stringify(payload)}:{})});
-  if (!response.ok) throw new Error(`GitHub API ${method} ${path}: ${response.status} ${await response.text()}`);
-  return response.json();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    let response;
+    try {
+      response = await request(url,{method,headers:{
+        'Accept':'application/vnd.github+json',
+        'Authorization':`Bearer ${token}`,
+        'X-GitHub-Api-Version':'2022-11-28',
+        'Content-Type':'application/json'
+      },...(payload ? {body:JSON.stringify(payload)}:{})});
+    } catch (error) {
+      // Intermittent transport failure: retry without discarding prior issue updates.
+      if (attempt === 4) throw new Error(`GitHub API ${method} ${path} transport failed after 5 attempts: ${String(error)}`);
+      await pause(Math.min(8000, 500 * (2 ** attempt)));
+      continue;
+    }
+    if (response.ok) return response.json();
+    const rateLimited = response.status === 403 && (
+      response.headers?.get('x-ratelimit-remaining') === '0' ||
+      response.headers?.has('retry-after'));
+    const retry = [429,500,502,503,504].includes(response.status) || rateLimited;
+    if (!retry || attempt === 4)
+      throw new Error(`GitHub API ${method} ${path}: ${response.status} ${await response.text()} (attempt ${attempt+1}/5)`);
+    const retryAfter = Number(response.headers?.get('retry-after'));
+    const wait = retryAfter > 0 && Number.isFinite(retryAfter)
+      ? Math.min(8000, retryAfter * 1000) : Math.min(8000, 500 * (2 ** attempt));
+    await pause(wait);
+  }
+  throw new Error('Unreachable: GitHub retries exhausted');
 }
 export async function updateProgress(config, client, log = console) {
   const results = [];
