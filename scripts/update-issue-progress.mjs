@@ -23,8 +23,9 @@ export function computeProgress(issue, phase, mergedPulls = new Set()) {
   const finished = issue.state === 'closed' && issue.state_reason !== 'not_planned';
   const deferred = issue.state === 'closed' && issue.state_reason === 'not_planned';
   const merged = pulls.filter(p => mergedPulls.has(p)).length;
-  const manual = checkedGate(issue.body, /Required Safari\/mobile and representative user-journey tests recorded/i);
-  const owner = checkedGate(issue.body, /Product owner explicitly accepts this phase/i);
+  // A formally completed phase is accepted even when legacy checklist ticks were not backfilled.
+  const manual = finished || checkedGate(issue.body, /Required Safari\/mobile and representative user-journey tests recorded/i);
+  const owner = finished || checkedGate(issue.body, /Product owner explicitly accepts this phase/i);
   const total = pulls.length + 3; // manual acceptance, explicit owner sign-off, issue completed
   const done = finished ? total : merged + Number(manual) + Number(owner);
   const pct = Math.round(100 * done / total);
