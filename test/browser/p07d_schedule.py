@@ -18,7 +18,11 @@ with sync_playwright() as p:
         # In-memory only: do not touch encrypted workspace files or shared settings.
         seed = pg.evaluate("""() => {
           const ws=window.__team.ws, M=window.__team.M;
-          const date=M.addDays(M.isoDay(),2), rootClub=ws.team.clubId;
+          const date=M.addDays(M.isoDay(),2);
+          const rootClub=ws.team.clubId || ws.clubs[0]?.id || 'p07droot';
+          if(!ws.clubs.some(c=>c.id===rootClub))
+            ws.clubs.push({id:rootClub,name:'P07D Root Club',sport:'Oztag'});
+          ws.team.clubId=rootClub;
           ws.matches.push({id:'p07d-local-a',date,start:'09:30',
             opponent:'P07D Synthetic A',venue:'Synthetic Park',status:'scheduled',
             result:{},coachNotes:'P07D SECRET COACH A'});
