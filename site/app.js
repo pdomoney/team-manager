@@ -5733,11 +5733,12 @@ function viewRules() {
     <p class="hint">You can keep team-specific positions and competition by-laws, but confirm requirements with the relevant organiser and governing body. Do not use another sport's rules as though they apply automatically.</p>
     ${coach ? '<button class="btn sm" data-act="settings" data-sec="team">Review team sport and rules</button>' : ''}
   </section>`;
-  const crossSportNotice = coverage.crossSportRulePack
-    ? `<div class="note sport-rules-mismatch" role="status"><strong>Sport and rule set need review.</strong>
-      This team is recorded as ${esc(coverage.sport)}, but the selected rule pack is ${esc(rs.sportName)}.
-      These rules are not verified for this team's sport. ${coach ? '<button class="btn sm" data-act="settings" data-sec="team">Review selection</button>' : 'Ask your coach to review the selection.'}</div>`
-    : '';
+  if (coverage.crossSportRulePack) return `<section class="sec sport-rules-mismatch" aria-label="Sport rules mismatch">
+    <div class="sec-h"><h2>Sport and rule set need review</h2></div>
+    <p class="note" role="status">This team is recorded as ${esc(coverage.sport)}, but its selected rule pack is ${esc(rs.sportName)}. These rules are not verified for this team's sport.</p>
+    <p class="hint">Scoring, restarts, player numbers and gameplay from the other code are hidden until the coach reviews this selection. Saved team rules and competition by-laws are not changed.</p>
+    ${coach ? '<button class="btn sm" data-act="settings" data-sec="team">Review selection</button>' : '<p class="hint">Ask your coach to review the team sport and rule set.</p>'}
+  </section>`;
   const bylaws = arr(T.bylaws), replaced = new Map(bylaws.filter(b => b.replaces).map(b => [b.replaces, b]));
   const unseen = rulesUnseen(), fresh = new Set(unseen.flatMap(c => arr(c.rules)));
   const mm = M.maxMalesOf(T, curClub()), values = { ...rs.values };
@@ -5745,7 +5746,6 @@ function viewRules() {
   const ruleOf = id => rs.rules.find(r => r.id === id);
   const topics = [...new Set(rs.rules.map(r => r.topic))];
   return `<div class="long-page"><div class="sec-h"><h2>Rules</h2>${coach ? '<button class="btn sm" data-act="settings" data-sec="team">Change rule set</button>' : ''}</div>
-    ${crossSportNotice}
     <div class="card rules-head"><span class="sub">${esc(rs.sportName)}</span><h3>${esc(rs.name)}</h3>
       ${rs.source ? `<p class="muted small">From the <a href="${esc(rs.source.url)}" target="_blank" rel="noopener">${esc(rs.source.title)}</a> (${esc(rs.source.edition)}). Each rule shows its number in the rule book.</p>` : ''}
       ${rs.note ? `<p class="note">${esc(rs.note)}</p>` : ''}</div>
