@@ -64,8 +64,9 @@ with sync_playwright() as p:
     pg.click('#sheet [data-act=fixture-revision-confirm]')
     pg.wait_for_selector('text=Cancel them too'); pg.click('text=Cancel them too'); pg.wait_for_timeout(150)
     c.ok(d(f"D.matches.find(m => m.id === '{mid}').status") == 'cancelled' and d(f"D.tasks.find(t => t.id === '{lift}').cancelled"), 'match and its tasks cancelled')
-    c.ok(d(f"D.matches.find(m => m.id === '{mid}').fixtureRevisions.length") == 2,
-         'two fixture revisions retained as history')
+    revisions = d(f"D.matches.find(m => m.id === '{mid}').fixtureRevisions.map(x => [x.after.status, x.taskDisposition, x.reason])")
+    c.ok(len(revisions) == 2,
+         f'two fixture revisions retained as history: {revisions}')
     c.ok(d(f"D.matches.find(m => m.id === '{mid}').result.us") == 3,
          'existing result preserved through schedule and cancellation amendments')
     # WhatsApp texts
