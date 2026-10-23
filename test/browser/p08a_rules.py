@@ -11,8 +11,9 @@ act = "([a, ds]) => {const b=document.createElement('button');b.dataset.act=a;Ob
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
+    browser_errors = []
     for width in (390, 1280):
-        ctx, pg, errs = page(browser, url + '#home', width=width)
+        ctx, pg, errs = page(browser, url + '#home', width=width, errors=browser_errors)
         pg.click('text=Load a sample squad')
         pg.wait_for_timeout(180)
         # Original Oztag rules remain available.
@@ -59,7 +60,8 @@ with sync_playwright() as p:
         c.ok(pg.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),
              f'{width}: rules display has no horizontal overflow')
         ctx.close()
-    ok = c.done()
+    # Preserve the harness's fatal JavaScript/console-error gate across viewports.
+    ok = c.done(browser_errors)
     browser.close()
 srv.shutdown()
 sys.exit(0 if ok else 1)
