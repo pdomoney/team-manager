@@ -42,6 +42,9 @@ with sync_playwright() as p:
         txt = pg.locator('#view .sport-rules-mismatch').inner_text()
         c.ok('Touch football' in txt and 'Rugby league' in txt and 'not verified' in txt,
              f'{width}: mismatch explains selected sport and rule source')
+        c.ok(pg.locator('#view .rules-head').count()==0 and
+             'At a glance' not in pg.locator('#view').inner_text(),
+             f'{width}: mismatched gameplay and scoring values are not displayed')
         # Restore matching League context, ensure the warning is removed.
         pg.evaluate("""() => {
           const team=window.__team.data.team;
