@@ -34,6 +34,7 @@ import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
 import { volunteerRemovalCheck } from './p06-volunteer-lifecycle.js';
 import { localWorkspaceCalendar } from './p07-calendar.js';
+import { planFixtureRevision, commitFixtureRevision, fixtureSnapshot } from './p07-fixture-amendments.js';
 import { workspaceCrewOverview } from './p06-workspace-overview.js';
 import { reviewVolunteerAppointments } from './p06-appointments.js';
 import { APPOINTMENT_STATES, APPOINTMENT_STATUS_LABELS, upsertVolunteerAppointment } from './p06-appointment-store.js';
@@ -305,7 +306,7 @@ const state = {
   folded: {},
   system: null, sysFlip: false,
   playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
-  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', peopleSearch: '',
+  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, peopleSearch: '',
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
@@ -4284,6 +4285,14 @@ function matchForm(m) {
     <label class="check"><input type="checkbox" name="tournament" ${m.tournament || (T.eventStart && m.date >= T.eventStart && m.date <= (T.eventEnd || T.eventStart)) ? 'checked' : ''}><span>Show in the ${esc(T.event || 'tournament')} draw</span></label>
     <label class="field-l"><span>Notes for players</span><input type="text" name="notes" value="${esc(m.notes || '')}" placeholder="e.g. Meet 45 minutes early, white tops"></label>
     <label class="field-l"><span>Coach notes</span><input type="text" name="coachNotes" value="${esc(m.coachNotes || '')}" placeholder="Only coaches see these"></label>
+    ${isNew ? '' : `<label class="field-l"><span>Reason for any fixture change</span><input type="text" name="changeReason" maxlength="200" placeholder="e.g. Organiser advised a later start"></label>
+      <p class="hint">If you change the date, start time, venue, field or status, you'll review the change before it is saved. Existing results, crew, lineups and availability remain and may need rechecking.</p>
+      ${arr(m.fixtureRevisions).length ? `<details class="more fixture-change-history"><summary>Previous fixture changes (${arr(m.fixtureRevisions).length})</summary>
+        <ul class="diff-list">${arr(m.fixtureRevisions).slice(-5).reverse().map(x=>`<li>
+          <strong>${esc(x.at?.slice(0,16)||'Recorded locally')}</strong> · ${esc(x.reason||'No reason recorded')}
+          <span class="sub" style="display:block;white-space:normal">${esc(x.before?.date||'?')} ${esc(x.before?.start||'')} → ${esc(x.after?.date||'?')} ${esc(x.after?.start||'')} · ${esc(x.after?.status||'')}</span>
+        </li>`).join('')}</ul>
+      </details>` : ''}`}
     <button class="btn primary block" type="submit">${isNew ? 'Add match' : 'Save changes'}</button>
   </form>`;
 }
