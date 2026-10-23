@@ -79,7 +79,7 @@ test('P07B archived team is absent but original history untouched',()=>{
  w.teams[0].archived=true;
  const out=localWorkspaceCalendar(w);
  assert.equal(out.totals.events,3);
- assert.equal(JSON.stringify(w.teams[0]),before.replace('"archived":true','"archived":true')); // source still has same data
+ assert.equal(JSON.stringify(w.teams[0]),before); // no mutation of archived match history
  assert.equal(w.teams[0].matches.length,1);
 });
 test('P07B input absence and key collision across teams do not invent a joined event',()=>{
