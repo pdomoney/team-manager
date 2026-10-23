@@ -1,6 +1,6 @@
 {
   "roadmapIssue": 41,
-  "description": "Progress measures named PR delivery checkpoints plus 3 acceptance gates (manual/Safari, owner acceptance, phase closure), not hours or subjective effort. Add planned scoped PRs here before release; an issue with no PR milestones is not yet baselined.",
+  "description": "A fixed denominator uses known merged PR checkpoints plus named future checkpoints and 3 acceptance gates. Replace one named future checkpoint with its PR number when opened; never infer effort from PR count.",
   "phases": [
     {
       "phase": "P00",
@@ -69,7 +69,14 @@
     {
       "phase": "P07",
       "issue": 49,
-      "pulls": []
+      "pulls": [
+        79
+      ],
+      "futureCheckpoints": [
+        "P07B — unified local calendar projection",
+        "P07C — controlled fixture amendments",
+        "P07D — negative-case and Safari acceptance"
+      ]
     },
     {
       "phase": "P08",
