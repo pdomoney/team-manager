@@ -32,6 +32,7 @@ import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClub
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
+import { workspaceCrewOverview } from './p06-workspace-overview.js';
 import { reviewVolunteerAppointments } from './p06-appointments.js';
 import { APPOINTMENT_STATES, APPOINTMENT_STATUS_LABELS, upsertVolunteerAppointment } from './p06-appointment-store.js';
 import { TEAM_STYLES, CLASSIC, styleById, normStyle, effectiveStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
@@ -3609,6 +3610,8 @@ function viewCrew() {
   const readiness = selectedId ? fixtureReadinessIndex(ws, selectedId) : null;
   const readinessActions = selectedId ? clubCrewActions(ws, selectedId) : [];
   const appointments = reviewVolunteerAppointments(arr(ws.matchOfficials), arr(ws.volunteerAppointments), {type:'club',id:selectedId});
+  const overviewSports = [...new Set(M.activeTeams(ws).filter(t=>!!M.clubOf(ws,t)).map(t=>M.teamSport(t.team,M.clubOf(ws,t))))].sort();
+  const workspaceOverview = arr(ws.clubs).length>1 ? workspaceCrewOverview(ws,{sport:state.crewOverviewSport || ''}) : null;
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><div class="btn-row">${cardToggle('crew')}<button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div></div>
@@ -3626,6 +3629,19 @@ function viewCrew() {
       <p class="hint">For the selected club: ${readiness.totals.fixtures} fixtures · ${readiness.totals.covered} covered · ${readiness.totals.attention} need attention · ${readiness.totals.unverified} without verified requirements.</p>
       <p class="hint">Based on manual club records only. Review match requirements and registration evidence before relying on these counts.</p>
       ${readinessActions.length ? `<h4>Actions to review (${readinessActions.length})</h4><ul class="crew-req">${readinessActions.slice(0,12).map(x=>`<li>${esc(x.date || 'Date not set')} · ${esc(x.sport)} · ${esc(x.action)}</li>`).join('')}</ul>${readinessActions.length>12?`<p class="hint">Showing the first 12 of ${readinessActions.length} actions.</p>`:''}` : '<p class="hint">No outstanding actions identified from recorded fixtures.</p>'}</section>` : ''}
+    ${workspaceOverview ? `<section class="sec crew-workspace-overview" aria-label="Workspace club staffing overview">
+      <h3>Clubs in this workspace</h3>
+      <p class="hint">Read-only comparison of clubs already present in this encrypted coach workspace. This is not an association-wide directory or access grant.</p>
+      <label class="field-l"><span>Filter fixture sport</span><select name="crewOverviewSport" data-change="crew-overview-sport">
+        <option value="">All sports</option>
+        ${overviewSports.map(s=>`<option value="${esc(s)}" ${state.crewOverviewSport===s?'selected':''}>${esc(s)}</option>`).join('')}
+      </select></label>
+      <p class="hint">${workspaceOverview.totals.fixtures} fixtures · ${workspaceOverview.totals.covered} covered · ${workspaceOverview.totals.attention} need attention · ${workspaceOverview.totals.unverified} unverified policies</p>
+      ${workspaceOverview.clubs.length ? `<ul class="crew-req">${workspaceOverview.clubs.map(c=>`<li><strong>${esc(c.clubName)}</strong> · ${c.fixtures} fixtures · ${c.covered} covered · ${c.attention} attention · ${c.unverified} unverified
+        <span class="sub"> · ${c.manualAcceptedAppointments} manually accepted appointments · ${c.appointmentsNeedingReview} appointments needing review</span></li>`).join('')}</ul>`
+        : '<p class="hint">No recorded fixtures match this sport in the current workspace.</p>'}
+      <p class="hint">Counts are based only on coach records, not verified with governing bodies. No private volunteer information is included.</p>
+    </section>` : ''}
     <nav class="crew-page-nav" aria-label="Match staff sections"><button class="btn sm" data-act="crew-jump" data-to="crew-directory-section">Club volunteers</button><button class="btn sm" data-act="crew-jump" data-to="crew-rules-section">Team requirements</button></nav>
     <details class="info-note crew-help"><summary>${icon('info', 18)}How these records work</summary><div>
       <p class="hint">A person can appear in more than one club and help several teams: open their profile and tick the teams. Club membership, registration and accreditation are reviewed separately for each sport. These records stay in the encrypted coach copy, not a global member directory.</p>
@@ -7320,6 +7336,7 @@ document.addEventListener('change', e => {
   if (k === 'directory-sport' || k === 'directory-state') { clubFinder[k==='directory-sport'?'sport':'state']=e.target.value; clubFinder.limit=30; const v=$('#national-directory-results'); if(v)v.innerHTML=clubDirectoryResults(); }
   if (k === 'player-crop-adjust' && activePlayerCrop) drawPlayerCrop();
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
+  if (k === 'crew-overview-sport' && isCoach()) { state.crewOverviewSport = e.target.value; render(); }
   if (k === 'crew-team-pick' && isCoach()) {
     const t=M.activeTeams(ws).find(t=>t.id===e.target.value);
     if(!t)return;
