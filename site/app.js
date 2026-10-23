@@ -32,6 +32,7 @@ import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClub
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
+import { volunteerRemovalCheck } from './p06-volunteer-lifecycle.js';
 import { workspaceCrewOverview } from './p06-workspace-overview.js';
 import { reviewVolunteerAppointments } from './p06-appointments.js';
 import { APPOINTMENT_STATES, APPOINTMENT_STATUS_LABELS, upsertVolunteerAppointment } from './p06-appointment-store.js';
@@ -6756,8 +6757,12 @@ const actions = {
   }),
   'crew-delete': coachOnly(el => {
     const p = crewPerson(el.dataset.id); if (!p) return;
-    const used = M.teamsOf(ws).some(t => arr(t.matches).some(m => arr(m.crew).some(a => a.personId === p.id)));
-    if (used) { toast('This person is assigned to match records. Mark them inactive instead to preserve history.'); return; }
+    const removal = volunteerRemovalCheck(ws,p.id);
+    if (!removal.allowed) {
+      toast(removal.matches ? 'This volunteer has match-day history. Mark them inactive instead of removing the record.'
+        : 'This volunteer has an organisational appointment record, including ended appointments. Mark them inactive to preserve history.');
+      return;
+    }
     if (!confirm('Remove ' + p.name + ' from the match staff directory?')) return;
     ws.matchOfficials = arr(ws.matchOfficials).filter(x => x.id !== p.id);
     save(); closeSheet(); render();
@@ -7825,11 +7830,13 @@ document.addEventListener('submit', async e => {
       clubId: shownClubs.includes(p.clubId) && !clubIds.includes(p.clubId) ? '' : p.clubId,
       clubIds, teamIds,
       active:!!f.get('active')});
+    const becameInactive = p.active !== false && saved.active === false;
     Object.assign(p,saved);save();
     const review = str('review') && M.activeTeams(ws).find(t => t.id === str('review'));
     if (review) { render(); openSheet('Roles for ' + M.teamName(review), crewPersonForm(p, review, { back: true }), 'crew-person'); return; }
     closeSheet();render();
-    toast(onMatches.length ? `Profile saved. ${p.name} is still on upcoming matches for ${onMatches.map(t => M.teamName(t)).join(', ')}; check those.` : 'Volunteer profile updated');return;
+    toast(becameInactive ? 'Volunteer marked inactive. Historical matches and organisational appointments remain recorded; review future staffing and manually accepted appointments.'
+      : onMatches.length ? `Profile saved. ${p.name} is still on upcoming matches for ${onMatches.map(t => M.teamName(t)).join(', ')}; check those.` : 'Volunteer profile updated');return;
   }
   if (kind === 'crew-pick-team' || kind === 'crew-pick-view') {
     const target=M.activeTeams(ws).find(t=>t.id===str('teamId'));

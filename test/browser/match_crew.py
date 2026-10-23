@@ -110,6 +110,12 @@ with sync_playwright() as p:
         c.ok(pg.evaluate("window.__team.ws.volunteerAppointments.length") == 1
              and pg.evaluate("window.__team.ws.volunteerAppointments[0].status") == 'ended',
              f'[{width}] ended appointment is retained rather than deleted')
+        # P06H: an ended appointment is history and must block volunteer hard-delete.
+        before_remove=pg.evaluate("window.__team.ws.matchOfficials.length")
+        pg.evaluate(act,['crew-delete',{'id':people[0]['id']}])
+        c.ok(pg.evaluate("window.__team.ws.matchOfficials.length") == before_remove
+             and pg.evaluate("window.__team.ws.volunteerAppointments.length") == 1,
+             f'[{width}] hard removal is refused when an ended appointment references the volunteer')
         pg.locator('[data-act=crew-policy-open]').click()
         pg.fill('#sheet [name=year]', info['year'])
         pg.fill('#sheet [name=source]', f'{info["year"]} local age-group requirements (synthetic test)')
@@ -243,6 +249,15 @@ with sync_playwright() as p:
              and 'Open email draft' in pg.inner_text('#sheet'),
              f'[{width}] invitation entry makes no account or delivery claim')
         pg.locator('#sheet [data-act=close-sheet]').last.click()
+        # P06H: deactivation retains prior fixture and organisational history.
+        pg.evaluate(act,['crew-basic',{'id':ids['Casey Coach']}])
+        pg.locator('#sheet form[data-form=crew-basic] [name=active]').uncheck()
+        pg.locator('#sheet form[data-form=crew-basic] button[type=submit]').click()
+        c.ok(pg.evaluate("window.__team.ws.matchOfficials.find(p=>p.name==='Casey Coach').active === false")
+             and pg.evaluate("window.__team.ws.volunteerAppointments.length") == 1,
+             f'[{width}] volunteer deactivation retains identity and appointment history')
+        c.ok(pg.evaluate("window.__team.ws.matches.some(m => (m.crew||[]).some(a => a.personId === window.__team.ws.matchOfficials.find(p=>p.name==='Casey Coach').id))"),
+             f'[{width}] original match assignment history survives volunteer deactivation')
         pg.evaluate(act, ['preview-on', {}])
         c.ok(pg.locator('.nav-sub [data-tab=crew], .subnav [data-tab=crew]').count() == 0,
              f'[{width}] players do not get the private officials tab')
