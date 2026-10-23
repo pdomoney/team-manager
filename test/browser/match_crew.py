@@ -167,6 +167,11 @@ with sync_playwright() as p:
         c.ok('Taren Point Titans' in overview.inner_text() and 'PRIVATE MEDICAL' not in overview.inner_text()
              and 'Casey Coach' not in overview.inner_text(),
              f'[{width}] overview lists workspace clubs but suppresses individual volunteer details')
+        c.ok(pg.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'),
+             f'[{width}] multi-club readiness overview fits viewport without horizontal overflow')
+        c.ok(pg.locator('#view .crew-workspace-overview .crew-req .sub').evaluate_all(
+             "(nodes) => nodes.every(n => getComputedStyle(n).whiteSpace === 'normal')"),
+             f'[{width}] appointment summary wraps instead of forcing a single long line')
         pg.locator('#view select[name=crewOverviewSport]').select_option('Oztag')
         c.ok('Taren Point Titans' not in pg.locator('#view .crew-workspace-overview').inner_text(),
              f'[{width}] sport filter excludes clubs with no Oztag fixtures')
