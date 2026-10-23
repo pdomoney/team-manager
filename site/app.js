@@ -4557,7 +4557,7 @@ function askLinked(p) {
   openSheet('Linked tasks', `<p style="margin-bottom:10px">${verb} ${esc(eventName(p.kind, ev))}. ${tasks.length === 1 ? 'This task is' : `These ${tasks.length} tasks are`} linked to it:</p>
     <ul class="diff-list">${tasks.map(t => `<li>${esc(t.title)} <span class="muted">(${esc(fmtDay(t.date))}${t.start ? ' ' + esc(fmtTime(t.start)) : ''}${t.cancelled ? ', cancelled' : ''})</span></li>`).join('')}</ul>
     <h3 class="form-sec">What should happen to ${tasks.length === 1 ? 'it' : 'them'}?</h3>
-    <div class="list">${LINK_OPTS[p.op].map(([c, l, d]) => `<button class="pick" data-act="link-choice" data-c="${c}"><span class="grow"><span class="name" style="display:block">${l}</span><span class="tagline">${d}</span></span></button>`).join('')}</div>
+    <div class="list">${(p.fixtureRevision ? LINK_OPTS[p.op].filter(([c])=>c!=='remove') : LINK_OPTS[p.op]).map(([c, l, d]) => `<button class="pick" data-act="link-choice" data-c="${c}"><span class="grow"><span class="name" style="display:block">${l}</span><span class="tagline">${d}</span></span></button>`).join('')}</div>
     <button class="btn block" style="margin-top:12px" data-act="close-sheet">Don’t change anything</button>`, 'linked');
 }
 function applyLinkChoice(c) {
@@ -4565,12 +4565,23 @@ function applyLinkChoice(c) {
   const ev = p && eventOf(p.kind, p.id); if (!ev) { closeSheet(); return; }
   const s = n => `${n} task${n === 1 ? '' : 's'}`;
   let msg = 'Saved';
+  const wasOff=ev.status==='cancelled'||ev.status==='postponed';
+  if(p.fixtureRevision){
+    // These paths may affect task history; P07C disallows destructive 'remove'.
+    const allowed=p.op==='cancel'?['keep','cancel']:['move','detach'];
+    if(p.kind!=='match'||!allowed.includes(c)||p.teamId!==data.id){
+      toast('Fixture revision decision is invalid');closeSheet();return;
+    }
+    const result=saveReviewedFixture(ev,p,c);
+    if(result.error){toast(result.error);closeSheet();return;}
+  }
   if (p.op === 'edit') {
-    Object.assign(ev, p.fields);
+    if(!p.fixtureRevision)Object.assign(ev, p.fields);
     msg = c === 'move' ? `Saved. ${s(M.followEvent(data, p.kind, p.id, p.before, p.after))} moved with it` : `Saved. ${s(M.detachTasks(data, p.kind, p.id))} left on the old day, unlinked`;
+    if(p.fixtureRevision && wasOff && ev.status==='scheduled') M.reinstateTasks(data,'match',p.id);
   }
   if (p.op === 'cancel') {
-    if (p.kind === 'session') ev.cancelled = true; else Object.assign(ev, p.fields || {}, { status: p.status || 'cancelled' });
+    if (p.kind === 'session') ev.cancelled = true; else if(!p.fixtureRevision) Object.assign(ev, p.fields || {}, { status: p.status || 'cancelled' });
     msg = c === 'cancel' ? `Cancelled, with ${s(M.cancelTasks(data, p.kind, p.id))}` : c === 'remove' ? `Cancelled, and ${s(M.removeTasks(data, p.kind, p.id))} deleted` : 'Cancelled. The tasks are still on';
   }
   if (p.op === 'delete') {
