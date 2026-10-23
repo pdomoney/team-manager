@@ -80,7 +80,13 @@
     {
       "phase": "P08",
       "issue": 50,
-      "pulls": []
+      "pulls": [
+        83
+      ],
+      "futureCheckpoints": [
+        "P08B — local library ownership, copy and versioning",
+        "P08C — sport-aware tactics, teaching and compatibility qualification"
+      ]
     },
     {
       "phase": "P09",
