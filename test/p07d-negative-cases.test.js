@@ -19,7 +19,7 @@ function workspace() {
     seasons:[{id:'s1',year:'2026'}], matches:[match('entry-a','Club B')],
     sessions:[{id:'training',date:'2026-11-15',start:'09:30',end:'10:30',focus:'Passing'}],
     tasks:[{id:'duty',date:'2026-11-15',start:'09:30',title:'Gear duty',
-      people:[{who:'PRIVATE-PERSON'}],notes:'PRIVATE HEALTH'}],
+      people:[{who:'PRIVATE-PERSON'}],notes:'Bring equipment',privateNotes:'PRIVATE HEALTH'}],
     players:[{id:'PRIVATE-CHILD',name:'PRIVATE MINOR'}],
     clubs:[{id:'club-a',name:'Club A',sport:'Oztag'},
       {id:'club-b',name:'Club B',sport:'Oztag'}],
