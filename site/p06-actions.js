@@ -8,12 +8,15 @@ const ACTIONS = Object.freeze({
   coverage: 'Assign additional eligible, confirmed staff',
   qualification: 'Review expired or missing qualification, registration and WWCC evidence',
   confirmation: 'Obtain assignment confirmations',
+  availability: 'Review inactive staff, availability and sport-specific role eligibility',
+  missingPerson: 'Restore or correct missing volunteer links without losing match history',
   conflict: 'Resolve overlapping confirmed match assignments'
 });
 
 export function clubCrewActions(ws, clubId) {
   const actions = [];
   if (!clubId) return Object.freeze(actions);
+  const people = new Map(arr(ws.matchOfficials).filter(p=>p?.id).map(p=>[p.id,p]));
   for (const team of teamsOf(ws)) {
     if (team?.archived || clubOf(ws, team)?.id !== clubId) continue;
     const sport = teamSport(team.team, clubOf(ws, team));
@@ -28,6 +31,9 @@ export function clubCrewActions(ws, clubId) {
       if (evaluated.configured && evaluated.shortages.some(x => x.missing > 0)) keys.push('coverage');
       if (evaluated.slots.some(x => /WWCC|accreditation|registration|unverified|expired|not in this club|allocation/i.test(x.issue || ''))) keys.push('qualification');
       if (evaluated.slots.some(x => /not confirmed/i.test(x.issue || ''))) keys.push('confirmation');
+      if (evaluated.slots.some(x => !people.has(x.personId))) keys.push('missingPerson');
+      if (evaluated.slots.some(x => people.get(x.personId)?.active === false ||
+        /availability not confirmed|role not eligible/i.test(x.issue || ''))) keys.push('availability');
       if (conflicts.length || evaluated.slots.some(x => /assigned twice/i.test(x.issue || ''))) keys.push('conflict');
       for (const key of keys) actions.push(Object.freeze({
         teamId: team.id, matchId: match.id, date: String(match.date || ''),
