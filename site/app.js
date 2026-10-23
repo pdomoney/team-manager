@@ -26,6 +26,7 @@ import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
+import { sportCapabilities } from './p08-sport-capabilities.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
@@ -5725,7 +5726,18 @@ function loadWatch() {
 }
 function viewRules() {
   const rs = curRules(), coach = isCoach(), T = V.team;
-  if (!rs) return '<div class="empty"><p>No rule set chosen for this team.</p></div>';
+  const coverage = sportCapabilities(T, curClub());
+  if (!rs) return `<section class="sec sport-rules-coverage" aria-label="Sport rules coverage">
+    <div class="sec-h"><h2>${esc(coverage.sport)} rules</h2></div>
+    <p class="note" role="status">No built-in rule pack is available for this team's sport. The app cannot verify its field layout, game format or scoring rules.</p>
+    <p class="hint">You can keep team-specific positions and competition by-laws, but confirm requirements with the relevant organiser and governing body. Do not use another sport's rules as though they apply automatically.</p>
+    ${coach ? '<button class="btn sm" data-act="settings" data-sec="team">Review team sport and rules</button>' : ''}
+  </section>`;
+  const crossSportNotice = coverage.crossSportRulePack
+    ? `<div class="note sport-rules-mismatch" role="status"><strong>Sport and rule set need review.</strong>
+      This team is recorded as ${esc(coverage.sport)}, but the selected rule pack is ${esc(rs.sportName)}.
+      These rules are not verified for this team's sport. ${coach ? '<button class="btn sm" data-act="settings" data-sec="team">Review selection</button>' : 'Ask your coach to review the selection.'}</div>`
+    : '';
   const bylaws = arr(T.bylaws), replaced = new Map(bylaws.filter(b => b.replaces).map(b => [b.replaces, b]));
   const unseen = rulesUnseen(), fresh = new Set(unseen.flatMap(c => arr(c.rules)));
   const mm = M.maxMalesOf(T, curClub()), values = { ...rs.values };
@@ -5733,6 +5745,7 @@ function viewRules() {
   const ruleOf = id => rs.rules.find(r => r.id === id);
   const topics = [...new Set(rs.rules.map(r => r.topic))];
   return `<div class="long-page"><div class="sec-h"><h2>Rules</h2>${coach ? '<button class="btn sm" data-act="settings" data-sec="team">Change rule set</button>' : ''}</div>
+    ${crossSportNotice}
     <div class="card rules-head"><span class="sub">${esc(rs.sportName)}</span><h3>${esc(rs.name)}</h3>
       ${rs.source ? `<p class="muted small">From the <a href="${esc(rs.source.url)}" target="_blank" rel="noopener">${esc(rs.source.title)}</a> (${esc(rs.source.edition)}). Each rule shows its number in the rule book.</p>` : ''}
       ${rs.note ? `<p class="note">${esc(rs.note)}</p>` : ''}</div>
