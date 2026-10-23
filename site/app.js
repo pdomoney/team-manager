@@ -4562,6 +4562,8 @@ function askLinked(p) {
 }
 function applyLinkChoice(c) {
   const p = state.pending; state.pending = null;
+  // A decision from a dismissed linked-duty review must never be replayed.
+  if (p?.fixtureRevision && state.sheet !== 'linked') return;
   const ev = p && eventOf(p.kind, p.id); if (!ev) { closeSheet(); return; }
   const s = n => `${n} task${n === 1 ? '' : 's'}`;
   let msg = 'Saved';
@@ -6129,6 +6131,9 @@ function requestCloseSheet() {
   closeSheet();
 }
 function closeSheet() {
+  // Dismissing either confirmation sheet revokes the pending fixture amendment.
+  state.fixturePending = null;
+  if (state.pending?.fixtureRevision) state.pending = null;
   stopPlayerCrop();
   const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; document.body.classList.remove('locked'); state.sheet = null;
   if (state.stylePreview) { state.stylePreview = false; applyTeamStyle(); }
@@ -6611,6 +6616,7 @@ const actions = {
   'md-send-lineup': coachOnly(el => { const m = matchById(el.dataset.id); if (m) sendWa(matchLineupText(m), { ref: 'match:' + m.id }); }),
   'result-share': coachOnly(el => { const m = matchById(el.dataset.id); if (m && (M.matchOutcome(m) || m.status !== 'scheduled')) sendWa(oneResultText(m), { ref: 'result:' + m.id }); }),
   'fixture-revision-confirm': coachOnly(() => {
+    if(state.sheet!=='fixture-revision')return;
     const p=state.fixturePending;state.fixturePending=null;
     const m=p&&p.teamId===data.id&&matchById(p.id);
     if(!m){toast('Fixture no longer belongs to the selected team');return;}
