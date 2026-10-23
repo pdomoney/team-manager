@@ -70,10 +70,10 @@
       "phase": "P07",
       "issue": 49,
       "pulls": [
-        79
+        79,
+        80
       ],
       "futureCheckpoints": [
-        "P07B — unified local calendar projection",
         "P07C — controlled fixture amendments",
         "P07D — negative-case and Safari acceptance"
       ]
