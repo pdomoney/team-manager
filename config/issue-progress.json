@@ -1,0 +1,90 @@
+{
+  "roadmapIssue": 41,
+  "description": "Progress measures named PR delivery checkpoints plus 3 acceptance gates (manual/Safari, owner acceptance, phase closure), not hours or subjective effort. Add planned scoped PRs here before release; an issue with no PR milestones is not yet baselined.",
+  "phases": [
+    {
+      "phase": "P00",
+      "issue": 42,
+      "pulls": [
+        53
+      ]
+    },
+    {
+      "phase": "P01",
+      "issue": 43,
+      "pulls": [
+        54
+      ]
+    },
+    {
+      "phase": "P02",
+      "issue": 44,
+      "pulls": [
+        56
+      ]
+    },
+    {
+      "phase": "P03",
+      "issue": 45,
+      "pulls": [
+        57
+      ]
+    },
+    {
+      "phase": "P04",
+      "issue": 46,
+      "pulls": [
+        58,
+        59,
+        60,
+        61,
+        63
+      ]
+    },
+    {
+      "phase": "P05",
+      "issue": 47,
+      "pulls": [
+        64,
+        65,
+        66,
+        67,
+        68
+      ]
+    },
+    {
+      "phase": "P06",
+      "issue": 48,
+      "pulls": [
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76
+      ]
+    },
+    {
+      "phase": "P07",
+      "issue": 49,
+      "pulls": []
+    },
+    {
+      "phase": "P08",
+      "issue": 50,
+      "pulls": []
+    },
+    {
+      "phase": "P09",
+      "issue": 51,
+      "pulls": []
+    },
+    {
+      "phase": "P10",
+      "issue": 52,
+      "pulls": []
+    }
+  ]
+}
