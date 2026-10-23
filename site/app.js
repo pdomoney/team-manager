@@ -27,6 +27,7 @@ import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
+import { libraryCopyReview, libraryOrigin } from './p08-library-provenance.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
@@ -5439,14 +5440,18 @@ function libRow(kind, li) {
   const act = !mine ? `<button class="btn sm primary" data-act="lib-add" data-k="${kind}" data-id="${esc(li.id)}">Add to this team</button>`
     : st === 'current' ? `<span class="pill ok">In this team</span>`
     : `<button class="btn sm" data-act="lib-take" data-k="${kind}" data-id="${esc(kind === 'systems' ? li.id : mine.id)}">Use library version</button>`;
+  const origin=libraryOrigin(li);
+  const review=libraryCopyReview(ws,li,data);
+  const provenance=origin ? `Source: ${esc(origin.sport)} · local coach workspace` : 'Source sport not recorded (older/imported entry)';
   return `<div class="row lib-row"><span class="grow"><span class="name" style="display:block">${esc(name)} <span class="muted small">v${li.rev || 1}</span></span>
-      <span class="sub lib-use">${libUseLine(kind, li)}</span></span>${act}
+      <span class="sub lib-use">${libUseLine(kind, li)}</span>
+      <span class="sub lib-origin">${provenance}${review.requiresExplicitReview ? ' · Review before copying to this team' : ''}</span></span>${act}
       <button class="icon-btn" data-act="lib-remove" data-k="${kind}" data-id="${esc(li.id)}" aria-label="Take ${esc(name)} out of the library">${icon('close', 18)}</button></div>`;
 }
 function viewLibrary() {
   if (!isCoach()) return '';
   const sec = (kind, title, empty) => { const items = M.libItems(ws, kind); return `<h3 class="form-sec">${title} (${items.length})</h3>${items.length ? `<div class="list">${items.map(li => libRow(kind, li)).join('')}</div>` : `<p class="muted small">${empty}</p>`}`; };
-  return `<div class="sec-h"><h2>Library</h2></div><p class="hint" style="margin:-4px 0 6px">Shared across your teams. Save plays, game systems and custom diagram role labels to the library, then reuse them in another team. Teams that haven’t changed their copy get each new library version; a team that has keeps its own.</p>
+  return `<div class="sec-h"><h2>Library</h2></div><p class="hint" style="margin:-4px 0 6px">This is one local coach workspace library, not an independently authorised club or association library. Source sport and club are shown for review. New teams copy only confirmed matching-context entries; different or unknown sport/club sources require a deliberate manual choice. Unedited linked team copies follow new versions; edited copies are retained.</p>
     ${sec('plays', 'Plays', 'No plays yet. Open a play and choose Save to library.')}
     ${sec('systems', 'Game systems', 'None yet. Show a game system on the Lineup page and choose Save to library.')}
     ${sec('playerSets', 'Diagram role labels', 'No custom diagram labels in the shared library yet.')}
@@ -7375,7 +7380,12 @@ const actions = {
     save(); render(); if (state.sheet === 'psets') openPlayerLists(); toast(libSaveReport(r));
   }),
   'lib-add': coachOnly(el => {
-    const kind = el.dataset.k, x = M.libAdd(ws, data, kind, el.dataset.id); if (!x) return;
+    const kind = el.dataset.k, li = M.libGet(ws,kind,el.dataset.id);
+    if (!li) return;
+    const review=libraryCopyReview(ws,li,data);
+    if (review.requiresExplicitReview &&
+      !confirm(`Copy into ${data.team.name}? This is a local coaching copy, not an authorised shared club resource. Source sport: ${review.sourceSport}. Target sport: ${review.targetSport}. Review all positions, rules and diagrams before use.`)) return;
+    const x = M.libAdd(ws, data, kind, el.dataset.id); if (!x) return;
     save(); render(); toast(kind === 'plays' ? `${x.name} added to ${data.team.name}` : `Added to ${data.team.name}`);
   }),
   'lib-take': coachOnly(el => {
@@ -7843,7 +7853,10 @@ document.addEventListener('submit', async e => {
     t.teamPass = pass; t.teamSalt = '';
     M.addTeam(ws, t);
     if (withLibrary) ['plays', 'systems', 'playerSets']
-      .forEach(k => M.libItems(ws, k).forEach(li => M.libAdd(ws, t, k, li.id)));
+      // Never silently carry an unknown/cross-club/cross-sport library item to
+      // a newly created team. It remains available for deliberate review later.
+      .forEach(k => M.libItems(ws, k).filter(li => libraryCopyReview(ws,li,t).automaticCopy)
+        .forEach(li => M.libAdd(ws,t,k,li.id)));
     pickTeam(t.id); Object.assign(state, { lineupId: null, playId: null, msgDraft: null, tab: 'home', newTeamClub: null, teamTemplateSource: '' });
     history.replaceState(null, '', '#home');
     save(); closeSheet(); render(); toast(`${name} created and on screen`);
