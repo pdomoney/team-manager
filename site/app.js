@@ -7659,16 +7659,25 @@ document.addEventListener('submit', async e => {
       return;
     }
     const m = matchById(id); if (!m) return;
-    setEntry(m, str('entry'));
     const status = M.MATCH_STATUS[str('status')] ? str('status') : m.status;
-    const before = { date: m.date, start: m.start, end: '', place: matchWhere(m) }, after = { date, start: fields.start, end: '', place: matchWhere(fields) };
-    const linked = M.linkedTasks(data, 'match', id), off = s => s === 'cancelled' || s === 'postponed';
-    if (!('tournament' in fields)) delete m.tournament;
-    if (off(status) && !off(m.status) && linked.some(t => !t.cancelled)) { askLinked({ kind: 'match', id, op: 'cancel', status, fields }); return; }
-    if (linked.length && M.whenChanged(before, after)) { askLinked({ kind: 'match', id, op: 'edit', fields: { ...fields, status }, before, after }); return; }
-    const back = off(m.status) && !off(status) ? M.reinstateTasks(data, 'match', id) : 0;
-    Object.assign(m, fields, { status }); save(); closeSheet(); render(); openMatch(id);
-    toast(back ? `Saved, and ${back} task${back === 1 ? '' : 's'} back on` : 'Saved');
+    const amendment = planFixtureRevision(m, { ...fields, status });
+    if(amendment.error) { toast(amendment.error); return; }
+    if(amendment.changed) {
+      const reason=str('changeReason');
+      if(reason.length<3 || reason.length>200) {
+        fieldError(form,'changeReason','Record a reason (3 to 200 characters) for a fixture change');
+        return;
+      }
+      state.fixturePending={id,teamId:data.id,fields:{...fields,status},entry:str('entry'),
+        reason,before:amendment.before,after:amendment.after};
+      openSheet('Review fixture change',fixtureRevisionReview(state.fixturePending),'fixture-revision');
+      return;
+    }
+    // Non-scheduling edits retain the existing behaviour and do not create a false revision.
+    setEntry(m,str('entry'));
+    if(!fields.tournament)delete m.tournament;
+    Object.assign(m,fields,{status});save();closeSheet();render();openMatch(id);
+    toast('Saved');
     return;
   }
   if (kind === 'match-day') {
