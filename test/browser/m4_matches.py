@@ -56,6 +56,9 @@ with sync_playwright() as p:
     pg.wait_for_selector('text=What should happen to them?')
     pg.click('text=Move them with it'); pg.wait_for_timeout(150)
     c.ok(d(f"D.tasks.find(t => t.id === '{lift}').date") == d(f"D.matches.find(m => m.id === '{mid}').date"), 'linked tasks moved with the match')
+    first_revisions = d(f"D.matches.find(m => m.id === '{mid}').fixtureRevisions.map(x => [x.after.status, x.taskDisposition])")
+    c.ok(len(first_revisions) == 1 and first_revisions[0][1] == 'move',
+         f'move generates exactly one coach revision: {first_revisions}')
     # cancel the match -> cancel its tasks
     pg.evaluate(act, ['match-edit', {'id': mid}]); pg.select_option('#sheet select[name=status]', 'cancelled')
     pg.fill('#sheet input[name=changeReason]', 'Competition notice of cancellation manually checked')
