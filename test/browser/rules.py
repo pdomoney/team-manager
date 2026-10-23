@@ -63,7 +63,9 @@ with sync_playwright() as p:
     pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(150); pg.keyboard.press('Escape')
     pg.goto(url + '#rules'); pg.wait_for_timeout(150)
     txt = pg.inner_text('#view')
-    c.ok('Under 12' in txt and '100 × 68 m' in txt and 'National Junior League Laws' in txt, 'another rule set chosen')
+    c.ok('Sport and rule set need review' in txt and 'Oztag' in txt and 'Rugby league' in txt
+         and '100 × 68 m' not in txt and W("D.team.rules") == 'league/u12',
+         'another sport rule set stays saved but its scoring and gameplay are hidden pending review')
     pg.evaluate(act, ['settings', {'sec': 'team'}]); pg.wait_for_selector('#sheet select[name=rules]')
     pg.select_option('#sheet select[name=rules]', ''); pg.click('#sheet form[data-form=settings] button[type=submit]'); pg.wait_for_timeout(150); pg.keyboard.press('Escape')
     pg.goto(url + '#rules'); pg.wait_for_timeout(150)
