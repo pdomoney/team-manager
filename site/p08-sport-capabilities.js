@@ -53,7 +53,7 @@ export function sportCapabilities(team = {}, club = null, rules = RULES) {
   });
 }
 
-export const sportCapabilityInventory = () => frozen(SPORTS.map(sport => {
+export const sportCapabilityInventory = frozen(SPORTS.map(sport => {
   const coverage = sportCapabilities({ sport });
   return frozen({
     sport,
