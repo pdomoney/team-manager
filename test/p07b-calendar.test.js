@@ -75,8 +75,9 @@ test('P07B cancelled and withdrawn records are preserved as coach records, not o
  assert.equal(out.events[1].cancelled,true);
 });
 test('P07B archived team is absent but original history untouched',()=>{
- const w=ws(),before=JSON.stringify(w.teams[0]);
+ const w=ws();
  w.teams[0].archived=true;
+ const before=JSON.stringify(w.teams[0]);
  const out=localWorkspaceCalendar(w);
  assert.equal(out.totals.events,3);
  assert.equal(JSON.stringify(w.teams[0]),before); // no mutation of archived match history
