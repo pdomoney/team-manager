@@ -67,7 +67,7 @@ with sync_playwright() as p:
         c.ok('P07D SECRET' not in pg.inner_text('#view'),
              f'{width}: player view never exposes coach-only fixture reasons')
         pg.screenshot(path=shot(f'p07d-player-{width}.png'), full_page=True)
-        c.ok(not errs, f'{width}: no browser console/page errors')
+        c.ok(not errs, f'{width}: no browser console/page errors; captured={errs[:8]!r}')
         ctx.close()
     ok = c.done()
     b.close()
