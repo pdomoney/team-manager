@@ -1009,6 +1009,22 @@ div.cl-line,p.cl-line{cursor:default}
 .cl-open{margin-top:14px}
 .rtable .pill{white-space:nowrap}
 
+/* P06G: keep multi-club readiness summaries within the mobile viewport.
+   The generic .sub style uses white-space:nowrap, which expands this list at 390px. */
+.crew-workspace-overview{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.crew-workspace-overview .crew-req,
+.crew-workspace-overview .crew-req li{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.crew-workspace-overview .crew-req .sub{
+  display:block;
+  max-width:100%;
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+  overflow-wrap:anywhere
+}
+.crew-workspace-overview .field-l,
+.crew-workspace-overview select{min-width:0;max-width:100%}
+
 /* Coach-only match-day officials and trainer compliance aide. */
 .crew-section{margin-bottom:16px}
 .crew-section h3{font-size:18px;margin:0}
