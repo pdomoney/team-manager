@@ -1025,6 +1025,22 @@ div.cl-line,p.cl-line{cursor:default}
 .crew-workspace-overview .field-l,
 .crew-workspace-overview select{min-width:0;max-width:100%}
 
+/* P07B: privacy-minimised cross-team calendar. Constrained at phone widths. */
+.calendar-local-overview{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.calendar-local-overview .field-l{max-width:100%;min-width:0}
+.calendar-local-overview select{min-width:0;max-width:100%}
+.calendar-local-list{list-style:none;margin:10px 0 12px;padding:0;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.calendar-local-list li{display:flex;align-items:flex-start;gap:12px;padding:10px 12px;min-width:0;border-bottom:1px solid var(--line)}
+.calendar-local-list li:last-child{border-bottom:0}
+.calendar-local-when{flex:none;font-size:13px;color:var(--muted);line-height:1.5;min-width:95px}
+.calendar-local-details{display:block;flex:1;min-width:0;overflow-wrap:anywhere}
+.calendar-local-details strong{display:block;font-weight:600;line-height:1.4}
+.calendar-local-details .sub{display:block;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.5}
+@media(max-width:500px){
+  .calendar-local-list li{flex-direction:column;gap:3px}
+  .calendar-local-when{min-width:0}
+}
+
 /* Coach-only match-day officials and trainer compliance aide. */
 .crew-section{margin-bottom:16px}
 .crew-section h3{font-size:18px;margin:0}

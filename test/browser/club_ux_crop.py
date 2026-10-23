@@ -25,6 +25,21 @@ with sync_playwright() as p:
         c.ok(W('D.id')=='testwomen' and 'DragonTag' in pg.inner_text('#team-title') and
           W("D.team.clubId")=='stgeorge',
           f'[{width}] team dropdown switches active context and header without a popup')
+        # P07B: an all-workspace coach calendar cannot leak contacts, credentials or other private records.
+        pg.evaluate(act,['tab',{'tab':'agenda'}]);pg.wait_for_timeout(80)
+        c.ok(pg.locator('#view .calendar-local-overview').count()==1,
+             f'[{width}] read-only local multi-team calendar appears in coach schedule')
+        c.ok('not independently verified' in pg.locator('#view .calendar-local-overview').inner_text(),
+             f'[{width}] local schedule never claims independent official fixture status')
+        c.ok(pg.locator('#view .calendar-local-overview select[name=agendaClubId]').count()==1,
+             f'[{width}] multi-club calendar has inline club selection')
+        pg.locator('#view .calendar-local-overview select[name=agendaClubId]').select_option('stgeorge')
+        c.ok(pg.evaluate("document.querySelector('#view .calendar-local-overview select[name=agendaClubId]').value") == 'stgeorge',
+             f'[{width}] club-filter selection persists after rendering')
+        c.ok(pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"),
+             f'[{width}] cross-team schedule fits mobile viewport')
+        pg.locator('#view .calendar-local-overview select[name=agendaClubId]').select_option('')
+        pg.evaluate(act,['tab',{'tab':'crew'}])
         # A coach changes photo, adjusts crop, then commits through the existing player save form.
         pid=W('D.players[0].id')
         pg.evaluate(act,['edit-player',{'id':pid}])

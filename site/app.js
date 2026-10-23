@@ -33,6 +33,7 @@ import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
 import { volunteerRemovalCheck } from './p06-volunteer-lifecycle.js';
+import { localWorkspaceCalendar } from './p07-calendar.js';
 import { workspaceCrewOverview } from './p06-workspace-overview.js';
 import { reviewVolunteerAppointments } from './p06-appointments.js';
 import { APPOINTMENT_STATES, APPOINTMENT_STATUS_LABELS, upsertVolunteerAppointment } from './p06-appointment-store.js';
@@ -304,7 +305,7 @@ const state = {
   folded: {},
   system: null, sysFlip: false,
   playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
-  taskFilter: 'up', taskPick: null, crewClubId: '', peopleSearch: '',
+  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', peopleSearch: '',
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
@@ -1252,12 +1253,38 @@ function replyText(kind, rec, v) {
 }
 
 /* ----- Upcoming: training, matches and tasks together ----- */
+// Coach-only summary of locally recorded dates across teams, not an organiser-owned calendar.
+function localCalendarSection() {
+  if (!isCoach()) return '';
+  const clubs=arr(ws.clubs).filter(c=>c?.id);
+  const selected=clubs.some(c=>c.id===state.agendaClubId) ? state.agendaClubId : '';
+  const from=todayISO(),to=toISODate(new Date(Date.now()+42*86400000));
+  const summary=localWorkspaceCalendar(ws,{clubId:selected,from,to});
+  const events=summary.events.slice(0,25);
+  const label={match:'Match',training:'Training',duty:'Duty'};
+  return `<section class="sec calendar-local-overview" aria-label="Local workspace calendar">
+    <div class="sec-h"><h2>Across your teams</h2></div>
+    <p class="hint">Read-only coach view of matches, training and volunteer tasks already recorded in this encrypted workspace. Dates and times are shown as entered; official fixtures are not independently verified.</p>
+    ${clubs.length>1 ? `<label class="field-l"><span>Club</span><select name="agendaClubId" data-change="agenda-club-filter">
+      <option value="">All clubs in this workspace</option>
+      ${clubs.map(c=>`<option value="${esc(c.id)}" ${selected===c.id?'selected':''}>${esc(c.name||'Unnamed club')}</option>`).join('')}
+    </select></label>` : ''}
+    <p class="hint">${summary.totals.events} entries over six weeks · ${summary.totals.matches} matches · ${summary.totals.training} training · ${summary.totals.duties} duties${summary.totals.review?` · ${summary.totals.review} fixture links need review`:''}</p>
+    ${events.length?`<ul class="calendar-local-list">${events.map(e=>`<li>
+      <span class="calendar-local-when">${esc(e.date)}${e.start?' · '+esc(e.start):''}</span>
+      <span class="calendar-local-details"><strong>${esc(label[e.kind]||'Event')} · ${esc(e.title)}</strong>
+      <span class="sub">${esc(e.teamName)} · ${esc(e.sport)}${e.venue?' · '+esc(e.venue):''}${e.cancelled?' · Cancelled':''}${e.authorityReview?' · Fixture source needs review':''}</span></span>
+    </li>`).join('')}</ul>`:'<p class="hint">No local schedule records for this selection in the next six weeks.</p>'}
+    ${summary.totals.events>events.length?`<p class="hint">Showing first ${events.length} entries. Use the team agenda for the complete schedule.</p>`:''}
+    <p class="hint">Private staffing, attendance, contacts and RSVPs are not shown here. Club events without a dated team record are not invented.</p>
+  </section>`;
+}
 function viewAgenda() {
   const items = M.agenda(V, todayISO(), 42), coach = isCoach();
   const days = [];
   items.forEach(it => { const d = days[days.length - 1]; if (d && d.date === it.date) d.items.push(it); else days.push({ date: it.date, items: [it] }); });
   const notices = V.notices.slice(0, 2);
-  return `${notices.length ? `<section class="sec"><div class="sec-h"><h2>Latest notices</h2></div><div class="list">${notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p></div>`).join('')}</div></section>` : ''}
+  return `${coach?localCalendarSection():''}${notices.length ? `<section class="sec"><div class="sec-h"><h2>Latest notices</h2></div><div class="list">${notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p></div>`).join('')}</div></section>` : ''}
     <div class="sec-h"><h2>Next six weeks</h2>${coach ? `<button class="btn sm" data-act="avail-ask">${icon('chat', 18)}Availability check</button>` : ''}</div>
     ${days.length ? days.map(d => `<section class="ag-day" aria-label="${esc(fmtLong(d.date))}"><h3 class="ag-date">${d.date === todayISO() ? 'Today · ' : ''}${esc(fmtLong(d.date))}</h3>
       <div class="list">${d.items.map(agendaItem).join('')}</div></section>`).join('')
@@ -7342,6 +7369,11 @@ document.addEventListener('change', e => {
   if (k === 'player-crop-adjust' && activePlayerCrop) drawPlayerCrop();
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
   if (k === 'crew-overview-sport' && isCoach()) { state.crewOverviewSport = e.target.value; render(); }
+  if (k === 'agenda-club-filter' && isCoach()) {
+    const id=e.target.value;
+    if(id && !arr(ws.clubs).some(c=>c.id===id))return;
+    state.agendaClubId=id; render();
+  }
   if (k === 'crew-team-pick' && isCoach()) {
     const t=M.activeTeams(ws).find(t=>t.id===e.target.value);
     if(!t)return;
