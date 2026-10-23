@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   bar,computeProgress,phaseBlock,roadmapBlock,replaceBlock,
-  ISSUE_START,ISSUE_END,ROADMAP_START,ROADMAP_END,updateProgress
+  ISSUE_START,ISSUE_END,ROADMAP_START,ROADMAP_END,updateProgress,github
 } from '../scripts/update-issue-progress.mjs';
 
 const p06={phase:'P06',issue:48,pulls:[69,70,71,72,73,74,75,76]};
@@ -88,4 +88,39 @@ test('API changes are skipped on replay and only progress blocks are modified',a
  assert.ok(entries.get(41).body.includes('# Owner-authored roadmap'));
  await updateProgress(config,client,{info:()=>{}});
  assert.deepEqual(patches,[48,49,41]);
+});
+
+test('temporary API 503 retries and resumes without changing issue semantics',async()=>{
+  const statuses=[503,502,200], pauses=[], requests=[];
+  const request=async(url,options)=>{
+    requests.push({url,method:options.method});
+    const status=statuses.shift();
+    return {status,ok:status===200,headers:{get:()=>null,has:()=>false},
+      json:async()=>({number:53,merged_at:'2026-10-23T00:00:00Z'}),
+      text:async()=>status+' temporary'};
+  };
+  const previous=process.env.GITHUB_REPOSITORY;
+  process.env.GITHUB_REPOSITORY='pdomoney/team-manager';
+  try {
+    const result=await github('pulls/53','test-token','GET',undefined,request,async ms=>pauses.push(ms));
+    assert.equal(result.number,53);
+    assert.equal(requests.length,3);
+    assert.deepEqual(pauses,[500,1000]);
+  } finally { if(previous===undefined)delete process.env.GITHUB_REPOSITORY;else process.env.GITHUB_REPOSITORY=previous; }
+});
+test('permanent permission denial is not retried',async()=>{
+  let requests=0,waits=0;
+  const request=async()=>{requests++;return {status:403,ok:false,
+    headers:{get:()=>null,has:()=>false},text:async()=> 'Forbidden'};};
+  await assert.rejects(github('issues/48','token','PATCH',{body:'test'},request,async()=>{waits++;}),/403 Forbidden/);
+  assert.equal(requests,1);
+  assert.equal(waits,0);
+});
+test('bounded retry fails with actionable error after five 503 responses',async()=>{
+  let count=0;
+  const request=async()=>{count++;return {status:503,ok:false,headers:{get:()=>null,has:()=>false},text:async()=> 'Service unavailable'};};
+  const pauses=[];
+  await assert.rejects(github('pulls/53','token','GET',undefined,request,async t=>pauses.push(t)),/attempt 5\/5/);
+  assert.equal(count,5);
+  assert.deepEqual(pauses,[500,1000,2000,4000]);
 });
