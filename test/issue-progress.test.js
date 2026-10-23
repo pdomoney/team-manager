@@ -124,3 +124,22 @@ test('bounded retry fails with actionable error after five 503 responses',async(
   assert.equal(count,5);
   assert.deepEqual(pauses,[500,1000,2000,4000]);
 });
+
+test('future named checkpoints keep P07 percentage denominator stable between PRs',()=>{
+  const original={phase:'P07',issue:49,pulls:[79],
+    futureCheckpoints:['P07B calendar','P07C amendments','P07D acceptance']};
+  const before=computeProgress(issue(),original,new Set([79]));
+  assert.equal(before.planned,4);
+  assert.equal(before.done,1);
+  assert.equal(before.total,7);
+  assert.equal(before.complete,14);
+  const next={...original,pulls:[79,80],
+    futureCheckpoints:['P07C amendments','P07D acceptance']};
+  const after=computeProgress(issue(),next,new Set([79]));
+  assert.equal(after.complete,before.complete);
+  assert.equal(after.remaining,before.remaining);
+  assert.equal(after.total,before.total);
+  const merged=computeProgress(issue(),next,new Set([79,80]));
+  assert.equal(merged.complete,29);
+  assert.equal(merged.remaining,71);
+});
