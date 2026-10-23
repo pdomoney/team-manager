@@ -72,11 +72,10 @@
       "pulls": [
         79,
         80,
-        81
+        81,
+        82
       ],
-      "futureCheckpoints": [
-        "P07D — negative-case and Safari acceptance"
-      ]
+      "futureCheckpoints": []
     },
     {
       "phase": "P08",

@@ -13,11 +13,21 @@ const time = v => /^([01]\d|2[0-3]):[0-5]\d$/.test(word(v)) ? word(v) : '';
 const safe = (v,max=120) => word(v).slice(0,max);
 
 export function localWorkspaceCalendar(ws, opts={}) {
-  const requestedClub=safe(opts.clubId,80), requestedTeam=safe(opts.teamId,80),
-    sport=safe(opts.sport,80), from=day(opts.from), to=day(opts.to);
+  const filters=opts && typeof opts==='object' && !Array.isArray(opts) ? opts : {};
+  const specified=k=>Object.prototype.hasOwnProperty.call(filters,k) &&
+    filters[k]!=='' && filters[k]!==undefined && filters[k]!==null;
+  const requestedClub=safe(filters.clubId,80), requestedTeam=safe(filters.teamId,80),
+    sport=safe(filters.sport,80), from=day(filters.from), to=day(filters.to);
+  // P07D: reject malformed filters instead of silently showing every club/date.
+  // Empty strings remain valid explicit "all clubs" / unbounded date selections.
+  const invalid=opts===null || typeof opts!=='object' || Array.isArray(opts) ||
+    ['clubId','teamId','sport'].some(k=>specified(k) &&
+      (typeof filters[k]!=='string' || !word(filters[k]))) ||
+    ['from','to'].some(k=>specified(k) && !day(filters[k])) ||
+    (!!from && !!to && from>to);
   const clubIds=new Set(arr(ws?.clubs).map(c=>word(c?.id)).filter(Boolean));
   const events=[];
-  for(const team of teamsOf(ws)) {
+  for(const team of invalid ? [] : teamsOf(ws)) {
     if(team?.archived || !word(team?.id))continue;
     const clubId=word(team?.team?.clubId);
     if(requestedClub && (clubId!==requestedClub || !clubIds.has(clubId)))continue;
