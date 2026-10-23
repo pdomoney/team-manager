@@ -71,10 +71,10 @@
       "issue": 49,
       "pulls": [
         79,
-        80
+        80,
+        81
       ],
       "futureCheckpoints": [
-        "P07C — controlled fixture amendments",
         "P07D — negative-case and Safari acceptance"
       ]
     },

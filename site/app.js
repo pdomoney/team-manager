@@ -34,6 +34,7 @@ import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
 import { volunteerRemovalCheck } from './p06-volunteer-lifecycle.js';
 import { localWorkspaceCalendar } from './p07-calendar.js';
+import { planFixtureRevision, commitFixtureRevision, fixtureSnapshot } from './p07-fixture-amendments.js';
 import { workspaceCrewOverview } from './p06-workspace-overview.js';
 import { reviewVolunteerAppointments } from './p06-appointments.js';
 import { APPOINTMENT_STATES, APPOINTMENT_STATUS_LABELS, upsertVolunteerAppointment } from './p06-appointment-store.js';
@@ -305,7 +306,7 @@ const state = {
   folded: {},
   system: null, sysFlip: false,
   playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
-  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', peopleSearch: '',
+  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, peopleSearch: '',
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
@@ -4262,6 +4263,34 @@ function viewMatches() {
     + `<section class="sec"><div class="sec-h"><h2>${days.length ? 'Other matches' : 'Coming up'}</h2></div>${up.length ? `<div class="list grid sess-grid ${cardClass('matches')}">${up.map(matchRow).join('')}</div>` : '<p class="muted small">Nothing else coming up.</p>'}</section>`
     + (past.length ? `<section class="sec"><div class="sec-h"><h2>Played</h2>${coach ? `<button class="btn sm" data-act="results-share">${icon('chat', 18)}Send results</button>` : ''}</div><div class="list grid sess-grid ${cardClass('matches')}">${past.map(matchRow).join('')}</div></section>` : '');
 }
+// Fixture changes are coach-recorded, explicitly reviewed, and saved only after confirmation.
+function fixtureRevisionReview(p) {
+  const before=p.before,after=p.after;
+  const row=(label,b,a)=>b===a?'':`<li><strong>${label}</strong>: ${esc(b||'Not set')} → ${esc(a||'Not set')}</li>`;
+  const changed=['date','start','venue','field','status'].map(k=>row(k,before[k],after[k])).filter(Boolean).join('');
+  const m=matchById(p.id),review=planFixtureRevision(m,p.fields);
+  return `<section class="fixture-revision-review">
+    <p class="hint">This change is a manual coach record, not confirmation from a competition organiser or official feed.</p>
+    <ul class="diff-list">${changed}</ul>
+    <p><strong>Reason:</strong> ${esc(p.reason)}</p>
+    ${review.warnings?.length?`<ul class="diff-list">${review.warnings.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
+    <p class="hint">Existing results, lineups, RSVPs and staffing are preserved. Linked tasks require a separate choice when relevant. No notifications are sent automatically.</p>
+    <div class="btn-row"><button class="btn primary" data-act="fixture-revision-confirm">Confirm fixture change</button>
+    <button class="btn" data-act="close-sheet">Cancel — keep existing fixture</button></div>
+  </section>`;
+}
+function saveReviewedFixture(m,p,disposition='none') {
+  if(!m || !p || p.teamId!==data.id || m.id!==p.id)return {error:'Fixture or team selection changed. Reopen the fixture'};
+  const result=commitFixtureRevision(m,p.fields,{
+    confirmed:true,reason:p.reason,expectedBefore:p.before,
+    at:new Date().toISOString(),taskDisposition:disposition
+  });
+  if(result.error)return result;
+  Object.assign(m,p.fields);
+  if(!p.fields.tournament)delete m.tournament;
+  setEntry(m,p.entry);
+  return result;
+}
 function matchForm(m) {
   const isNew = !m || !m.id, T = data.team;
   m = m || { date: T.eventStart && T.eventStart >= todayISO() ? T.eventStart : todayISO(), start: '', opponent: '', venue: T.venue || '', field: '', round: '', notes: '', coachNotes: '', status: 'scheduled' };
@@ -4284,6 +4313,14 @@ function matchForm(m) {
     <label class="check"><input type="checkbox" name="tournament" ${m.tournament || (T.eventStart && m.date >= T.eventStart && m.date <= (T.eventEnd || T.eventStart)) ? 'checked' : ''}><span>Show in the ${esc(T.event || 'tournament')} draw</span></label>
     <label class="field-l"><span>Notes for players</span><input type="text" name="notes" value="${esc(m.notes || '')}" placeholder="e.g. Meet 45 minutes early, white tops"></label>
     <label class="field-l"><span>Coach notes</span><input type="text" name="coachNotes" value="${esc(m.coachNotes || '')}" placeholder="Only coaches see these"></label>
+    ${isNew ? '' : `<label class="field-l"><span>Reason for any fixture change</span><input type="text" name="changeReason" maxlength="200" placeholder="e.g. Organiser advised a later start"></label>
+      <p class="hint">If you change the date, start time, venue, field or status, you'll review the change before it is saved. Existing results, crew, lineups and availability remain and may need rechecking.</p>
+      ${arr(m.fixtureRevisions).length ? `<details class="more fixture-change-history"><summary>Previous fixture changes (${arr(m.fixtureRevisions).length})</summary>
+        <ul class="diff-list">${arr(m.fixtureRevisions).slice(-5).reverse().map(x=>`<li>
+          <strong>${esc(x.at?.slice(0,16)||'Recorded locally')}</strong> · ${esc(x.reason||'No reason recorded')}
+          <span class="sub" style="display:block;white-space:normal">${esc(x.before?.date||'?')} ${esc(x.before?.start||'')} → ${esc(x.after?.date||'?')} ${esc(x.after?.start||'')} · ${esc(x.after?.status||'')}</span>
+        </li>`).join('')}</ul>
+      </details>` : ''}`}
     <button class="btn primary block" type="submit">${isNew ? 'Add match' : 'Save changes'}</button>
   </form>`;
 }
@@ -4520,20 +4557,33 @@ function askLinked(p) {
   openSheet('Linked tasks', `<p style="margin-bottom:10px">${verb} ${esc(eventName(p.kind, ev))}. ${tasks.length === 1 ? 'This task is' : `These ${tasks.length} tasks are`} linked to it:</p>
     <ul class="diff-list">${tasks.map(t => `<li>${esc(t.title)} <span class="muted">(${esc(fmtDay(t.date))}${t.start ? ' ' + esc(fmtTime(t.start)) : ''}${t.cancelled ? ', cancelled' : ''})</span></li>`).join('')}</ul>
     <h3 class="form-sec">What should happen to ${tasks.length === 1 ? 'it' : 'them'}?</h3>
-    <div class="list">${LINK_OPTS[p.op].map(([c, l, d]) => `<button class="pick" data-act="link-choice" data-c="${c}"><span class="grow"><span class="name" style="display:block">${l}</span><span class="tagline">${d}</span></span></button>`).join('')}</div>
+    <div class="list">${(p.fixtureRevision ? LINK_OPTS[p.op].filter(([c])=>c!=='remove') : LINK_OPTS[p.op]).map(([c, l, d]) => `<button class="pick" data-act="link-choice" data-c="${c}"><span class="grow"><span class="name" style="display:block">${l}</span><span class="tagline">${d}</span></span></button>`).join('')}</div>
     <button class="btn block" style="margin-top:12px" data-act="close-sheet">Don’t change anything</button>`, 'linked');
 }
 function applyLinkChoice(c) {
   const p = state.pending; state.pending = null;
+  // A decision from a dismissed linked-duty review must never be replayed.
+  if (p?.fixtureRevision && state.sheet !== 'linked') return;
   const ev = p && eventOf(p.kind, p.id); if (!ev) { closeSheet(); return; }
   const s = n => `${n} task${n === 1 ? '' : 's'}`;
   let msg = 'Saved';
+  const wasOff=ev.status==='cancelled'||ev.status==='postponed';
+  if(p.fixtureRevision){
+    // These paths may affect task history; P07C disallows destructive 'remove'.
+    const allowed=p.op==='cancel'?['keep','cancel']:['move','detach'];
+    if(p.kind!=='match'||!allowed.includes(c)||p.teamId!==data.id){
+      toast('Fixture revision decision is invalid');closeSheet();return;
+    }
+    const result=saveReviewedFixture(ev,p,c);
+    if(result.error){toast(result.error);closeSheet();return;}
+  }
   if (p.op === 'edit') {
-    Object.assign(ev, p.fields);
-    msg = c === 'move' ? `Saved. ${s(M.followEvent(data, p.kind, p.id, p.before, p.after))} moved with it` : `Saved. ${s(M.detachTasks(data, p.kind, p.id))} left on the old day, unlinked`;
+    if(!p.fixtureRevision)Object.assign(ev, p.fields);
+    msg = c === 'move' ? `Saved. ${s(M.followEvent(data, p.kind, p.id, p.fixtureRevision ? p.taskBefore : p.before, p.fixtureRevision ? p.taskAfter : p.after))} moved with it` : `Saved. ${s(M.detachTasks(data, p.kind, p.id))} left on the old day, unlinked`;
+    if(p.fixtureRevision && wasOff && ev.status==='scheduled') M.reinstateTasks(data,'match',p.id);
   }
   if (p.op === 'cancel') {
-    if (p.kind === 'session') ev.cancelled = true; else Object.assign(ev, p.fields || {}, { status: p.status || 'cancelled' });
+    if (p.kind === 'session') ev.cancelled = true; else if(!p.fixtureRevision) Object.assign(ev, p.fields || {}, { status: p.status || 'cancelled' });
     msg = c === 'cancel' ? `Cancelled, with ${s(M.cancelTasks(data, p.kind, p.id))}` : c === 'remove' ? `Cancelled, and ${s(M.removeTasks(data, p.kind, p.id))} deleted` : 'Cancelled. The tasks are still on';
   }
   if (p.op === 'delete') {
@@ -6081,6 +6131,9 @@ function requestCloseSheet() {
   closeSheet();
 }
 function closeSheet() {
+  // Dismissing either confirmation sheet revokes the pending fixture amendment.
+  state.fixturePending = null;
+  if (state.pending?.fixtureRevision) state.pending = null;
   stopPlayerCrop();
   const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; document.body.classList.remove('locked'); state.sheet = null;
   if (state.stylePreview) { state.stylePreview = false; applyTeamStyle(); }
@@ -6562,6 +6615,32 @@ const actions = {
   }),
   'md-send-lineup': coachOnly(el => { const m = matchById(el.dataset.id); if (m) sendWa(matchLineupText(m), { ref: 'match:' + m.id }); }),
   'result-share': coachOnly(el => { const m = matchById(el.dataset.id); if (m && (M.matchOutcome(m) || m.status !== 'scheduled')) sendWa(oneResultText(m), { ref: 'result:' + m.id }); }),
+  'fixture-revision-confirm': coachOnly(() => {
+    if(state.sheet!=='fixture-revision')return;
+    const p=state.fixturePending;state.fixturePending=null;
+    const m=p&&p.teamId===data.id&&matchById(p.id);
+    if(!m){toast('Fixture no longer belongs to the selected team');return;}
+    const plan=planFixtureRevision(m,p.fields);
+    if(plan.error || !plan.changed || Object.keys(p.before).some(k=>p.before[k]!==plan.before[k])){
+      toast('Fixture changed since you opened it. Reopen before updating.');return;
+    }
+    const linked=M.linkedTasks(data,'match',p.id);
+    const off=x=>x==='cancelled'||x==='postponed';
+    if(off(p.fields.status)&&!off(m.status)&&linked.some(t=>!t.cancelled)){
+      askLinked({...p,kind:'match',op:'cancel',status:p.fields.status,fixtureRevision:true});return;
+    }
+    const before={date:m.date,start:m.start,end:'',place:matchWhere(m)};
+    const after={date:p.fields.date,start:p.fields.start,end:'',place:matchWhere(p.fields)};
+    if(linked.length&&M.whenChanged(before,after)){
+      askLinked({...p,kind:'match',op:'edit',taskBefore:before,taskAfter:after,fixtureRevision:true});return;
+    }
+    const wasOff=off(m.status),result=saveReviewedFixture(m,p,'none');
+    if(result.error){toast(result.error);return;}
+    const restored=wasOff&&!off(m.status)?M.reinstateTasks(data,'match',p.id):0;
+    save();closeSheet();render();openMatch(p.id);
+    toast(restored?`Fixture change recorded; ${restored} linked tasks reinstated. Reconfirm attendance.`:
+      'Fixture change recorded. Review staffing and notify participants manually.');
+  }),
   'match-edit': coachOnly(el => { const m = matchById(el.dataset.id); if (m) openSheet('Edit match', matchForm(m), 'match-edit'); }),
   'match-del': coachOnly(el => {
     const m = matchById(el.dataset.id); if (!m) return;
@@ -7622,16 +7701,25 @@ document.addEventListener('submit', async e => {
       return;
     }
     const m = matchById(id); if (!m) return;
-    setEntry(m, str('entry'));
     const status = M.MATCH_STATUS[str('status')] ? str('status') : m.status;
-    const before = { date: m.date, start: m.start, end: '', place: matchWhere(m) }, after = { date, start: fields.start, end: '', place: matchWhere(fields) };
-    const linked = M.linkedTasks(data, 'match', id), off = s => s === 'cancelled' || s === 'postponed';
-    if (!('tournament' in fields)) delete m.tournament;
-    if (off(status) && !off(m.status) && linked.some(t => !t.cancelled)) { askLinked({ kind: 'match', id, op: 'cancel', status, fields }); return; }
-    if (linked.length && M.whenChanged(before, after)) { askLinked({ kind: 'match', id, op: 'edit', fields: { ...fields, status }, before, after }); return; }
-    const back = off(m.status) && !off(status) ? M.reinstateTasks(data, 'match', id) : 0;
-    Object.assign(m, fields, { status }); save(); closeSheet(); render(); openMatch(id);
-    toast(back ? `Saved, and ${back} task${back === 1 ? '' : 's'} back on` : 'Saved');
+    const amendment = planFixtureRevision(m, { ...fields, status });
+    if(amendment.error) { toast(amendment.error); return; }
+    if(amendment.changed) {
+      const reason=str('changeReason');
+      if(reason.length<3 || reason.length>200) {
+        fieldError(form,'changeReason','Record a reason (3 to 200 characters) for a fixture change');
+        return;
+      }
+      state.fixturePending={id,teamId:data.id,fields:{...fields,status},entry:str('entry'),
+        reason,before:amendment.before,after:amendment.after};
+      openSheet('Review fixture change',fixtureRevisionReview(state.fixturePending),'fixture-revision');
+      return;
+    }
+    // Non-scheduling edits retain the existing behaviour and do not create a false revision.
+    setEntry(m,str('entry'));
+    if(!fields.tournament)delete m.tournament;
+    Object.assign(m,fields,{status});save();closeSheet();render();openMatch(id);
+    toast('Saved');
     return;
   }
   if (kind === 'match-day') {

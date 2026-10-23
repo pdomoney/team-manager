@@ -47,13 +47,61 @@ with sync_playwright() as p:
     # move the match: its linked lift task follows
     lift = d(f"D.tasks.find(t => t.matchId === '{mid}' && t.kind === 'lift').id")
     pg.evaluate(act, ['match-edit', {'id': mid}]); pg.fill('#sheet input[name=start]', '11:00'); pg.fill('#sheet input[name=date]', d(f"M.addDays(D.matches.find(m => m.id === '{mid}').date, 1)"))
-    pg.click('#sheet button[type=submit]'); pg.wait_for_selector('text=What should happen to them?')
+    pg.fill('#sheet input[name=changeReason]', 'Start time revised by organiser, manually recorded')
+    before_date = d(f"D.matches.find(m => m.id === '{mid}').date")
+    pg.click('#sheet button[type=submit]')
+    pg.wait_for_selector('#sheet [data-act=fixture-revision-confirm]')
+    c.ok(d(f"D.matches.find(m => m.id === '{mid}').date") == before_date, 'fixture unchanged before review confirmation')
+    # Reject a dismissed first review, including a later synthetic replay of its action.
+    old_lift_date = d(f"D.tasks.find(t => t.id === '{lift}').date")
+    pg.click('#sheet .fixture-revision-review [data-act=close-sheet]')
+    pg.wait_for_selector('#sheet', state='hidden')
+    pg.evaluate(act, ['fixture-revision-confirm', {}])
+    c.ok(d(f"D.matches.find(m => m.id === '{mid}').date") == before_date
+         and d(f"D.matches.find(m => m.id === '{mid}').fixtureRevisions?.length || 0") == 0,
+         'dismissed fixture review cannot be replayed')
+    # Confirm the change, then reject the separate linked-duty choice once.
+    pg.evaluate(act, ['match-edit', {'id': mid}])
+    pg.fill('#sheet input[name=start]', '11:00')
+    pg.fill('#sheet input[name=date]', d(f"M.addDays(D.matches.find(m => m.id === '{mid}').date, 1)"))
+    pg.fill('#sheet input[name=changeReason]', 'Start time revised by organiser, manually recorded')
+    pg.click('#sheet button[type=submit]')
+    pg.wait_for_selector('#sheet [data-act=fixture-revision-confirm]')
+    pg.click('#sheet [data-act=fixture-revision-confirm]')
+    pg.wait_for_selector('text=What should happen to them?')
+    pg.click('#sheet .panel-body [data-act=close-sheet]')
+    pg.wait_for_selector('#sheet', state='hidden')
+    pg.evaluate(act, ['link-choice', {'c': 'move'}])
+    c.ok(d(f"D.matches.find(m => m.id === '{mid}').date") == before_date
+         and d(f"D.tasks.find(t => t.id === '{lift}').date") == old_lift_date,
+         'dismissed linked-duty decision cannot be replayed')
+    # Only the final explicit confirmation and duty choice can write the revision.
+    pg.evaluate(act, ['match-edit', {'id': mid}])
+    pg.fill('#sheet input[name=start]', '11:00')
+    pg.fill('#sheet input[name=date]', d(f"M.addDays(D.matches.find(m => m.id === '{mid}').date, 1)"))
+    pg.fill('#sheet input[name=changeReason]', 'Start time revised by organiser, manually recorded')
+    pg.click('#sheet button[type=submit]')
+    pg.wait_for_selector('#sheet [data-act=fixture-revision-confirm]')
+    pg.click('#sheet [data-act=fixture-revision-confirm]')
+    pg.wait_for_selector('text=What should happen to them?')
     pg.click('text=Move them with it'); pg.wait_for_timeout(150)
     c.ok(d(f"D.tasks.find(t => t.id === '{lift}').date") == d(f"D.matches.find(m => m.id === '{mid}').date"), 'linked tasks moved with the match')
+    first_revisions = d(f"D.matches.find(m => m.id === '{mid}').fixtureRevisions.map(x => [x.after.status, x.taskDisposition])")
+    c.ok(len(first_revisions) == 1 and first_revisions[0][1] == 'move',
+         f'move generates exactly one coach revision: {first_revisions}')
     # cancel the match -> cancel its tasks
-    pg.evaluate(act, ['match-edit', {'id': mid}]); pg.select_option('#sheet select[name=status]', 'cancelled'); pg.click('#sheet button[type=submit]')
+    pg.evaluate(act, ['match-edit', {'id': mid}]); pg.select_option('#sheet select[name=status]', 'cancelled')
+    pg.fill('#sheet input[name=changeReason]', 'Competition notice of cancellation manually checked')
+    pg.click('#sheet button[type=submit]')
+    pg.wait_for_selector('#sheet [data-act=fixture-revision-confirm]')
+    pg.click('#sheet [data-act=fixture-revision-confirm]')
     pg.wait_for_selector('text=Cancel them too'); pg.click('text=Cancel them too'); pg.wait_for_timeout(150)
     c.ok(d(f"D.matches.find(m => m.id === '{mid}').status") == 'cancelled' and d(f"D.tasks.find(t => t.id === '{lift}').cancelled"), 'match and its tasks cancelled')
+    revisions = d(f"D.matches.find(m => m.id === '{mid}').fixtureRevisions.map(x => [x.after.status, x.taskDisposition, x.reason])")
+    c.ok(len(revisions) == 2,
+         f'two fixture revisions retained as history: {revisions}')
+    c.ok(d(f"D.matches.find(m => m.id === '{mid}').result.us") == 3,
+         'existing result preserved through schedule and cancellation amendments')
     # WhatsApp texts
     pg.goto(url + '#messages'); pg.wait_for_timeout(100)
     pg.evaluate(act, ['tpl', {'t': 'results'}]); pg.wait_for_timeout(100)
