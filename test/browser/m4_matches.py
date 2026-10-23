@@ -52,6 +52,36 @@ with sync_playwright() as p:
     pg.click('#sheet button[type=submit]')
     pg.wait_for_selector('#sheet [data-act=fixture-revision-confirm]')
     c.ok(d(f"D.matches.find(m => m.id === '{mid}').date") == before_date, 'fixture unchanged before review confirmation')
+    # Reject a dismissed first review, including a later synthetic replay of its action.
+    old_lift_date = d(f"D.tasks.find(t => t.id === '{lift}').date")
+    pg.click('#sheet .fixture-revision-review [data-act=close-sheet]')
+    pg.wait_for_selector('#sheet', state='hidden')
+    pg.evaluate(act, ['fixture-revision-confirm', {}])
+    c.ok(d(f"D.matches.find(m => m.id === '{mid}').date") == before_date
+         and d(f"D.matches.find(m => m.id === '{mid}').fixtureRevisions?.length || 0") == 0,
+         'dismissed fixture review cannot be replayed')
+    # Confirm the change, then reject the separate linked-duty choice once.
+    pg.evaluate(act, ['match-edit', {'id': mid}])
+    pg.fill('#sheet input[name=start]', '11:00')
+    pg.fill('#sheet input[name=date]', d(f"M.addDays(D.matches.find(m => m.id === '{mid}').date, 1)"))
+    pg.fill('#sheet input[name=changeReason]', 'Start time revised by organiser, manually recorded')
+    pg.click('#sheet button[type=submit]')
+    pg.wait_for_selector('#sheet [data-act=fixture-revision-confirm]')
+    pg.click('#sheet [data-act=fixture-revision-confirm]')
+    pg.wait_for_selector('text=What should happen to them?')
+    pg.click('#sheet .panel-body [data-act=close-sheet]')
+    pg.wait_for_selector('#sheet', state='hidden')
+    pg.evaluate(act, ['link-choice', {'c': 'move'}])
+    c.ok(d(f"D.matches.find(m => m.id === '{mid}').date") == before_date
+         and d(f"D.tasks.find(t => t.id === '{lift}').date") == old_lift_date,
+         'dismissed linked-duty decision cannot be replayed')
+    # Only the final explicit confirmation and duty choice can write the revision.
+    pg.evaluate(act, ['match-edit', {'id': mid}])
+    pg.fill('#sheet input[name=start]', '11:00')
+    pg.fill('#sheet input[name=date]', d(f"M.addDays(D.matches.find(m => m.id === '{mid}').date, 1)"))
+    pg.fill('#sheet input[name=changeReason]', 'Start time revised by organiser, manually recorded')
+    pg.click('#sheet button[type=submit]')
+    pg.wait_for_selector('#sheet [data-act=fixture-revision-confirm]')
     pg.click('#sheet [data-act=fixture-revision-confirm]')
     pg.wait_for_selector('text=What should happen to them?')
     pg.click('text=Move them with it'); pg.wait_for_timeout(150)
