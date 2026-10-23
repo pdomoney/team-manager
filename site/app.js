@@ -6599,6 +6599,31 @@ const actions = {
   }),
   'md-send-lineup': coachOnly(el => { const m = matchById(el.dataset.id); if (m) sendWa(matchLineupText(m), { ref: 'match:' + m.id }); }),
   'result-share': coachOnly(el => { const m = matchById(el.dataset.id); if (m && (M.matchOutcome(m) || m.status !== 'scheduled')) sendWa(oneResultText(m), { ref: 'result:' + m.id }); }),
+  'fixture-revision-confirm': coachOnly(() => {
+    const p=state.fixturePending;state.fixturePending=null;
+    const m=p&&p.teamId===data.id&&matchById(p.id);
+    if(!m){toast('Fixture no longer belongs to the selected team');return;}
+    const plan=planFixtureRevision(m,p.fields);
+    if(plan.error || !plan.changed || Object.keys(p.before).some(k=>p.before[k]!==plan.before[k])){
+      toast('Fixture changed since you opened it. Reopen before updating.');return;
+    }
+    const linked=M.linkedTasks(data,'match',p.id);
+    const off=x=>x==='cancelled'||x==='postponed';
+    if(off(p.fields.status)&&!off(m.status)&&linked.some(t=>!t.cancelled)){
+      askLinked({...p,kind:'match',op:'cancel',status:p.fields.status,fixtureRevision:true});return;
+    }
+    const before={date:m.date,start:m.start,end:'',place:matchWhere(m)};
+    const after={date:p.fields.date,start:p.fields.start,end:'',place:matchWhere(p.fields)};
+    if(linked.length&&M.whenChanged(before,after)){
+      askLinked({...p,kind:'match',op:'edit',before,after,fixtureRevision:true});return;
+    }
+    const wasOff=off(m.status),result=saveReviewedFixture(m,p,'none');
+    if(result.error){toast(result.error);return;}
+    const restored=wasOff&&!off(m.status)?M.reinstateTasks(data,'match',p.id):0;
+    save();closeSheet();render();openMatch(p.id);
+    toast(restored?`Fixture change recorded; ${restored} linked tasks reinstated. Reconfirm attendance.`:
+      'Fixture change recorded. Review staffing and notify participants manually.');
+  }),
   'match-edit': coachOnly(el => { const m = matchById(el.dataset.id); if (m) openSheet('Edit match', matchForm(m), 'match-edit'); }),
   'match-del': coachOnly(el => {
     const m = matchById(el.dataset.id); if (!m) return;
