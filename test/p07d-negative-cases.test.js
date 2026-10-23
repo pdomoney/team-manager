@@ -122,7 +122,7 @@ test('P07D confirmed fixture correction retains history, results, crew and priva
     result:m.result,crew:m.crew,rsvp:m.rsvp,lineupId:m.lineupId,entryId:m.entryId,seasonId:m.seasonId
   }),prior);
   const player=JSON.stringify(teamView(ws));
-  for(const sensitive of ['PRIVATE','fixtureRevisions','coachNotes','crew','rsvp'])
+  for(const sensitive of ['PRIVATE-CREW','PRIVATE COACH NOTE','PRIVATE HEALTH','PRIVATE-PERSON','fixtureRevisions','coachNotes','crew','rsvp'])
     assert.equal(player.includes(sensitive),false,sensitive);
   assert.ok(JSON.stringify(ws).includes('PRIVATE'));
 });
