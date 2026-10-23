@@ -28,7 +28,7 @@ The Rules screen distinguishes:
 
 1. **Supported same-sport rule pack:** normal prior behaviour and source references.
 2. **Unsupported sport:** clear no-built-in-pack advisory; no phantom Oztag rule list; coach offered review of sport/settings.
-3. **Explicit cross-sport pack:** rule list remains visible for historical compatibility, but a prominent warning says it is **not verified** for the actual team sport. No silent alteration of selected rules, existing team settings or prior by-laws.
+3. **Explicit cross-sport pack:** a prominent warning identifies the mismatched sport and hides the other sport's scoring, restarts and gameplay values until the coach reviews the selection. No silent alteration of selected rules, existing team settings or prior by-laws.
 
 Other tactics, plays, lineups, match-day staff, encrypted exports and publishes are unchanged in P08A.
 
