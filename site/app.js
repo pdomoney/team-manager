@@ -4577,7 +4577,7 @@ function applyLinkChoice(c) {
   }
   if (p.op === 'edit') {
     if(!p.fixtureRevision)Object.assign(ev, p.fields);
-    msg = c === 'move' ? `Saved. ${s(M.followEvent(data, p.kind, p.id, p.before, p.after))} moved with it` : `Saved. ${s(M.detachTasks(data, p.kind, p.id))} left on the old day, unlinked`;
+    msg = c === 'move' ? `Saved. ${s(M.followEvent(data, p.kind, p.id, p.fixtureRevision ? p.taskBefore : p.before, p.fixtureRevision ? p.taskAfter : p.after))} moved with it` : `Saved. ${s(M.detachTasks(data, p.kind, p.id))} left on the old day, unlinked`;
     if(p.fixtureRevision && wasOff && ev.status==='scheduled') M.reinstateTasks(data,'match',p.id);
   }
   if (p.op === 'cancel') {
@@ -6626,7 +6626,7 @@ const actions = {
     const before={date:m.date,start:m.start,end:'',place:matchWhere(m)};
     const after={date:p.fields.date,start:p.fields.start,end:'',place:matchWhere(p.fields)};
     if(linked.length&&M.whenChanged(before,after)){
-      askLinked({...p,kind:'match',op:'edit',before,after,fixtureRevision:true});return;
+      askLinked({...p,kind:'match',op:'edit',taskBefore:before,taskAfter:after,fixtureRevision:true});return;
     }
     const wasOff=off(m.status),result=saveReviewedFixture(m,p,'none');
     if(result.error){toast(result.error);return;}
