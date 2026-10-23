@@ -4263,6 +4263,34 @@ function viewMatches() {
     + `<section class="sec"><div class="sec-h"><h2>${days.length ? 'Other matches' : 'Coming up'}</h2></div>${up.length ? `<div class="list grid sess-grid ${cardClass('matches')}">${up.map(matchRow).join('')}</div>` : '<p class="muted small">Nothing else coming up.</p>'}</section>`
     + (past.length ? `<section class="sec"><div class="sec-h"><h2>Played</h2>${coach ? `<button class="btn sm" data-act="results-share">${icon('chat', 18)}Send results</button>` : ''}</div><div class="list grid sess-grid ${cardClass('matches')}">${past.map(matchRow).join('')}</div></section>` : '');
 }
+// Fixture changes are coach-recorded, explicitly reviewed, and saved only after confirmation.
+function fixtureRevisionReview(p) {
+  const before=p.before,after=p.after;
+  const row=(label,b,a)=>b===a?'':`<li><strong>${label}</strong>: ${esc(b||'Not set')} → ${esc(a||'Not set')}</li>`;
+  const changed=['date','start','venue','field','status'].map(k=>row(k,before[k],after[k])).filter(Boolean).join('');
+  const m=matchById(p.id),review=planFixtureRevision(m,p.fields);
+  return `<section class="fixture-revision-review">
+    <p class="hint">This change is a manual coach record, not confirmation from a competition organiser or official feed.</p>
+    <ul class="diff-list">${changed}</ul>
+    <p><strong>Reason:</strong> ${esc(p.reason)}</p>
+    ${review.warnings?.length?`<ul class="diff-list">${review.warnings.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
+    <p class="hint">Existing results, lineups, RSVPs and staffing are preserved. Linked tasks require a separate choice when relevant. No notifications are sent automatically.</p>
+    <div class="btn-row"><button class="btn primary" data-act="fixture-revision-confirm">Confirm fixture change</button>
+    <button class="btn" data-act="close-sheet">Cancel — keep existing fixture</button></div>
+  </section>`;
+}
+function saveReviewedFixture(m,p,disposition='none') {
+  if(!m || !p || p.teamId!==data.id || m.id!==p.id)return {error:'Fixture or team selection changed. Reopen the fixture'};
+  const result=commitFixtureRevision(m,p.fields,{
+    confirmed:true,reason:p.reason,expectedBefore:p.before,
+    at:new Date().toISOString(),taskDisposition:disposition
+  });
+  if(result.error)return result;
+  Object.assign(m,p.fields);
+  if(!p.fields.tournament)delete m.tournament;
+  setEntry(m,p.entry);
+  return result;
+}
 function matchForm(m) {
   const isNew = !m || !m.id, T = data.team;
   m = m || { date: T.eventStart && T.eventStart >= todayISO() ? T.eventStart : todayISO(), start: '', opponent: '', venue: T.venue || '', field: '', round: '', notes: '', coachNotes: '', status: 'scheduled' };
