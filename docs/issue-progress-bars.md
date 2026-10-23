@@ -25,7 +25,7 @@ Everything outside these blocks—including the human-maintained acceptance chec
 
 ## Registering future work
 
-Before P07/P08/P09/P10 implementation begins, define the scoped PR checkpoints for the phase and add the expected PR numbers to `config/issue-progress.json` through a reviewed commit/PR. Add/remove milestones only when the product owner approves scope changes. **Do not treat the number of unplanned PRs as the denominator**; doing so creates misleading percentages.
+Before P07/P08/P09/P10 implementation begins, define the scoped milestones. Add **known opened PR numbers** to `pulls`, and use `futureCheckpoints` for named approved milestones whose PR numbers do not yet exist. When a planned PR is created, replace its matching `futureCheckpoints` label with the verified number in `pulls` **in the same reviewed change**: the total denominator must not change. For example, P07 starts with `pulls: [79]` and three future milestone names, so the planned delivery denominator stays at four from its first PR through P07D. Add/remove milestones only when the product owner explicitly approves changes to scope. **Do not treat the number of unplanned PRs as the denominator**; doing so creates misleading percentages.
 
 When accepted, manually record Safari/user-journey and phase-owner approval in the phase's required checklist; then close the issue as completed and check its box in #41. The progress updater will reflect closure automatically.
 
