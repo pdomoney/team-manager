@@ -20,20 +20,24 @@ export function checkedGate(body, pattern) {
 }
 export function computeProgress(issue, phase, mergedPulls = new Set()) {
   const pulls = [...new Set((phase.pulls || []).filter(number))];
+  // Named future checkpoints count in the denominator before their PR number is known.
+  // When a PR is opened, replace one future checkpoint with its actual PR ID.
+  const future = [...new Set((phase.futureCheckpoints || []).filter(x => typeof x === 'string' && x.trim()))];
+  const planned = pulls.length + future.length;
   const finished = issue.state === 'closed' && issue.state_reason !== 'not_planned';
   const deferred = issue.state === 'closed' && issue.state_reason === 'not_planned';
   const merged = pulls.filter(p => mergedPulls.has(p)).length;
   // A formally completed phase is accepted even when legacy checklist ticks were not backfilled.
   const manual = finished || checkedGate(issue.body, /Required Safari\/mobile and representative user-journey tests recorded/i);
   const owner = finished || checkedGate(issue.body, /Product owner explicitly accepts this phase/i);
-  const total = pulls.length + 3; // manual acceptance, explicit owner sign-off, issue completed
+  const total = planned + 3; // fixed planned PR slots + manual, owner sign-off, issue completed
   const done = finished ? total : merged + Number(manual) + Number(owner);
   const pct = Math.round(100 * done / total);
   return Object.freeze({
     phase: phase.phase, issue:phase.issue, complete:deferred ? 0 : pct,
     remaining:deferred ? 100 : 100 - pct,
-    done:deferred ? 0 : done, total, merged, planned:pulls.length,
-    manual, owner, accepted:finished, deferred, unscoped:!pulls.length && !finished
+    done:deferred ? 0 : done, total, merged, planned,
+    manual, owner, accepted:finished, deferred, unscoped:!planned && !finished
   });
 }
 export function replaceBlock(body, start, end, inner) {
