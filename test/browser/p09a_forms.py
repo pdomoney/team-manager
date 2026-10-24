@@ -48,9 +48,18 @@ with sync_playwright() as p:
         pg.locator('#sheet [data-act=crew-intake-back]').click()
         pg.locator('#sheet input[name=method][value=existing]').check()
         pg.locator('#sheet form[data-form=crew-intake-start] button[type=submit]').click()
-        c.ok(pg.locator('#sheet form[data-form=crew-existing] select[name=teamId]').count()==1
-             and ('Existing person' in pg.inner_text('#sheet')),
-             f'{width}: existing route still links workspace records only')
+        existing=pg.locator('#sheet form[data-form=crew-existing]')
+        existing_text=pg.inner_text('#sheet')
+        # A fresh sample may contain no recorded volunteers yet. The safe
+        # empty state disables linking; a populated test library offers only
+        # workspace-local people, never a remote/global account lookup.
+        no_people='No existing volunteers are recorded in this workspace' in existing_text
+        person_select=existing.locator('select[name=personId]')
+        c.ok(existing.count()==1 and existing.locator('select[name=teamId]').count()==1
+             and 'previously entered in this workspace' in existing_text
+             and ((no_people and person_select.count()==0 and existing.locator('button[type=submit]').is_disabled())
+                  or (not no_people and person_select.count()==1)),
+             f'{width}: existing route correctly handles local people or safe empty state')
         pg.locator('#sheet [data-act=crew-intake-back]').click()
         pg.locator('#sheet form[data-form=crew-intake-start] button[type=submit]').click()
         manual=pg.locator('#sheet form[data-form=crew-manual]')
