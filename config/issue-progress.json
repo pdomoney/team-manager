@@ -82,11 +82,10 @@
       "issue": 50,
       "pulls": [
         83,
-        84
+        84,
+        85
       ],
-      "futureCheckpoints": [
-        "P08C — sport-aware tactics, teaching and compatibility qualification"
-      ]
+      "futureCheckpoints": []
     },
     {
       "phase": "P09",
