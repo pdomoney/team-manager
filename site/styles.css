@@ -1427,6 +1427,7 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   font-size:15px;font-weight:700}
 .crew-entry-choices .opt:hover > span{border-color:var(--pitch)}
 .crew-entry-choices .opt input:checked + span:hover{border-color:var(--pitch)}
+.crew-entry-choices .opt input:focus + span,
 .crew-entry-choices .opt input:focus-visible + span{outline:3px solid var(--gold);outline-offset:2px}
 @media(max-width:600px){
   .crew-directory-panel,.crew-rules-panel{padding:12px}
