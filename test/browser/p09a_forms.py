@@ -30,6 +30,10 @@ with sync_playwright() as p:
         c.ok(selected['color']=='rgb(255, 255, 255)' and selected['bg']!='rgb(255, 255, 255)'
              and '✓' in selected['mark'] and selected['height']>=44,
              f'{width}: selection is clearly indicated, helpers remain white, and target >=44px')
+        # The shared modal intentionally focuses Close with a 30ms timer.
+        # Let that initial focus settle before testing explicit radio focus,
+        # otherwise the delayed modal focus can race this assertion on CI.
+        pg.wait_for_timeout(90)
         # Radio focus must always be visually obvious, including mobile Safari
         # and script-assisted keyboard/VoiceOver focus (not only :focus-visible).
         pg.locator('#sheet input[name=method][value=manual]').focus()

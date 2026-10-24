@@ -92,10 +92,10 @@
       "issue": 51,
       "pulls": [
         86,
-        87
+        87,
+        88
       ],
       "futureCheckpoints": [
-        "P09C — trusted club/association previews and navigation",
         "P09D — form/controller consolidation and role privacy qualification"
       ]
     },
