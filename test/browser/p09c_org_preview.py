@@ -17,7 +17,7 @@ with sync_playwright() as p:
         pg.wait_for_function("window.__team.ws.testLibrary?.version===3")
         details=pg.evaluate("""() => {
           const W=window.__team.ws,M=window.__team.M,D=window.__team.data;
-          const other=M.activeTeams(W).find(t=>t.id!==D.id);
+          const other=M.activeTeams(W).find(t=>t.id!==D.id && M.clubOf(W,t));
           W.clubs[0].email='P09C_PRIVATE_CLUB_EMAIL';
           D.players[0].notes='P09C_PRIVATE_PLAYER_NOTES';
           return {current:D.id,other:other.id,clubId:M.clubOf(W,other)?.id||''};
