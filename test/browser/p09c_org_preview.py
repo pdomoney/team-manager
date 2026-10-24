@@ -22,8 +22,14 @@ with sync_playwright() as p:
           D.players[0].notes='P09C_PRIVATE_PLAYER_NOTES';
           return {current:D.id,other:other.id,clubId:M.clubOf(W,other)?.id||''};
         }""")
-        pg.goto(url+'#teams')
-        pg.wait_for_selector('#view [data-act=org-preview-open]')
+        # Preserve the synthetic workspace and active coach role in the SPA.
+        # Reloads of an unsaved test-library mutation are not an access test.
+        pg.evaluate(act,['tab',{'tab':'teams'}])
+        c.ok(pg.locator('#view [data-act=org-preview-open]').count()==1,
+             f'{width}: coach club/team layout entry visible after SPA navigation'
+             f' (tab={pg.evaluate("window.__team.state.tab")}, '
+             f'preview={pg.evaluate("window.__team.state.preview")})')
+        pg.wait_for_selector('#view [data-act=org-preview-open]',timeout=5000)
         c.ok(pg.locator('#view [data-act=org-preview-open]').count()==1,
              f'{width}: only coach team management advertises organisation concepts')
         pg.click('#view [data-act=org-preview-open]')
@@ -56,8 +62,14 @@ with sync_playwright() as p:
              and pg.locator('#sheet:visible').count()==0
              and pg.locator('#view .focus').count()==1,
              f'{width}: open team switches the real coach context and Home without role escalation')
-        pg.goto(url+'#teams')
-        pg.wait_for_selector('#view [data-act=org-preview-open]')
+        # Preserve the synthetic workspace and active coach role in the SPA.
+        # Reloads of an unsaved test-library mutation are not an access test.
+        pg.evaluate(act,['tab',{'tab':'teams'}])
+        c.ok(pg.locator('#view [data-act=org-preview-open]').count()==1,
+             f'{width}: coach club/team layout entry visible after SPA navigation'
+             f' (tab={pg.evaluate("window.__team.state.tab")}, '
+             f'preview={pg.evaluate("window.__team.state.preview")})')
+        pg.wait_for_selector('#view [data-act=org-preview-open]',timeout=5000)
         pg.click('#view [data-act=org-preview-open]')
         pg.click('#sheet [data-act=org-preview-mode][data-mode=individual]')
         c.ok(pg.locator('#sheet .org-preview-layout[data-mode=individual]').count()==1
@@ -78,8 +90,14 @@ with sync_playwright() as p:
         pg.locator('#status [data-act=preview-off]').click()
         c.ok(pg.evaluate('window.__team.state.preview===false'),
              f'{width}: leaving player view restores coach without persisted persona')
-        pg.goto(url+'#teams')
-        pg.wait_for_selector('#view [data-act=org-preview-open]')
+        # Preserve the synthetic workspace and active coach role in the SPA.
+        # Reloads of an unsaved test-library mutation are not an access test.
+        pg.evaluate(act,['tab',{'tab':'teams'}])
+        c.ok(pg.locator('#view [data-act=org-preview-open]').count()==1,
+             f'{width}: coach club/team layout entry visible after SPA navigation'
+             f' (tab={pg.evaluate("window.__team.state.tab")}, '
+             f'preview={pg.evaluate("window.__team.state.preview")})')
+        pg.wait_for_selector('#view [data-act=org-preview-open]',timeout=5000)
         pg.click('#view [data-act=org-preview-open]')
         c.ok(pg.evaluate("document.documentElement.scrollWidth<=innerWidth+1"),
              f'{width}: organisation sketch fits viewport without horizontal scroll')
