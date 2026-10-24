@@ -29,7 +29,9 @@ with sync_playwright() as p:
           delete old.sport;delete old.originSport;
           D.plays.push(old);
         }""")
-        pg.goto(url+'#plays')
+        # Return through the SPA action: reloading the URL would discard
+        # synthetic unsaved sport/play changes before this assertion.
+        pg.evaluate(act,['play-back',{}])
         pg.wait_for_selector('.play-row[data-id="p08c-touch"]')
         c.ok(pg.locator('.play-row[data-id="p08c-touch"] .pill').all_text_contents().count('Teaching canvas')==1,
              f'{width}: touch play labelled a teaching canvas')
@@ -49,7 +51,8 @@ with sync_playwright() as p:
         c.ok('PRIVATE HEALTH' not in pg.inner_text('#view'),
              f'{width}: player preview does not expose private source notes')
         pg.evaluate(act,['preview-off',{}])
-        pg.goto(url+'#plays')
+        pg.evaluate(act,['play-back',{}])
+        pg.wait_for_selector('.play-row[data-id="p08c-legacy"]')
         pg.click('.play-row[data-id="p08c-legacy"]')
         pg.wait_for_selector('#view .play-sport-context')
         c.ok('no confirmed sport' in pg.locator('#view .play-sport-context').inner_text(),
