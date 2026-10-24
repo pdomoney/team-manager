@@ -38,7 +38,7 @@ test('P10C map preserves distinct scoped identities, history and original data o
 test('P10C non-identity helper, appointment and guardian records never auto-create access grants', () => {
   for (const id of ['helper','guardian-review','team-staff','match-official','volunteer-appointment']) {
     const row=mapping(id);
-    assert.notMatch(row.candidate,/RoleGrant|Account|verified global Person/);
+    assert.doesNotMatch(row.candidate,/RoleGrant|Account|verified global Person/);
     assert.match(row.decision,/review/);
     assert.notEqual(row.privacy,'public');
   }
