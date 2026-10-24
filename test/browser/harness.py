@@ -51,3 +51,37 @@ class Check:
         for e in real: print('  ERR', e)
         print(f'{self.n - len(self.fails)}/{self.n} checks passed' + ('' if not real else f', {len(real)} page errors'))
         return not self.fails and not real
+
+def ensure_upcoming_sample_trial(pg):
+    """Test-only: retain the sample's near-term Hills fixture if its start has passed.
+
+    The sample's sat(0) lands on *today* when CI runs on Saturday. After 09:30
+    local runner time Home correctly excludes it as past; older tests expected
+    it still to be upcoming. Move only this synthetic fixture and its linked
+    tasks forward one week, keeping the original team, IDs and associations.
+    No production code, persisted data or Home time-filter rule is changed.
+    """
+    moved = pg.evaluate("""() => {
+      const {data:D, M} = window.__team;
+      const m = D.matches.find(x => x.opponent === 'Hills Hornets');
+      if (!m) throw new Error('Missing synthetic Hills Hornets fixture');
+      const dateTime = new Date(m.date + 'T' + (m.start || '00:00') + ':00');
+      if (!Number.isFinite(dateTime.getTime())) throw new Error('Malformed synthetic trial time');
+      if (dateTime.getTime() > Date.now()) return false;
+      const next = M.addDays(m.date, 7);
+      m.date = next;
+      D.tasks.filter(t => t.matchId === m.id).forEach(t => { t.date = next; });
+      return true;
+    }""")
+    if moved:
+        # Re-render in the existing in-memory SPA. A page reload would discard
+        # the synthetic change and incorrectly reintroduce the past fixture.
+        pg.evaluate("""() => {
+          const b = document.createElement('button');
+          b.dataset.act = 'tab';
+          b.dataset.tab = 'home';
+          document.body.appendChild(b);
+          b.click();
+          b.remove();
+        }""")
+    return moved
