@@ -67,9 +67,11 @@ export function playMechanics(play) {
   })));
 }
 export function transferGuide(play, sourceSport, targetSport) {
-  const source = TRANSFER_SPORTS.includes(sourceSport) ? sourceSport : 'Oztag';
+  // Never silently identify an unknown/legacy custom play as Oztag.
+  // Choosing an original sport is an explicit coach decision.
+  const source = TRANSFER_SPORTS.includes(sourceSport) ? sourceSport : null;
   const target = TRANSFER_SPORTS.includes(targetSport) ? targetSport : null;
-  if (!target || target === source) return null;
+  if (!source || !target || target === source) return null;
   const detected = playMechanics(play);
   const guide = SPORT_CHECKS[target];
   const kicker = moves(play).some(m => m.t === 'kick');
