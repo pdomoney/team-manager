@@ -27,7 +27,12 @@ with sync_playwright() as p:
     c.ok(W('W.testLibrary.version') >= 3 and W('M.teamsOf(W).length') == 6 and W('W.clubs.map(c => c.id).sort()') == ['engadinedragons', 'penrithoztag', 'stgeorge', 'tarenpointtitans'] and W('W.matchOfficials.length') == 6, 'six teams in the four real clubs, and six volunteers')
     c.ok(W('D.id') == W('W.id') and W('D.players.length') == 16 and W("D.players.every(p => /^tst\\d+$/.test(p.id))"), 'opens on the Mixed 20s; ids are the numbered test ones')
     today = W("(t => t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'))(new Date())")
-    c.ok(W(f"D.matches.filter(m => m.date === '{today}').length") == 5 and W(f"D.matches.filter(m => m.date === '{today}').every(m => m.entryId)"), 'a gala day today with five games, in its competition')
+    # A separate, pre-existing sample match may also fall on today's date.
+    # Assert the five purpose-built gala games, not all matches scheduled today.
+    gala = W(f"D.matches.filter(m => m.date === '{today}' && /^Pool B, game [1-5]$/.test(m.round || ''))")
+    c.ok(len(gala) == 5 and all(m.get('entryId') for m in gala)
+         and sorted(m.get('round') for m in gala) == [f'Pool B, game {i}' for i in range(1, 6)],
+         'a gala day today with five linked competition games')
     c.ok('Test library' in phone.inner_text('#status'), 'the status line says it’s the test library')
     time.sleep(1.5)   # the second device loads a moment later
     ctx2, laptop, _ = page(browser, url + '#home', width=1280, height=860, errors=errs)
