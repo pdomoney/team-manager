@@ -32,6 +32,7 @@ import { libraryCopyReview, libraryOrigin } from './p08-library-provenance.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
+import { inputField, selectField, radioChoices } from './form-controls.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -3748,54 +3749,62 @@ function intakeTeamOptions(clubId, selectedId = '') {
 function intakeClubLabel(clubId) {
   return arr(ws.clubs).find(c=>c.id===clubId)?.name || 'Team without a club';
 }
+// A single team selector is used by each volunteer entry route, so a club-only
+// volunteer remains possible without silently assigning a sport/clearance.
+function intakeTeamField(clubId, label = 'Team assignment (optional)', help = '') {
+  const options=[{value:'',label:'No team assignment yet'},
+    ...intakeClubTeams(clubId).map(t=>({value:t.id,label:M.teamName(t)+' · '+
+      M.teamSport(t.team,M.clubOf(ws,t))}))];
+  return selectField({name:'teamId',label,options,help});
+}
 function crewIntakeStartForm() {
   const selected = intakeClubId();
+  const clubs = arr(ws.clubs).map(c=>({value:c.id,label:c.name}));
+  clubs.push({value:'',label:'No club / current team only'});
   return '<form data-form="crew-intake-start" autocomplete="off">' +
     '<p class="hint">Start with the club, then choose how to add the volunteer. ' +
     'Only clubs in this encrypted coach workspace are available; individual account permissions are not yet implemented.</p>' +
-    '<label class="field-l"><span>Club</span><select name="clubId">' +
-    arr(ws.clubs).map(c=>'<option value="'+esc(c.id)+'" '+(c.id===selected?'selected':'')+'>'+esc(c.name)+'</option>').join('') +
-    '<option value="" '+(!arr(ws.clubs).length?'selected':'')+'>No club / current team only</option></select></label>' +
-    '<fieldset class="crew-entry-choices"><legend>How would you like to add a volunteer?</legend>' +
-    '<label class="opt"><input type="radio" name="method" value="existing"><span><strong>Existing volunteer</strong><small>Link someone already in this coach workspace, without duplicating their record</small></span></label>' +
-    '<label class="opt"><input type="radio" name="method" value="invite"><span><strong>Email invitation</strong><small>Prepare an email in your mail app; online enrolment is not available yet</small></span></label>' +
-    '<label class="opt"><input type="radio" name="method" value="manual" checked><span><strong>Add manually</strong><small>Record personal details now; assign a team and check accreditation later</small></span></label>' +
-    '</fieldset><button class="btn primary block" type="submit">Continue</button></form>';
+    selectField({name:'clubId',label:'Club',selected,options:clubs}) +
+    radioChoices({name:'method',legend:'How would you like to add a volunteer?',selected:'manual',options:[
+      {value:'existing',label:'Existing volunteer',description:'Link someone already in this coach workspace, without duplicating their record'},
+      {value:'invite',label:'Email invitation',description:'Prepare an email in your mail app; online enrolment is not available yet'},
+      {value:'manual',label:'Add manually',description:'Record personal details now; assign a team and check accreditation later'}
+    ]}) +
+    '<button class="btn primary block" type="submit">Continue</button></form>';
 }
 function crewManualForm(clubId) {
-  return '<form data-form="crew-manual" autocomplete="off"><input type="hidden" name="clubId" value="' + esc(clubId) + '">' +
-    '<p class="hint">Adding to ' + esc(intakeClubLabel(clubId)) + '. This creates a local coach-recorded directory entry, not an account. Qualifications are not verified automatically.</p>' +
-    crewField('name','Full name','','text','required maxlength="120"') +
-    crewField('email','Email (optional)','','email','maxlength="254" placeholder="volunteer@example.com"') +
-    crewField('phone','Mobile / contact number (optional)','','tel','maxlength="40"') +
-    (clubId ? crewField('joined','First joined club (year, optional)','','number','min="1900" max="'+String(new Date().getFullYear())+'"') : '') +
-    '<label class="field-l"><span>Team assignment (optional)</span><select name="teamId">' +
-    intakeTeamOptions(clubId) + '</select><small>Club membership comes first. You can add a team and enter the sport-specific qualifications later.</small></label>' +
+  return '<form data-form="crew-manual" autocomplete="off"><input type="hidden" name="clubId" value="'+esc(clubId)+'">' +
+    '<p class="hint">Adding to '+esc(intakeClubLabel(clubId))+'. This creates a local coach-recorded directory entry, not an account. Qualifications are not verified automatically.</p>' +
+    inputField({name:'name',label:'Full name',required:true,maxLength:120}) +
+    inputField({name:'email',label:'Email (optional)',type:'email',maxLength:254,placeholder:'volunteer@example.com'}) +
+    inputField({name:'phone',label:'Mobile / contact number (optional)',type:'tel',maxLength:40}) +
+    (clubId ? inputField({name:'joined',label:'First joined club (year, optional)',type:'number',min:1900,max:new Date().getFullYear()}) : '') +
+    intakeTeamField(clubId,'Team assignment (optional)',
+      'Club membership comes first. You can add a team and enter the sport-specific qualifications later.') +
     '<button class="btn primary block" type="submit">Save volunteer record</button>' +
     '<button class="btn block" type="button" data-act="crew-intake-back">Back</button></form>';
 }
 function crewExistingForm(clubId) {
   // The shared coach workspace is NOT a global account directory.
   const pool = arr(ws.matchOfficials).slice().sort((a,b)=>a.name.localeCompare(b.name));
-  return '<form data-form="crew-existing" autocomplete="off"><input type="hidden" name="clubId" value="' + esc(clubId) + '">' +
-    '<p class="hint">Choose a volunteer previously entered in this workspace and associate them with ' +
-    esc(intakeClubLabel(clubId)) + '. Existing registration and accreditation checks do not transfer to this club or another sport.</p>' +
-    (pool.length ? '<label class="field-l"><span>Existing person</span><select name="personId" required><option value="">Choose a person</option>' +
-      pool.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name) +
-        (p.email ? ' · '+esc(p.email) : '') + (memberOfClub(p,clubId) ? ' · already at this club' : '') + '</option>').join('') +
-      '</select></label>' : '<p class="crew-notready">No existing volunteers are recorded in this workspace. Use manual entry.</p>') +
-    '<label class="field-l"><span>Team assignment (optional)</span><select name="teamId">' +
-    intakeTeamOptions(clubId) + '</select><small>No team assignment or clearance is assumed.</small></label>' +
+  const options=[{value:'',label:'Choose a person'}, ...pool.map(p=>({value:p.id,label:p.name+
+    (p.email?' · '+p.email:'')+(memberOfClub(p,clubId)?' · already at this club':'')}))];
+  return '<form data-form="crew-existing" autocomplete="off"><input type="hidden" name="clubId" value="'+esc(clubId)+'">' +
+    '<p class="hint">Choose a volunteer previously entered in this workspace and associate them with '+
+    esc(intakeClubLabel(clubId))+'. Existing registration and accreditation checks do not transfer to this club or another sport.</p>' +
+    (pool.length ? selectField({name:'personId',label:'Existing person',options,required:true}) :
+      '<p class="crew-notready">No existing volunteers are recorded in this workspace. Use manual entry.</p>') +
+    intakeTeamField(clubId,'Team assignment (optional)','No team assignment or clearance is assumed.') +
     '<button class="btn primary block" type="submit" '+(!pool.length?'disabled':'')+'>Link volunteer to club</button>' +
     '<button class="btn block" type="button" data-act="crew-intake-back">Back</button></form>';
 }
 function crewInviteForm(clubId) {
-  return '<form data-form="crew-invite-draft" autocomplete="off"><input type="hidden" name="clubId" value="' + esc(clubId) + '">' +
-    '<p class="hint">Prepare an invitation from ' + esc(intakeClubLabel(clubId)) +
+  return '<form data-form="crew-invite-draft" autocomplete="off"><input type="hidden" name="clubId" value="'+esc(clubId)+'">' +
+    '<p class="hint">Prepare an invitation from '+esc(intakeClubLabel(clubId))+
     '. Team Manager does not yet provide user accounts, an enrolment URL or automated invitations. Your email app will open a draft for you to review and send.</p>' +
-    crewField('email','Recipient email','','email','required maxlength="254" placeholder="volunteer@example.com"') +
-    '<label class="field-l"><span>Team (optional)</span><select name="teamId">' + intakeTeamOptions(clubId) +
-    '</select></label><button class="btn primary block" type="submit">Open email draft</button>' +
+    inputField({name:'email',label:'Recipient email',type:'email',required:true,maxLength:254,placeholder:'volunteer@example.com'}) +
+    intakeTeamField(clubId,'Team (optional)') +
+    '<button class="btn primary block" type="submit">Open email draft</button>' +
     '<button class="btn block" type="button" data-act="crew-intake-back">Back</button></form>';
 }
 // The teams a volunteer helps, grouped by club, ticked on their profile. Club members can be picked for
