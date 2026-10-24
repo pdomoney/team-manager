@@ -34,6 +34,7 @@ import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequir
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
 import { inputField, selectField, radioChoices } from './form-controls.js';
 import { personField, helperPlayerField } from './p09-person-form.js';
+import { organisationPreview, ORG_PREVIEW_MODES } from './p09-org-preview.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -314,6 +315,7 @@ const state = {
   taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, peopleSearch: '',
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
+  orgPreview: null,
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
 };
@@ -4834,10 +4836,57 @@ function clubDirectoryResults() {
     <div class="list">${rows || '<p class="muted small">No entries match these filters.</p>'}</div>
     ${filtered.length>cap ? `<button class="btn block" data-act="directory-more">Show more (${filtered.length-cap} remaining)</button>` : ''}`;
 }
+// P09C: local, trusted-owner design previews only. The projected data contains
+// club/team identity metadata; never route player contacts, volunteers or guardian
+// information into role-style cards or pretend the selector grants permission.
+function orgPreviewBody() {
+  const config=state.orgPreview||{mode:'association',clubId:curClub()?.id||'',teamId:data.id};
+  const preview=organisationPreview({
+    clubs:arr(ws.clubs).map(c=>({id:c.id,name:c.name,shortName:c.shortName,sport:c.sport})),
+    teams:M.activeTeams(ws).map(t=>({id:t.id,name:M.teamName(t),
+      clubId:M.clubOf(ws,t)?.id||'',sport:M.teamSport(t.team,M.clubOf(ws,t)),
+      division:t.team?.division||''})),
+    ...config
+  });
+  const choices=ORG_PREVIEW_MODES.map(m=>
+    `<button type="button" class="btn sm" data-act="org-preview-mode" data-mode="${esc(m.id)}"
+      aria-pressed="${m.id===preview.mode}">${esc(m.label)}</button>`).join('');
+  const clubs=preview.mode==='club' ? `<div class="org-preview-clubs" role="group" aria-label="Choose a managed club">
+    ${preview.clubs.map(c=>`<button type="button" class="btn sm" data-act="org-preview-club"
+      data-id="${esc(c.id)}" aria-pressed="${c.id===preview.selectedClubId}">${esc(c.name)}</button>`).join('')||'<p class="muted">No managed clubs yet.</p>'}
+    </div>` : '';
+  const rows=preview.teams.map(t=>{
+    const club=arr(ws.clubs).find(c=>c.id===t.clubId);
+    return `<div class="org-preview-team-row">
+      ${crest(club?clubBadge(club):null)}
+      <span class="grow"><span class="name">${esc(t.name)}</span>
+        <small class="sub">${esc([t.clubName,t.sport,t.division].filter(Boolean).join(' · '))}</small></span>
+      <button type="button" class="btn sm" data-act="org-preview-team" data-id="${esc(t.id)}">Open team</button>
+      </div>`;
+  }).join('');
+  return `<section class="org-preview-layout" data-mode="${esc(preview.mode)}" aria-label="Local organisational design preview">
+    <p class="note"><strong>DESIGN PREVIEW ONLY — not a signed-in role.</strong>
+      This reuses this coach's decrypted local workspace. It does not check membership,
+      give someone access or publish any information.</p>
+    <div class="org-preview-modes" role="group" aria-label="Choose a layout concept">${choices}</div>
+    <h3 class="form-sec">${esc(preview.title)}</h3><p class="hint">${esc(preview.description)}</p>
+    ${clubs}
+    <p class="org-preview-count" role="status">${preview.totalClubs} managed club${preview.totalClubs===1?'':'s'} in workspace ·
+      ${preview.totalTeams} team${preview.totalTeams===1?'':'s'} in this concept</p>
+    <div class="org-preview-team-list">${rows||'<p class="muted">No teams for this context.</p>'}</div>
+    ${preview.mode==='individual'?'<button type="button" class="btn block" data-act="org-preview-player">Open actual restricted player-view preview</button>':''}
+    <p class="hint">Open team switches only the existing coach's active team. No new role, tenant, association
+      affiliation, guardianship or sign-in credentials are created.</p>
+  </section>`;
+}
+function openOrgPreview() {
+  if(!state.orgPreview)state.orgPreview={mode:'association',clubId:curClub()?.id||'',teamId:data.id};
+  openSheet('Organisational layouts · local design review',orgPreviewBody(),'org-preview');
+}
 function viewTeams() {
   if (!isCoach()) return '';
   const clubs = arr(ws.clubs).slice().sort((a,b)=>a.name.localeCompare(b.name));
-  return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus',18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus',18)}New team</button><button class="btn sm" data-act="team-template-choose">Use existing setup</button></div></div>
+  return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus',18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus',18)}New team</button><button class="btn sm" data-act="team-template-choose">Use existing setup</button><button class="btn sm" data-act="org-preview-open">Preview role layouts</button></div></div>
     <section class="directory-filters" aria-label="Filter managed clubs and teams">
       <label class="field-l"><span>Find a club or team</span><input type="search" data-input="managed-find" value="${esc(teamFinder.text)}" placeholder="Club or team name"></label>
       <label class="field-l"><span>Sport</span><select data-change="managed-sport"><option value="">All sports</option>${M.SPORTS.map(x=>`<option value="${esc(x)}" ${x===teamFinder.sport?'selected':''}>${esc(x)}</option>`).join('')}</select></label>
@@ -7155,6 +7204,26 @@ const actions = {
   'teams': coachOnly(() => goTo('teams')),
   'team-switch': coachOnly(() => teamSwitcher()),
   'team-pick': coachOnly(el => switchTeam(el.dataset.id)),
+  'org-preview-open': coachOnly(() => openOrgPreview()),
+  'org-preview-mode': coachOnly(el => {
+    const mode=el.dataset.mode;
+    if(!ORG_PREVIEW_MODES.some(x=>x.id===mode))return;
+    state.orgPreview={...(state.orgPreview||{}),mode};
+    openOrgPreview();
+  }),
+  'org-preview-club': coachOnly(el => {
+    if(!arr(ws.clubs).some(c=>c.id===el.dataset.id))return;
+    state.orgPreview={...(state.orgPreview||{}),mode:'club',clubId:el.dataset.id};
+    openOrgPreview();
+  }),
+  'org-preview-team': coachOnly(el => {
+    const team=M.activeTeams(ws).find(t=>t.id===el.dataset.id);
+    if(!team)return;
+    switchTeam(team.id);goTo('home');
+  }),
+  'org-preview-player': coachOnly(() => {
+    state.preview=true;state.moveMode=false;closeSheet();render();window.scrollTo(0,0);
+  }),
   'season-pick': coachOnly(() => seasonPicker()),
   'comp-open': coachOnly(el => { state.compId = el.dataset.id; closeSheet(); state.tab = 'comps'; history.replaceState(null, '', '#comps'); render(); window.scrollTo(0, 0); }),
   'comp-back': () => { state.compId = null; render(); window.scrollTo(0, 0); },
