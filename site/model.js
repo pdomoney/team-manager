@@ -1381,7 +1381,7 @@ export const lastMessage = (messages, ref) => ref ? arr(messages).find(m => m.re
 // a newer library version exists. Game systems are the playbook systems with the coach's changes,
 // so a library system is keyed by the system's id.
 export const LIB_KINDS = { plays: 'Play', systems: 'Game system', playerSets: 'Player list' };
-const LIB_STRIP = ['id', 'lib', 'rev', 'at', 'builtin', 'edited', 'setDef'];
+const LIB_STRIP = ['id', 'lib', 'rev', 'at', 'builtin', 'edited', 'setDef', 'libraryOrigin'];
 const SYS_KEYS = ['pos', 'when', 'points', 'jobs'];
 export function normLibrary(lib) {
   const L = obj(lib);
@@ -1438,7 +1438,15 @@ export function libSave(ws, t, kind, id, opts = {}) {
   let li = src.lib ? libGet(ws, kind, src.lib.id) : (kind === 'systems' ? libGet(ws, kind, id) : null);
   const rev = li ? (li.rev || 1) + 1 : 1;
   const libId = kind === 'systems' ? id : li ? li.id : 'lib' + uid();
-  const item = { ...content(kind, src), rev, at: now };
+  // P08B: provenance is local coach-workspace metadata, never a permission grant.
+  // Existing library versions keep their first recorded source team and sport.
+  const club = clubOf(ws,t);
+  const firstOrigin = { scope:'coach-workspace', teamId:t.id,
+    clubId:String(t.team?.clubId || club?.id || ''),
+    sport:teamSport(t.team,club) };
+  const savedOrigin = li?.libraryOrigin;
+  const item = { ...content(kind, src), rev, at: now,
+    libraryOrigin: savedOrigin?.scope==='coach-workspace' ? clone(savedOrigin) : firstOrigin };
   if (kind === 'plays' && opts.setDef) item.setDef = clone(opts.setDef);
   if (kind === 'systems') ws.library.systems[libId] = item;
   else {
