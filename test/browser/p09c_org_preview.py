@@ -62,13 +62,19 @@ with sync_playwright() as p:
         pg.click('#sheet [data-act=org-preview-mode][data-mode=individual]')
         c.ok(pg.locator('#sheet .org-preview-layout[data-mode=individual]').count()==1
              and pg.locator('#sheet .org-preview-team-row').count()==1
+             and pg.locator(f'#sheet .org-preview-team-row [data-act=org-preview-team][data-id="{details["other"]}"]').count()==1
              and pg.locator('#sheet [data-act=org-preview-player]').count()==1,
-             f'{width}: individual concept only shows one team and links to existing restricted player preview')
+             f'{width}: individual concept follows active team and links to restricted player preview')
         pg.click('#sheet [data-act=org-preview-player]')
         c.ok(pg.evaluate('window.__team.state.preview===true')
              and pg.locator('#view [data-act=org-preview-open]').count()==0
              and 'You are seeing what players see.' in pg.inner_text('#status'),
              f'{width}: actual individual preview reuses existing player privacy gate')
+        # A participant-view runtime must reject the coach-only modal even if
+        # an action is dispatched without a visible button.
+        pg.evaluate(act,['org-preview-open',{}])
+        c.ok(pg.locator('#sheet:visible').count()==0,
+             f'{width}: participant view cannot trigger coach organisation layouts')
         pg.locator('#status [data-act=preview-off]').click()
         c.ok(pg.evaluate('window.__team.state.preview===false'),
              f'{width}: leaving player view restores coach without persisted persona')
