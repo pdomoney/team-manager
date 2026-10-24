@@ -10,7 +10,8 @@ test('P09A input controls escape untrusted coach-entered values and retain stand
   assert.match(field,/Contact &amp; mobile/);
   assert.match(field,/Coach &lt;only&gt;/);
   assert.doesNotMatch(field,/<img/);
-  assert.doesNotMatch(field,/onerror=/);
+  // The suspicious string is retained as inert, escaped input data; it is not a tag attribute.
+  assert.match(field,/value="&quot;&gt;&lt;img src=x onerror=alert\(1\)&gt;"/);
   assert.match(field,/&quot;&gt;&lt;img/);
 });
 
@@ -32,7 +33,7 @@ test('P09A select keeps one explicit option selected and escapes workspace names
   assert.match(markup,/Local workspace only/);
   assert.equal((markup.match(/ selected/g)||[]).length,1);
   assert.equal((selectField({name:'teamId',label:'Team',options:[{value:'',label:'No team assignment yet'}]})
-    .match(/<option value="">/g)||[]).length,1);
+    .match(/<option value="" selected>/g)||[]).length,1);
 });
 
 test('P09A radio group has a fieldset, one checked choice, native radio semantics and escaped text',()=>{
