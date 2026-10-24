@@ -34,7 +34,7 @@ import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequir
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
 import { inputField, selectField, radioChoices } from './form-controls.js';
 import { personField, helperPlayerField } from './p09-person-form.js';
-import { organisationPreview, ORG_PREVIEW_MODES } from './p09-org-preview.js';
+import { organisationPreview, ORG_PREVIEW_MODES, nextOrgPreviewSelection } from './p09-org-preview.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -7206,23 +7206,26 @@ const actions = {
   'team-pick': coachOnly(el => switchTeam(el.dataset.id)),
   'org-preview-open': coachOnly(() => openOrgPreview()),
   'org-preview-mode': coachOnly(el => {
-    const mode=el.dataset.mode;
-    if(!ORG_PREVIEW_MODES.some(x=>x.id===mode))return;
-    state.orgPreview={...(state.orgPreview||{}),mode};
+    const next=nextOrgPreviewSelection(state.orgPreview,{kind:'mode',id:el.dataset.mode});
+    if(!next)return;
+    state.orgPreview=next;
     openOrgPreview();
   }),
   'org-preview-club': coachOnly(el => {
-    if(!arr(ws.clubs).some(c=>c.id===el.dataset.id))return;
-    state.orgPreview={...(state.orgPreview||{}),mode:'club',clubId:el.dataset.id};
+    const next=nextOrgPreviewSelection(state.orgPreview,{kind:'club',id:el.dataset.id},
+      {clubs:arr(ws.clubs)});
+    if(!next)return;
+    state.orgPreview=next;
     openOrgPreview();
   }),
   'org-preview-team': coachOnly(el => {
     const team=M.activeTeams(ws).find(t=>t.id===el.dataset.id);
     if(!team)return;
-    // Keep the purely local concept selection aligned with the coach's
-    // actual active team. This never saves or changes account permissions.
-    if(state.orgPreview)state.orgPreview={...state.orgPreview,
-      teamId:team.id,clubId:M.clubOf(ws,team)?.id||''};
+    // This is a local coach team switch, never a role or tenant permission.
+    const next=nextOrgPreviewSelection(state.orgPreview,{kind:'team',id:team.id},
+      {teams:[{id:team.id,clubId:M.clubOf(ws,team)?.id||''}]});
+    if(!next)return;
+    state.orgPreview=next;
     switchTeam(team.id);goTo('home');
   }),
   'org-preview-player': coachOnly(() => {
