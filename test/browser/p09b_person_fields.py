@@ -45,8 +45,15 @@ with sync_playwright() as p:
         new_jerseys=json.loads(updated['jerseys'])
         old_seasons=json.loads(before['seasons'])
         new_seasons=json.loads(updated['seasons'])
-        problems=[k for k in ('id','number','personId','positions')
+        problems=[k for k in ('id','number','personId')
                   if updated[k]!=before[k]]
+        # Preferred positions are a checkbox *set*, not an ordered ranking.
+        # Saving emits the sport's display order, which can differ from legacy
+        # insertion order without adding/removing any preferred positions.
+        original_positions=json.loads(before['positions'])
+        saved_positions=json.loads(updated['positions'])
+        if set(original_positions)!=set(saved_positions) or len(saved_positions)!=len(set(saved_positions)):
+            problems.append('changed preferred position membership')
         if not all(j in new_jerseys for j in old_jerseys): problems.append('lost historical jersey issue')
         if not all(s in new_seasons for s in old_seasons): problems.append('lost season')
         if updated['phone']!='0400 123 987': problems.append('contact not saved')
