@@ -41,6 +41,17 @@ with sync_playwright() as p:
     same = W("W.matches.find(m => m.opponent === 'Hills Hornets').id")
     W(f"""(() => {{ const d = new Date(Date.now() + 30 * 60000); D.matches.push({{ id: '{same}', date: M.isoDay(d), start: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), opponent: 'Wolves', status: 'scheduled', rsvp: {{}}, result: {{}} }}); return 1; }})()""")
     pg.evaluate(act, ['team-pick', {'id': 'team1'}]); pg.wait_for_timeout(150)
+    # Keep the original sample's same-day gala matches/tasks from outranking
+    # this intentionally urgent second-team case. Only synthetic fixture dates
+    # change; no product ranking or normal persisted data is touched.
+    W("""(() => {
+      const today=M.isoDay(new Date()), tomorrow=M.addDays(today,1), later=M.addDays(today,8);
+      W.matches.filter(m=>m.status==='scheduled' && m.date>=today && m.date<=tomorrow)
+        .forEach(m=>m.date=later);
+      W.tasks.filter(t=>!t.cancelled && t.date>=today && t.date<=tomorrow)
+        .forEach(t=>t.date=later);
+      return true;
+    })()""")
     # The synthetic cross-team match was inserted in memory; navigate through
     # the SPA instead of reloading and silently discarding the test fixture.
     pg.evaluate(act, ['tab', {'tab': 'home'}]); pg.wait_for_timeout(200)
