@@ -30,15 +30,14 @@ with sync_playwright() as p:
         c.ok(selected['color']=='rgb(255, 255, 255)' and selected['bg']!='rgb(255, 255, 255)'
              and '✓' in selected['mark'] and selected['height']>=44,
              f'{width}: selection is clearly indicated, helpers remain white, and target >=44px')
-        # Reach the selected radio by keyboard rather than script focus, which
-        # does not necessarily activate :focus-visible after pointer interaction.
-        pg.locator('#sheet form[data-form=crew-intake-start] button[type=submit]').focus()
-        pg.keyboard.press('Shift+Tab')
+        # Radio focus must always be visually obvious, including mobile Safari
+        # and script-assisted keyboard/VoiceOver focus (not only :focus-visible).
+        pg.locator('#sheet input[name=method][value=manual]').focus()
         focus=pg.evaluate("""() => {
           const target=document.querySelector('#sheet input[name=method]:checked');
           return [document.activeElement===target,getComputedStyle(target.nextElementSibling).outlineStyle];
         }""")
-        c.ok(focus[0] and focus[1]!='none',f'{width}: native radio keyboard focus is visibly outlined')
+        c.ok(focus[0] and focus[1]!='none',f'{width}: native radio focus is visibly outlined')
         pg.locator('#sheet input[name=method][value=invite]').check()
         pg.locator('#sheet form[data-form=crew-intake-start] button[type=submit]').click()
         c.ok(pg.locator('#sheet form[data-form=crew-invite-draft] input[name=email][required]').count()==1
