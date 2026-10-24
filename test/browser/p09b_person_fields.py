@@ -1,5 +1,5 @@
 # P09B — shared player, helper and volunteer fields; synthetic data only.
-import sys
+import sys, json
 from harness import *
 from playwright.sync_api import sync_playwright
 
@@ -37,9 +37,21 @@ with sync_playwright() as p:
           return {id:p.id,number:p.number,personId:p.personId||'',seasons:JSON.stringify(p.seasonIds||[]),
             jerseys:JSON.stringify(p.jerseys||[]),positions:JSON.stringify(p.positions||[]),phone:p.phone};
         }""",pid)
-        c.ok(all(updated[k]==before[k] for k in ('id','number','personId','seasons','jerseys','positions'))
-             and updated['phone']=='0400 123 987',
-             f'{width}: player contact edit preserves ID, jersey and sport positions')
+        # Saving an existing player legitimately synchronises outstanding jersey
+        # issues for their active season (M.syncJerseys). Do not assert an
+        # identical jersey array; preserve all historical issue IDs and allow
+        # the normal new issue when an assigned number had not yet been issued.
+        old_jerseys=json.loads(before['jerseys'])
+        new_jerseys=json.loads(updated['jerseys'])
+        old_seasons=json.loads(before['seasons'])
+        new_seasons=json.loads(updated['seasons'])
+        problems=[k for k in ('id','number','personId','positions')
+                  if updated[k]!=before[k]]
+        if not all(j in new_jerseys for j in old_jerseys): problems.append('lost historical jersey issue')
+        if not all(s in new_seasons for s in old_seasons): problems.append('lost season')
+        if updated['phone']!='0400 123 987': problems.append('contact not saved')
+        c.ok(not problems,
+             f'{width}: player contact edit retains identity/history/sport; discrepancies: {problems}')
         pg.evaluate(act,['helper-new',{}])
         helper=pg.locator('#sheet form[data-form=helper]')
         c.ok(helper.count()==1 and helper.locator('input[name=name][required]').count()==1
