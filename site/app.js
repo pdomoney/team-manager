@@ -7219,6 +7219,10 @@ const actions = {
   'org-preview-team': coachOnly(el => {
     const team=M.activeTeams(ws).find(t=>t.id===el.dataset.id);
     if(!team)return;
+    // Keep the purely local concept selection aligned with the coach's
+    // actual active team. This never saves or changes account permissions.
+    if(state.orgPreview)state.orgPreview={...state.orgPreview,
+      teamId:team.id,clubId:M.clubOf(ws,team)?.id||''};
     switchTeam(team.id);goTo('home');
   }),
   'org-preview-player': coachOnly(() => {
