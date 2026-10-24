@@ -90,7 +90,14 @@
     {
       "phase": "P09",
       "issue": 51,
-      "pulls": []
+      "pulls": [
+        86
+      ],
+      "futureCheckpoints": [
+        "P09B — shared person and role-specific forms",
+        "P09C — trusted club/association previews and navigation",
+        "P09D — form/controller consolidation and role privacy qualification"
+      ]
     },
     {
       "phase": "P10",
