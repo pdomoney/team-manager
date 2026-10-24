@@ -38,6 +38,27 @@ test('only completed closed issues reach 100%; not-planned closure does not masq
  assert.equal(deferred.complete,0);
  assert.equal(deferred.deferred,true);
 });
+test('P06–P09 owner-accepted closure with outstanding physical Safari is not represented as device PASS',()=>{
+ const body='<!-- team-manager-manual-deferred:p10 -->\n'+
+  '- [ ] Required Safari/mobile and representative user-journey tests recorded\n'+
+  '- [x] **Product owner explicitly accepts this phase and the exact PR head**';
+ const result=computeProgress(issue('closed',body,'completed'),p06,new Set(p06.pulls));
+ assert.equal(result.complete,100, 'phase acceptance checkpoint reflects owner-approved administrative closure');
+ assert.equal(result.manualDeferred,true, 'actual physical-device evidence must remain explicitly deferred');
+ assert.match(phaseBlock(result),/manual Safari\/user-journey evidence NOT performed\/reported \(carried to P10 release gate\)/);
+ assert.doesNotMatch(phaseBlock(result),/manual Safari\/user-journey evidence recorded/);
+ const roadmap=roadmapBlock([result]);
+ assert.match(roadmap,/Manual-device release gate outstanding:.*P06/);
+ assert.match(roadmap,/Physical Safari checks remain unverified/);
+});
+
+test('ordinary completed phases do not acquire a false P10 manual-device exception',()=>{
+ const result=computeProgress(issue('closed','- [x] Required Safari/mobile and representative user-journey tests recorded','completed'),p06,new Set(p06.pulls));
+ assert.equal(result.manualDeferred,false);
+ assert.match(phaseBlock(result),/manual Safari\/user-journey evidence recorded/);
+ assert.doesNotMatch(roadmapBlock([result]),/Manual-device release gate outstanding/);
+});
+
 test('unscoped future issue is an explicit planning placeholder, not an effort claim',()=>{
  const p=computeProgress(issue(),{phase:'P07',issue:49,pulls:[]},new Set());
  assert.equal(p.unscoped,true);
