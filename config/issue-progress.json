@@ -102,10 +102,10 @@
       "phase": "P10",
       "issue": 52,
       "pulls": [
-        90
+        90,
+        91
       ],
       "futureCheckpoints": [
-        "P10B — encrypted recovery and data-history qualification",
         "P10C — migration-readiness manifest and operating runbooks",
         "P10D — release-candidate qualification and final owner release decision"
       ]
