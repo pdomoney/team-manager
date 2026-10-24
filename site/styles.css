@@ -978,6 +978,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .pphoto.big{width:72px;height:72px;border-radius:14px;font-size:24px}
 .pphoto.big b{font-size:14px;padding:3px 5px}
 .photo-row{display:flex;gap:12px;align-items:flex-start;margin-bottom:6px}
+/* P09B: shared player name input retains its original compact photo-row spacing. */
+#sheet form[data-form="player"] .photo-row .grow > .field-l{margin-bottom:6px}
 .jersey-list .row{padding:8px 6px 8px 10px}
 .jersey-list .jersey{width:30px;height:30px;font-size:16px}
 

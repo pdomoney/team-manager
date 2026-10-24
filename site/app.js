@@ -33,6 +33,7 @@ import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, move
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
 import { inputField, selectField, radioChoices } from './form-controls.js';
+import { personField, helperPlayerField } from './p09-person-form.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -1113,7 +1114,7 @@ function playerForm(p) {
   return `<form data-form="player" autocomplete="off">
     <input type="hidden" name="id" value="${esc(p.id || '')}">
     <div class="photo-row"><span class="photo-prev">${playerPic(p, true)}</span>
-      <div class="grow"><label class="field-l" style="margin-bottom:6px"><span>Name</span><input type="text" name="name" required value="${esc(p.name)}" autocapitalize="words"></label>
+      <div class="grow">${personField('player','name',p.name)}
       <div class="btn-row" style="margin:0"><label class="btn sm file-btn"><input type="file" accept="image/*" data-change="player-photo" aria-label="Choose a photo of the player">${p.photo ? 'Change photo' : 'Add photo'}</label><button type="button" class="btn sm" data-act="player-photo-clear" ${p.photo ? '' : 'hidden'}>Remove photo</button></div></div></div>
     <div class="player-crop-panel" hidden>
       <p class="hint">Crop before saving. Zoom and move the photo so the player’s face fits the square.</p>
@@ -1134,11 +1135,11 @@ function playerForm(p) {
       <label class="field-l"><span>Jersey no. · this team</span><input type="text" name="number" inputmode="numeric" maxlength="3" value="${esc(p.number)}"><small>Allocating a number records the jersey as issued on save. ${data.team.jerseyLoan ? 'Loan returns are tracked below.' : 'Enable loaned jerseys in Settings › Jerseys to record returns.'}</small></label>
       <label class="field-l"><span>Status</span><select name="status">${Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>
-    <label class="field-l"><span>Mobile</span><input type="tel" name="phone" placeholder="04xx xxx xxx" value="${esc(p.phone)}"><small>Coach only. For messaging them directly on WhatsApp.</small></label>
+    ${personField('player','phone',p.phone)}
     <div class="field-l"><span>Preferred positions · this team</span><div class="opts">
       ${[...new Set([...M.positionsFor(data.team, M.clubOf(ws, data)), ...arr(p.positions)])].map(x => `<label class="opt"><input type="checkbox" name="positions" value="${esc(x)}" ${p.positions.includes(x) ? 'checked' : ''}><span>${esc(x)}</span></label>`).join('')}
     </div><small>These are the <b>${esc(M.teamSport(data.team, M.clubOf(ws, data)))}</b> positions for <b>${esc(M.teamName(data))}</b> (${data.team.sport ? 'team sport override' : 'inherited club default'}). Change the team's sport or customise the list in Settings › Team.</small></div>
-    <label class="field-l"><span>Notes</span><input type="text" name="notes" value="${esc(p.notes)}" placeholder="Coach only, e.g. works Thursdays"></label>
+    ${personField('player','notes',p.notes)}
     ${isNew ? '' : jerseyBlock(p)}
     ${isNew ? '<p class="hint">Already plays for another team in this workspace? Use <b>From another team</b> on the Squad page instead, so the records are linked without copying uniform numbers or positions.</p>' : playerOtherTeams(p)}
     ${st && st.total ? `<p class="note" style="background:var(--ok-soft)">Training: ${st.att} of ${st.total} sessions (${st.pct}%)${st.late ? `, ${st.late} late` : ''}${st.apol ? `, ${st.apol} apolog${st.apol === 1 ? 'y' : 'ies'}` : ''}.</p>` : ''}
@@ -3775,9 +3776,9 @@ function crewIntakeStartForm() {
 function crewManualForm(clubId) {
   return '<form data-form="crew-manual" autocomplete="off"><input type="hidden" name="clubId" value="'+esc(clubId)+'">' +
     '<p class="hint">Adding to '+esc(intakeClubLabel(clubId))+'. This creates a local coach-recorded directory entry, not an account. Qualifications are not verified automatically.</p>' +
-    inputField({name:'name',label:'Full name',required:true,maxLength:120}) +
-    inputField({name:'email',label:'Email (optional)',type:'email',maxLength:254,placeholder:'volunteer@example.com'}) +
-    inputField({name:'phone',label:'Mobile / contact number (optional)',type:'tel',maxLength:40}) +
+    personField('volunteer','name') +
+    personField('volunteer','email') +
+    personField('volunteer','phone') +
     (clubId ? inputField({name:'joined',label:'First joined club (year, optional)',type:'number',min:1900,max:new Date().getFullYear()}) : '') +
     intakeTeamField(clubId,'Team assignment (optional)',
       'Club membership comes first. You can add a team and enter the sport-specific qualifications later.') +
@@ -3865,9 +3866,9 @@ function crewBasicForm(person) {
     '<div><label class="btn sm file-btn"><input type="file" accept="image/*" data-change="crew-photo" aria-label="Choose volunteer photo">Choose photo</label>' +
     '<button class="btn sm" type="button" data-act="crew-photo-clear" '+(!p.photo?'hidden':'')+'>Remove photo</button></div></div>' +
     '<input type="hidden" name="photo" value="'+esc(p.photo)+'">' +
-    crewField('name','Full name',p.name,'text','required maxlength="120"') +
-    '<div class="two">'+crewField('email','Email (optional)',p.email,'email','maxlength="254"')+
-    crewField('phone','Mobile / contact phone (optional)',p.phone,'tel','maxlength="40"')+'</div>' +
+    personField('volunteer','name',p.name) +
+    '<div class="two">'+personField('volunteer','email',p.email)+
+    personField('volunteer','phone',p.phone)+'</div>' +
     (sameClub ? crewField('joined','First joined '+esc(selected.name)+' (year)',since,'number','min="1900" max="'+validYear+'" placeholder="e.g. 2020"')+
       '<p class="hint">'+(years===null?'Club service start has not been recorded.':esc(years)+' calendar years since first joining; this does not prove uninterrupted service.')+'</p>' : '')+
     crewTeamsFields(p) +
@@ -4025,13 +4026,13 @@ function helperForm(h) {
   const isNew = !h; h = h || { name: '', phone: '', relation: '', playerId: '', notes: '' };
   return `<form data-form="helper" autocomplete="off">
     <input type="hidden" name="id" value="${esc(h.id || '')}">
-    <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(h.name)}" autocapitalize="words"></label>
-    <label class="field-l"><span>Mobile</span><input type="tel" name="phone" placeholder="04xx xxx xxx" value="${esc(h.phone)}"><small>Coach only. For asking them on WhatsApp.</small></label>
+    ${personField('helper','name',h.name)}
+    ${personField('helper','phone',h.phone)}
     <div class="two">
-      <label class="field-l"><span>Who they are</span><input type="text" name="relation" value="${esc(h.relation)}" placeholder="e.g. Mia’s mum"></label>
-      <label class="field-l"><span>Linked player</span><select name="playerId"><option value="">None</option>${sortedPlayers().map(p => `<option value="${p.id}" ${h.playerId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+      ${personField('helper','relation',h.relation)}
+      ${helperPlayerField(sortedPlayers(),h.playerId)}
     </div>
-    <label class="field-l"><span>Notes</span><input type="text" name="notes" value="${esc(h.notes)}" placeholder="e.g. has a ute, first aid trained"></label>
+    ${personField('helper','notes',h.notes)}
     <button class="btn primary block" type="submit">${isNew ? 'Add helper' : 'Save changes'}</button>
     ${isNew ? '' : `<button type="button" class="btn danger block" style="margin-top:10px" data-act="helper-del" data-id="${h.id}">Remove helper</button>`}
   </form>`;
