@@ -23,6 +23,9 @@ with sync_playwright() as p:
     pg.wait_for_selector('text=Load a sample squad')
     c.ok(pg.locator('.scope').count() == 0 and pg.locator('[data-act=home-scope]').count() == 0, 'one team: no repeated team card, no choosing (the header names the team)')
     pg.click('[data-act=sample]'); pg.wait_for_timeout(300)
+    # When CI runs after the Saturday 09:30 trial, Home rightly excludes it.
+    # Keep this synthetic fixture upcoming so the match/task grouping is tested.
+    ensure_upcoming_sample_trial(pg)
     txt = pg.inner_text('#view')
     c.ok(pg.locator('.focus h2').count() == 1 and 'Coming up' in txt and 'Outstanding actions' in txt and 'at a glance' in txt, 'one team: spotlight, coming up, actions and the team summary')
     c.ok(pg.locator('.hero').count() == 0, 'the big countdown is gone from Home')

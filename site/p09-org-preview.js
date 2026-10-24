@@ -43,3 +43,27 @@ export function organisationPreview({clubs=[],teams=[],mode='association',clubId
   return {mode,title,description:descriptions[mode],clubs:allClubs,teams:rows,
     selectedClubId:cid,selectedTeamId:tid,totalClubs:allClubs.length,totalTeams:rows.length};
 }
+
+// P09D: one guarded, non-persistent transition contract for the three
+// organisational design-preview controls. No identity or access grant results.
+export function nextOrgPreviewSelection(current, change, {clubs=[],teams=[]}={}) {
+  const prior={
+    mode:MODES.has(current?.mode)?current.mode:'association',
+    clubId:str(current?.clubId),
+    teamId:str(current?.teamId)
+  };
+  const id=str(change?.id);
+  if (!id) return null;
+  if (change?.kind==='mode') {
+    return MODES.has(id)?{...prior,mode:id}:null;
+  }
+  if (change?.kind==='club') {
+    return clubs.some(c=>c && c.id && str(c.id)===id)
+      ? {...prior,mode:'club',clubId:id} : null;
+  }
+  if (change?.kind==='team') {
+    const team=teams.find(t=>t && t.id && !t.archived && str(t.id)===id);
+    return team?{...prior,teamId:id,clubId:str(team.clubId)}:null;
+  }
+  return null;
+}

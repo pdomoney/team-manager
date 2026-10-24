@@ -7,6 +7,8 @@ with sync_playwright() as p:
     b = p.chromium.launch()
     ctx, pg, errs = page(b, url + '#home')
     pg.click('text=Load a sample squad'); pg.wait_for_timeout(300)
+    # The trial must be genuinely upcoming before asserting it appears on Home.
+    ensure_upcoming_sample_trial(pg)
     d = lambda js: pg.evaluate(f'(() => {{ const D = window.__team.data, M = window.__team.M; return {js}; }})()')
     txt = pg.inner_text('#view')
     c.ok('vs Hills Hornets' in txt and 'Coming up' in txt, 'Home shows the coming match')

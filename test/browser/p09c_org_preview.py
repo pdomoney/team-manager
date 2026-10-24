@@ -33,6 +33,15 @@ with sync_playwright() as p:
         c.ok(pg.locator('#view [data-act=org-preview-open]').count()==1,
              f'{width}: only coach team management advertises organisation concepts')
         pg.click('#view [data-act=org-preview-open]')
+        # P09D: crafted UI actions may not change coach selection or create access.
+        before_invalid=pg.evaluate("JSON.stringify(window.__team.state.orgPreview)")
+        pg.evaluate(act,['org-preview-mode',{'mode':'tenant-admin'}])
+        pg.evaluate(act,['org-preview-club',{'id':'not-a-managed-club'}])
+        pg.evaluate(act,['org-preview-team',{'id':'archived-or-unknown-team'}])
+        c.ok(pg.evaluate("JSON.stringify(window.__team.state.orgPreview)")==before_invalid,
+             f'{width}: invalid mode, external club and archived team actions have no effect')
+        c.ok(pg.locator('#sheet .org-preview-layout[data-mode=association]').count()==1,
+             f'{width}: rejected controller actions leave the labelled design sheet intact')
         c.ok(pg.locator('#sheet .org-preview-layout[data-mode=association]').count()==1
              and pg.locator('#sheet .org-preview-modes [aria-pressed=true]').count()==1,
              f'{width}: defaults to one clearly selected association layout concept')

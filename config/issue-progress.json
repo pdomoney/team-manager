@@ -93,11 +93,10 @@
       "pulls": [
         86,
         87,
-        88
+        88,
+        89
       ],
-      "futureCheckpoints": [
-        "P09D — form/controller consolidation and role privacy qualification"
-      ]
+      "futureCheckpoints": []
     },
     {
       "phase": "P10",
