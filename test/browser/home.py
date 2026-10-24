@@ -39,9 +39,11 @@ with sync_playwright() as p:
     u16 = W('D.id')
     # same record id as DragonTag's Hills Hornets match, to prove the right team's record opens
     same = W("W.matches.find(m => m.opponent === 'Hills Hornets').id")
-    W(f"""(() => {{ const d = new Date(Date.now() + 4 * 3600000); D.matches.push({{ id: '{same}', date: M.isoDay(d), start: String(d.getHours()).padStart(2, '0') + ':00', opponent: 'Wolves', status: 'scheduled', rsvp: {{}}, result: {{}} }}); return 1; }})()""")
+    W(f"""(() => {{ const d = new Date(Date.now() + 30 * 60000); D.matches.push({{ id: '{same}', date: M.isoDay(d), start: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), opponent: 'Wolves', status: 'scheduled', rsvp: {{}}, result: {{}} }}); return 1; }})()""")
     pg.evaluate(act, ['team-pick', {'id': 'team1'}]); pg.wait_for_timeout(150)
-    pg.goto(url + '#home'); pg.wait_for_timeout(200)
+    # The synthetic cross-team match was inserted in memory; navigate through
+    # the SPA instead of reloading and silently discarding the test fixture.
+    pg.evaluate(act, ['tab', {'tab': 'home'}]); pg.wait_for_timeout(200)
     c.ok(W('D.id') == 'team1', 'DragonTag is the team being edited')
     c.ok(pg.locator('.scope [data-kind=all][aria-pressed=true]').count() == 1, 'several teams: Home starts on every club')
     c.ok(pg.locator('.scope-club').count() == 3 and pg.locator('.scope-team').count() == 2, 'All clubs, two clubs, two teams')
@@ -62,7 +64,7 @@ with sync_playwright() as p:
     pg.click(f'.scope-team[data-id="{u16}"]'); pg.wait_for_timeout(200)
     c.ok(W('D.id') == u16 and 'No squad yet' in pg.inner_text('.home-ins'), 'picking a team works on it; a team with no players still shows')
     pg.click('.scope-club[data-kind=all]'); pg.wait_for_timeout(150)
-    pg.evaluate(act, ['team-pick', {'id': 'team1'}]); pg.goto(url + '#home'); pg.wait_for_timeout(200)
+    pg.evaluate(act, ['team-pick', {'id': 'team1'}]); pg.evaluate(act, ['tab', {'tab': 'home'}]); pg.wait_for_timeout(200)
     # open the other team's match from the spotlight
     pg.click('.focus [data-go=match-open]'); pg.wait_for_selector('#sheet form[data-form=match-lineup]')
     c.ok(W('D.id') == u16 and 'Wolves' in pg.inner_text('#sheet') and 'Hills Hornets' not in pg.inner_text('#sheet h2, #sheet .sheet-title, #sheet header'), 'Open match switches to that team and opens its match, not the one with the same id')
