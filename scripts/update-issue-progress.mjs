@@ -28,6 +28,7 @@ export function computeProgress(issue, phase, mergedPulls = new Set()) {
   const deferred = issue.state === 'closed' && issue.state_reason === 'not_planned';
   const merged = pulls.filter(p => mergedPulls.has(p)).length;
   // A formally completed phase is accepted even when legacy checklist ticks were not backfilled.
+  const manualDeferred = finished && bodyText(issue.body).includes('<!-- team-manager-manual-deferred:p10 -->');
   const manual = finished || checkedGate(issue.body, /Required Safari\/mobile and representative user-journey tests recorded/i);
   const owner = finished || checkedGate(issue.body, /Product owner explicitly accepts this phase/i);
   const total = planned + 3; // fixed planned PR slots + manual, owner sign-off, issue completed
@@ -37,7 +38,7 @@ export function computeProgress(issue, phase, mergedPulls = new Set()) {
     phase: phase.phase, issue:phase.issue, complete:deferred ? 0 : pct,
     remaining:deferred ? 100 : 100 - pct,
     done:deferred ? 0 : done, total, merged, planned,
-    manual, owner, accepted:finished, deferred, unscoped:!planned && !finished
+    manual, manualDeferred, owner, accepted:finished, deferred, unscoped:!planned && !finished
   });
 }
 export function replaceBlock(body, start, end, inner) {
@@ -50,13 +51,14 @@ export function replaceBlock(body, start, end, inner) {
   return input.slice(0, first) + block + input.slice(last + end.length);
 }
 export function phaseBlock(result) {
-  const {phase,complete,remaining,done,total,merged,planned,unscoped,deferred,accepted,manual,owner} = result;
+  const {phase,complete,remaining,done,total,merged,planned,unscoped,deferred,accepted,manual,manualDeferred,owner} = result;
   const state = deferred ? 'Deferred / not planned' :
     accepted ? 'Formally accepted and closed' :
     unscoped ? 'Scope and delivery milestones not yet baselined' :
     'Implementation and acceptance in progress';
+  const manualNote = manualDeferred ? 'NOT performed/reported (carried to P10 release gate)' : manual ? 'recorded' : 'pending';
   const milestoneNote = unscoped ? 'No delivery PR checkpoints registered yet; the 0% is a planning placeholder.' :
-    `${merged}/${planned} tracked PR milestones merged · manual Safari/user-journey acceptance ${manual?'recorded':'pending'} · explicit owner acceptance ${owner?'recorded':'pending'}.`;
+    `${merged}/${planned} tracked PR milestones merged · manual Safari/user-journey evidence ${manualNote} · explicit owner acceptance ${owner?'recorded':'pending'}.`;
   return `### ${phase} progress
 
 **\`${bar(done,total)}\` ${complete}% complete · ${remaining}% remaining**
@@ -77,7 +79,10 @@ export function roadmapBlock(results) {
 | --- | --- | ---: | ---: | --- |`;
   const rows = results.map(x=>
     `| ${x.phase} | \`${bar(x.done,x.total,10)}\` | ${x.complete}% | **${x.remaining}%** | [#${x.issue}](https://github.com/pdomoney/team-manager/issues/${x.issue}) |`).join('\n');
-  return header + '\n' + rows + '\n\n*Each percentage counts configured delivery milestones and acceptance gates—not elapsed effort. Unscoped future phases show 0% until their plan is baselined.*';
+  const exceptions = results.filter(x => x.manualDeferred).map(x => x.phase);
+  const deferredNote = exceptions.length ? '\n\n**Manual-device release gate outstanding:** ' + exceptions.join(', ') +
+    ' were closed with an owner-documented device-verification exception. Physical Safari checks remain unverified and must be resolved at P10 release qualification.' : '';
+  return header + '\n' + rows + '\n\n*Each percentage counts configured delivery milestones and acceptance gates—not elapsed effort. Unscoped future phases show 0% until their plan is baselined.*' + deferredNote;
 }
 // Retry only transient provider errors. Authentication/permission errors remain actionable.
 // Dependency injection makes the bounded retry policy testable without network calls.
