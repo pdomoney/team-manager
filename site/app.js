@@ -27,6 +27,7 @@ import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
+import { playTeachingCompatibility } from './p08-play-compatibility.js';
 import { libraryCopyReview, libraryOrigin } from './p08-library-provenance.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
@@ -2470,6 +2471,7 @@ const visiblePlays = () => {
   return V.plays.filter(p => p.sport ? p.sport === sport : !p.builtin || sport === 'Oztag');
 };
 const playById = id => visiblePlays().find(p => p.id === id);
+const teachingContext = p => playTeachingCompatibility(p, V.team, curClub());
 const playSteps = (play, side) => {
   const text = side !== (play.side || 'right') ? mirrorText(play.steps, textPairs(play)) : play.steps;
   return String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -2486,7 +2488,7 @@ function viewPlays() {
     <p class="hint" style="margin:-4px 0 12px">${oztag ? 'Every play works both ways. Open one and switch between attacking left and right.' : `Plays tagged ${esc(sport)} are shown for this team, as well as its earlier untagged custom plays marked for review. Legacy Oztag starters remain with Oztag teams. New plays use the selected sport; diagrams are an eight-position teaching canvas and not a full-field formation.`}</p>
     ${plays.length ? `<div class="list grid plays-grid ${cardClass('plays')}">${plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
-      <span class="grow"><span class="name" style="display:block">${esc(p.name)}${!p.sport && !p.builtin && !oztag ? ' <span class="pill neutral">Review sport</span>' : ''}${coach && p.lib ? ' <span class="pill neutral">Library</span>' : ''}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
+      <span class="grow"><span class="name" style="display:block">${esc(p.name)}${teachingContext(p).status === 'unconfirmed-play-sport' ? ' <span class="pill neutral">Review sport</span>' : ''}${teachingContext(p).diagramMode === 'eight-slot-concept' ? ' <span class="pill neutral">Teaching canvas</span>' : ''}${coach && p.lib ? ' <span class="pill neutral">Library</span>' : ''}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
       <span class="pill neutral">${esc(p.category || 'Other')}</span>
     </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add a play for this team.' : 'No plays yet.'}</p></div>`}
     ${coach && missing ? `<button class="link-btn" data-act="plays-restore">Restore the ${missing} missing starter play${missing === 1 ? '' : 's'}</button>` : ''}`;
@@ -2515,6 +2517,7 @@ function studyFigure(p, side, cards) {
 }
 function viewPlay(p) {
   const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side);
+  const compatibility = teachingContext(p);
   const mode = state.playMode || (coach ? 'watch' : 'learn');
   const cards = studySequence(p, side);
   state.studyIndex = clamp(state.studyIndex || 0, 0, cards.length - 1);
@@ -2524,6 +2527,11 @@ function viewPlay(p) {
   const codes = [...new Set(Object.values(geom.codes))].filter(Boolean);
   return `<button class="toggle-past" data-act="play-back">← All plays</button>
     <div class="sec-h"><h2>${esc(p.name)}</h2><span class="pills">${p.set && p.set !== 'oztag' ? `<span class="pill neutral">${esc(getSet(p.set).name)}</span>` : ''}<span class="pill neutral">${esc(p.category || 'Other')}</span></span></div>
+    ${compatibility.reviewRequired ? `<div class="note play-sport-context" role="note">
+      <strong>${compatibility.status === 'sport-matched' ? 'Teaching canvas' : 'Review play sport'}:</strong>
+      ${esc(compatibility.notice)}
+      ${compatibility.rulePackMismatch ? '<span> The team’s selected rule pack belongs to another sport; review it before using this play.</span>' : ''}
+    </div>` : ''}
     <div class="seg play-modes" role="group" aria-label="How to explore this play">
       <button data-act="play-mode" data-mode="learn" aria-pressed="${mode === 'learn'}">Learn step by step</button>
       <button data-act="play-mode" data-mode="watch" aria-pressed="${mode === 'watch'}">Watch animation</button>
@@ -2584,12 +2592,15 @@ function castKey(play, side) {
 /* ----- Cross-sport play adaptation (coach review, concept only) ----- */
 // No automatic changes to play geometry, rule labels, source steps or other teams.
 function transferSource(p) {
-  // Existing eight-slot drawings are historically Oztag. This is only a default.
-  return TRANSFER_SPORTS.includes(p.originSport) ? p.originSport : 'Oztag';
+  // Explicit play sport overrides geometry. Only legacy built-in Oztag starter
+  // content has an assumed Oztag source; custom old plays require a coach choice.
+  if (TRANSFER_SPORTS.includes(p.originSport)) return p.originSport;
+  if (TRANSFER_SPORTS.includes(p.sport)) return p.sport;
+  return p.builtin ? 'Oztag' : '';
 }
 const transferKey = (from, to) => from + ' → ' + to;
 function transferSportSelect(name, chosen) {
-  return `<select name="${name}" aria-label="${name === 'source' ? 'Original sport' : 'Target sport'}">${TRANSFER_SPORTS.map(x =>
+  return `<select name="${name}" aria-label="${name === 'source' ? 'Original sport' : 'Target sport'}" ${name === 'source' ? 'required' : ''}>${name === 'source' ? '<option value="">Choose the original sport</option>' : ''}${TRANSFER_SPORTS.map(x =>
     `<option value="${esc(x)}" ${x === chosen ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
 }
 function openTransferChoices(p, from = transferSource(p), to = 'Rugby league') {
@@ -2601,7 +2612,7 @@ function openTransferChoices(p, from = transferSource(p), to = 'Rugby league') {
   </div>
   <form data-form="transfer-choose" autocomplete="off">
     <input type="hidden" name="id" value="${esc(p.id)}">
-    <label class="field-l"><span>Original sport</span>${transferSportSelect('source', from)}<small>Earlier plays use an Oztag-shaped diagram; change this if its coaching concept came from another sport.</small></label>
+    <label class="field-l"><span>Original sport</span>${transferSportSelect('source', from)}<small>Only built-in Oztag starters have a known legacy source. For older custom plays choose the actual sport; an eight-slot diagram does not establish the sport.</small></label>
     <label class="field-l"><span>Adapt towards</span>${transferSportSelect('target', to)}<small>This will not change the original play or generate extra on-field players.</small></label>
     <button class="btn primary block" type="submit">Compare the mechanics</button>
   </form>`, 'transfer');
@@ -6931,7 +6942,12 @@ const actions = {
     const p = playById(el.dataset.id); if (!p || !confirm(`Delete “${p.name}”?${p.builtin ? ' You can restore the starter plays later.' : ''}`)) return;
     data.plays = data.plays.filter(x => x.id !== p.id); state.playId = null; save(); render(); toast('Play deleted');
   }),
-  'play-share': coachOnly(el => { const p = playById(el.dataset.id); if (!p) return; sendWa(playShareText(p, state.playSide), { ref: 'play:' + p.id }); }),
+  'play-share': coachOnly(el => {
+    const p = playById(el.dataset.id); if (!p) return;
+    if (teachingContext(p).shareRequiresConfirmation &&
+        !confirm('This play needs a sport/rules review before sharing. The diagram is not a verified full-team formation. Share the instructions anyway?')) return;
+    sendWa(playShareText(p, state.playSide), { ref: 'play:' + p.id });
+  }),
   'play-transfer': coachOnly(el => { const p = playById(el.dataset.id); if(p) openTransferChoices(p); }),
   'transfer-change': coachOnly(el => { const p = playById(el.dataset.id); if(p) openTransferChoices(p, el.dataset.from, el.dataset.to); }),
   'transfer-copy': coachOnly(el => {
