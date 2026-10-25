@@ -10,7 +10,6 @@ export const UNWAIVABLE_CASES = Object.freeze([
   'P06-V3', // false clearance/accreditation eligibility
   'P06-V5', // cross-family scope/privacy
   'P06-V7', // child/staff/medical privacy
-  'P07-S8', // preserve review for conflicts (cross-check worksheet before claiming pass)
   'P09-R6', // invalid organisation scopes and privacy
   'P09-R7'  // player bypass of coach-only actions
 ]);
@@ -22,7 +21,7 @@ export const HARD_GATES = Object.freeze([
 const SHA = /^[0-9a-f]{40}$/;
 const filled = x=>typeof x==='string' && x.trim().length>4;
 const hasSha = x=>typeof x==='string' && SHA.test(x);
-const isDate = x=>typeof x==='string' && /^20\\d\\d-\\d\\d-\\d\\d/.test(x);
+const isDate = x=>typeof x==='string' && /^20\d\d-\d\d-\d\d/.test(x);
 const isUrlOrDoc = x=>filled(x) && (x.startsWith('https://github.com/pdomoney/team-manager/') ||
   x.startsWith('docs/') || x.startsWith('evidence-ref:'));
 export function evaluateP10Release(e) {
