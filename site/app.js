@@ -840,6 +840,12 @@ function renderNav() {
 const online = () => navigator.onLine !== false;
 function renderStatus() {
   const el = $('#status');
+  if (state.qaPersona && qaEnabled()) {
+    el.hidden=false;
+    el.className='status info';
+    el.innerHTML='<span class="dot" aria-hidden="true"></span><span class="grow">Synthetic QA preview only. No real login, authorisation, or GitHub publishing.</span>';
+    return;
+  }
   if (S.role !== 'coach') {
     el.hidden = !(S.role === 'player' && (!online() || S.fromCache));
     if (!el.hidden) { el.className = 'status warn'; el.innerHTML = `<span class="dot" aria-hidden="true"></span><span class="grow">No connection. You’re seeing the copy saved on this phone.</span>`; }
