@@ -28,8 +28,14 @@ with sync_playwright() as p:
                 c.ok('Example Rangers Club' in pg.inner_text('#view') and 'Example Comets Club' not in pg.inner_text('#view'),
                      f'[{width}] association preview excludes other association')
             if role=='coach':
-                c.ok('Example Stars Women' in pg.inner_text('#view') and 'Example Comets Mixed' not in pg.inner_text('#view'),
-                     f'[{width}] coach shows only selected synthetic team')
+                # Other synthetic teams are intentionally in the *scope picker* so QA
+                # can change teams. Verify only the scoped Teams card, not all page text.
+                visible_teams=pg.locator('#view .qa-tiles section').nth(2).locator('li').all_text_contents()
+                c.ok(visible_teams==['Example Stars Women · Touch'],
+                     f'[{width}] coach displays only chosen scoped team (other teams may be select options): {visible_teams}')
+                options=pg.locator('#view select[data-change=qa-scope] option').all_text_contents()
+                c.ok('Example Comets Mixed' in options,
+                     f'[{width}] coach can explicitly switch to a different synthetic team context')
             c.ok(pg.locator('#tabs').is_hidden() and pg.locator('#menu-btn').is_hidden(),
                  f'[{width}] {role} hides real navigation/edit menus')
         pg.evaluate(act,['task-new',{}])
