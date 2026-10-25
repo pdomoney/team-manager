@@ -103,10 +103,10 @@
       "issue": 52,
       "pulls": [
         90,
-        91
+        91,
+        92
       ],
       "futureCheckpoints": [
-        "P10C — migration-readiness manifest and operating runbooks",
         "P10D — release-candidate qualification and final owner release decision"
       ]
     }

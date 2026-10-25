@@ -91,8 +91,17 @@ with sync_playwright() as p:
         pg.evaluate(act, ['task-new', {}]); a11y(pg, W + ' task form')
         pg.fill('#sheet input[name=title]', 'Bring oranges'); pg.fill('#sheet input[name=date]', '2026-11-07'); pg.click('#sheet button[type=submit]'); pg.wait_for_timeout(150)
         c.ok(d("D.tasks.some(t => t.title === 'Bring oranges')"), W + ' task added')
-        pg.keyboard.press('Escape'); pg.evaluate(act, ['task-checklist', {}]); pg.fill('#sheet input[name=date]', '2026-11-14'); pg.click('#sheet form[data-form=task-checklist] button[type=submit]'); pg.wait_for_timeout(100)
-        c.ok(d("D.tasks.filter(t => t.date === '2026-11-14').length") == 6, W + ' game-day checklist added')
+        pg.keyboard.press('Escape'); pg.evaluate(act, ['task-checklist', {}])
+        # The sample squad can already contain work on this calendar date; test the
+        # six records CREATED by the action, not the absolute total on that day.
+        previous_task_ids = pg.evaluate('window.__team.data.tasks.map(t => t.id)')
+        pg.fill('#sheet input[name=date]', '2026-11-14'); pg.click('#sheet form[data-form=task-checklist] button[type=submit]'); pg.wait_for_timeout(100)
+        added = pg.evaluate("""ids => window.__team.data.tasks.filter(t => !ids.includes(t.id))
+            .map(t => ({title: t.title, kind: t.kind, date: t.date}))""", previous_task_ids)
+        c.ok(len(added) == 6 and all(t['date'] == '2026-11-14' for t in added)
+             and {t['title'] for t in added} == {'Run the BBQ', 'Bring the gear bag',
+             'Bring the first aid kit', 'Bring ice and water', 'Wash the playing tops', 'Lifts'},
+             W + ' game-day checklist added')
         # messages and notices
         pg.goto(url + '#messages'); pg.wait_for_timeout(100)
         for t in ('reminder', 'availability', 'match', 'results', 'lineup', 'help', 'countdown'):
