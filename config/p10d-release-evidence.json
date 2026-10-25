@@ -9,7 +9,7 @@
     "scope": "Product owner accepts P10 user-facing functionality on GitHub Pages; device and final release evidence remain separate."
   },
   "candidate": {
-    "prNumber": null,
+    "prNumber": 93,
     "headSha": null,
     "mergeSha": null
   },
