@@ -41,6 +41,26 @@ p{margin:0}
 .team-btn{appearance:none;background:none;border:0;color:inherit;font:inherit;display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:4px 6px 4px 0;cursor:pointer;min-height:40px}
 .team-btn svg{flex:none;opacity:.8}
 #team-title{min-width:0}
+/* Isolated, read-only synthetic QA persona preview. Hidden in all live modes. */
+.qa-persona-control{display:flex;align-items:center;gap:5px;flex:0 1 auto;min-width:0;max-width:265px}
+.qa-mode-flag{font-size:10px;letter-spacing:.07em;font-weight:700;background:#FFF2C9;color:#583C00;padding:3px 5px;border-radius:4px}
+.qa-persona-control select{background:#fff;color:#16201B;border:1px solid #C9D3CA;border-radius:8px;max-width:180px;min-width:105px;min-height:40px;font-size:13px;padding:6px 7px}
+.qa-header-scope{font-size:11px;max-width:95px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+.qa-preview>.note{margin-bottom:14px}
+.qa-preview .qa-scope{margin:12px 0}
+.qa-preview .qa-scope select{min-height:44px;width:100%;background:#fff}
+.qa-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}
+.qa-tiles section{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.qa-tiles h3{font-size:16px;margin-bottom:8px}
+.qa-identity-list{margin:0;padding-left:20px;font-size:14px;overflow-wrap:anywhere}
+.qa-identity-list li{margin:3px 0}
+@media(max-width:600px){
+  .qa-persona-control{max-width:132px;gap:3px}
+  .qa-persona-control select{min-width:0;max-width:106px;font-size:12px;padding:5px 3px}
+  .qa-header-scope{display:none}
+  .qa-tiles{grid-template-columns:1fr}
+}
+
 
 main{max-width:720px;margin:0 auto;padding:16px}
 .sec{margin:0 0 24px}
