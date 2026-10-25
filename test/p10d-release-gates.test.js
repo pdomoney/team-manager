@@ -81,5 +81,16 @@ test('P10D CLI emits machine-readable blocked output and rejects backup path arg
   const refused=spawnSync(process.execPath,[cli,'/private/coach.enc.json'],{encoding:'utf8'});
   assert.equal(refused.status,2);
   assert.equal(refused.stdout,'');
-  assert.match(refused.stderr,/accepts no arguments/);
+  assert.match(refused.stderr,/accepts no file path arguments/);
+  // Do not commit CI/main SHAs into the same branch: that changes the tested SHA.
+  // Qualify the final immutable commit using sanitised evidence piped from outside Git.
+  const verified=spawnSync(process.execPath,[cli,'--stdin'],{
+    encoding:'utf8',input:JSON.stringify(syntheticQualified())
+  });
+  assert.equal(verified.status,0,verified.stderr);
+  assert.equal(JSON.parse(verified.stdout).ready,true);
+  const missing=spawnSync(process.execPath,[cli,'--stdin'],{
+    encoding:'utf8',input:JSON.stringify(clone())
+  });
+  assert.equal(missing.status,1,missing.stderr);
 });
