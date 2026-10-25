@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "description": "P10D review ledger. No real/private records or credentials. Pending is NOT passed. Owner UAT is not stable-release signoff.",
+  "ownerUserAcceptance": {
+    "status": "accepted",
+    "acceptedOn": "2026-10-25",
+    "baselineSha": "3a46fcffad7805afa1e0b4c209ab17dbb03b029d",
+    "sourceIssue": 52,
+    "scope": "Product owner accepts P10 user-facing functionality on GitHub Pages; device and final release evidence remain separate."
+  },
+  "candidate": {
+    "prNumber": null,
+    "headSha": null,
+    "mergeSha": null
+  },
+  "safariCases": {
+    "P06-V1": {
+      "status": "pending"
+    },
+    "P06-V2": {
+      "status": "pending"
+    },
+    "P06-V3": {
+      "status": "pending"
+    },
+    "P06-V4": {
+      "status": "pending"
+    },
+    "P06-V5": {
+      "status": "pending"
+    },
+    "P06-V6": {
+      "status": "pending"
+    },
+    "P06-V7": {
+      "status": "pending"
+    },
+    "P06-V8": {
+      "status": "pending"
+    },
+    "P07-S1": {
+      "status": "pending"
+    },
+    "P07-S2": {
+      "status": "pending"
+    },
+    "P07-S3": {
+      "status": "pending"
+    },
+    "P07-S4": {
+      "status": "pending"
+    },
+    "P07-S5": {
+      "status": "pending"
+    },
+    "P07-S6": {
+      "status": "pending"
+    },
+    "P07-S7": {
+      "status": "pending"
+    },
+    "P07-S8": {
+      "status": "pending"
+    },
+    "P07-S9": {
+      "status": "pending"
+    },
+    "P07-S10": {
+      "status": "pending"
+    },
+    "P08-S1": {
+      "status": "pending"
+    },
+    "P08-S2": {
+      "status": "pending"
+    },
+    "P08-S3": {
+      "status": "pending"
+    },
+    "P08-S4": {
+      "status": "pending"
+    },
+    "P08-S5": {
+      "status": "pending"
+    },
+    "P08-S6": {
+      "status": "pending"
+    },
+    "P08-S7": {
+      "status": "pending"
+    },
+    "P08-S8": {
+      "status": "pending"
+    },
+    "P08-S9": {
+      "status": "pending"
+    },
+    "P08-S10": {
+      "status": "pending"
+    },
+    "P09-R1": {
+      "status": "pending"
+    },
+    "P09-R2": {
+      "status": "pending"
+    },
+    "P09-R3": {
+      "status": "pending"
+    },
+    "P09-R4": {
+      "status": "pending"
+    },
+    "P09-R5": {
+      "status": "pending"
+    },
+    "P09-R6": {
+      "status": "pending"
+    },
+    "P09-R7": {
+      "status": "pending"
+    },
+    "P09-R8": {
+      "status": "pending"
+    }
+  },
+  "releaseGates": {
+    "PR_HEAD_NODE": {
+      "status": "pending"
+    },
+    "PR_HEAD_BROWSER": {
+      "status": "pending"
+    },
+    "MAIN_NODE_BROWSER": {
+      "status": "pending"
+    },
+    "MAIN_PUBLISH": {
+      "status": "pending"
+    },
+    "DEVICE_ENCRYPTED_RESTORE": {
+      "status": "pending"
+    },
+    "DEVICE_STALE_CONFLICT": {
+      "status": "pending"
+    },
+    "PRIVACY_BOUNDARY": {
+      "status": "pending"
+    },
+    "FICTIONAL_LIVE_PUBLISH": {
+      "status": "pending"
+    },
+    "FINAL_RELEASE_APPROVAL": {
+      "status": "pending"
+    }
+  }
+}
