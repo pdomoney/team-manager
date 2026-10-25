@@ -43,6 +43,10 @@ with sync_playwright() as p:
              f'[{width}] exit restores actual coach view')
         c.ok(pg.evaluate('JSON.stringify(window.__team.ws)')==prior,
              f'[{width}] exit restores unchanged workspace')
+        pg.evaluate(act,['preview-on',{}])
+        c.ok(pg.locator('#qa-persona-control').is_hidden(),f'[{width}] restricted player preview has no QA switcher')
+        pg.evaluate(act,['preview-off',{}])
+        c.ok(pg.locator('#qa-persona-select').is_visible(),f'[{width}] returning to trial coach restores QA option')
         pg.evaluate('window.__team.S.trial=false')
         pg.evaluate(act,['qa-exit',{}])
         c.ok(pg.locator('#qa-persona-control').is_hidden(),f'[{width}] live coach hides simulated switcher')
