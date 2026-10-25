@@ -104,11 +104,10 @@
       "pulls": [
         90,
         91,
-        92
+        92,
+        93
       ],
-      "futureCheckpoints": [
-        "P10D — release-candidate qualification and final owner release decision"
-      ]
+      "futureCheckpoints": []
     }
   ]
 }
