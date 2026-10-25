@@ -12,16 +12,18 @@ On **25 October 2026**, the owner stated **“P10 user acceptance is fine.”** 
 npm test
 npm run test:browser
 node scripts/check-p10d-release.mjs
+# Final release reviewer only: pipe a separate sanitised completed ledger through stdin
+node scripts/check-p10d-release.mjs --stdin < /private-safe-path/p10d-sanitised-evidence.json
 ```
 
 - `npm test` executes P10D fail-closed unit tests as well as all existing tests.
 - PR Chromium should run all suites (including capacity); main push may intentionally exclude capacity.
-- `node scripts/check-p10d-release.mjs` reads **only** `config/p10d-release-evidence.json`, prints JSON and returns **exit code 1 when blocked**, 0 only if all expected case evidence and mandatory gates are recorded. It accepts **no arguments** and reads no archive/credential files.
+- `node scripts/check-p10d-release.mjs` reads the **checked-in, deliberately pending** `config/p10d-release-evidence.json`, prints JSON and returns **exit code 1 when blocked**, 0 only if all cases and gates have evidence. For final assessment, `--stdin` accepts a separately held **sanitised JSON evidence ledger** (never a private backup or credential); no file path arguments are accepted. Invalid or oversize input is rejected.
 - Evidence completeness is checked mechanically; a valid-looking entry is not proof the underlying test was performed. An owner reviewer must inspect all evidence links and decide whether claims are accurate. Never fabricate a passing device result or a risk waiver.
 
 ## Filling the release ledger
 
-1. Capture P10D PR number and the final CI-tested **head SHA** in `candidate.prNumber` and `candidate.headSha`. After an **owner-reviewed merge**, capture the merged main SHA in `candidate.mergeSha`. Do not use the earlier P10C main SHA as if it were a P10D test result.
+1. `config/p10d-release-evidence.json` remains the **pending source-controlled template**. Once a P10D PR head is frozen, **outside the Git branch** make a separate sanitised copy and record the P10D PR number, tested **head SHA** (`candidate.headSha`) and, after owner-reviewed merge, the final **main SHA** (`candidate.mergeSha`). **Do not commit this completed copy**: committing the SHA into the SHA being attested would change the commit under test indefinitely. Submit the completed copy through `--stdin` and store its sanitised outcome/evidence references in issue #52 for reviewer inspection.
 2. For **each** of 36 Safari cases `P06-V1…V8`, `P07-S1…S10`, `P08-S1…S10`, `P09-R1…R8`, run the original case from [P06–P09 closure worksheet](../architecture/p06-p09-closure-worksheet.md) on a real iPhone/macOS Safari with **fictional** workspace data. Record `status: passed`, exact `testedCommit` (merged main SHA), `deviceModel`, `osVersion`, `safariVersion`, `observedAt` and a private-safe `evidenceRef`. If a case fails, leave it blocked and link the defect.
 3. Non-critical Safari cases can use `status: waived` **only** after a **separate** explicit owner approval with `owner`, `reason`, `riskDecision` and `decidedAt`. A broad “UAT is fine” or “accept all” is **not** a case-specific waiver. The checker refuses waivers for the named privacy/safeguarding cases; investigate any additional serious privacy, data-loss or child-safety failure as a release blocker.
 4. Supply evidence (date, `testedCommit` and redacted `evidenceRef`) for **all** non-waivable `releaseGates`:
@@ -33,7 +35,7 @@ node scripts/check-p10d-release.mjs
    - `FICTIONAL_LIVE_PUBLISH`: authorised encrypted fictional data branch round-trip and deployed second-device read. **Never** use live child/private data or share PATs.
    - `FINAL_RELEASE_APPROVAL`: an **explicit final owner decision on the exact P10D main SHA**, once other criteria pass.
 5. Retain a separate, private audit trail as needed; record only **sanitised references**, not phone numbers, passwords, tokens, children’s identities, uploaded archives, or real medical/WWCC data in GitHub.
-6. Re-run the evaluator and inspect the **actual** evidence; only an all-green result plus human review permits final tag/release. Completion of PR93 does **not** automatically close P10 issue #52 or authorise tagging.
+6. Re-run the evaluator **with the separate final evidence ledger supplied via `--stdin`**, confirm all recorded SHA references match actual GitHub Actions, and inspect the **actual** evidence. Only an all-green result plus human review permits a final tag/release; the evaluator cannot attest the truth of external entries. Completion of PR93 does **not** automatically close P10 issue #52 or authorise tagging.
 
 ## Rollback, stops and related docs
 
