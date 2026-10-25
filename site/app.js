@@ -35,6 +35,7 @@ import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClub
 import { inputField, selectField, radioChoices } from './form-controls.js';
 import { personField, helperPlayerField } from './p09-person-form.js';
 import { organisationPreview, ORG_PREVIEW_MODES, nextOrgPreviewSelection } from './p09-org-preview.js';
+import { QA_ROLES, qaPreview } from './p11-qa-personas.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -316,6 +317,7 @@ const state = {
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
+  qaPersona: null, qaScope: '',  // Ephemeral QA-only read-only synthetic layout; never saved
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
 };
@@ -683,9 +685,57 @@ const playerPic = (p, big = false) => isCoach() && M.validPhoto(p.photo)
 const isOut = p => isCoach() && p.status && p.status !== 'available';
 const statusPill = p => isOut(p) ? ` <span class="pill ${p.status}">${STATUS[p.status]}</span>` : '';
 
+function qaEnabled() {
+  // The actual coach workspace and even live player preview must never acquire simulated grants.
+  return S.role === 'coach' && S.trial === true && !!ws?.testLibrary &&
+    Number(ws.testLibrary.version) >= 3;
+}
+function renderQaSelector() {
+  const host = $('#qa-persona-control'); if (!host) return;
+  host.hidden = !qaEnabled();
+  if (host.hidden) { host.innerHTML = ''; return; }
+  host.innerHTML = '<span class="qa-mode-flag">TEST</span><select id="qa-persona-select" data-change="qa-persona" aria-label="Test persona — simulated view, no real access">' +
+    '<option value="">Coach workspace</option>' +
+    QA_ROLES.map(r => '<option value="' + esc(r.id) + '"' + (state.qaPersona === r.id ? ' selected' : '') + '>' + esc(r.label) + '</option>').join('') +
+    '</select>' + (state.qaPersona ? '<span class="qa-header-scope" title="Simulated context">' + esc(qaPreview(state.qaPersona, state.qaScope)?.scopeLabel || '') + '</span>' : '');
+}
+function renderQaScreen() {
+  const x=qaPreview(state.qaPersona,state.qaScope);
+  if (!qaEnabled() || !x) { state.qaPersona=null;state.qaScope='';return render(); }
+  state.qaScope=x.scope;
+  document.body.classList.remove('game');
+  $('#tabs').hidden=true;
+  $('#team-crest').hidden=true;
+  $('#days-chip').hidden=true;
+  $('#bell-btn').hidden=true;
+  $('#menu-btn').hidden=true;
+  $('#team-title').classList.remove('with-season');
+  $('#team-title').textContent='QA persona · ' + x.roleLabel;
+  $('#status').hidden=false;
+  $('#status').className='status info';
+  $('#status').innerHTML='<span class="dot" aria-hidden="true"></span><span class="grow">Synthetic QA preview only. No real login, authorisation, or GitHub publishing.</span>';
+  const list=(items,empty)=>items.length
+    ? '<ul class="qa-identity-list">' + items.map(a=>'<li>'+esc(a.name)+(a.sport?' · '+esc(a.sport):'')+'</li>').join('')+'</ul>'
+    : '<p class="muted small">'+esc(empty)+'</p>';
+  $('#view').innerHTML='<section class="qa-preview" data-qa-role="'+esc(x.role)+'" data-qa-scope="'+esc(x.scope)+'">' +
+    '<p class="note" role="status"><strong>TEST PERSONA · SIMULATED VIEW</strong> — this is a read-only fictional layout, not a signed-in role or a security test. Real records are not read or displayed here.</p>' +
+    '<div class="sec-h"><h2>'+esc(x.roleLabel)+'</h2><button type="button" class="btn sm" data-act="qa-exit">Exit QA</button></div>' +
+    '<label class="field-l qa-scope"><span>Simulated organisation / club / team</span><select data-change="qa-scope" aria-label="Synthetic scope">' +
+    x.scopes.map(o=>'<option value="'+esc(o.id)+'"'+(o.id===x.scope?' selected':'')+'>'+esc(o.name)+'</option>').join('')+'</select></label>'+
+    '<p class="hint">Selected context: <strong>'+esc(x.scopeLabel)+'</strong>. Switching a test persona never changes actual authentication, data ownership or access permissions.</p>' +
+    '<div class="qa-tiles"><section><h3>Associations</h3>'+list(x.associations,'No associations in this simulated scope')+'</section>' +
+    '<section><h3>Clubs</h3>'+list(x.clubs,'No clubs in this simulated scope')+'</section>' +
+    '<section><h3>Teams</h3>'+list(x.teams,'No teams in this simulated scope')+'</section>' +
+    '<section><h3>Example workflow areas</h3>'+list(x.workflows.map(name=>({name})),'No example workflows')+'</section></div>' +
+    '<p class="hint">No edits, invitations, password operations, sensitive-person access or publication are available in this simulated view. Real team and account roles require the future server-enforced authorisation work (#55).</p></section>';
+  document.title='Test persona · '+x.roleLabel+' · Team Manager';
+}
 function render() {
   animStop();
   if (!S.role) return renderLock();
+  if (!qaEnabled()) { state.qaPersona=null;state.qaScope=''; }
+  renderQaSelector();
+  if (state.qaPersona) return renderQaScreen();
   V = curView();
   if (!VIEW_IDS.includes(state.tab) || !viewsOf(navOf(state.tab)).some(v => v[0] === state.tab)) state.tab = 'home';
   if (state.tab === 'matchday' && (!state.matchDayId || !matchById(state.matchDayId))) state.tab = 'matches';
@@ -820,6 +870,8 @@ setInterval(() => { if (S.role === 'coach' && !S.publishing) renderStatus(); }, 
 
 /* ---------- Lock screen and setup ---------- */
 function renderLock() {
+  const qa=$('#qa-persona-control');if(qa)qa.hidden=true;
+  state.qaPersona=null;state.qaScope='';
   $('#tabs').hidden = true; $('#status').hidden = true; $('#days-chip').hidden = true; $('#menu-btn').hidden = true; $('#bell-btn').hidden = true; $('#team-crest').hidden = true;
   document.body.classList.remove('game');
   $('#team-title').textContent = 'Team Manager';
@@ -6533,6 +6585,7 @@ function extendTestLibrary(day) {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
+  'qa-exit': () => { state.qaPersona=null;state.qaScope='';render(); },
   'tab': el => { if (el.dataset.tab === 'club') state.clubId = null; goTo(el.dataset.tab); },
   'nav': el => { const g = NAV.find(x => x.id === el.dataset.g); if (!g) return; const last = state.lastView[g.id]; goTo(last && viewsOf(g).some(v => v[0] === last) && navOf(state.tab) !== g ? last : viewsOf(g)[0][0]); },
   'close-sheet': () => requestCloseSheet(),
@@ -7514,6 +7567,8 @@ const actions = {
 
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
+  // QA screen is read-only even for forged clicks aimed at existing coach actions.
+  if (state.qaPersona && el.dataset.act !== 'qa-exit') { e.preventDefault();return; }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
@@ -7560,6 +7615,21 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
+  if (k === 'qa-persona') {
+    const role=e.target.value;
+    if (!qaEnabled() || (role && !QA_ROLES.some(x=>x.id===role))) { state.qaPersona=null;state.qaScope='';render();return; }
+    state.qaPersona=role||null;
+    state.qaScope=state.qaPersona ? qaPreview(state.qaPersona,'')?.scope||'' : '';
+    if (!$('#sheet').hidden) closeSheet();
+    render();return;
+  }
+  if (state.qaPersona) {
+    if (k === 'qa-scope' && qaEnabled()) {
+      const next=qaPreview(state.qaPersona,e.target.value);
+      if (next && next.scope===e.target.value) {state.qaScope=next.scope;render();}
+    }
+    return;
+  }
   if (k === 'managed-sport' || k === 'managed-club') { teamFinder[k==='managed-sport'?'sport':'club']=e.target.value; const v=$('#managed-team-results'); if(v)v.innerHTML=managedTeamResults(); }
   if (k === 'directory-link-pick' && directoryLinkState) {
     directoryLinkState.clubId=e.target.value;
@@ -7680,6 +7750,7 @@ document.addEventListener('change', e => {
 document.addEventListener('submit', async e => {
   const form = e.target, kind = form.dataset.form; if (!kind) return;
   e.preventDefault();
+  if (state.qaPersona) return; // synthetic preview cannot write to the coach workspace
   if (readOnlyView() && !/^(season|comp|club|settings|people-link|guardian-review|guardian-correct)/.test(kind)) { toast(pastMsg()); return; }
   const f = new FormData(form);
   const str = k => String(f.get(k) ?? '').trim();
