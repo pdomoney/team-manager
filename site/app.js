@@ -687,7 +687,7 @@ const statusPill = p => isOut(p) ? ` <span class="pill ${p.status}">${STATUS[p.s
 
 function qaEnabled() {
   // The actual coach workspace and even live player preview must never acquire simulated grants.
-  return S.role === 'coach' && S.trial === true && !!ws?.testLibrary &&
+  return S.role === 'coach' && !state.preview && S.trial === true && !!ws?.testLibrary &&
     Number(ws.testLibrary.version) >= 3;
 }
 function renderQaSelector() {
