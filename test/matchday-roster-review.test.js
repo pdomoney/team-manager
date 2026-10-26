@@ -55,7 +55,12 @@ test('P11H keeps read-only flags across multiple sports without guessing athlete
 test('P11H rejects malformed snapshots and does not duplicate repeated group snapshots',()=>{
  assert.equal(review(null).state,'unavailable');
  assert.equal(review({state:'view-only',groups:null}).state,'unavailable');
- const input={state:'view-only',groups:[{players:[{name:'A',number:'1',reply:'no',status:'available',arrived:true},
-  {name:'A',number:'1',reply:'no',status:'available',arrived:true}]}]};
- assert.equal(review(input).total,1);
+ const input={state:'view-only',groups:[{players:[
+  {playerId:'same',name:'A',number:'1',reply:'no',status:'available',arrived:true},
+  {playerId:'same',name:'A',number:'1',reply:'no',status:'available',arrived:true},
+  {playerId:'different',name:'A',number:'1',reply:'no',status:'available',arrived:true}
+ ]}]};
+ const result=review(input);
+ assert.equal(result.total,2);
+ assert.deepEqual(result.players.map(p=>p.playerId),['same','different']);
 });
