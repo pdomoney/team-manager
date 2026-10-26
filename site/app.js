@@ -37,6 +37,7 @@ import { personField, helperPlayerField } from './p09-person-form.js';
 import { organisationPreview, ORG_PREVIEW_MODES, nextOrgPreviewSelection } from './p09-org-preview.js';
 import { QA_ROLES, qaPreview } from './p11-qa-personas.js';
 import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
+import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -746,6 +747,7 @@ function render() {
   if (!S.role) return renderLock();
   if (!qaEnabled()) { state.qaPersona=null;state.qaScope=''; }
   renderQaSelector();
+  applyLayout();
   if (state.qaPersona) return renderQaScreen();
   V = curView();
   if (!VIEW_IDS.includes(state.tab) || !viewsOf(navOf(state.tab)).some(v => v[0] === state.tab)) state.tab = 'home';
@@ -887,6 +889,7 @@ setInterval(() => { if (S.role === 'coach' && !S.publishing) renderStatus(); }, 
 
 /* ---------- Lock screen and setup ---------- */
 function renderLock() {
+  const density=$('#density-btn');if(density)density.hidden=true;
   const qa=$('#qa-persona-control');if(qa)qa.hidden=true;
   state.qaPersona=null;state.qaScope='';
   $('#tabs').hidden = true; $('#status').hidden = true; $('#days-chip').hidden = true; $('#menu-btn').hidden = true; $('#bell-btn').hidden = true; $('#team-crest').hidden = true;
@@ -5987,18 +5990,34 @@ function bylawForm(b) {
 // wide screen, a comfortable width or the full width of the window.
 const layoutPref = () => ['auto', 'phone', 'wide'].includes(store.get('tm-layout')) ? store.get('tm-layout') : 'auto';
 const widthPref = () => store.get('tm-width') === 'full' ? 'full' : 'comfy';
+// Density changes visual rhythm, never the browser zoom or encrypted team data.
+const densityPref = () => normalizeDensity(store.get('tm-density'));
 function applyLayout() {
   const pref = layoutPref(), wide = pref === 'wide' || (pref === 'auto' && window.innerWidth >= 1000);
   document.body.classList.toggle('wide', wide);
   document.body.classList.toggle('full', wide && widthPref() === 'full');
+  const eligible = mayUseCompactDensity(wide, window.innerWidth);
+  const compact = eligible && densityPref() === 'compact';
+  document.body.classList.toggle('density-compact', compact);
+  const quick = $('#density-btn');
+  if (quick) {
+    quick.hidden = !eligible || !S.role || !!state.qaPersona;
+    quick.textContent = compact ? 'Comfortable' : 'Compact';
+    quick.setAttribute('aria-label', compact ? 'Use comfortable dashboard layout' : 'Use compact dashboard layout');
+    quick.setAttribute('aria-pressed', String(compact));
+    quick.title = compact ? 'Switch to comfortable spacing' : 'Fit more information on screen';
+  }
   const top = $('.top'); if (top) document.body.style.setProperty('--top-h', `${top.offsetHeight}px`);
 }
 function layoutSettings() {
-  const pref = layoutPref(), w = widthPref();
+  const pref = layoutPref(), w = widthPref(), d = densityPref();
   return `<h3 class="form-sec" style="margin-top:0">Screen layout</h3>
     <div class="seg" role="group" aria-label="Screen layout">${[['auto', 'Auto'], ['phone', 'Phone'], ['wide', 'Wide']].map(([v, l]) => `<button type="button" data-act="layout" data-v="${v}" aria-pressed="${pref === v}">${l}</button>`).join('')}</div>
     <div class="seg" role="group" aria-label="Width on a wide screen">${[['comfy', 'Comfortable width'], ['full', 'Full width']].map(([v, l]) => `<button type="button" data-act="layout-width" data-v="${v}" aria-pressed="${w === v}">${l}</button>`).join('')}</div>
-    <p class="hint" style="margin:-4px 0 18px">Wide puts the sections down the side and uses the extra space on a computer: two columns, bigger diagrams and a bigger play editor. Auto uses it on any screen wider than a tablet. Saved on this device only.</p>`;
+    <h3 class="form-sec">Display density</h3>
+    <div class="seg" role="group" aria-label="Display density">${[['comfortable', 'Comfortable'], ['compact', 'Compact']].map(([v, l]) => `<button type="button" data-act="layout-density" data-v="${v}" aria-pressed="${d === v}">${l}</button>`).join('')}</div>
+    <p class="hint" style="margin:-4px 0 14px">Compact fits more of the dashboard on a desktop by tightening spacing and headings. It does not alter browser zoom, mobile touch controls, or shared team data. The quick toggle also appears in the desktop header.</p>
+    <p class="hint" style="margin:0 0 18px">Wide puts the sections down the side and uses the extra space on a computer. Auto uses it on any screen wider than a tablet. Preferences are saved on this device only.</p>`;
 }
 function settingsBody() {
   if (S.role === 'player') {
@@ -6016,7 +6035,7 @@ const SETTINGS_SECS = [
   ['contacts', 'Contacts', 'Team contact and team staff'], ['training', 'Training', 'Usual venue and times'],
   ['field', 'Field', 'Zones and channels on the Lineup field'], ['players', 'Jerseys', 'Whether jerseys are lent and handed back'],
   ['publishing', 'Publishing', 'Players’ access, passwords and GitHub'], ['backup', 'Backup', 'Export, import and this phone'],
-  ['layout', 'Screen layout', 'Phone or wide layout on this device'], ['teams', 'Teams', 'Run more than one team'], ['testlib', 'Test data', 'The test library and a data check to compare devices']];
+  ['layout', 'Screen layout', 'Width and display density on this device'], ['teams', 'Teams', 'Run more than one team'], ['testlib', 'Test data', 'The test library and a data check to compare devices']];
 function settingsSummary(k) {
   const T = data.team, club = M.clubOf(ws, data);
   const fmtR = (a, b) => [a, b].filter(Boolean).map(fmtTime).join('–');
@@ -6029,7 +6048,7 @@ function settingsSummary(k) {
     players: T.jerseyLoan ? 'Lent to players and handed back' : 'Given to players to keep',
     publishing: S.trial ? 'Test mode: nothing is shared yet' : ghReady() ? `GitHub connected${gh.autoPublish ? ' · publishes automatically' : ''}` : 'GitHub not connected',
     backup: 'Encrypted backup of every team',
-    layout: { auto: 'Auto', phone: 'Phone', wide: 'Wide' }[layoutPref()] || 'Auto',
+    layout: `${{ auto: 'Auto', phone: 'Phone', wide: 'Wide' }[layoutPref()] || 'Auto'} · ${densityPref() === 'compact' ? 'Compact' : 'Comfortable'}`,
     teams: `${M.activeTeams(ws).length} team${M.activeTeams(ws).length === 1 ? '' : 's'}`,
     testlib: `${ws.testLibrary ? `Test library from ${fmtDay(ws.testLibrary.day)} · ` : ''}data check ${dataCheck(ws)}`
   }[k] || '';
@@ -6671,6 +6690,17 @@ const actions = {
     state.cardViews[page] = mode; store.set('tm-card-views', JSON.stringify(state.cardViews)); render();
   },
   'layout-width': el => { store.set('tm-width', el.dataset.v); applyLayout(); document.querySelectorAll('[data-act="layout-width"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
+  'layout-density': el => {
+    if (!['comfortable', 'compact'].includes(el.dataset.v)) return;
+    store.set('tm-density', el.dataset.v); applyLayout();
+    document.querySelectorAll('[data-act="layout-density"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === el.dataset.v)));
+  },
+  'layout-density-quick': () => {
+    if (!document.body.classList.contains('wide') || window.innerWidth < 1000 || !S.role || state.qaPersona) return;
+    store.set('tm-density', densityPref() === 'compact' ? 'comfortable' : 'compact');
+    applyLayout();
+    document.querySelectorAll('[data-act="layout-density"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === densityPref())));
+  },
   'lock-mode': el => { state.lockMode = el.dataset.mode; state.lockMsg = ''; renderLock(); },
   'refresh': async () => {
     try { await openPlayer(S.teamLock, false, S.teamFile); closeSheet(); render(); toast(S.fromCache ? 'No connection. Showing the copy saved on this phone.' : 'Up to date'); }
