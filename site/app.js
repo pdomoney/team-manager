@@ -48,6 +48,7 @@ import { matchRosterReadiness } from './matchday-roster-readiness.js';
 import { rosterRecordReview } from './matchday-roster-review.js';
 import { matchReplyRosterScope } from './matchday-season-rsvp.js';
 import { matchArrivalGate } from './matchday-arrival-gate.js';
+import { matchPreparationSummary } from './matchday-preparation.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -4615,6 +4616,24 @@ function matchBody(m) {
             </li>`).join('')}</ul>
           <p class="hint">Only the coach can change a check-in. Existing RSVP replies, player status, historical results and scoring are unchanged.</p>
         </details>`;
+    const preparation=matchPreparationSummary(data,m,M.clubOf(ws,data),todayISO(),rulesChecklist);
+    const prepCard=`<section class="match-preparation" data-match-id="${esc(m.id)}"
+          data-team-id="${esc(data.id)}" data-season-id="${esc(m.seasonId||'')}">
+        <h4>Match preparation · ${esc(preparation.season||'Season unresolved')}</h4>
+        <p class="hint">Fixture-only overview. Recorded participation does not establish playing eligibility, health clearance, or an approved lineup.</p>
+        ${preparation.state==='unavailable'
+          ? `<p class="hint">Cannot review this fixture: ${esc(preparation.reason)}</p>`
+          : `<p class="hint">${preparation.total} recorded squad members ·
+              ${preparation.arrivalCount} venue arrivals ·
+              ${preparation.conflictingRecords} player records to confirm</p>
+            <div class="roster-readiness-summary">${preparation.counts.map(g=>`<span class="pill neutral">${esc(g.label)}: ${g.count}</span>`).join('')}</div>
+            <div class="btn-row"><button class="btn sm" type="button" data-act="match-prep-jump"
+              data-id="${esc(m.id)}" data-target="roster">Review squad records</button>
+              ${preparation.canOpenVenue?`<button class="btn sm" type="button" data-act="match-prep-jump"
+                data-id="${esc(m.id)}" data-target="venue">Review venue check-in</button>`:''}</div>` }
+        <p class="hint">Competition rules: ${preparation.requiredRulesQuestions} organiser confirmation topics ·
+          ${preparation.scopeRuleBlockers} fixture-scope gaps. Scoring, positions, bench, interchange and periods remain unapproved.</p>
+      </section>`;
     const records=rosterRecordReview(readiness);
     const reviewPanel=records.state!=='review-only' ? '' : records.total
       ? `<section class="roster-record-review" aria-label="Records needing human confirmation">
@@ -4650,7 +4669,7 @@ function matchBody(m) {
         </section>`).join('')}
         <p class="hint">Positions shown are player preferences, not verified assignments. Use Record replies to correct availability; competition rules and lineup sizes must still be confirmed.</p>
       </details>`;
-    sec.lineup = `<h3 class="form-sec">Lineup</h3><p class="hint">A sport-specific lineup is not configured for ${sportName}. Existing match records and historic lineups are preserved; no Oztag eight-player formation is applied.</p>${rosterPanel}`;
+    sec.lineup = `<h3 class="form-sec">Lineup</h3><p class="hint">A sport-specific lineup is not configured for ${sportName}. Existing match records and historic lineups are preserved; no Oztag eight-player formation is applied.</p>${prepCard}${rosterPanel}`;
     sec.result = `<h3 class="form-sec">Score and notes</h3><p class="hint">Scoring controls for ${sportName} require an approved competition format. Existing match status and notes are preserved. Use Edit details for match information; scoring will be enabled only after the rules are reviewed.</p>${prior}${scorePreviewCaution}${scorePreviewCard}`;
   }
   // Ordered by when each part is needed.
@@ -6917,6 +6936,23 @@ const actions = {
     <button class="pick" data-act="bulk-add">${icon('copy')}<span class="grow"><span class="name" style="display:block">Paste a list</span><span class="tagline">Names from a spreadsheet or the team chat</span></span></button>
     <button class="pick" data-act="player-import">${icon('team')}<span class="grow"><span class="name" style="display:block">From another team</span><span class="tagline">Players already in one of your teams</span></span></button></div>`, 'squad-add')),
   'match-open': coachOnly(el => openMatch(el.dataset.id)),
+  'match-prep-jump': coachOnly(el=>{
+    const id=el.dataset.id,m=matchById(id),card=el.closest('#sheet .match-preparation');
+    if(!m||state.sheet!=='match:'+id||!card||card.dataset.matchId!==id||
+       card.dataset.teamId!==data.id||card.dataset.seasonId!==(m.seasonId||''))return;
+    const policy=matchDayPresentation(M.teamSport(data.team,M.clubOf(ws,data)));
+    if(policy.mayUseAdvancedMatchDay)return;
+    const target=el.dataset.target;
+    const roster=$('#sheet .match-roster-readiness');
+    if(!roster)return;
+    roster.open=true;
+    if(target==='venue'){
+      const venue=$('#sheet .match-arrival-checkin');
+      if(!venue)return;
+      venue.open=true;
+      venue.scrollIntoView({block:'nearest'});
+    }else if(target==='roster')roster.scrollIntoView({block:'nearest'});
+  }),
   'roster-arrival-toggle': coachOnly(el=>{
     const id=el.dataset.id,pid=el.dataset.pid,m=matchById(id);
     const section=el.closest('#sheet .match-arrival-checkin');
