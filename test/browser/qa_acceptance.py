@@ -21,7 +21,7 @@ with sync_playwright() as p:
             pg.locator('#view .qa-acceptance summary').click()
             c.ok(pg.locator('#view .qa-acceptance li').count()==7,
                  f'[{width}] {role} seven deterministic checks')
-            c.ok('real Safari' in board.inner_text() and
+            c.ok('real safari' in board.inner_text().lower() and
                  'no actual test result' in board.inner_text().lower(),
                  f'[{width}] {role} actual Safari gate disclosed')
             c.ok(pg.evaluate('JSON.stringify(window.__team.ws)')==original,
