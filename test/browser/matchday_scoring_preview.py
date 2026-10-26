@@ -75,6 +75,13 @@ with sync_playwright() as p:
                       f'[{width}] {sport} with {rules} does not infer an unapproved scoring type')
             pg.keyboard.press('Escape')
             pg.wait_for_selector('#sheet',state='hidden')
+        # Deliberately selecting the adult law pack for a youth team does not bypass the age guard.
+        pg.evaluate("() => Object.assign(window.__team.data.team,{sport:'Rugby league',rules:'league/men',ageGroup:'u16',category:'boys'})")
+        pg.evaluate(act,['match-open',{'id':mid}])
+        checks.ok(pg.locator('#sheet .match-score-preview').count()==0,
+                  f'[{width}] junior team cannot use an adult rule pack by accident')
+        pg.keyboard.press('Escape')
+        pg.wait_for_selector('#sheet',state='hidden')
         checks.ok(pg.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),
                   f'[{width}] no horizontal overflow')
         ctx.close()
