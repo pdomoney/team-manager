@@ -1593,10 +1593,6 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
 
 /* Optional desktop density. Equivalent information hierarchy with less vertical waste.
    No zoom/transform/font scaling, no data changes; phones retain comfortable touch targets. */
-.density-quick{appearance:none;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.22);border-radius:9px;color:#fff;font:600 13px var(--font-b);padding:6px 11px;min-height:40px;cursor:pointer;white-space:nowrap;flex:none}
-.density-quick[aria-pressed="true"]{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.45)}
-.density-quick:hover{background:rgba(255,255,255,.25)}
-@media(max-width:999px){.density-quick{display:none!important}}
 @media(min-width:1000px){
   body.wide.density-compact{grid-template-columns:188px minmax(0,1fr);font-size:14px;line-height:1.38}
   body.wide.density-compact:has(> .tabs[hidden]){grid-template-columns:minmax(0,1fr)}
