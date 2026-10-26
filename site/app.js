@@ -40,6 +40,7 @@ import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
 import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
 import { matchDayPresentation } from './match-day-presentation.js';
 import { matchFormatSourceReview } from './match-format-source-review.js';
+import { sourceScorePreviewPolicy, calculateSourceScorePreview } from './source-score-preview.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -4478,6 +4479,7 @@ function matchBody(m) {
   const tasks = M.linkedTasks(data, 'match', m.id), live = m.status === 'scheduled', ph = matchPhase(m);
   const r = m.result || {};
   const matchPolicy = matchDayPresentation(M.teamSport(data.team,M.clubOf(ws,data)));
+  const scorePreview = sourceScorePreviewPolicy(data.team,M.clubOf(ws,data));
   const linkedComp = M.matchKind(ws,m)?.comp || null;
   const linkedSeason = M.findSeason(data,m.seasonId);
   const sourceReview = matchFormatSourceReview(data.team,M.clubOf(ws,data),{
@@ -4500,6 +4502,25 @@ function matchBody(m) {
     ${sourceReview.crossSportRulePack ? '<p class="err">Selected rule set belongs to a different sport. Review the team settings before using it.</p>' : ''}
     <p class="hint">Local organiser confirmation and owner-approved scoring configuration are outstanding. Viewing this reference does not modify a match.</p>
   </details>`;
+  // Explicitly selected adult source packs only. Counts are transient DOM values:
+  // no save/submit capability and no change to existing match.result or team data.
+  const scorePreviewCard = scorePreview && !matchPolicy.mayUseAdvancedMatchDay
+    ? `<details class="match-score-preview">
+      <summary>Score breakdown preview · Not saved</summary>
+      <p class="hint">A calculation example from the ${esc(scorePreview.grade)} reference (${esc(scorePreview.source.edition)}).
+        Actual competition scoring must be confirmed with the local organiser. This is not a match result, a verified policy, or a record of play.</p>
+      <form data-form="score-preview" data-match-id="${esc(m.id)}" data-policy="${esc(scorePreview.id)}" autocomplete="off">
+        <div class="score-preview-labels" aria-hidden="true"><span>Event · reference points</span><span>Us</span><span>Them</span></div>
+        ${scorePreview.events.map(e=>`<div class="score-preview-row">
+          <span>${esc(e.label)} <small>(${e.points} pt${e.points===1?'':'s'} each)</small></span>
+          <label><span class="sr-only">Our ${esc(e.label)}</span><input name="us-${e.id}" type="number" min="0" max="99" step="1" value="0" inputmode="numeric"></label>
+          <label><span class="sr-only">Their ${esc(e.label)}</span><input name="them-${e.id}" type="number" min="0" max="99" step="1" value="0" inputmode="numeric"></label>
+        </div>`).join('')}
+        <button type="button" class="btn block" data-act="score-preview-calc" data-id="${esc(m.id)}">Calculate preview (not saved)</button>
+        <output aria-live="polite" class="score-preview-output">Not calculated · Match data unchanged</output>
+      </form>
+      <p class="hint">Reference: <a href="${esc(scorePreview.source.url)}" target="_blank" rel="noopener noreferrer">${esc(scorePreview.source.title)}</a>. These inputs are cleared when the sheet closes; no results are saved, exported or shared.</p>
+    </details>` : '';
   const sec = {
     avail: `<h3 class="form-sec">Availability${ph === 'day' ? ' and who’s here' : ''}</h3>
       <div class="roll-sum">${rsvpPills(m)}${ph === 'day' ? ` <span class="pill neutral">${Object.keys(obj(m.arrived)).length} here</span>` : ''}</div>
@@ -4535,7 +4556,7 @@ function matchBody(m) {
       ? `<p class="hint">Previously recorded totals: ${esc(r.us)}–${esc(r.them)}. Their scoring type is not independently verified for this sport.</p>`
       : '';
     sec.lineup = `<h3 class="form-sec">Lineup</h3><p class="hint">A sport-specific lineup is not configured for ${sportName}. Existing match records and historic lineups are preserved; no Oztag eight-player formation is applied.</p>`;
-    sec.result = `<h3 class="form-sec">Score and notes</h3><p class="hint">Scoring controls for ${sportName} require an approved competition format. Existing match status and notes are preserved. Use Edit details for match information; scoring will be enabled only after the rules are reviewed.</p>${prior}`;
+    sec.result = `<h3 class="form-sec">Score and notes</h3><p class="hint">Scoring controls for ${sportName} require an approved competition format. Existing match status and notes are preserved. Use Edit details for match information; scoring will be enabled only after the rules are reviewed.</p>${prior}${scorePreviewCard}`;
   }
   // Ordered by when each part is needed.
   const order = { before: ['avail', 'lineup', 'tasks', 'staff', 'result'], day: ['lineup', 'avail', 'result', 'staff', 'tasks'],
@@ -6790,6 +6811,28 @@ const actions = {
     <button class="pick" data-act="bulk-add">${icon('copy')}<span class="grow"><span class="name" style="display:block">Paste a list</span><span class="tagline">Names from a spreadsheet or the team chat</span></span></button>
     <button class="pick" data-act="player-import">${icon('team')}<span class="grow"><span class="name" style="display:block">From another team</span><span class="tagline">Players already in one of your teams</span></span></button></div>`, 'squad-add')),
   'match-open': coachOnly(el => openMatch(el.dataset.id)),
+  // Read-only point preview. Do not write, save, modify status, or mark rules approved.
+  'score-preview-calc': coachOnly(el => {
+    const form = el.closest('form[data-form="score-preview"]');
+    if (!form || !form.closest('#sheet') || form.dataset.matchId !== el.dataset.id ||
+        state.sheet !== 'match:' + el.dataset.id || !matchById(el.dataset.id)) return;
+    const policy = sourceScorePreviewPolicy(data.team,M.clubOf(ws,data));
+    if (!policy || policy.id !== form.dataset.policy) {
+      const out = form.querySelector('output');
+      if (out) out.textContent = 'Preview unavailable: check the selected sport and reference rules.';
+      return;
+    }
+    const counts = { us: {}, them: {} };
+    for (const event of policy.events) for (const side of ['us','them']) {
+      const field = form.elements.namedItem(side+'-'+event.id);
+      counts[side][event.id] = field && field.tagName === 'INPUT' ? field.value : '';
+    }
+    const result = calculateSourceScorePreview(policy,counts);
+    const out = form.querySelector('output');
+    if (out) out.textContent = result
+      ? `Preview: Us ${result.us} – Them ${result.them} · Not saved`
+      : 'Enter whole-number event counts from 0 to 99; nothing has been saved.';
+  }),
   // Match Day
   'matchday-open': coachOnly(el => {
     const m = matchById(el.dataset.id); if (!m) return;
