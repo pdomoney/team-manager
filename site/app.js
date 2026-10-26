@@ -6002,10 +6002,10 @@ function applyLayout() {
   const quick = $('#density-btn');
   if (quick) {
     quick.hidden = !eligible || !S.role || !!state.qaPersona;
-    quick.textContent = compact ? 'Comfortable' : 'Compact';
-    quick.setAttribute('aria-label', compact ? 'Use comfortable dashboard layout' : 'Use compact dashboard layout');
+    quick.textContent = compact ? 'Compact ✓' : 'Compact';
+    quick.setAttribute('aria-label', compact ? 'Compact display active. Click to use comfortable layout' : 'Compact display off. Click to use compact layout');
     quick.setAttribute('aria-pressed', String(compact));
-    quick.title = compact ? 'Switch to comfortable spacing' : 'Fit more information on screen';
+    quick.title = compact ? 'Compact mode on — click to switch off' : 'Compact mode off — click to switch on';
   }
   const top = $('.top'); if (top) document.body.style.setProperty('--top-h', `${top.offsetHeight}px`);
 }
