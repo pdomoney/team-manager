@@ -21,8 +21,8 @@ test('D3E batch groups distinct exact IDs from both sports without a data write'
  assert.deepEqual(records,first);assert.deepEqual(ledger,rights);
 });
 test('D3E malformed, ambiguous and duplicate requests fail the whole batch closed',()=>{
- for(const ids of [[],[ids[0],ids[0]],['../../private'],['unknown'],Array(31).fill(ids[0]),[ids[0],'missing']])
-   assert.throws(()=>batch(ids));
+ for(const candidateIds of [[],[ids[0],ids[0]],['../../private'],['unknown'],Array(31).fill(ids[0]),[ids[0],'missing']])
+   assert.throws(()=>batch(candidateIds));
  assert.throws(()=>prepareDirectoryBatchReview(records,ledger,{ids,asOf:'2026-02-30'}));
  assert.throws(()=>prepareDirectoryBatchReview([...records,records[0]],ledger,{ids:[ids[0]]}));
 });
