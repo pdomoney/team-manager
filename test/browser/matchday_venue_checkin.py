@@ -17,7 +17,7 @@ with sync_playwright() as p:
           String(now.getDate()).padStart(2,'0')].join('-'),
         pid=d.players[0].id,other=d.players[1].id;
       d.team.sport='Netball';m.seasonId=s.id;m.date=today;m.status='scheduled';
-      m.arrived={};return {id:m.id,pid,other,season:s.id,today};
+      m.arrived={};m.rsvp={};return {id:m.id,pid,other,season:s.id,today};
     }""")
     mid=data['id'];pid=data['pid'];other=data['other']
     original=pg.evaluate("JSON.stringify(window.__team.ws)")
