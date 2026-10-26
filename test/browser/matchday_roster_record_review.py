@@ -37,7 +37,7 @@ with sync_playwright() as p:
       f'[{width}] inconsistent replies do not unlock a foreign-code scorer or formation')
     checks.ok(pg.evaluate('JSON.stringify(window.__team.ws)')==snapshot,
       f'[{width}] warnings never write to coach data')
-    pg.click('#sheet [data-act=rsvp-open][data-k=match]')
+    pg.click('#sheet .roster-record-review [data-act=rsvp-open][data-k=match]')
     pg.wait_for_selector('#sheet .roll-row')
     checks.ok('Availability' in pg.inner_text('#sheet .panel-head') and
       pg.evaluate('JSON.stringify(window.__team.ws)')==snapshot,
