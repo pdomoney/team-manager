@@ -38,6 +38,7 @@ import { organisationPreview, ORG_PREVIEW_MODES, nextOrgPreviewSelection } from 
 import { QA_ROLES, qaPreview } from './p11-qa-personas.js';
 import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
 import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
+import { matchDayPresentation } from './match-day-presentation.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -4475,6 +4476,7 @@ function matchBody(m) {
   const lu = matchLineup(m), chk = lu ? M.lineupCheck(V, lu, m) : null, c = M.rsvpCounts(m, V.players);
   const tasks = M.linkedTasks(data, 'match', m.id), live = m.status === 'scheduled', ph = matchPhase(m);
   const r = m.result || {};
+  const matchPolicy = matchDayPresentation(M.teamSport(data.team,M.clubOf(ws,data)));
   const sec = {
     avail: `<h3 class="form-sec">Availability${ph === 'day' ? ' and who’s here' : ''}</h3>
       <div class="roll-sum">${rsvpPills(m)}${ph === 'day' ? ` <span class="pill neutral">${Object.keys(obj(m.arrived)).length} here</span>` : ''}</div>
@@ -4501,13 +4503,24 @@ function matchBody(m) {
     ${ph === 'after' && M.matchOutcome(m) ? `<button class="btn wa block" style="margin-top:10px" data-act="result-share" data-id="${m.id}">${icon('chat', 18)}Send results</button>` : ''}`,
     tasks: tasks.length ? `<h3 class="form-sec">Tasks for this match</h3><div class="list">${tasks.map(t => `<button class="pick" data-act="task-open" data-id="${t.id}"><span class="grow"><span class="name" style="display:block">${esc(t.title)}</span>${t.kind === 'lift' ? liftHtml(t) : spotsHtml(t)}</span></button>`).join('')}</div>` : ''
   };
+  // Do not expose Oztag-specific eight-position lineup or +1-try result fields
+  // for other sports. There is no approved scoring/roster policy for them yet.
+  // Historical match records remain untouched and can still be reviewed.
+  if (!matchPolicy.mayUseAdvancedMatchDay) {
+    const sportName = esc(matchPolicy.sport || 'this sport');
+    const prior = r.us !== undefined && r.them !== undefined
+      ? `<p class="hint">Previously recorded totals: ${esc(r.us)}–${esc(r.them)}. Their scoring type is not independently verified for this sport.</p>`
+      : '';
+    sec.lineup = `<h3 class="form-sec">Lineup</h3><p class="hint">A sport-specific lineup is not configured for ${sportName}. Existing match records and historic lineups are preserved; no Oztag eight-player formation is applied.</p>`;
+    sec.result = `<h3 class="form-sec">Score and notes</h3><p class="hint">Scoring controls for ${sportName} require an approved competition format. Existing match status and notes are preserved. Use Edit details for match information; scoring will be enabled only after the rules are reviewed.</p>${prior}`;
+  }
   // Ordered by when each part is needed.
   const order = { before: ['avail', 'lineup', 'tasks', 'staff', 'result'], day: ['lineup', 'avail', 'result', 'staff', 'tasks'],
     after: ['result', 'lineup', 'avail', 'staff', 'tasks'], off: ['avail', 'lineup', 'tasks', 'staff', 'result'] }[ph];
   return `<p class="task-when"><b>${esc(fmtLong(m.date))}${m.start ? `, ${esc(fmtTime(m.start))}` : ''}</b>${matchWhere(m) ? `<br>${esc(matchWhere(m))}` : ''}${m.round ? `<br>${esc(m.round)}` : ''}</p>
     <p>${matchPills(m)}</p>
     ${ph === 'off' ? '' : `<ol class="m-steps" aria-label="Where this match is up to">${PHASES.map(([k, l]) => `<li${k === ph ? ' aria-current="step"' : ''}>${l}</li>`).join('')}</ol>`}
-    ${ph === 'day' && live ? `<button class="btn primary block md-open" data-act="matchday-open" data-id="${m.id}">${icon('field', 20)}Open Match Day</button>` : ''}
+    ${ph === 'day' && live && matchPolicy.mayUseAdvancedMatchDay ? `<button class="btn primary block md-open" data-act="matchday-open" data-id="${m.id}">${icon('field', 20)}Open Match Day</button>` : ''}
     ${m.notes ? `<p class="task-notes-full">${esc(m.notes)}</p>` : ''}${m.coachNotes ? `<p class="task-notes-full coach-only"><span class="tagline">Coach notes</span><br>${esc(m.coachNotes)}</p>` : ''}
     ${order.map(k => sec[k]).join('')}
     <div class="btn-row" style="margin-top:16px">
@@ -7970,6 +7983,7 @@ document.addEventListener('submit', async e => {
   }
   if (kind === 'match-lineup') {
     const m = matchById(str('id')); if (!m) return;
+    if (!supportsMatchDayControls(m)) { toast('A sport-specific lineup is not configured for this team.'); return; }
     const from = data.lineups.find(l => l.id === str('from'));
     const lu = from ? { ...clone(from), id: uid() } : makeLineup('');
     lu.name = `vs ${m.opponent || 'TBC'} (${fmtShort(m.date)})`;
@@ -7979,6 +7993,7 @@ document.addEventListener('submit', async e => {
   }
   if (kind === 'match-result') {
     const m = matchById(str('id')); if (!m) return;
+    if (!supportsMatchDayControls(m)) { toast('Scoring requires verified rules for this sport. Existing results are preserved.'); return; }
     const status = str('status') || 'scheduled', us = str('us'), them = str('them'), forfeit = str('forfeit');
     if (status === 'played' && (us === '' || them === '')) { fieldError(form, us === '' ? 'us' : 'them', 'Enter both scores, or choose Not played yet'); return; }
     if (status === 'forfeit' && !forfeit) { fieldError(form, 'forfeit', 'Say who forfeited'); return; }
