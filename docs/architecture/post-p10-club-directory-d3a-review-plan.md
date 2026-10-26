@@ -1,6 +1,6 @@
 # Post-P10 Directory D3A — Evidence-led club identity & coverage review (dry run only)
 
-**Owner programme:** [Directory source provenance and verified coverage #99](https://github.com/pdomoney/team-manager/issues/99). Builds from last verified `main` containing [D1 PR100](https://github.com/pdomoney/team-manager/pull/100); D2 source-rights [PR101](https://github.com/pdomoney/team-manager/pull/101) remained **open/unmerged** when this D3A branch was created. These two workstreams are deliberately independent. Reconcile D3A with updated main after D2 merges and rerun exact-head/main tests.
+**Owner programme:** [Directory source provenance and verified coverage #99](https://github.com/pdomoney/team-manager/issues/99). Builds from last verified `main` containing [D1 PR100](https://github.com/pdomoney/team-manager/pull/100); D2 source-rights [PR101](https://github.com/pdomoney/team-manager/pull/101) **merged after this branch was created**, main merge `a8c8e281ee98187402eb0b02448958a05e082966`. The D3A branch was then reconciled through a two-parent merge `2a64e8a55b20128db7b800d0f71b3c824c0faca8` (D2 code retained; D3A files only added). Both the rights ledger and candidate registration evidence remain unapproved despite D2 code deployment.
 
 ## Why
 
@@ -58,6 +58,6 @@ The `directoryId` must exactly match an entry **in the current reference catalog
 
 ## Review and release
 
-Run exact PR-head Node + full Chromium including capacity, then owner reviews/merges separately. Follow with merged-main Tests + Publish checks. If D2 merged in the meantime, reconcile main before accepting D3A and run all relevant regressions again. A passing D3A audit means the **review planner is functioning**, not that any club or reuse rights have been verified.
+Run exact PR-head Node + full Chromium including capacity, then owner reviews/merges separately. Follow with merged-main Tests + Publish checks. D2 has merged; this branch includes that code. Test the exact new D3A head and re-check main after owner merge. A passing D3A audit means the **review planner is functioning**, not that any club or reuse rights have been verified.
 
 Rollback is isolated: remove its pure module, CLI, Node tests and this document. No data/schema migration needed.
