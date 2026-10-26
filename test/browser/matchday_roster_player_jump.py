@@ -36,7 +36,7 @@ with sync_playwright() as p:
       f'[{width}] non-Oztag score controls blocked, no roster mutation')
     pg.click('#sheet .roster-record-review [data-act=roster-player-rsvp][data-pid="'+pair[1]+'"]')
     pg.wait_for_selector('#sheet .roll-row.roster-review-target')
-    pg.wait_for_function("""pid=>document.activeElement?.dataset?.row===pid""",pair[1])
+    pg.wait_for_function("""pid=>document.activeElement?.dataset?.row===pid""",arg=pair[1])
     selected=pg.locator('#sheet .roll-row.roster-review-target')
     checks.ok(selected.get_attribute('data-row')==pair[1] and
       selected.get_attribute('role')=='group' and
@@ -49,7 +49,7 @@ with sync_playwright() as p:
     # A stale warning cannot open a player that no longer has a conflict.
     pg.evaluate(act,['match-open',{'id':mid}])
     pg.click('#sheet .match-roster-readiness summary')
-    pg.evaluate("(id,pid)=>{const m=window.__team.data.matches.find(x=>x.id===id);delete m.arrived[pid]}",mid,pair[0])
+    pg.evaluate("([id,pid])=>{const m=window.__team.data.matches.find(x=>x.id===id);delete m.arrived[pid]}",[mid,pair[0]])
     after=pg.evaluate('JSON.stringify(window.__team.ws)')
     pg.click('#sheet .roster-record-review [data-act=roster-player-rsvp][data-pid="'+pair[0]+'"]')
     checks.ok(pg.locator('#sheet .match-roster-readiness').count()==1 and
