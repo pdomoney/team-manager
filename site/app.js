@@ -45,6 +45,7 @@ import { fixtureScorePreviewGate } from './score-preview-fixture-gate.js';
 import { matchRulesConfirmationChecklist } from './match-rules-confirmation.js';
 import { draftMatchRulesEvidence, RULES_EVIDENCE_FIELDS } from './match-rules-evidence-draft.js';
 import { matchRosterReadiness } from './matchday-roster-readiness.js';
+import { rosterRecordReview } from './matchday-roster-review.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -4578,12 +4579,26 @@ function matchBody(m) {
       ? `<p class="hint">Previously recorded totals: ${esc(r.us)}–${esc(r.them)}. Their scoring type is not independently verified for this sport.</p>`
       : '';
     const readiness=matchRosterReadiness(data,m,M.clubOf(ws,data));
+    const records=rosterRecordReview(readiness);
+    const reviewPanel=records.state!=='review-only' ? '' : records.total
+      ? `<section class="roster-record-review" aria-label="Records needing human confirmation">
+        <h4>Check conflicting replies and arrivals (${records.total})</h4>
+        <p class="hint">These records may have changed since they were entered. Confirm them with the player or team staff before making any availability decision.</p>
+        <ul>${records.players.map(p=>`<li>
+          <span class="roster-person">${p.number ? `#${esc(p.number)} · ` : ''}${esc(p.name)}</span>
+          <span class="roster-record-reasons">${p.issues.map(x=>esc(x.label)).join(' · ')}</span>
+        </li>`).join('')}</ul>
+        <button type="button" class="btn sm" data-act="rsvp-open" data-k="match" data-id="${esc(m.id)}">Review recorded replies</button>
+        <p class="hint">Review opens the existing RSVP screen; it does not alter replies automatically, update check-ins or decide player eligibility.</p>
+      </section>`
+      : '<p class="hint">No conflicting replies or arrival records detected. Eligibility and competition lineup rules remain unverified.</p>';
     const rosterPanel=readiness.state!=='view-only'
       ? `<p class="hint">Roster readiness not available: ${esc(readiness.reason)}</p>`
       : `<details class="match-roster-readiness">
         <summary>Squad readiness · ${readiness.total} recorded players</summary>
         <p class="hint">These are replies and player position preferences recorded for the ${esc(readiness.season)} season. This is not a match lineup, playing eligibility check, or authorised on-field player count.</p>
         <div class="roster-readiness-summary">${readiness.groups.map(g=>`<span class="pill neutral">${esc(g.label)}: ${g.count}</span>`).join(' ')}</div>
+        ${reviewPanel}
         ${readiness.groups.map(g=>`<section class="roster-readiness-group">
           <h4>${esc(g.label)} (${g.count})</h4>
           ${g.players.length
