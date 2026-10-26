@@ -1653,3 +1653,83 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   /* Dialog forms remain readable; no animation or optical scaling is used. */
   body.wide.density-compact .panel,body.wide.density-compact .sheet{font-size:15px}
 }
+
+
+/* Compact density refinement (owner Safari screenshots 26 Oct 2026): the real vertical
+   expense is multi-competition cards + action rows, not only main page gutters.
+   Keep all information/links accessible; reduce their rhythm on wide Home only. */
+@media(min-width:1000px){
+  body.wide.density-compact .home-cols .comp-live{
+    padding:9px 12px 11px;
+    border-top-width:3px;
+    border-radius:11px;
+    margin-bottom:11px;
+  }
+  body.wide.density-compact .home-cols .cl-head{
+    align-items:center;
+    gap:9px;
+    margin-bottom:8px;
+  }
+  body.wide.density-compact .home-cols .cl-trophy{
+    width:34px;height:34px;
+  }
+  body.wide.density-compact .home-cols .cl-trophy svg{
+    width:21px;height:21px;
+  }
+  body.wide.density-compact .home-cols .cl-k{
+    font-size:11px;letter-spacing:.25px;
+    margin:0 0 2px;
+  }
+  body.wide.density-compact .home-cols .comp-live h2{
+    font-size:21px;line-height:1.1;
+  }
+  body.wide.density-compact .home-cols .cl-sub{
+    font-size:12px;line-height:1.3;margin-top:2px;
+  }
+  body.wide.density-compact .home-cols .cl-team + .cl-team{
+    margin-top:8px;padding-top:8px;
+  }
+  body.wide.density-compact .home-cols .cl-tname{
+    font-size:13px;margin-bottom:4px;
+  }
+  body.wide.density-compact .home-cols .cl-rec{
+    gap:5px;
+  }
+  body.wide.density-compact .home-cols .cl-rec>div{
+    border-radius:7px;padding:4px 6px;
+  }
+  body.wide.density-compact .home-cols .cl-rec dt{
+    font-size:10px;letter-spacing:.2px;
+  }
+  body.wide.density-compact .home-cols .cl-rec dd{
+    font-size:19px;
+  }
+  body.wide.density-compact .home-cols .cl-line{
+    padding-top:5px;min-height:28px;font-size:12px;line-height:1.4;
+  }
+  body.wide.density-compact .home-cols .cl-match{
+    min-height:40px;margin-top:4px;padding:6px 9px;gap:7px;
+  }
+  body.wide.density-compact .home-cols .cl-open{
+    min-height:38px;margin-top:8px;
+  }
+  body.wide.density-compact .home-cols .home-act .act-row{
+    gap:8px;padding:7px 10px;min-height:52px;
+  }
+  body.wide.density-compact .home-cols .home-act .act-row .name{
+    font-size:14px;line-height:1.2;
+  }
+  body.wide.density-compact .home-cols .home-act .act-row .tagline{
+    display:block;font-size:12px;line-height:1.3;margin-top:3px;
+  }
+  body.wide.density-compact .home-cols .home-act .hint{
+    margin-top:5px;font-size:12px;
+  }
+  body.wide.density-compact .home-cols .spot-what{
+    font-size:13px;line-height:1.35;margin-bottom:3px;
+  }
+  body.wide.density-compact .home-cols .focus .btn-row{
+    gap:7px;
+  }
+  /* Preserve keyboard access and focus rings; don't reduce interactive match targets. */
+}
