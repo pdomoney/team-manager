@@ -33,8 +33,7 @@ with sync_playwright() as p:
     checks.ok('2019 archived' in pg.inner_text('#sheet') and
       'These replies do not establish playing eligibility' in pg.inner_text('#sheet'),
       f'[{width}] historic season and eligibility limitation announced')
-    checks.ok('#99' not in pg.inner_text('#sheet') or
-      pg.evaluate('JSON.stringify(window.__team.ws)')==before,
+    checks.ok(pg.evaluate('JSON.stringify(window.__team.ws)')==before,
       f'[{width}] historic-season modal initially leaves workspace unchanged')
     pg.click('#sheet .match-season-rsvp [data-v=yes]')
     changes=pg.evaluate("""([id,pid,other])=>{
@@ -46,7 +45,6 @@ with sync_playwright() as p:
       changes['result']=={'us':4,'them':3},
       f'[{width}] explicit coach RSVP only changes intended player, not result/history')
     # A season switch while this modal remains open invalidates its old controls.
-    pg.evaluate("(id,sid)=>{}",mid,context['active']) if False else None
     pg.evaluate("""([id,sid])=>{
       const m=window.__team.data.matches.find(x=>x.id===id);m.seasonId=sid;
     }""",[mid,context['active']])
