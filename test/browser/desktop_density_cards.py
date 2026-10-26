@@ -37,15 +37,14 @@ with sync_playwright() as p:
               };
             }""")
         comfy=snapshot()
-        c.ok(pg.inner_text('#density-btn').strip()=='Compact' and
-             pg.get_attribute('#density-btn','aria-pressed')=='false',
-             f'[{width}] header visibly names Compact mode as off (not destination label)')
-        pg.click('#density-btn')
+        c.ok(pg.locator('#density-btn').count()==0,
+             f'[{width}] redundant Compact toggle absent from header')
+        pg.evaluate("""() => {const b=document.createElement('button');b.dataset.act='settings';b.dataset.sec='layout';document.body.appendChild(b);b.click();b.remove()}""")
+        pg.wait_for_selector('#sheet [data-act=layout-density][data-v=compact]')
+        pg.click('#sheet [data-act=layout-density][data-v=compact]')
         dense=snapshot()
-        c.ok(pg.inner_text('#density-btn').strip()=='Compact ✓' and
-             pg.get_attribute('#density-btn','aria-pressed')=='true' and
-             'active' in pg.get_attribute('#density-btn','aria-label'),
-             f'[{width}] header names Compact mode as active, matching Settings')
+        c.ok(pg.get_attribute('#sheet [data-act=layout-density][data-v=compact]','aria-pressed')=='true',
+             f'[{width}] Settings names Compact mode as active without a header shortcut')
         c.ok(pg.evaluate("document.body.classList.contains('density-compact')"),
              f'[{width}] only explicit density toggle enters compact mode')
         c.ok(dense['competitionHeight']+15 < comfy['competitionHeight'],
@@ -66,7 +65,7 @@ with sync_playwright() as p:
              f'[{width}] layout has not changed any team/competition information')
         c.ok(pg.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),
              f'[{width}] compact result does not overflow desktop')
-        pg.click('#density-btn')
+        pg.click('#sheet [data-act=layout-density][data-v=comfortable]')
         restored=snapshot()
         c.ok(abs(restored['competitionHeight']-comfy['competitionHeight'])<1 and
              abs(restored['actionHeight']-comfy['actionHeight'])<1,
