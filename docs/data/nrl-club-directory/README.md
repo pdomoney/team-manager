@@ -1,6 +1,14 @@
 # National rugby league club directory: deferred Team Manager implementation
 
-**Status:** archived research pilot, `v0.1.0`, 20 October 2026. **Not approved for production or redistribution.** This folder is a future-implementation handoff, not an app feature.
+**Status:** historical research pilot `v0.1.0`, 20 October 2026, being archived as documentation. **The raw pilot ZIP/database was not authorised for public redistribution or checked into this repository.** This folder is not a new production feature.
+
+## Current application status as of 26 October 2026
+
+**Important supersession note:** The original handoff predates [merged PR #39](https://github.com/pdomoney/team-manager/pull/39). The current application already has a **public, read-only research reference catalogue** in `site/club-directory-data.js` (`143` rugby league candidates and `132` deduplicated Oztag candidates), search/filter controls in `site/club-directory.js`, and coach-confirmed linking to locally managed clubs in `site/club-link.js` ([linking guide](../../club-research-linking.md)).
+
+These deployed references are **unverified research candidates**: they are not official live registration totals, evidence of club affiliation, source-licensing approval, or permission grants. The presence of the **separately derived 275-record public catalogue** must not be confused with the **uncommitted historical pilot's raw CSV/SQLite/ZIP**. The absence of the raw archive from GitHub does **not** by itself resolve any publication/reuse rights in the currently deployed derivative dataset.
+
+Do **not** merge this PR expecting it to add new clubs or implement search. Those functions are already present. The useful remaining follow-on work is **source terms/permission review, record-level provenance quality, authoritative verification, coverage reconciliation and source freshness**, tracked separately. See [CURRENT_STATE_AND_NEXT_PHASE.md](CURRENT_STATE_AND_NEXT_PHASE.md).
 
 ## Purpose and strict boundary
 
@@ -42,10 +50,10 @@ Keep provenance and evidence separately for multiple references and review histo
 
 ## Publication and access rules
 
-1. Do not add the pilot to the public `site/` build output, JavaScript bundle, GitHub Pages static assets or published coach/player encrypted data files.
+1. Do not add the **unreleased raw pilot archive and importer** to the public `site/` build output, JavaScript bundle, GitHub Pages static assets or published coach/player encrypted data files. The separately prepared **public research candidates** in `site/club-directory-data.js` already exist (PR39); review that material's provenance and reuse rights separately.
 2. Do not silently populate `ws.clubs` or existing editable club records.
 3. Do not copy logos, brand assets or bulk MySideline/NRL-derived directories to a public asset until permitted.
 4. If authorized for publication, place only reviewed and publication-approved **club-level** fields in a versioned, read-only directory; no personal contacts or participant data.
-5. Promotion to production requires an explicit subsequent PR with test evidence, licensing review and owner approval.
+5. Promotion of any **additional raw-source fields or authoritative registration claims** requires a subsequent explicit PR with record-level verification, source/reuse review and owner approval. Existing research-level search from PR39 must not be represented as authoritative registration.
 
 See the manifest and implementation handoff for integrity checks and acceptance criteria.
