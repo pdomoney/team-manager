@@ -33,7 +33,12 @@ test('P11C League tag 15+ has drop goal; no borrowed 40m field goal',()=>{
 });
 test('P11C juniors, unknown sports, default inferred grades and cross-sport rules fail closed',()=>{
  for(const team of [
-  {sport:'Rugby league'}, {sport:'Rugby league',rules:'league/u6'},
+  {sport:'Rugby league'}, {sport:'Rugby league',rules:'league/men'},
+  {sport:'Rugby league',rules:'league/men',ageGroup:'u16',category:'men'},
+  {sport:'Rugby league',rules:'league/men',ageGroup:'open',category:'boys'},
+  {sport:'Rugby league',rules:'league/women',ageGroup:'u18',category:'women'},
+  {sport:'League tag',rules:'league-tag/15',ageGroup:'u16',category:'girls'},
+  {sport:'Rugby league',rules:'league/u6'},
   {sport:'Rugby league',rules:'league/u8'},{sport:'Rugby league',rules:'league/u13-14'},
   {sport:'League tag',rules:'league-tag/10-12'},
   {sport:'Touch football',rules:'league/men'},
