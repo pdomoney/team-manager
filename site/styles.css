@@ -1735,3 +1735,18 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   }
   /* Preserve keyboard access and focus rings; don't reduce interactive match targets. */
 }
+
+
+/* P11B: bounded, read-only Match Day rule source and competition-scope disclosure. */
+.match-format-review{margin:13px 0;padding:10px 12px;border:1px solid var(--line);
+  border-radius:11px;background:var(--paper);overflow-wrap:anywhere}
+.match-format-review summary{cursor:pointer;font-weight:600;line-height:1.35;min-height:44px;
+  display:list-item;padding:9px 0}
+.match-format-review summary:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.match-format-review dl{margin:9px 0;display:grid;gap:6px}
+.match-format-row{display:grid;grid-template-columns:minmax(94px,33%) minmax(0,1fr);
+  gap:9px;border-bottom:1px solid var(--line);padding:5px 0;font-size:14px;line-height:1.4}
+.match-format-row dt{font-weight:600;color:var(--muted)}
+.match-format-row dd{margin:0;min-width:0}
+.match-format-review a{overflow-wrap:anywhere}
+@media(max-width:600px){.match-format-review{padding:8px 10px}.match-format-row{gap:8px}}
