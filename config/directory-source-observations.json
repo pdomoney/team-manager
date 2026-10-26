@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "observedAsOf": "2026-10-26",
+  "purpose": "Public official-source observation leads only. No independent registration certification, licensing approval, club association or production data edit.",
+  "observations": [
+    {
+      "directoryId": "rlc_c4d2672383f09c",
+      "candidateSport": "Rugby league",
+      "candidateState": "ACT",
+      "sourceKind": "governing_body_club_directory",
+      "observedName": "Belconnen United Sharks Seniors",
+      "sourceUrl": "https://www.playrugbyleague.com/Competitions/Club/belconnen-united-sharks-seniors-234911",
+      "observedAt": "2026-10-26",
+      "identityScopeHint": "seniors_named_separately_from_juniors",
+      "reviewStatus": "unreviewed_observation"
+    },
+    {
+      "directoryId": "rlc_1004b6ffaa6d1e",
+      "candidateSport": "Rugby league",
+      "candidateState": "ACT",
+      "sourceKind": "governing_body_club_directory",
+      "observedName": "Gungahlin Bulls Seniors",
+      "sourceUrl": "https://www.playrugbyleague.com/Competitions/Club/gungahlin-bulls-seniors-13450",
+      "observedAt": "2026-10-26",
+      "identityScopeHint": "seniors_named_separately_from_juniors",
+      "reviewStatus": "unreviewed_observation"
+    }
+  ]
+}
