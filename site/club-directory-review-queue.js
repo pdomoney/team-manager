@@ -28,7 +28,7 @@ export function buildClubReviewQueue(records,sourceLedger,{state='',sport='',lim
     const source=rightsByHost.get(h);
     const indirect=classPriority.has(row.sourceClass);
     const compound=/;\s*https?:\/\//i.test(safe(row.sourceUrl));
-    const sourceReviewNeeded=!source||source.rights!=='cleared_for_documented_scope';
+    // Even complete-looking D2 metadata is a claim; the queue never accepts licence evidence.
     const integrityFault=!safe(row.id)||!safe(row.name)||row.status!=='research_candidate'||!h;
     const tier=integrityFault?'integrity_review'
       :indirect||compound?'priority_source_review'
@@ -41,7 +41,7 @@ export function buildClubReviewQueue(records,sourceLedger,{state='',sport='',lim
       sourceEvidenceInLedger:source?.rights==='cleared_for_documented_scope'
         ?'syntactic_coverage_only_not_validated_permission'
         :'no_complete_scoped_approval',
-      needsSourceTermsReview:sourceReviewNeeded,
+      needsSourceTermsReview:true,
       needsAuthoritativeClubProof:true,
       needsIndependentReviewerDecision:true,
       needsIdentityConflictReview:true,
