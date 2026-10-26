@@ -37,6 +37,7 @@ import { personField, helperPlayerField } from './p09-person-form.js';
 import { organisationPreview, ORG_PREVIEW_MODES, nextOrgPreviewSelection } from './p09-org-preview.js';
 import { QA_ROLES, qaPreview } from './p11-qa-personas.js';
 import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
+import { qaAcceptanceBoard, qaAcceptanceText } from './p11-qa-acceptance.js';
 import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
 import { matchDayPresentation } from './match-day-presentation.js';
 import { matchFormatSourceReview } from './match-format-source-review.js';
@@ -728,6 +729,7 @@ function renderQaScreen() {
   $('#status').className='status info';
   $('#status').innerHTML='<span class="dot" aria-hidden="true"></span><span class="grow">Synthetic QA preview only. No real login, authorisation, or GitHub publishing.</span>';
   const journeys=qaJourneys(x.role,x.scope),active=qaJourney(x.role,x.scope,state.qaJourney);
+  const acceptance=qaAcceptanceBoard(x.role,x.scope);
   const guide=active ? '<section class="qa-guide" aria-label="Synthetic QA walkthrough" data-qa-journey="'+esc(active.id)+'">'+
     '<div class="sec-h"><h3>'+esc(active.title)+'</h3><button type="button" class="btn sm" data-act="qa-journey-back">All QA journeys</button></div>'+
     '<p class="muted small">'+esc(active.description)+'</p>'+
@@ -750,6 +752,11 @@ function renderQaScreen() {
     '<section><h3>Teams</h3>'+list(x.teams,'No teams in this simulated scope')+'</section>' +
     '<section><h3>Guided QA journeys</h3><p class="muted small">Fictional walkthroughs — no editing or publishing.</p><div class="qa-journey-buttons">'+journeys.map(j=>'<button type="button" class="btn sm" data-act="qa-journey" data-id="'+esc(j.id)+'" aria-pressed="'+(active?.id===j.id)+'">'+esc(j.title)+'</button>').join('')+'</div></section></div>' +
     guide +
+    '<details class="qa-acceptance"><summary>QA acceptance checks · '+acceptance.cases.length+' checks</summary>'+
+    '<p class="hint">Synthetic instructions only, with no actual test result. Real Safari and VoiceOver require separate manual verification.</p>'+
+    '<ol>'+acceptance.cases.map(c=>'<li><strong>'+esc(c.title)+'</strong><p class="hint">Expected: '+esc(c.expected)+'</p></li>').join('')+'</ol>'+
+    '<button type="button" class="btn sm" data-act="qa-copy-acceptance">Copy unverified checklist</button>'+
+    '</details>'+
     '<p class="hint">No edits, invitations, password operations, sensitive-person access or publication are available in this simulated view. Real team and account roles require the future server-enforced authorisation work (#55).</p></section>';
   document.title='Test persona · '+x.roleLabel+' · Team Manager';
 }
@@ -6803,6 +6810,11 @@ const actions = {
     state.qaJourney=j.id;render();
   },
   'qa-journey-back': () => { if(state.qaPersona&&qaEnabled()){state.qaJourney='';render();} },
+  'qa-copy-acceptance': () => {
+    if(!qaEnabled()||!state.qaPersona)return;
+    const packet=qaAcceptanceBoard(state.qaPersona,state.qaScope);
+    if(packet)copyText(qaAcceptanceText(packet),'Synthetic QA checklist copied; no tests marked passed');
+  },
   'tab': el => { if (el.dataset.tab === 'club') state.clubId = null; goTo(el.dataset.tab); },
   'nav': el => { const g = NAV.find(x => x.id === el.dataset.g); if (!g) return; const last = state.lastView[g.id]; goTo(last && viewsOf(g).some(v => v[0] === last) && navOf(state.tab) !== g ? last : viewsOf(g)[0][0]); },
   'close-sheet': () => requestCloseSheet(),
@@ -7971,7 +7983,7 @@ const actions = {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   // QA screen is read-only even for forged clicks aimed at existing coach actions.
-  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back'].includes(el.dataset.act)) { e.preventDefault();return; }
+  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance'].includes(el.dataset.act)) { e.preventDefault();return; }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
