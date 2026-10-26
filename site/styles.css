@@ -1799,3 +1799,20 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   margin:10px 0;padding:8px 0;font-size:14px;line-height:1.45;color:var(--muted)}
 .match-rules-evidence .btn{min-height:44px;white-space:normal}
 @media(max-width:600px){.match-rules-evidence .field-l{margin-bottom:10px}}
+
+
+/* P11G: coach-only read-only season-scoped match roster readiness. */
+.match-roster-readiness{margin:12px 0;padding:8px 12px;border:1px solid var(--line);
+  border-radius:11px;overflow-wrap:anywhere;background:var(--paper)}
+.match-roster-readiness summary{cursor:pointer;min-height:44px;padding:10px 0;line-height:1.4;font-weight:600}
+.match-roster-readiness summary:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.match-roster-readiness p.hint{margin:8px 0 10px;line-height:1.5}
+.roster-readiness-summary{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0 13px}
+.roster-readiness-group{margin:13px 0;border-top:1px solid var(--line);padding-top:8px}
+.roster-readiness-group h4{margin:0 0 8px;font-size:14px;font-weight:600;line-height:1.45}
+.roster-readiness-group ul{list-style:none;padding:0;margin:0}
+.roster-readiness-group li{padding:7px 0;display:flex;flex-direction:column;gap:2px;
+  border-bottom:1px solid var(--line);font-size:14px;min-width:0;line-height:1.45}
+.roster-readiness-group li small{font-size:12px;color:var(--muted);line-height:1.5;overflow-wrap:anywhere}
+.roster-person{font-weight:500;overflow-wrap:anywhere}
+@media(max-width:600px){.match-roster-readiness{padding:7px 10px}.roster-readiness-summary{gap:5px}}
