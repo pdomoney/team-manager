@@ -8,6 +8,7 @@ Based on verified merged [PR96](https://github.com/pdomoney/team-manager/pull/96
 - Live Competition card: trophy/icon, headings, record tiles, margins, open-competition button and linked fixtures shortened without hiding their labels/data.
 - Outstanding actions: preserve urgency, dot colours, action titles and context in a tighter row.
 - Spotlight supporting copy and action gap tightened slightly.
+- Header quick toggle ambiguity addressed: the button consistently reads **Compact** (or **Compact ✓** when active) with an accessible on/off description. Previously the active Compact layout made the button read **Comfortable**, describing the destination rather than the active state, despite Settings showing Compact selected.
 - Comfortable mode, Settings dialog, player privacy, mobile 390px layout and unrelated app pages remain unchanged.
 
 No new user setting, browser zoom change, JavaScript, encrypted workspace, GitHub publishing, permission or schema migration is involved. The existing Compact/Comfortable selection continues to work unchanged.
