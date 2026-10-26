@@ -6902,7 +6902,8 @@ const actions = {
       if(!row)return;
       row.classList.add('roster-review-target');
       row.tabIndex=-1;
-      row.setAttribute('aria-label','Selected player for RSVP review');
+      row.setAttribute('role','group');
+      row.setAttribute('aria-label','Review reply for '+(row.querySelector('.name')?.textContent?.trim()||'selected player'));
       row.focus({preventScroll:true});
       row.scrollIntoView({block:'center'});
     },60);
