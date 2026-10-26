@@ -43,10 +43,11 @@ test('D3C proposed evidence is blank and deliberately blocked by D3A itself',()=
 
 test('D3C packet omits private and publicly collected contact/source links',()=>{
   const out=JSON.stringify(packet());
-  for(const field of ['"email":','"phone":','"registration":','"sourceUrl":',
+  for(const field of ['"email":','"phone":','"sourceUrl":',
     '"website":','"players":','"guardian":','"medical":','"licenceOrConsentRef":'])
     assert.ok(!out.includes(field),field);
   assert.ok(!out.includes(records[0].sourceUrl));
+  assert.equal(packet().registration,'not_independently_verified');
 });
 
 test('D3C synthetic approved source-ledger claim cannot remove human gates',()=>{
