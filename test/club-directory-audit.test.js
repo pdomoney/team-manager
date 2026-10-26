@@ -29,7 +29,7 @@ test('D1 covers all Australian jurisdictions honestly: missing TAS research does
 test('D1 duplicate, invalid URL, future date and forged registration status fail technical QA, without auto-fixing',()=>{
   const raw=[{id:'same',name:'A',sport:'Rugby league',state:'NSW',sourceUrl:'https://example.org',sourceClass:'candidate',reviewed:'2026-10-20',status:'research_candidate'}];
   const saved=structuredClone(raw);
-  const d=auditClubDirectory([...raw[0]?raw:[],{...raw[0],sourceUrl:'javascript:bad',reviewed:'2099-01-01',status:'verified'}]);
+  const d=auditClubDirectory([raw[0],{...raw[0],sourceUrl:'javascript:bad',reviewed:'2099-01-01',status:'verified'}]);
   assert.equal(d.technicalInventory,'REVIEW_REQUIRED');
   for(const code of ['duplicate_directory_id','potential_same_state_name_collision','invalid_source_url','future_review_date','unreviewed_status_claim']){
     assert.ok(d.warnings.some(x=>x.code===code),code);
