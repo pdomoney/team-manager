@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "title": "NRL Australia Club Directory Research Pilot",
+  "research_version": "0.1.0",
+  "created": "2026-10-20",
+  "dataset_state": "research_only_not_production",
+  "source_archive_filename": "NRL_Australia_Club_Directory_PILOT_v0.1.0.zip",
+  "archive_sha256": "73683ebdc933cbc1a7597c9644c5e1c4151eecfaf4c724f1ea98b65fbe27a5eb",
+  "archive_in_public_repository": false,
+  "reason": "Unresolved third-party data reuse and redistribution permission",
+  "club_count": 143,
+  "verified_registration_count": 0,
+  "state_counts": {
+    "ACT": 6,
+    "NSW": 70,
+    "NT": 15,
+    "QLD": 14,
+    "SA": 6,
+    "VIC": 5,
+    "WA": 27,
+    "TAS": 0
+  },
+  "state_coverage_note": "Counts are discovered candidates, not confirmed registration totals. TAS zero means coverage gap.",
+  "sqlite_tables": [
+    "clubs",
+    "club_aliases",
+    "sources",
+    "club_evidence",
+    "coverage"
+  ],
+  "club_fields": [
+    "club_id",
+    "club_name",
+    "state_territory",
+    "region",
+    "association",
+    "locality",
+    "postcode",
+    "home_ground",
+    "website",
+    "club_email",
+    "club_phone",
+    "public_registration_url",
+    "mysideline_club_id",
+    "club_category",
+    "registration_status",
+    "verification_status",
+    "last_checked",
+    "source_urls",
+    "note"
+  ],
+  "archive_files_sha256": {
+    "NRL_Australia_Club_Directory_PILOT.sqlite": "d2f4214556b30a1ec9797bd8bb531eb8547d856bc1456869b5e44b6431a7caf9",
+    "NRL_Australia_Club_Directory_PILOT.csv": "9f6afc64f0439da3c813d149e01b93dcf6c7f0cd5057c75471fbde77fbee7e26",
+    "NRL_Australia_Club_Directory_PILOT.json": "4a8728a99d16695002dafdf252622764a017b3164fcf030118e9bdc640754db2",
+    "NRL_Club_Directory_README.md": "908101bde3f9dac4f4b032ca02cfb9fbfcf23b96a9f1e4cc7f3f0264c9b8d87a",
+    "build_nrl_club_directory.py": "4fd10e4f7262f91cd16734369c8348038c0dd122c671c57272c94c81e986d238",
+    "import_nrl_club_feed.py": "782a1f9cb74b89b6370773dabb1660e0443c615407e92eacc11956a962362b04",
+    "NRL_Club_Import_Template.csv": "84f9f7bf9d9ceccc3a92b87684d5d48020f7f53ea3c91244a35d12e973d06ed2"
+  }
+}
