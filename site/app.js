@@ -889,7 +889,6 @@ setInterval(() => { if (S.role === 'coach' && !S.publishing) renderStatus(); }, 
 
 /* ---------- Lock screen and setup ---------- */
 function renderLock() {
-  const density=$('#density-btn');if(density)density.hidden=true;
   const qa=$('#qa-persona-control');if(qa)qa.hidden=true;
   state.qaPersona=null;state.qaScope='';
   $('#tabs').hidden = true; $('#status').hidden = true; $('#days-chip').hidden = true; $('#menu-btn').hidden = true; $('#bell-btn').hidden = true; $('#team-crest').hidden = true;
@@ -5999,14 +5998,6 @@ function applyLayout() {
   const eligible = mayUseCompactDensity(wide, window.innerWidth);
   const compact = eligible && densityPref() === 'compact';
   document.body.classList.toggle('density-compact', compact);
-  const quick = $('#density-btn');
-  if (quick) {
-    quick.hidden = !eligible || !S.role || !!state.qaPersona;
-    quick.textContent = compact ? 'Compact ✓' : 'Compact';
-    quick.setAttribute('aria-label', compact ? 'Compact display active. Click to use comfortable layout' : 'Compact display off. Click to use compact layout');
-    quick.setAttribute('aria-pressed', String(compact));
-    quick.title = compact ? 'Compact mode on — click to switch off' : 'Compact mode off — click to switch on';
-  }
   const top = $('.top'); if (top) document.body.style.setProperty('--top-h', `${top.offsetHeight}px`);
 }
 function layoutSettings() {
@@ -6016,7 +6007,7 @@ function layoutSettings() {
     <div class="seg" role="group" aria-label="Width on a wide screen">${[['comfy', 'Comfortable width'], ['full', 'Full width']].map(([v, l]) => `<button type="button" data-act="layout-width" data-v="${v}" aria-pressed="${w === v}">${l}</button>`).join('')}</div>
     <h3 class="form-sec">Display density</h3>
     <div class="seg" role="group" aria-label="Display density">${[['comfortable', 'Comfortable'], ['compact', 'Compact']].map(([v, l]) => `<button type="button" data-act="layout-density" data-v="${v}" aria-pressed="${d === v}">${l}</button>`).join('')}</div>
-    <p class="hint" style="margin:-4px 0 14px">Compact fits more of the dashboard on a desktop by tightening spacing and headings. It does not alter browser zoom, mobile touch controls, or shared team data. The quick toggle also appears in the desktop header.</p>
+    <p class="hint" style="margin:-4px 0 14px">Compact fits more of the dashboard on a desktop by tightening spacing and headings. It does not alter browser zoom, mobile touch controls, or shared team data.</p>
     <p class="hint" style="margin:0 0 18px">Wide puts the sections down the side and uses the extra space on a computer. Auto uses it on any screen wider than a tablet. Preferences are saved on this device only.</p>`;
 }
 function settingsBody() {
@@ -6694,12 +6685,6 @@ const actions = {
     if (!['comfortable', 'compact'].includes(el.dataset.v)) return;
     store.set('tm-density', el.dataset.v); applyLayout();
     document.querySelectorAll('[data-act="layout-density"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === el.dataset.v)));
-  },
-  'layout-density-quick': () => {
-    if (!document.body.classList.contains('wide') || window.innerWidth < 1000 || !S.role || state.qaPersona) return;
-    store.set('tm-density', densityPref() === 'compact' ? 'comfortable' : 'compact');
-    applyLayout();
-    document.querySelectorAll('[data-act="layout-density"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === densityPref())));
   },
   'lock-mode': el => { state.lockMode = el.dataset.mode; state.lockMsg = ''; renderLock(); },
   'refresh': async () => {
