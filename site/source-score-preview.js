@@ -26,6 +26,17 @@ export function sourceScorePreviewPolicy(team={},club=null){
   // Oztag/league grade even when the coach has never confirmed it.
   const explicit=typeof team.rules==='string'?team.rules.trim():'';
   if(!explicit)return null;
+  // An adult reference selected on an under-age team must NOT provide adult
+  // score events. Without an explicit adult age/category, remain unconfigured.
+  const adultAge=String(team.ageGroup||'').trim().toLowerCase();
+  if(!['open','opens','adult','adults','senior','seniors','18+','19+'].includes(adultAge))return null;
+  const category=String(team.category||'').trim().toLowerCase();
+  const validCategories={
+    'league/men':['men','open'],
+    'league/women':['women','open'],
+    'league-tag/15':['men','women','open','mixed']
+  };
+  if(!validCategories[explicit]?.includes(category))return null;
   const cap=sportCapabilities(team,club);
   const id=definitions[cap.sport+'|'+explicit];
   if(!id||cap.crossSportRulePack||cap.activeRuleSetId!==explicit||
