@@ -43,6 +43,7 @@ import { matchFormatSourceReview } from './match-format-source-review.js';
 import { sourceScorePreviewPolicy, calculateSourceScorePreview } from './source-score-preview.js';
 import { fixtureScorePreviewGate } from './score-preview-fixture-gate.js';
 import { matchRulesConfirmationChecklist } from './match-rules-confirmation.js';
+import { draftMatchRulesEvidence, RULES_EVIDENCE_FIELDS } from './match-rules-evidence-draft.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -4515,7 +4516,8 @@ function matchBody(m) {
       <p class="hint">Ask the competition organiser to confirm:</p>
       <ol>${rulesChecklist.questions.map(x=>`<li>${esc(x.label)}</li>`).join('')}</ol>
       <button type="button" class="btn block" data-act="match-rules-copy" data-id="${esc(m.id)}">${icon('copy',18)}Copy rules confirmation checklist</button>
-      <p class="hint">Copies a draft for your review. No message is sent, no rule is approved, and no match data is changed. Player names and contact details are excluded.</p>
+      <button type="button" class="btn block" data-act="match-rules-evidence-open" data-id="${esc(m.id)}">Record organiser response (draft)</button>
+      <p class="hint">The draft worksheet is copied only on request. No message is sent, no rule is approved, and no match data is changed. Answers are not saved. Player names and contact details are excluded.</p>
     </div>
     <p class="hint">Local organiser confirmation and owner-approved scoring configuration are outstanding. Viewing this reference does not modify a match.</p>
   </details>`;
@@ -4676,6 +4678,16 @@ function matchLineupText(m) {
 }
 function oneResultText(m) {
   return `🏉 *${data.team.name} vs ${m.opponent || 'TBC'}*\n${resultText(m) || M.MATCH_STATUS[m.status]}${m.round ? ` · ${m.round}` : ''}\n📅 ${fmtLong(m.date)}`;
+}
+// Resolve current Match Day scope at the moment a coach requests a review.
+function matchRulesRequestFor(m) {
+  const linked=M.matchKind(ws,m),comp=linked?.comp||null;
+  const season=M.findSeason(data,m.seasonId);
+  const reviewed=matchFormatSourceReview(data.team,M.clubOf(ws,data),{
+    competition:comp?.name||(m.friendly?'Friendly (unlinked)':''),
+    season:season?.name||''
+  });
+  return matchRulesConfirmationChecklist(reviewed,m,linked,data.id);
 }
 function openMatch(id) { const m = matchById(id); if (m) openSheet(`vs ${m.opponent || 'TBC'}`, matchBody(m), 'match:' + id); }
 function refreshMatch(id) {
@@ -6377,6 +6389,7 @@ function requestCloseSheet() {
 function closeSheet() {
   // Dismissing either confirmation sheet revokes the pending fixture amendment.
   state.fixturePending = null;
+  state.pendingRulesEvidence=null;
   if (state.pending?.fixtureRevision) state.pending = null;
   stopPlayerCrop();
   const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; document.body.classList.remove('locked'); state.sheet = null;
@@ -6833,17 +6846,74 @@ const actions = {
   'match-rules-copy': coachOnly(el => {
     const m = matchById(el.dataset.id);
     if(!m || state.sheet !== 'match:' + m.id || !el.closest('#sheet .match-format-review'))return;
-    // Derive the latest fixture/competition context at click time, rather than
-    // trusting a stale open panel or copying coach/player notes from the DOM.
-    const linked = M.matchKind(ws,m);
-    const comp = linked?.comp || null;
-    const season = M.findSeason(data,m.seasonId);
-    const reviewed = matchFormatSourceReview(data.team,M.clubOf(ws,data),{
-      competition:comp?.name || (m.friendly ? 'Friendly (unlinked)' : ''),
-      season:season?.name || ''
-    });
-    const request = matchRulesConfirmationChecklist(reviewed,m,linked,data.id);
-    copyText(request.copyText,'Rules checklist copied for your review');
+    copyText(matchRulesRequestFor(m).copyText,'Rules checklist copied for your review');
+  }),
+  'match-rules-evidence-open': coachOnly(el => {
+    const m=matchById(el.dataset.id);
+    if(!m || state.sheet !== 'match:'+m.id ||
+       !el.closest('#sheet .match-format-review'))return;
+    const request=matchRulesRequestFor(m);
+    const id=m.id;
+    const controls=RULES_EVIDENCE_FIELDS.map(field=>{
+      const label=esc(field.label);
+      const placeholder={
+        sourceUrl:'https://official-organiser.example/rules',
+        edition:'e.g. 2026 local competition conditions',
+        effectiveDate:'YYYY-MM-DD',
+        scoring:'List all approved scoring event types and points',
+        lineups:'Number on field, positions, interchange and bench',
+        periods:'Period length, clock, injury time and forfeit method',
+        bylaws:'Any local exceptions or category-specific changes',
+        organiserDecision:'Where to find the organiser’s written decision'
+      }[field.id]||'';
+      const control=field.max>500 && field.id!=='sourceUrl'
+        ? `<textarea name="${field.id}" maxlength="${field.max}" rows="3" placeholder="${esc(placeholder)}"></textarea>`
+        : `<input name="${field.id}" maxlength="${field.max}" type="text" placeholder="${esc(placeholder)}" autocomplete="off">`;
+      return `<label class="field-l"><span>${label}</span>${control}</label>`;
+    }).join('');
+    openSheet('Competition rules evidence · Draft',
+      `<section class="match-rules-evidence">
+        <p class="note">Draft only. This worksheet is NOT approval to use a competition scoring format.</p>
+        <p class="hint">Sport: ${esc(request.scope.sport)} · ${esc(request.scope.competition)} · ${esc(request.scope.season)}.
+          Enter only public rule references and non-personal organiser conclusions.</p>
+        <p class="hint">Copy your completed or partial draft before leaving this page. Answers are not saved.</p>
+        <form data-form="match-rules-evidence" autocomplete="off">
+          ${controls}
+          <button type="button" class="btn primary block" data-act="match-rules-evidence-copy" data-id="${esc(id)}">${icon('copy',18)}Copy unverified evidence draft</button>
+          <output class="match-rules-evidence-status" role="status" aria-live="polite">No evidence or approval has been recorded.</output>
+        </form>
+        <p class="hint">A copy is not a certification. Verify the actual organiser document and obtain separate owner approval before any scoring or lineup rule can be enabled.</p>
+      </section>`, 'rules-evidence:'+id);
+    state.pendingRulesEvidence={
+      matchId:id,teamId:data.id,
+      context:JSON.stringify({scope:request.scope,blockers:request.blockers})
+    };
+  }),
+  'match-rules-evidence-copy': coachOnly(el=>{
+    const id=el.dataset.id,m=matchById(id);
+    const form=el.closest('form[data-form="match-rules-evidence"]');
+    const pending=state.pendingRulesEvidence;
+    if(!m||!form||!form.closest('#sheet')||
+       state.sheet!=='rules-evidence:'+id||
+       !pending||pending.matchId!==id||pending.teamId!==data.id)return;
+    const request=matchRulesRequestFor(m);
+    const current=JSON.stringify({scope:request.scope,blockers:request.blockers});
+    const out=form.querySelector('output');
+    if(current!==pending.context){
+      if(out)out.textContent='The competition or team context changed. Close this draft and reopen the review.';
+      return;
+    }
+    const values=Object.fromEntries(RULES_EVIDENCE_FIELDS.map(f=>[
+      f.id,form.elements.namedItem(f.id)?.value||''
+    ]));
+    const packet=draftMatchRulesEvidence(request,values);
+    if(!packet.valid){
+      const name=packet.errors.some(x=>x.startsWith('Source URL'))?'sourceUrl':'effectiveDate';
+      fieldError(form,name,packet.errors[0]);return;
+    }
+    if(out)out.textContent='Draft copied for external review. '+
+      packet.missing.length+' fields still need answers. No approval or match updates made.';
+    copyText(packet.copyText,'Unverified rules evidence draft copied');
   }),
   // Read-only point preview. Do not write, save, modify status, or mark rules approved.
   'score-preview-calc': coachOnly(el => {
