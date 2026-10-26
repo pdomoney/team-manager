@@ -46,6 +46,7 @@ import { matchRulesConfirmationChecklist } from './match-rules-confirmation.js';
 import { draftMatchRulesEvidence, RULES_EVIDENCE_FIELDS } from './match-rules-evidence-draft.js';
 import { matchRosterReadiness } from './matchday-roster-readiness.js';
 import { rosterRecordReview } from './matchday-roster-review.js';
+import { matchReplyRosterScope } from './matchday-season-rsvp.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -1310,20 +1311,34 @@ function bulkForm() {
 const RSVP_SHORT = { yes: 'Yes', maybe: 'Unsure', no: 'No' };
 const rsvpTarget = (kind, id) => kind === 'match' ? matchById(id) : sessionById(id);
 const asking = rec => Object.keys(obj(rec && rec.rsvp)).length > 0;
-function rsvpPills(rec) {
-  const c = M.rsvpCounts(rec, V.players);
+function rsvpPills(rec, players = V.players) {
+  const c = M.rsvpCounts(rec, players);
   return `<span class="pill ok">${c.yes} attending</span>${c.maybe ? ` <span class="pill neutral">${c.maybe} unsure</span>` : ''}${c.no ? ` <span class="pill bad">${c.no} not attending</span>` : ''} <span class="pill neutral">${c.none} no reply</span>`;
 }
 function rsvpBody(kind, id) {
   const rec = rsvpTarget(kind, id); if (!rec) return '';
-  const players = data.players.slice().sort((a, b) => (a.status === 'available' ? 0 : 1) - (b.status === 'available' ? 0 : 1) || a.name.localeCompare(b.name));
+  const scope = kind === 'match' ? matchReplyRosterScope(data,rec,M.clubOf(ws,data)) : null;
+  const seasonOnly=scope?.mode==='fixture-season';
+  const blocked=scope?.mode==='blocked';
+  const source=seasonOnly ? M.seasonLens(data,scope.seasonId).players : blocked ? [] : data.players;
+  const players = source.slice().sort((a, b) => (a.status === 'available' ? 0 : 1) - (b.status === 'available' ? 0 : 1) || a.name.localeCompare(b.name));
+  const scopeAttrs=seasonOnly
+    ? ` data-team-id="${esc(data.id)}" data-season-id="${esc(scope.seasonId)}" data-match-id="${esc(rec.id)}"`
+    : '';
   return `<p class="muted small" style="margin-bottom:8px">${esc(fmtLong(rec.date))}${rec.start ? ', ' + esc(fmtTime(rec.start)) : ''}. What each player said they’d do${kind === 'session' ? '. The roll call records who actually came' : ''}.</p>
-    <div class="roll-sum" id="rsvp-sum">${rsvpPills(rec)}</div>
-    ${players.length ? `<div class="list">${players.map(p => { const v = M.rsvpOf(rec, p.id); return `<div class="roll-row" data-row="${p.id}">
+    ${seasonOnly ? `<p class="hint" role="status">Showing only the ${esc(scope.seasonName)} fixture-season squad. These replies do not establish playing eligibility.</p>` : ''}
+    ${blocked ? `<p class="note" role="status">${esc(scope.reason)}</p>` : ''}
+    <div class="roll-sum" id="rsvp-sum">${rsvpPills(rec,seasonOnly||blocked?players:V.players)}</div>
+    ${players.length ? `<div class="list${seasonOnly?' match-season-rsvp':''}"${scopeAttrs}>${players.map(p => { const v = M.rsvpOf(rec, p.id); return `<div class="roll-row" data-row="${p.id}">
       <span class="grow"><span class="name" style="display:block">${esc(p.name)} ${gBadge(p)}</span>${p.status !== 'available' ? `<span class="pill ${p.status}">${STATUS[p.status]}</span>` : ''}</span>
       <span class="roll-btns" role="group" aria-label="${esc(p.name)}’s reply">${['yes', 'maybe', 'no'].map(k => `<button class="rb r-${k}" data-act="rsvp" data-k="${kind}" data-id="${rec.id}" data-pid="${p.id}" data-v="${k}" aria-pressed="${v === k}">${RSVP_SHORT[k]}</button>`).join('')}</span>
-    </div>`; }).join('')}</div>` : '<p class="muted">Add players in Squad first.</p>'}
-    <div class="btn-row" style="margin-top:14px"><button class="btn wa" data-act="rsvp-ask" data-k="${kind}" data-id="${rec.id}">${icon('chat', 18)}Ask for replies</button><button class="btn primary" data-act="close-sheet">Done</button></div>
+    </div>`; }).join('')}</div>` : blocked
+      ? '<p class="muted">No RSVP changes are available until the match season is corrected.</p>'
+      : '<p class="muted">Add players to this season’s squad first.</p>'}
+    <div class="btn-row" style="margin-top:14px">
+      ${blocked?'':`<button class="btn wa" data-act="rsvp-ask" data-k="${kind}" data-id="${rec.id}">${icon('chat', 18)}Ask for replies</button>`}
+      <button class="btn primary" data-act="close-sheet">Done</button>
+    </div>
     <p class="hint">Tap a reply again to clear it. Players reply on WhatsApp and you record it here; nothing changes until you do.</p>`;
 }
 // Players: a reply goes to the team contact on WhatsApp. It changes nothing in the app.
@@ -7095,10 +7110,24 @@ const actions = {
   'rsvp-open': coachOnly(el => { const rec = rsvpTarget(el.dataset.k, el.dataset.id); if (!rec) return; if (!V.players.length) { toast('Add players to your squad first'); return; } openSheet('Availability', rsvpBody(el.dataset.k, rec.id), 'rsvp'); }),
   'rsvp': coachOnly(el => {
     const rec = rsvpTarget(el.dataset.k, el.dataset.id); if (!rec) return;
+    const scope=el.dataset.k==='match'
+      ? matchReplyRosterScope(data,rec,M.clubOf(ws,data)) : null;
+    if(scope?.mode==='blocked'){toast('Match season needs review before replies can be changed.');return;}
+    if(scope?.mode==='fixture-season'){
+      const list=el.closest('#sheet .match-season-rsvp');
+      if(state.sheet!=='rsvp'||!list||list.dataset.teamId!==data.id||
+         list.dataset.matchId!==rec.id||list.dataset.seasonId!==scope.seasonId||
+         !scope.playerIds.includes(el.dataset.pid)||
+         el.closest('.roll-row')?.dataset.row!==el.dataset.pid){
+        toast('This player or fixture season changed. Reopen Availability to review.');return;
+      }
+    }
     const v = M.rsvpOf(rec, el.dataset.pid) === el.dataset.v ? '' : el.dataset.v;
     M.setRsvp(rec, el.dataset.pid, v); save();
     const row = el.closest('.roll-row'); if (row) row.querySelectorAll('[data-act="rsvp"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
-    const sum = $('#rsvp-sum'); if (sum) sum.innerHTML = rsvpPills(rec);
+    const sum = $('#rsvp-sum');
+    if(sum)sum.innerHTML=rsvpPills(rec,scope?.mode==='fixture-season'
+      ? M.seasonLens(data,scope.seasonId).players : V.players);
   }),
   'rsvp-ask': coachOnly(el => { closeSheet(); state.msgEvent = { kind: el.dataset.k, id: el.dataset.id }; state.msgRef = `rsvp:${el.dataset.k}:${el.dataset.id}`; openTemplate('availability'); }),
   'avail-ask': coachOnly(() => { state.msgEvent = null; state.msgRef = 'rsvp:all'; openTemplate('availability'); }),
