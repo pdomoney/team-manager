@@ -66,6 +66,7 @@ test('D3B no syntactic rights claim can by itself result in publication eligibil
  assert.equal(result.canPublish,false);
  assert.equal(result.sourceRightsApprovedByThisQueue,0);
  assert.ok(result.items.every(v=>v.reviewState==='candidate_unverified'));
+ assert.ok(result.items.every(v=>v.needsSourceTermsReview===true),'even syntactic D2 permissions are not independent consent validation');
  assert.equal(result.status,'HUMAN_VERIFICATION_QUEUE_ONLY_NO_DATA_CHANGES');
 });
 test('D3B detects invalid source record and never treats it as verified',()=>{
