@@ -1,10 +1,14 @@
-# Implementation handoff: national club directory (future PR)
+# Historical pilot handoff and remaining national club verification work
 
 ## Objective
 
-Add a **read-only, searchable national club reference catalogue**, populated only from publication-approved, club-level data. Integrate with the Team Manager existing club setup by explicitly offering to **copy selected public club metadata** into a new privately-managed club record, rather than allowing direct edits to the national source.
+**Historical objective (20 October 2026):** add a read-only national club reference catalogue without silently modifying a coach's managed clubs.
 
-This document archives the implementation requirements only. No production implementation is authorized by this branch.
+**Already implemented (26 October 2026):** [PR39](https://github.com/pdomoney/team-manager/pull/39) shipped the **research-candidate** directory and explicit copy-to-managed-club workflow. Subsequent linking work provides an explicit coach-confirmed `directoryMatch` to fill only missing sourced fields without overwriting existing `ws.clubs` identity, branding, notes or permissions. The current public catalogue has **143 rugby league** and **132 Oztag** entries. This historical PR contains **documentation only** and does not publish the original ZIP/SQLite/CSV.
+
+**Still unresolved:** source reuse/publication terms; positive verification of current registration or affiliation; missing jurisdictions/regions; per-row provenance and refresh cadence; audit of the already-public research-derived data. Do not call the present directory registration-verified or licensed solely because it is deployed. New authoritative datasets require separately reviewed provenance and approvals.
+
+See [CURRENT_STATE_AND_NEXT_PHASE.md](CURRENT_STATE_AND_NEXT_PHASE.md) for specific next-phase gates.
 
 ## Existing Team Manager architecture to preserve
 
@@ -20,14 +24,14 @@ Create a distinct national catalogue with its own stable identity (`directory_cl
 
 Do not derive NRL registration status merely from being named in competition pages, old news or third-party directories.
 
-## Stages for a subsequent implementation PR
+## Original stages and their current status
 
-1. **Acquisition and licensing:** Secure reusable club-only upstream data (NRL, MySideline, governing bodies) with permission to store and publish it; review the terms. Retain exact source URL, publication date, fetch/review date and terms/permissions record.
-2. **Coverage and identity:** Reconcile all jurisdictions and regions. Treat `TAS=0` and QLD major-clubs-only as known gaps. Deduplicate by verified official ID, followed by normalized name + locality/state only when non-conflicting. Do not silently merge conflicting MySideline IDs.
-3. **Validation pipeline:** Offline, deterministic import with dry-run report; idempotent ingest; explicit approval for aliases/conflicts; no overwrite of verified values with blanks, candidate assertions or older records. Store versioned catalogue and audit/coverage report.
-4. **User experience:** Add search/select by club name, aliases, state, region and suburb. A result is not an access grant. Show last verified date and 'unverified' or 'details need checking' status. Require explicit confirmation to copy supported fields into a new managed club.
-5. **Storage and deployment:** Serve approved read-only directory data separately from encrypted, mutable coach workspace records. No autoload into every user's local storage or private team file. Prefer paged or indexed search that performs well across thousands of entries. Define ownership and refresh policy.
-6. **Regression and controlled release:** Protect team switching, branding, team-specific permissions, private coach contacts, offline use and player copy privacy; verify licence approvals, scope and completeness before production publication.
+1. **Acquisition and licensing — OUTSTANDING:** Review terms and licence/reuse permission for current public research catalogue as well as future NRL, MySideline and governing-body sources; retain exact URL, date and approval evidence. Remove, restrict or replace any records if permission is not supported.
+2. **Coverage and identity — PARTIAL:** Reconcile all jurisdictions and regions. Treat `TAS=0` and QLD major-clubs-only as known gaps. Deduplicate by verified official ID, followed by normalized name + locality/state only when non-conflicting. Do not silently merge conflicting MySideline IDs.
+3. **Validation pipeline — OUTSTANDING:** Offline, deterministic source audit/dry-run report; idempotent ingest; explicit approval for aliases/conflicts; no overwrite of verified values with blanks, candidate assertions or older records. Store versioned catalogue and audit/coverage report.
+4. **User experience — RESEARCH-LEVEL LIVE, AUTHORITATIVE UPLIFT OUTSTANDING:** Current PR39+ supports candidate search, explicit copy and coach-confirmed linking. A result is not an access grant. Preserve candidate labels, reveal last checked date, and only show authoritative registration when independent source proof has been reviewed.
+5. **Storage and deployment — PARTIAL:** A public static 275-row candidate catalogue already ships separately from the encrypted coach workspace. No raw ZIP has been committed. Audit data-rights provenance and set a refresh/removal process before expanding it to thousands of verified entries. Never auto-import a directory candidate into coach data.
+6. **Regression and controlled release — EXISTING TESTS, ADDITIONAL SOURCE GATES:** PR39+ unit/browser checks protect team switching, branding, manual consent and private player projections. New authoritative claims or source data still require their own rights/coverage review, negative security tests, offline/real Safari review and owner approval.
 
 ## Mandatory acceptance gates
 
@@ -39,7 +43,7 @@ Do not derive NRL registration status merely from being named in competition pag
 - Search cannot grant administrator, manager or volunteer privileges, even when club details match.
 - Browsing and preview do not mutate local or published team data.
 - Privacy tests confirm player copies exclude private notes, contact details and access controls.
-- No raw third-party source dataset appears in public pages or repo before permission to republish.
+- The **historical raw pilot archive** remains absent from public GitHub Pages/repo. Separately, a research-derived public directory already ships from PR39; its source licences and publication permissions remain subject to explicit audit. No extra raw source dump, new images or permission-dependent data is to be published.
 - Automated unit and browser checks pass; manual Safari review; explicit approval before merging into production.
 
 ## Recover and verify the original research archive
