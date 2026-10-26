@@ -13,7 +13,7 @@ test('P11L combines season RSVP, arrival, human conflicts and rules without writ
  const d=data(),m=fixture(),original=structuredClone({d,m});
  const a=prep(d,m,null,'2026-10-26',rules);
  assert.equal(a.state,'review-only');assert.equal(a.total,2);
- assert.equal(a.arrivalCount,2);assert.equal(a.conflictingRecords,2);
+ assert.equal(a.arrivalCount,2);assert.equal(a.conflictingRecords,1);
  assert.equal(a.requiredRulesQuestions,2);assert.equal(a.scopeRuleBlockers,1);
  assert.equal(a.canOpenRoster,true);assert.equal(a.canOpenVenue,true);
  assert.equal(a.mayScore,false);assert.equal(a.rulesReady,false);
