@@ -1,6 +1,14 @@
 # Release record — current status and historical milestones
 
-## Current merged baseline — 19 October 2026
+## Current reviewed development baseline — 26 October 2026
+
+- **Merged `main` as reviewed:** [`21559a663a3d`](https://github.com/pdomoney/team-manager/commit/21559a663a3d4e93e788bd2e34dc134b7b03ea28), following PR #117. [Post-merge Tests](https://github.com/pdomoney/team-manager/actions/runs/40295459626) passed **542/542 Node** and **1,817/1,817 Chromium checks (52/52 suites)**; [Publish](https://github.com/pdomoney/team-manager/actions/runs/40296651820) succeeded.
+- **Open change, not yet merged:** [PR #118](https://github.com/pdomoney/team-manager/pull/118), commit `e3224e0e9af3`, **546/546 Node and 1,871/1,871 Chromium (54/54 suites)** exact-head PASS; owner Safari/functional review and merge outstanding.
+- **Programme:** [P00–P10 roadmap #41](https://github.com/pdomoney/team-manager/issues/41) 100% administratively accepted, with physical Safari/recovery/live-publishing release evidence still unverified. [P11 #31](https://github.com/pdomoney/team-manager/issues/31) 20% by its milestone tracker; [directory #99](https://github.com/pdomoney/team-manager/issues/99) and [QA persona #62](https://github.com/pdomoney/team-manager/issues/62) each 67%, with independent owner/security/source review gates pending.
+- **No stable release certification:** Passing synthetic CI does not prove actual iOS/macOS Safari, real GitHub encrypted backup/publishing, cross-tenant server authorisation or legally usable club directory content. Backend/security #55 remains deferred.
+- **Full reviewed source and technical baseline:** [26 October handoff](architecture/development-baseline-20261026.md). The older 19 October PR15 record is retained intact below as historical evidence.
+
+## Historical merged baseline — 19 October 2026
 
 - **Authoritative `main`:** [`6d62e83d2a1d`](https://github.com/pdomoney/team-manager/commit/6d62e83d2a1d67db2698c7aa1da4cb9ca5a8fd38). PRs #1–#7 and #9–#15 are merged; PR #8 was closed without merging and selectively superseded by accepted changes.
 - **Features included:** multi-club Home; seasons and competitions; player photos and jerseys; explicit cross-team player links; sport inheritance and override; fresh New Team with deliberate setup reuse.
