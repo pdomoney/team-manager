@@ -37,6 +37,7 @@ import { personField, helperPlayerField } from './p09-person-form.js';
 import { organisationPreview, ORG_PREVIEW_MODES, nextOrgPreviewSelection } from './p09-org-preview.js';
 import { QA_ROLES, qaPreview } from './p11-qa-personas.js';
 import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
+import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -5990,12 +5991,12 @@ function bylawForm(b) {
 const layoutPref = () => ['auto', 'phone', 'wide'].includes(store.get('tm-layout')) ? store.get('tm-layout') : 'auto';
 const widthPref = () => store.get('tm-width') === 'full' ? 'full' : 'comfy';
 // Density changes visual rhythm, never the browser zoom or encrypted team data.
-const densityPref = () => store.get('tm-density') === 'compact' ? 'compact' : 'comfortable';
+const densityPref = () => normalizeDensity(store.get('tm-density'));
 function applyLayout() {
   const pref = layoutPref(), wide = pref === 'wide' || (pref === 'auto' && window.innerWidth >= 1000);
   document.body.classList.toggle('wide', wide);
   document.body.classList.toggle('full', wide && widthPref() === 'full');
-  const eligible = wide && window.innerWidth >= 1000;
+  const eligible = mayUseCompactDensity(wide, window.innerWidth);
   const compact = eligible && densityPref() === 'compact';
   document.body.classList.toggle('density-compact', compact);
   const quick = $('#density-btn');
