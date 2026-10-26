@@ -30,6 +30,31 @@ with sync_playwright() as p:
         c.ok(selected['color']=='rgb(255, 255, 255)' and selected['bg']!='rgb(255, 255, 255)'
              and '✓' in selected['mark'] and selected['height']>=44,
              f'{width}: selection is clearly indicated, helpers remain white, and target >=44px')
+        layout=pg.evaluate("""() => {
+          const rows=[...document.querySelectorAll('#sheet .crew-entry-choices .opt')];
+          const s=rows.map(row=>{
+            const surface=row.querySelector('span'),title=surface.querySelector('strong'),
+              helper=surface.querySelector('small'),rect=surface.getBoundingClientRect();
+            return {outerBorder:getComputedStyle(row).borderTopWidth,
+              innerBorder:getComputedStyle(surface).borderTopWidth,
+              height:rect.height,width:rect.width,font:getComputedStyle(title).fontSize,
+              titleBlock:getComputedStyle(title).display,
+              descriptionBlock:getComputedStyle(helper).display,
+              descriptionColor:getComputedStyle(helper).color};
+          });
+          const pane=document.querySelector('#sheet').getBoundingClientRect();
+          return {rows:s,number:s.length,paneWidth:pane.width,
+            scrollWidth:document.documentElement.scrollWidth};
+        }""")
+        c.ok(layout['number']==3 and all(r['outerBorder']=='0px' and r['innerBorder']=='1px'
+              for r in layout['rows']),
+              f'{width}: each radio choice is one outlined surface rather than a nested pill')
+        c.ok(all(r['height']>=44 and r['titleBlock']=='block' and r['descriptionBlock']=='block'
+              for r in layout['rows']),
+              f'{width}: readable two-level hierarchy and touch targets preserved')
+        c.ok(all(r['width']<=layout['paneWidth'] for r in layout['rows']) and
+             layout['scrollWidth']<=width+1,
+              f'{width}: volunteer choices do not overflow their sheet or viewport')
         # The shared modal intentionally focuses Close with a 30ms timer.
         # Let that initial focus settle before testing explicit radio focus,
         # otherwise the delayed modal focus can race this assertion on CI.

@@ -1144,8 +1144,8 @@ div.cl-line,p.cl-line{cursor:default}
 .crew-directory-picker{display:flex;align-items:end;gap:10px;margin:12px 0 18px}
 .crew-directory-picker>.field-l{flex:1;min-width:0;margin:0}
 .crew-directory-picker>.btn{flex:none;margin-bottom:0}
-.crew-entry-choices{border:0;margin:10px 0 14px;padding:0;min-width:0}
-.crew-entry-choices legend{font-weight:600;margin-bottom:8px}
+.crew-entry-choices{border:0;margin:8px 0 12px;padding:0;min-width:0}
+.crew-entry-choices legend{font-weight:600;line-height:1.35;margin-bottom:8px}
 @media(max-width:600px){.crew-directory-picker{flex-direction:column;align-items:stretch}
 .crew-directory-picker>.btn{align-self:flex-start}}
 
@@ -1444,24 +1444,30 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
 .crew-help{margin:10px 0 22px}
 .crew-rules-panel .crew-req{margin:12px 0 0}
 .crew-rules-panel .crew-status{margin-top:12px}
-/* One selectable surface, not a pill nested in another bordered card. */
-.crew-entry-choices .opt{position:relative;display:block;border:0;padding:0;margin:0 0 8px;
-  border-radius:11px;background:transparent}
+/* P11 UX: one restrained, accessible selection surface per volunteer method. */
+.crew-entry-choices .opt{position:relative;display:block;border:0;padding:0;margin:0 0 7px;
+  border-radius:10px;background:transparent}
+.crew-entry-choices .opt:last-of-type{margin-bottom:0}
 .crew-entry-choices .opt input{z-index:1;cursor:pointer}
 .crew-entry-choices .opt > span{display:block;position:relative;min-height:48px;
-  border:1px solid var(--line);border-radius:11px;
-  background:var(--paper);padding:10px 48px 10px 13px;font-size:15px;font-weight:500}
-.crew-entry-choices .opt strong{font-size:16px;font-weight:600}
-.crew-entry-choices .opt small{font-size:14px;line-height:1.45;font-weight:400;color:var(--muted)}
+  border:1px solid var(--line);border-radius:10px;
+  background:var(--paper);padding:9px 45px 9px 12px;font-size:15px;font-weight:400}
+.crew-entry-choices .opt strong{display:block;font-size:15px;line-height:1.3;font-weight:600}
+.crew-entry-choices .opt small{display:block;margin-top:2px;font-size:13px;line-height:1.35;
+  font-weight:400;color:var(--muted)}
 .crew-entry-choices .opt input:checked + span{background:var(--pitch);border-color:var(--pitch);color:#fff}
 .crew-entry-choices .opt input:checked + span small{color:#fff;opacity:1}
-.crew-entry-choices .opt input:checked + span::after{content:"✓";position:absolute;right:13px;top:50%;transform:translateY(-50%);
+.crew-entry-choices .opt input:checked + span::after{content:"✓";position:absolute;right:12px;top:50%;transform:translateY(-50%);
   width:23px;height:23px;display:grid;place-items:center;border:1px solid currentColor;border-radius:50%;
-  font-size:15px;font-weight:700}
+  font-size:15px;font-weight:600}
 .crew-entry-choices .opt:hover > span{border-color:var(--pitch)}
 .crew-entry-choices .opt input:checked + span:hover{border-color:var(--pitch)}
 .crew-entry-choices .opt input:focus + span,
 .crew-entry-choices .opt input:focus-visible + span{outline:3px solid var(--gold);outline-offset:2px}
+@media(max-width:600px){
+  #sheet form[data-form="crew-intake-start"] > .hint{margin:0 0 11px;line-height:1.4}
+  #sheet form[data-form="crew-intake-start"] > .field-l{margin-bottom:12px}
+}
 @media(max-width:600px){
   .crew-directory-panel,.crew-rules-panel{padding:12px}
   .crew-page-nav .btn{padding:9px 8px}
