@@ -1776,3 +1776,13 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   color:var(--ink);font-weight:600;line-height:1.4}
 @media(max-width:600px){.match-score-preview{padding:7px 9px}
   .score-preview-labels,.score-preview-row{grid-template-columns:minmax(0,1fr) 66px 66px;gap:5px}}
+
+
+/* P11E coach-only external competition rules confirmation request; no writes. */
+.match-rules-request{margin:12px 0;border-top:1px solid var(--line);padding-top:12px}
+.match-rules-request h3{font-size:15px;font-weight:600;line-height:1.4;margin:0 0 8px}
+.match-rules-request ol{padding-left:22px;margin:8px 0 13px}
+.match-rules-request li{font-size:14px;line-height:1.5;margin:5px 0;overflow-wrap:anywhere}
+.match-rules-request .diff-list{padding-left:20px;margin:8px 0 12px}
+.match-rules-request .btn{min-height:44px;white-space:normal;text-align:center}
+.match-rules-request .hint{margin:7px 0;line-height:1.4}
