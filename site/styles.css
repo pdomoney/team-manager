@@ -1786,3 +1786,16 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
 .match-rules-request .diff-list{padding-left:20px;margin:8px 0 12px}
 .match-rules-request .btn{min-height:44px;white-space:normal;text-align:center}
 .match-rules-request .hint{margin:7px 0;line-height:1.4}
+
+
+/* P11F: ephemeral evidence worksheet, not an approval workflow. */
+.match-rules-evidence .note{margin:0 0 12px;line-height:1.45}
+.match-rules-evidence .hint{margin:8px 0 12px;line-height:1.45;overflow-wrap:anywhere}
+.match-rules-evidence form{min-width:0}
+.match-rules-evidence .field-l{display:block;margin:0 0 12px;min-width:0}
+.match-rules-evidence textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:84px}
+.match-rules-evidence input{width:100%;box-sizing:border-box;min-height:44px}
+.match-rules-evidence .match-rules-evidence-status{display:block;min-height:35px;
+  margin:10px 0;padding:8px 0;font-size:14px;line-height:1.45;color:var(--muted)}
+.match-rules-evidence .btn{min-height:44px;white-space:normal}
+@media(max-width:600px){.match-rules-evidence .field-l{margin-bottom:10px}}
