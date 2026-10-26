@@ -1750,3 +1750,29 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
 .match-format-row dd{margin:0;min-width:0}
 .match-format-review a{overflow-wrap:anywhere}
 @media(max-width:600px){.match-format-review{padding:8px 10px}.match-format-row{gap:8px}}
+
+
+/* P11C: transient, source-scoped score breakdown; not a saved match result. */
+.match-score-preview{margin:12px 0;border:1px solid var(--line);
+  border-radius:11px;padding:8px 12px;background:var(--paper);overflow-wrap:anywhere}
+.match-score-preview summary{cursor:pointer;min-height:44px;padding:10px 0;font-weight:600}
+.match-score-preview summary:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.match-score-preview .hint{line-height:1.4}
+.score-preview-labels,.score-preview-row{display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(68px,82px) minmax(68px,82px);
+  align-items:center;column-gap:8px}
+.score-preview-labels{font-weight:600;font-size:13px;color:var(--muted);
+  margin:9px 0 3px}
+.score-preview-labels span:not(:first-child){text-align:center}
+.score-preview-row{border-top:1px solid var(--line);padding:7px 0;
+  font-size:14px;line-height:1.35}
+.score-preview-row > span{min-width:0}
+.score-preview-row small{display:block;color:var(--muted);font-size:12px}
+.score-preview-row label{margin:0;display:block;min-width:0}
+.score-preview-row input{display:block;box-sizing:border-box;width:100%;
+  min-height:44px;padding:7px 6px;text-align:center;color:var(--ink);font:500 16px var(--font-b)}
+.score-preview-row input:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
+.score-preview-output{display:block;min-height:26px;margin:12px 0 6px;
+  color:var(--ink);font-weight:600;line-height:1.4}
+@media(max-width:600px){.match-score-preview{padding:7px 9px}
+  .score-preview-labels,.score-preview-row{grid-template-columns:minmax(0,1fr) 66px 66px;gap:5px}}
