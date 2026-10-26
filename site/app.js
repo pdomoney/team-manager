@@ -42,6 +42,7 @@ import { matchDayPresentation } from './match-day-presentation.js';
 import { matchFormatSourceReview } from './match-format-source-review.js';
 import { sourceScorePreviewPolicy, calculateSourceScorePreview } from './source-score-preview.js';
 import { fixtureScorePreviewGate } from './score-preview-fixture-gate.js';
+import { matchRulesConfirmationChecklist } from './match-rules-confirmation.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -4490,6 +4491,7 @@ function matchBody(m) {
     competition: linkedComp?.name || (m.friendly ? 'Friendly (unlinked)' : ''),
     season: linkedSeason?.name || ''
   });
+  const rulesChecklist = matchRulesConfirmationChecklist(sourceReview,m,linkedKind,data.id);
   const sourceLabel = sourceReview.source
     ? `<a href="${esc(sourceReview.source.url)}" target="_blank" rel="noopener noreferrer">Open reference rules (${esc(sourceReview.source.edition || sourceReview.source.title)})</a>
        <p class="hint">Rulebook record checked ${esc(sourceReview.source.checked || 'date not recorded')}. This does not establish the format adopted by the competition or authorise a new scorer.</p>`
@@ -4504,6 +4506,17 @@ function matchBody(m) {
       ${scopeRow('Category',sourceReview.category)}${scopeRow('Rule set',sourceReview.configuredRulePack)}</dl>
     ${sourceLabel}
     ${sourceReview.crossSportRulePack ? '<p class="err">Selected rule set belongs to a different sport. Review the team settings before using it.</p>' : ''}
+    <div class="match-rules-request">
+      <h3>Request competition rule confirmation</h3>
+      ${rulesChecklist.blockers.length
+        ? `<p class="hint">Missing or conflicting information:</p><ul class="diff-list issues">
+            ${rulesChecklist.blockers.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`
+        : '<p class="hint">The recorded fixture scope is consistent. Official competition approval is still outstanding.</p>'}
+      <p class="hint">Ask the competition organiser to confirm:</p>
+      <ol>${rulesChecklist.questions.map(x=>`<li>${esc(x.label)}</li>`).join('')}</ol>
+      <button type="button" class="btn block" data-act="match-rules-copy" data-id="${esc(m.id)}">${icon('copy',18)}Copy rules confirmation checklist</button>
+      <p class="hint">Copies a draft for your review. No message is sent, no rule is approved, and no match data is changed. Player names and contact details are excluded.</p>
+    </div>
     <p class="hint">Local organiser confirmation and owner-approved scoring configuration are outstanding. Viewing this reference does not modify a match.</p>
   </details>`;
   // Explicitly selected adult source packs only. Counts are transient DOM values:
@@ -6817,6 +6830,21 @@ const actions = {
     <button class="pick" data-act="bulk-add">${icon('copy')}<span class="grow"><span class="name" style="display:block">Paste a list</span><span class="tagline">Names from a spreadsheet or the team chat</span></span></button>
     <button class="pick" data-act="player-import">${icon('team')}<span class="grow"><span class="name" style="display:block">From another team</span><span class="tagline">Players already in one of your teams</span></span></button></div>`, 'squad-add')),
   'match-open': coachOnly(el => openMatch(el.dataset.id)),
+  'match-rules-copy': coachOnly(el => {
+    const m = matchById(el.dataset.id);
+    if(!m || state.sheet !== 'match:' + m.id || !el.closest('#sheet .match-format-review'))return;
+    // Derive the latest fixture/competition context at click time, rather than
+    // trusting a stale open panel or copying coach/player notes from the DOM.
+    const linked = M.matchKind(ws,m);
+    const comp = linked?.comp || null;
+    const season = M.findSeason(data,m.seasonId);
+    const reviewed = matchFormatSourceReview(data.team,M.clubOf(ws,data),{
+      competition:comp?.name || (m.friendly ? 'Friendly (unlinked)' : ''),
+      season:season?.name || ''
+    });
+    const request = matchRulesConfirmationChecklist(reviewed,m,linked,data.id);
+    copyText(request.copyText,'Rules checklist copied for your review');
+  }),
   // Read-only point preview. Do not write, save, modify status, or mark rules approved.
   'score-preview-calc': coachOnly(el => {
     const form = el.closest('form[data-form="score-preview"]');
