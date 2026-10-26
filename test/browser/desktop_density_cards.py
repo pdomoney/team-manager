@@ -37,8 +37,15 @@ with sync_playwright() as p:
               };
             }""")
         comfy=snapshot()
+        c.ok(pg.inner_text('#density-btn').strip()=='Compact' and
+             pg.get_attribute('#density-btn','aria-pressed')=='false',
+             f'[{width}] header visibly names Compact mode as off (not destination label)')
         pg.click('#density-btn')
         dense=snapshot()
+        c.ok(pg.inner_text('#density-btn').strip()=='Compact ✓' and
+             pg.get_attribute('#density-btn','aria-pressed')=='true' and
+             'active' in pg.get_attribute('#density-btn','aria-label'),
+             f'[{width}] header names Compact mode as active, matching Settings')
         c.ok(pg.evaluate("document.body.classList.contains('density-compact')"),
              f'[{width}] only explicit density toggle enters compact mode')
         c.ok(dense['competitionHeight']+15 < comfy['competitionHeight'],
