@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sourceScorePreviewPolicy as policy,calculateSourceScorePreview as calc}
 from '../site/source-score-preview.js';
-const league=policy({sport:'Rugby league',rules:'league/men'});
-const tag=policy({sport:'League tag',rules:'league-tag/15'});
+const league=policy({sport:'Rugby league',rules:'league/men',ageGroup:'open',category:'men'});
+const tag=policy({sport:'League tag',rules:'league-tag/15',ageGroup:'open',category:'women'});
 const zeros=p=>Object.fromEntries(p.events.map(e=>[e.id,'0']));
 test('P11C international rugby league breakdown uses explicit selected source only',()=>{
  assert.equal(league.id,'league-international');
