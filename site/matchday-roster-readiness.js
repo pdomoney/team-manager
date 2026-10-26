@@ -34,6 +34,9 @@ export function matchRosterReadiness(data,match,club=null){
       reply==='maybe'||reply==='yes'?'needs-review':'no-reply';
     const preferred=frozen([...new Set(arr(player.positions).filter(v=>typeof v==='string'&&v.trim()).map(v=>v.trim()))].slice(0,4));
     groups[bucket].push(frozen({
+      // Internal coach-only identity for resolving an exact RSVP. Never use
+      // display name or jersey number as a stable player identifier.
+      playerId:player.id,
       name:word(player.name),number:word(player.number),
       reply:reply||'none',status:state,
       preferred,arrived:match.arrived?.[player.id]===true
