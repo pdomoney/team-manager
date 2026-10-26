@@ -11,7 +11,7 @@ The existing 275 public research records remain **unverified candidates**. A lim
 | Belconnen United Sharks (`rlc_c4d2672383f09c`) | Belconnen United Sharks **Seniors** | https://www.playrugbyleague.com/Competitions/Club/belconnen-united-sharks-seniors-234911 |
 | Gungahlin Bulls (`rlc_1004b6ffaa6d1e`) | Gungahlin Bulls **Seniors** | https://www.playrugbyleague.com/Competitions/Club/gungahlin-bulls-seniors-13450 |
 
-The Canterbury/Canberra governing-region FAQ at https://www.raiders.com.au/crrl/about/faq-page/ specifically directs potential registrants to Play Rugby League and separately discusses juniors and seniors. This supplies **review leads**, not authoritative determinations by Team Manager. The Seniors qualifier may matter: a generic catalogue club and a specific seniors registration entity must **not** be silently equated, renamed, or merged with a junior club.
+The Canberra Region Rugby League FAQ at https://www.raiders.com.au/crrl/about/faq-page/ specifically directs potential registrants to Play Rugby League and separately discusses juniors and seniors. This supplies **review leads**, not authoritative determinations by Team Manager. The Seniors qualifier may matter: a generic catalogue club and a specific seniors registration entity must **not** be silently equated, renamed, or merged with a junior club.
 
 The official NRL Terms of Use https://www.nrl.com/terms-of-use explicitly restrict copying/publication without prior written consent except as permitted by law. Whether those terms govern each of these *Play Rugby League* URLs and the proposed use of names/links must be confirmed by the actual rights owner or qualified reviewer. NRL's https://www.nrl.com/contact-us/ advertises a licensing enquiry channel. No permission was obtained.
 
