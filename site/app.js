@@ -44,6 +44,7 @@ import { sourceScorePreviewPolicy, calculateSourceScorePreview } from './source-
 import { fixtureScorePreviewGate } from './score-preview-fixture-gate.js';
 import { matchRulesConfirmationChecklist } from './match-rules-confirmation.js';
 import { draftMatchRulesEvidence, RULES_EVIDENCE_FIELDS } from './match-rules-evidence-draft.js';
+import { matchRosterReadiness } from './matchday-roster-readiness.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -4576,7 +4577,25 @@ function matchBody(m) {
     const prior = r.us !== undefined && r.them !== undefined
       ? `<p class="hint">Previously recorded totals: ${esc(r.us)}–${esc(r.them)}. Their scoring type is not independently verified for this sport.</p>`
       : '';
-    sec.lineup = `<h3 class="form-sec">Lineup</h3><p class="hint">A sport-specific lineup is not configured for ${sportName}. Existing match records and historic lineups are preserved; no Oztag eight-player formation is applied.</p>`;
+    const readiness=matchRosterReadiness(data,m,M.clubOf(ws,data));
+    const rosterPanel=readiness.state!=='view-only'
+      ? `<p class="hint">Roster readiness not available: ${esc(readiness.reason)}</p>`
+      : `<details class="match-roster-readiness">
+        <summary>Squad readiness · ${readiness.total} recorded players</summary>
+        <p class="hint">These are replies and player position preferences recorded for the ${esc(readiness.season)} season. This is not a match lineup, playing eligibility check, or authorised on-field player count.</p>
+        <div class="roster-readiness-summary">${readiness.groups.map(g=>`<span class="pill neutral">${esc(g.label)}: ${g.count}</span>`).join(' ')}</div>
+        ${readiness.groups.map(g=>`<section class="roster-readiness-group">
+          <h4>${esc(g.label)} (${g.count})</h4>
+          ${g.players.length
+            ? `<ul>${g.players.map(p=>`<li>
+                <span class="roster-person">${p.number ? `#${esc(p.number)} · ` : ''}${esc(p.name)}${p.arrived?' · Arrived':''}</span>
+                <small>${p.reply==='maybe'?'Unsure':p.reply==='yes'?'Said yes':p.reply==='no'?'Said no':'No reply'}${p.status!=='available'?' · '+esc(p.status):''}${p.preferred.length?' · Preferences: '+esc(p.preferred.join(', ')):''}</small>
+              </li>`).join('')}</ul>`
+            : '<p class="hint">No players in this group.</p>'}
+        </section>`).join('')}
+        <p class="hint">Positions shown are player preferences, not verified assignments. Use Record replies to correct availability; competition rules and lineup sizes must still be confirmed.</p>
+      </details>`;
+    sec.lineup = `<h3 class="form-sec">Lineup</h3><p class="hint">A sport-specific lineup is not configured for ${sportName}. Existing match records and historic lineups are preserved; no Oztag eight-player formation is applied.</p>${rosterPanel}`;
     sec.result = `<h3 class="form-sec">Score and notes</h3><p class="hint">Scoring controls for ${sportName} require an approved competition format. Existing match status and notes are preserved. Use Edit details for match information; scoring will be enabled only after the rules are reviewed.</p>${prior}${scorePreviewCaution}${scorePreviewCard}`;
   }
   // Ordered by when each part is needed.
