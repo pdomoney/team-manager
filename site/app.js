@@ -36,6 +36,7 @@ import { inputField, selectField, radioChoices } from './form-controls.js';
 import { personField, helperPlayerField } from './p09-person-form.js';
 import { organisationPreview, ORG_PREVIEW_MODES, nextOrgPreviewSelection } from './p09-org-preview.js';
 import { QA_ROLES, qaPreview } from './p11-qa-personas.js';
+import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -317,7 +318,7 @@ const state = {
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
-  qaPersona: null, qaScope: '',  // Ephemeral QA-only read-only synthetic layout; never saved
+  qaPersona: null, qaScope: '', qaJourney: '', // Ephemeral QA-only fictional layout and guided tests, never saved
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
 };
@@ -714,6 +715,15 @@ function renderQaScreen() {
   $('#status').hidden=false;
   $('#status').className='status info';
   $('#status').innerHTML='<span class="dot" aria-hidden="true"></span><span class="grow">Synthetic QA preview only. No real login, authorisation, or GitHub publishing.</span>';
+  const journeys=qaJourneys(x.role,x.scope),active=qaJourney(x.role,x.scope,state.qaJourney);
+  const guide=active ? '<section class="qa-guide" aria-label="Synthetic QA walkthrough" data-qa-journey="'+esc(active.id)+'">'+
+    '<div class="sec-h"><h3>'+esc(active.title)+'</h3><button type="button" class="btn sm" data-act="qa-journey-back">All QA journeys</button></div>'+
+    '<p class="muted small">'+esc(active.description)+'</p>'+
+    '<p class="qa-guide-context">Simulated scope: <strong>'+esc(active.scopeLabel)+'</strong></p>'+
+    '<ol class="qa-steps">'+active.steps.map(step=>'<li>'+esc(step)+'</li>').join('')+'</ol>'+
+    '<h4>Visible example context</h4>'+
+    (active.visibleEntities.length ? '<ul class="qa-identity-list">'+active.visibleEntities.map(v=>'<li>'+esc(v.name)+'</li>').join('')+'</ul>' : '<p>No fictional records in this example scope.</p>')+
+    '<p class="hint">Illustrative test steps only. No form, publication, person data or actual role permission is accessed.</p></section>' : '';
   const list=(items,empty)=>items.length
     ? '<ul class="qa-identity-list">' + items.map(a=>'<li>'+esc(a.name)+(a.sport?' · '+esc(a.sport):'')+'</li>').join('')+'</ul>'
     : '<p class="muted small">'+esc(empty)+'</p>';
@@ -726,7 +736,8 @@ function renderQaScreen() {
     '<div class="qa-tiles"><section><h3>Associations</h3>'+list(x.associations,'No associations in this simulated scope')+'</section>' +
     '<section><h3>Clubs</h3>'+list(x.clubs,'No clubs in this simulated scope')+'</section>' +
     '<section><h3>Teams</h3>'+list(x.teams,'No teams in this simulated scope')+'</section>' +
-    '<section><h3>Example workflow areas</h3>'+list(x.workflows.map(name=>({name})),'No example workflows')+'</section></div>' +
+    '<section><h3>Guided QA journeys</h3><p class="muted small">Fictional walkthroughs — no editing or publishing.</p><div class="qa-journey-buttons">'+journeys.map(j=>'<button type="button" class="btn sm" data-act="qa-journey" data-id="'+esc(j.id)+'" aria-pressed="'+(active?.id===j.id)+'">'+esc(j.title)+'</button>').join('')+'</div></section></div>' +
+    guide +
     '<p class="hint">No edits, invitations, password operations, sensitive-person access or publication are available in this simulated view. Real team and account roles require the future server-enforced authorisation work (#55).</p></section>';
   document.title='Test persona · '+x.roleLabel+' · Team Manager';
 }
@@ -6591,7 +6602,14 @@ function extendTestLibrary(day) {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
-  'qa-exit': () => { state.qaPersona=null;state.qaScope='';render(); },
+  'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';render(); },
+  'qa-journey': el => {
+    if(!qaEnabled()||!state.qaPersona)return;
+    const j=qaJourney(state.qaPersona,state.qaScope,el.dataset.id);
+    if(!j)return;
+    state.qaJourney=j.id;render();
+  },
+  'qa-journey-back': () => { if(state.qaPersona&&qaEnabled()){state.qaJourney='';render();} },
   'tab': el => { if (el.dataset.tab === 'club') state.clubId = null; goTo(el.dataset.tab); },
   'nav': el => { const g = NAV.find(x => x.id === el.dataset.g); if (!g) return; const last = state.lastView[g.id]; goTo(last && viewsOf(g).some(v => v[0] === last) && navOf(state.tab) !== g ? last : viewsOf(g)[0][0]); },
   'close-sheet': () => requestCloseSheet(),
@@ -7574,7 +7592,7 @@ const actions = {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   // QA screen is read-only even for forged clicks aimed at existing coach actions.
-  if (state.qaPersona && el.dataset.act !== 'qa-exit') { e.preventDefault();return; }
+  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back'].includes(el.dataset.act)) { e.preventDefault();return; }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
@@ -7625,6 +7643,7 @@ document.addEventListener('change', e => {
     const role=e.target.value;
     if (!qaEnabled() || (role && !QA_ROLES.some(x=>x.id===role))) { state.qaPersona=null;state.qaScope='';render();return; }
     state.qaPersona=role||null;
+    state.qaJourney='';
     state.qaScope=state.qaPersona ? qaPreview(state.qaPersona,'')?.scope||'' : '';
     if (!$('#sheet').hidden) closeSheet();
     render();return;
@@ -7632,7 +7651,7 @@ document.addEventListener('change', e => {
   if (state.qaPersona) {
     if (k === 'qa-scope' && qaEnabled()) {
       const next=qaPreview(state.qaPersona,e.target.value);
-      if (next && next.scope===e.target.value) {state.qaScope=next.scope;render();}
+      if (next && next.scope===e.target.value) {state.qaScope=next.scope;state.qaJourney='';render();}
     }
     return;
   }
