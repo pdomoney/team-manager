@@ -41,6 +41,7 @@ import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
 import { matchDayPresentation } from './match-day-presentation.js';
 import { matchFormatSourceReview } from './match-format-source-review.js';
 import { sourceScorePreviewPolicy, calculateSourceScorePreview } from './source-score-preview.js';
+import { fixtureScorePreviewGate } from './score-preview-fixture-gate.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -4479,8 +4480,11 @@ function matchBody(m) {
   const tasks = M.linkedTasks(data, 'match', m.id), live = m.status === 'scheduled', ph = matchPhase(m);
   const r = m.result || {};
   const matchPolicy = matchDayPresentation(M.teamSport(data.team,M.clubOf(ws,data)));
-  const scorePreview = sourceScorePreviewPolicy(data.team,M.clubOf(ws,data));
-  const linkedComp = M.matchKind(ws,m)?.comp || null;
+  const scorePolicy = sourceScorePreviewPolicy(data.team,M.clubOf(ws,data));
+  const linkedKind = M.matchKind(ws,m);
+  const previewGate = fixtureScorePreviewGate(scorePolicy,m,linkedKind,data.id);
+  const scorePreview = previewGate.allowed ? scorePolicy : null;
+  const linkedComp = linkedKind?.comp || null;
   const linkedSeason = M.findSeason(data,m.seasonId);
   const sourceReview = matchFormatSourceReview(data.team,M.clubOf(ws,data),{
     competition: linkedComp?.name || (m.friendly ? 'Friendly (unlinked)' : ''),
@@ -4504,6 +4508,8 @@ function matchBody(m) {
   </details>`;
   // Explicitly selected adult source packs only. Counts are transient DOM values:
   // no save/submit capability and no change to existing match.result or team data.
+  const scorePreviewCaution = scorePolicy && !previewGate.allowed && !matchPolicy.mayUseAdvancedMatchDay
+    ? `<p class="hint">Score preview unavailable for this fixture: ${esc(previewGate.reason)} No match data has changed.</p>` : '';
   const scorePreviewCard = scorePreview && !matchPolicy.mayUseAdvancedMatchDay
     ? `<details class="match-score-preview">
       <summary>Score breakdown preview · Not saved</summary>
@@ -4556,7 +4562,7 @@ function matchBody(m) {
       ? `<p class="hint">Previously recorded totals: ${esc(r.us)}–${esc(r.them)}. Their scoring type is not independently verified for this sport.</p>`
       : '';
     sec.lineup = `<h3 class="form-sec">Lineup</h3><p class="hint">A sport-specific lineup is not configured for ${sportName}. Existing match records and historic lineups are preserved; no Oztag eight-player formation is applied.</p>`;
-    sec.result = `<h3 class="form-sec">Score and notes</h3><p class="hint">Scoring controls for ${sportName} require an approved competition format. Existing match status and notes are preserved. Use Edit details for match information; scoring will be enabled only after the rules are reviewed.</p>${prior}${scorePreviewCard}`;
+    sec.result = `<h3 class="form-sec">Score and notes</h3><p class="hint">Scoring controls for ${sportName} require an approved competition format. Existing match status and notes are preserved. Use Edit details for match information; scoring will be enabled only after the rules are reviewed.</p>${prior}${scorePreviewCaution}${scorePreviewCard}`;
   }
   // Ordered by when each part is needed.
   const order = { before: ['avail', 'lineup', 'tasks', 'staff', 'result'], day: ['lineup', 'avail', 'result', 'staff', 'tasks'],
@@ -6817,7 +6823,10 @@ const actions = {
     if (!form || !form.closest('#sheet') || form.dataset.matchId !== el.dataset.id ||
         state.sheet !== 'match:' + el.dataset.id || !matchById(el.dataset.id)) return;
     const policy = sourceScorePreviewPolicy(data.team,M.clubOf(ws,data));
-    if (!policy || policy.id !== form.dataset.policy) {
+    const currentFixture = matchById(el.dataset.id);
+    const scope = fixtureScorePreviewGate(policy,currentFixture,
+      currentFixture ? M.matchKind(ws,currentFixture) : null,data.id);
+    if (!policy || !scope.allowed || policy.id !== form.dataset.policy) {
       const out = form.querySelector('output');
       if (out) out.textContent = 'Preview unavailable: check the selected sport and reference rules.';
       return;
