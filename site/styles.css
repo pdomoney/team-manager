@@ -1589,3 +1589,67 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   .org-preview-team-row{flex-wrap:wrap}
   .org-preview-team-row .btn{margin-left:auto}
 }
+
+
+/* Optional desktop density. Equivalent information hierarchy with less vertical waste.
+   No zoom/transform/font scaling, no data changes; phones retain comfortable touch targets. */
+.density-quick{appearance:none;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.22);border-radius:9px;color:#fff;font:600 13px var(--font-b);padding:6px 11px;min-height:40px;cursor:pointer;white-space:nowrap;flex:none}
+.density-quick[aria-pressed="true"]{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.45)}
+.density-quick:hover{background:rgba(255,255,255,.25)}
+@media(max-width:999px){.density-quick{display:none!important}}
+@media(min-width:1000px){
+  body.wide.density-compact{grid-template-columns:188px minmax(0,1fr);font-size:14px;line-height:1.38}
+  body.wide.density-compact:has(> .tabs[hidden]){grid-template-columns:minmax(0,1fr)}
+  body.wide.density-compact .top{padding:7px 18px 7px 20px}
+  body.wide.density-compact .top-row{min-height:40px;gap:8px}
+  body.wide.density-compact .top h1{font-size:19px}
+  body.wide.density-compact #team-title .t-context{font-size:12px}
+  body.wide.density-compact #team-title .season-tag{font-size:12px}
+  body.wide.density-compact .days-chip{font-size:14px;padding:5px 8px}
+  body.wide.density-compact .status{margin-top:5px;padding:5px 9px;font-size:13px}
+  body.wide.density-compact main{max-width:1180px;padding:17px 22px 28px}
+  body.wide.density-compact.full main{max-width:none}
+  body.wide.density-compact .tabs{padding:10px 8px;gap:0}
+  body.wide.density-compact .tabs .nav-main{font-size:14px;height:40px;gap:10px;padding:0 12px}
+  body.wide.density-compact .tabs .nav-sub{margin:0 0 3px 30px;gap:0}
+  body.wide.density-compact .tabs .nav-sub button{font-size:13px;min-height:32px;padding:5px 10px}
+  body.wide.density-compact .sec{margin-bottom:16px}
+  body.wide.density-compact .sec-h{margin-bottom:7px}
+  body.wide.density-compact .sec-h h2{font-size:23px}
+  body.wide.density-compact .cols{column-gap:24px}
+  body.wide.density-compact .scope{margin-bottom:9px}
+  body.wide.density-compact .scope-row{gap:6px;padding-bottom:2px}
+  body.wide.density-compact .scope-club{font-size:13px;gap:6px;min-height:40px;padding:3px 10px 3px 3px}
+  body.wide.density-compact .scope-team{font-size:13px;min-height:34px;padding:5px 9px}
+  body.wide.density-compact .focus{padding:10px 12px 12px;margin-bottom:12px}
+  body.wide.density-compact .focus h2{font-size:26px;line-height:1.05;margin-bottom:4px}
+  body.wide.density-compact .focus.calm h2{font-size:22px}
+  body.wide.density-compact .spot-k{font-size:13px;gap:6px;margin-bottom:4px}
+  body.wide.density-compact .spot-why{font-size:13px;margin-bottom:5px}
+  body.wide.density-compact .spot-issues li{font-size:12px;padding:2px 6px}
+  body.wide.density-compact .focus .btn-row{margin-top:7px}
+  body.wide.density-compact .btn{font-size:14px;padding:7px 11px;min-height:40px}
+  body.wide.density-compact .btn.sm{font-size:13px;padding:5px 9px;min-height:36px}
+  body.wide.density-compact .home-up .sec-h,body.wide.density-compact .home-act .sec-h{margin-bottom:6px}
+  body.wide.density-compact .tl-row{padding:8px 10px;gap:9px}
+  body.wide.density-compact .tl-when{width:57px;font-size:12px}
+  body.wide.density-compact .tl-when b{font-size:15px}
+  body.wide.density-compact .tl-sub{padding:1px 10px 8px 76px;font-size:12px}
+  body.wide.density-compact .tl-issue{font-size:12px}
+  body.wide.density-compact .ins-grid>div{padding:7px 10px}
+  body.wide.density-compact .ins-grid dt{font-size:12px}
+  body.wide.density-compact .ins-grid dd{font-size:17px}
+  body.wide.density-compact .ins-grid .sub{font-size:12px}
+  body.wide.density-compact .ag-day{margin-bottom:10px}
+  body.wide.density-compact .ag-date{font-size:15px}
+  body.wide.density-compact .sess{padding:9px 8px;gap:8px}
+  body.wide.density-compact .row{padding:8px 8px 8px 10px;gap:9px}
+  body.wide.density-compact .m-opp{font-size:17px}
+  body.wide.density-compact .m-where{font-size:13px}
+  body.wide.density-compact .sub{font-size:12px}
+  body.wide.density-compact .stat{padding:8px 4px}
+  body.wide.density-compact .stat b{font-size:24px}
+  body.wide.density-compact .stat span{font-size:12px}
+  /* Dialog forms remain readable; no animation or optical scaling is used. */
+  body.wide.density-compact .panel,body.wide.density-compact .sheet{font-size:15px}
+}
