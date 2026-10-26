@@ -4517,7 +4517,7 @@ function matchBody(m) {
       <ol>${rulesChecklist.questions.map(x=>`<li>${esc(x.label)}</li>`).join('')}</ol>
       <button type="button" class="btn block" data-act="match-rules-copy" data-id="${esc(m.id)}">${icon('copy',18)}Copy rules confirmation checklist</button>
       <button type="button" class="btn block" data-act="match-rules-evidence-open" data-id="${esc(m.id)}">Record organiser response (draft)</button>
-      <p class="hint">The draft worksheet is copied only on request. Nothing is sent, saved or approved, and no match data is changed. Player names and contact details are excluded.</p>
+      <p class="hint">The draft worksheet is copied only on request. No message is sent, no rule is approved, and no match data is changed. Answers are not saved. Player names and contact details are excluded.</p>
     </div>
     <p class="hint">Local organiser confirmation and owner-approved scoring configuration are outstanding. Viewing this reference does not modify a match.</p>
   </details>`;
