@@ -1829,3 +1829,12 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
 .roster-record-reasons{font-size:13px;line-height:1.5;color:var(--muted)}
 .roster-record-review .btn{min-height:44px;white-space:normal}
 @media(max-width:600px){.roster-record-review{padding:9px 10px}}
+
+
+/* P11I: explicit, identity-safe route into existing RSVP editing; no auto-edits. */
+.roster-record-review .roster-player-review{align-self:flex-start;min-height:44px;
+  margin-top:3px;white-space:normal;text-align:left}
+#sheet .roll-row.roster-review-target{outline:3px solid var(--gold);
+  outline-offset:-3px;border-radius:8px;scroll-margin-block:24px}
+#sheet .roll-row.roster-review-target:focus-visible{outline-width:4px}
+@media(max-width:600px){.roster-record-review .roster-player-review{width:100%;justify-content:center}}

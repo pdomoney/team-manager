@@ -4587,6 +4587,9 @@ function matchBody(m) {
         <ul>${records.players.map(p=>`<li>
           <span class="roster-person">${p.number ? `#${esc(p.number)} · ` : ''}${esc(p.name)}</span>
           <span class="roster-record-reasons">${p.issues.map(x=>esc(x.label)).join(' · ')}</span>
+          <button type="button" class="btn sm roster-player-review"
+            data-act="roster-player-rsvp" data-id="${esc(m.id)}" data-pid="${esc(p.playerId)}"
+            aria-label="Review recorded RSVP for ${esc(p.name)}">Review this player's reply</button>
         </li>`).join('')}</ul>
         <button type="button" class="btn sm" data-act="rsvp-open" data-k="match" data-id="${esc(m.id)}">Review recorded replies</button>
         <p class="hint">Review opens the existing RSVP screen; it does not alter replies automatically, update check-ins or decide player eligibility.</p>
@@ -6877,6 +6880,34 @@ const actions = {
     <button class="pick" data-act="bulk-add">${icon('copy')}<span class="grow"><span class="name" style="display:block">Paste a list</span><span class="tagline">Names from a spreadsheet or the team chat</span></span></button>
     <button class="pick" data-act="player-import">${icon('team')}<span class="grow"><span class="name" style="display:block">From another team</span><span class="tagline">Players already in one of your teams</span></span></button></div>`, 'squad-add')),
   'match-open': coachOnly(el => openMatch(el.dataset.id)),
+  // Target the exact player record, never a display name or jersey number.
+  // No RSVP updates happen on navigation. The coach decides whether to edit.
+  'roster-player-rsvp': coachOnly(el=>{
+    const id=el.dataset.id,pid=el.dataset.pid,m=matchById(id);
+    if(!m||!pid||state.sheet!=='match:'+id||
+       !el.closest('#sheet .roster-record-review'))return;
+    const readiness=matchRosterReadiness(data,m,M.clubOf(ws,data));
+    const recordReview=rosterRecordReview(readiness);
+    if(recordReview.state!=='review-only'||!recordReview.players.some(p=>p.playerId===pid)||
+       !data.players.some(p=>p.id===pid)||!M.inSeason(data,m.seasonId,pid)){
+      toast('This player’s record changed. Reopen Match details to review.');
+      return;
+    }
+    openSheet('Availability',rsvpBody('match',id),'rsvp');
+    // The sheet initially focuses its Close button; move focus to the exact
+    // player after that initial focus and highlight the row for orientation.
+    setTimeout(()=>{
+      if(state.sheet!=='rsvp'||!matchById(id))return;
+      const row=[...document.querySelectorAll('#sheet .roll-row')].find(r=>r.dataset.row===pid);
+      if(!row)return;
+      row.classList.add('roster-review-target');
+      row.tabIndex=-1;
+      row.setAttribute('role','group');
+      row.setAttribute('aria-label','Review reply for '+(row.querySelector('.name')?.textContent?.trim()||'selected player'));
+      row.focus({preventScroll:true});
+      row.scrollIntoView({block:'center'});
+    },60);
+  }),
   'match-rules-copy': coachOnly(el => {
     const m = matchById(el.dataset.id);
     if(!m || state.sheet !== 'match:' + m.id || !el.closest('#sheet .match-format-review'))return;
