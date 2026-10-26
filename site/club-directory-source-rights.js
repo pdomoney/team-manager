@@ -11,11 +11,6 @@ const sourceHost=x=>{
 const validDate=x=>/^20\d{2}-\d\d-\d\d$/.test(clean(x))&&!Number.isNaN(Date.parse(x+'T00:00:00Z'));
 const safeWeb=x=>!!sourceHost(x);
 const sort=s=>[...s].sort((a,b)=>a.localeCompare(b));
-const canonicalFields = new Set([
- 'id','name','sport','state','region','association','suburb','postcode','ground',
- 'website','email','phone','registration','sourceUrl','sourceClass','status','colours',
- 'brandSource','reviewed','founded','variants','venues','registrationLinks'
-]);
 const granted=(entry,classes,fields,asOf)=>{
   if(entry.permissionDecision!=='approved')return false;
   if(!clean(entry.reviewedBy)||!clean(entry.licenceOrConsentRef)||!validDate(entry.decisionDate))return false;
@@ -40,7 +35,7 @@ export function auditSourceRights(records,ledger,{asOf='2026-10-26',staleDays=18
     registry.set(host,s);
   }
   const groups=new Map();
-  let invalid=0,compound=0,stale=0,future=0,raw=0;
+  let invalid=0,compound=0,stale=0,future=0;
   const cutoff=Date.parse(asOf+'T00:00:00Z');
   for(const [index,r] of records.entries()){
     const u=clean(r?.sourceUrl),host=sourceHost(u);
@@ -59,7 +54,6 @@ export function auditSourceRights(records,ledger,{asOf='2026-10-26',staleDays=18
       if(age>staleDays){stale++;g.staleCount++;}
       if(age<0){future++;warnings.push({code:'future_record_review_date',index});}
     }
-    raw++;
     groups.set(host,g);
   }
   const providers=sort(groups.keys()).map(host=>{
@@ -73,7 +67,7 @@ export function auditSourceRights(records,ledger,{asOf='2026-10-26',staleDays=18
     return {hostname:host,records:g.recordCount,sports,sourceClasses:classes,
       sourceFieldNames:fields,stale:g.staleCount,compoundSourceFields:g.compoundCount,
       termsLocated:!!entry?.termsUrl,status:entry?.status||'unreviewed',
-      rights:'cleared_for_documented_scope'===('cleared_for_documented_scope')&&cleared?'cleared_for_documented_scope':'unresolved',
+      rights:cleared?'cleared_for_documented_scope':'unresolved',
       reason,priority:!cleared&&(classes.some(c=>/third_party|inferred|historical|research_lead/.test(c))||g.compoundCount)?'high':'review',
       termsUrl:entry?.termsUrl||null};
   });
