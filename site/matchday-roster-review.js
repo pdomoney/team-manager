@@ -29,12 +29,11 @@ export function rosterRecordReview(readiness){
   for(const group of readiness.groups){
     if(!group||!Array.isArray(group.players))continue;
     for(const p of group.players){
-      if(!p||typeof p.name!=='string')continue;
-      // P11G has already deduplicated the fixture's season roster. This protects
-      // against callers accidentally passing the same snapshot group twice.
-      const key=[p.name,p.number,p.reply,p.status,p.arrived].join('\0');
-      if(seen.has(key))continue;
-      seen.add(key);
+      if(!p||typeof p.name!=='string'||typeof p.playerId!=='string'||!p.playerId.trim())continue;
+      // Only stable IDs distinguish players; names, jerseys and replies can be
+      // identical, especially for siblings or shared/generic sample names.
+      if(seen.has(p.playerId))continue;
+      seen.add(p.playerId);
       const issueCodes=reasonsFor(p);
       if(!issueCodes.length)continue;
       people.push(frozen({
