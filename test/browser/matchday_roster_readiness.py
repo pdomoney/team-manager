@@ -27,7 +27,7 @@ with sync_playwright() as p:
                 pg.locator('#sheet form[data-form=match-lineup]').count()==0 and
                 pg.locator('#sheet form[data-form=match-result]').count()==0,
                 f'[{width}] {sport}: 4 RSVP cohorts with no borrowed scoring/lineup editor')
-            checks.ok('Preferences' in content and 'verify' in content.lower() and
+            checks.ok('Preferences' in content and 'verified' in content.lower() and
                 pg.locator('#sheet .match-roster-readiness button').count()==0,
                 f'[{width}] {sport}: preferences with no actionable eligibility or lineup')
             checks.ok(pg.evaluate('JSON.stringify(window.__team.ws)')==baseline,
