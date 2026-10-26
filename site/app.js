@@ -39,6 +39,7 @@ import { QA_ROLES, qaPreview } from './p11-qa-personas.js';
 import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
 import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
 import { matchDayPresentation } from './match-day-presentation.js';
+import { matchFormatSourceReview } from './match-format-source-review.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -4477,6 +4478,28 @@ function matchBody(m) {
   const tasks = M.linkedTasks(data, 'match', m.id), live = m.status === 'scheduled', ph = matchPhase(m);
   const r = m.result || {};
   const matchPolicy = matchDayPresentation(M.teamSport(data.team,M.clubOf(ws,data)));
+  const linkedComp = M.matchKind(ws,m)?.comp || null;
+  const linkedSeason = M.findSeason(data,m.seasonId);
+  const sourceReview = matchFormatSourceReview(data.team,M.clubOf(ws,data),{
+    competition: linkedComp?.name || (m.friendly ? 'Friendly (unlinked)' : ''),
+    season: linkedSeason?.name || ''
+  });
+  const sourceLabel = sourceReview.source
+    ? `<a href="${esc(sourceReview.source.url)}" target="_blank" rel="noopener noreferrer">Open reference rules (${esc(sourceReview.source.edition || sourceReview.source.title)})</a>
+       <p class="hint">Rulebook record checked ${esc(sourceReview.source.checked || 'date not recorded')}. This does not establish the format adopted by the competition or authorise a new scorer.</p>`
+    : '<p class="hint">No applicable, trusted rules source is selected for this sport and grade.</p>';
+  const reviewLabel = value => value ? esc(value) : '<em>Not specified</em>';
+  const scopeRow = (name,value) => `<div class="match-format-row"><dt>${name}</dt><dd>${reviewLabel(value)}</dd></div>`;
+  const formatReviewPanel = `<details class="match-format-review">
+    <summary>Sport and competition rules · Review required</summary>
+    <p class="hint">Existing app rulebook references are for comparison. Check your organiser’s current format, age/category and season before using competition-specific scoring or lineups.</p>
+    <dl>${scopeRow('Sport',sourceReview.sport)}${scopeRow('Competition',sourceReview.competition)}
+      ${scopeRow('Season',sourceReview.season)}${scopeRow('Age group',sourceReview.ageGroup)}
+      ${scopeRow('Category',sourceReview.category)}${scopeRow('Rule set',sourceReview.configuredRulePack)}</dl>
+    ${sourceLabel}
+    ${sourceReview.crossSportRulePack ? '<p class="err">Selected rule set belongs to a different sport. Review the team settings before using it.</p>' : ''}
+    <p class="hint">Local organiser confirmation and owner-approved scoring configuration are outstanding. Viewing this reference does not modify a match.</p>
+  </details>`;
   const sec = {
     avail: `<h3 class="form-sec">Availability${ph === 'day' ? ' and who’s here' : ''}</h3>
       <div class="roll-sum">${rsvpPills(m)}${ph === 'day' ? ` <span class="pill neutral">${Object.keys(obj(m.arrived)).length} here</span>` : ''}</div>
@@ -4522,6 +4545,7 @@ function matchBody(m) {
     ${ph === 'off' ? '' : `<ol class="m-steps" aria-label="Where this match is up to">${PHASES.map(([k, l]) => `<li${k === ph ? ' aria-current="step"' : ''}>${l}</li>`).join('')}</ol>`}
     ${ph === 'day' && live && matchPolicy.mayUseAdvancedMatchDay ? `<button class="btn primary block md-open" data-act="matchday-open" data-id="${m.id}">${icon('field', 20)}Open Match Day</button>` : ''}
     ${m.notes ? `<p class="task-notes-full">${esc(m.notes)}</p>` : ''}${m.coachNotes ? `<p class="task-notes-full coach-only"><span class="tagline">Coach notes</span><br>${esc(m.coachNotes)}</p>` : ''}
+    ${formatReviewPanel}
     ${order.map(k => sec[k]).join('')}
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" data-act="match-edit" data-id="${m.id}">Edit details</button>
