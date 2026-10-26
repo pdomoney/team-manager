@@ -1838,3 +1838,19 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   outline-offset:-3px;border-radius:8px;scroll-margin-block:24px}
 #sheet .roll-row.roster-review-target:focus-visible{outline-width:4px}
 @media(max-width:600px){.roster-record-review .roster-player-review{width:100%;justify-content:center}}
+
+
+/* P11K: controlled venue check-in, not eligible-to-play certification. */
+.match-arrival-checkin{border:1px solid var(--line);border-radius:9px;
+  margin:12px 0;padding:8px 12px;overflow-wrap:anywhere}
+.match-arrival-checkin summary{min-height:44px;cursor:pointer;
+  padding:8px 0;font-weight:600;line-height:1.5}
+.match-arrival-checkin summary:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.match-arrival-checkin ul{margin:10px 0;padding:0;list-style:none}
+.match-arrival-checkin li{display:flex;gap:6px;flex-direction:column;
+  border-bottom:1px solid var(--line);padding:9px 0;min-width:0}
+.match-arrival-checkin .checkin-status{font-size:13px;color:var(--muted)}
+.match-arrival-checkin .btn{min-height:44px;white-space:normal;align-self:flex-start}
+.match-arrival-checkin p.hint{line-height:1.5;margin:8px 0 10px}
+@media(max-width:600px){.match-arrival-checkin{padding:7px 10px}
+  .match-arrival-checkin .btn{width:100%}}

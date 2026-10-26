@@ -47,6 +47,7 @@ import { draftMatchRulesEvidence, RULES_EVIDENCE_FIELDS } from './match-rules-ev
 import { matchRosterReadiness } from './matchday-roster-readiness.js';
 import { rosterRecordReview } from './matchday-roster-review.js';
 import { matchReplyRosterScope } from './matchday-season-rsvp.js';
+import { matchArrivalGate } from './matchday-arrival-gate.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
@@ -4594,6 +4595,26 @@ function matchBody(m) {
       ? `<p class="hint">Previously recorded totals: ${esc(r.us)}–${esc(r.them)}. Their scoring type is not independently verified for this sport.</p>`
       : '';
     const readiness=matchRosterReadiness(data,m,M.clubOf(ws,data));
+    const arrivalGate=matchArrivalGate(data,m,M.clubOf(ws,data),todayISO());
+    const arrivalPanel=arrivalGate.mode==='blocked'
+      ? `<p class="hint">Venue check-in unavailable: ${esc(arrivalGate.reason)}</p>`
+      : `<details class="match-arrival-checkin" data-match-id="${esc(m.id)}"
+            data-team-id="${esc(data.id)}" data-season-id="${esc(arrivalGate.seasonId)}"
+            data-match-date="${esc(m.date)}">
+          <summary>Venue check-in · ${arrivalGate.playerIds.filter(id=>m.arrived?.[id]===true).length} recorded here</summary>
+          <p class="hint">A coach’s record of arrival at the venue; not medical fitness, playing eligibility, selection or an approved lineup.</p>
+          ${arrivalGate.mode!=='editable'?`<p class="hint">${esc(arrivalGate.reason)}</p>`:''}
+          <ul>${M.seasonLens(data,arrivalGate.seasonId).players
+            .filter(p=>arrivalGate.playerIds.includes(p.id)).slice()
+            .sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<li>
+              <span class="roster-person">${p.number?`#${esc(p.number)} · `:''}${esc(p.name)}</span>
+              <span class="checkin-status">${m.arrived?.[p.id]===true?'Recorded here':'Not recorded here'}</span>
+              ${arrivalGate.mode==='editable'?`<button class="btn sm" type="button"
+                  data-act="roster-arrival-toggle" data-id="${esc(m.id)}" data-pid="${esc(p.id)}"
+                  aria-label="${m.arrived?.[p.id]===true?'Undo venue check-in for':'Record venue check-in for'} ${esc(p.name)}">${m.arrived?.[p.id]===true?'Undo check-in':'Record arrived'}</button>`:''}
+            </li>`).join('')}</ul>
+          <p class="hint">Only the coach can change a check-in. Existing RSVP replies, player status, historical results and scoring are unchanged.</p>
+        </details>`;
     const records=rosterRecordReview(readiness);
     const reviewPanel=records.state!=='review-only' ? '' : records.total
       ? `<section class="roster-record-review" aria-label="Records needing human confirmation">
@@ -4617,6 +4638,7 @@ function matchBody(m) {
         <p class="hint">These are replies and player position preferences recorded for the ${esc(readiness.season)} season. This is not a match lineup, playing eligibility check, or authorised on-field player count.</p>
         <div class="roster-readiness-summary">${readiness.groups.map(g=>`<span class="pill neutral">${esc(g.label)}: ${g.count}</span>`).join(' ')}</div>
         ${reviewPanel}
+        ${arrivalPanel}
         ${readiness.groups.map(g=>`<section class="roster-readiness-group">
           <h4>${esc(g.label)} (${g.count})</h4>
           ${g.players.length
@@ -6895,6 +6917,31 @@ const actions = {
     <button class="pick" data-act="bulk-add">${icon('copy')}<span class="grow"><span class="name" style="display:block">Paste a list</span><span class="tagline">Names from a spreadsheet or the team chat</span></span></button>
     <button class="pick" data-act="player-import">${icon('team')}<span class="grow"><span class="name" style="display:block">From another team</span><span class="tagline">Players already in one of your teams</span></span></button></div>`, 'squad-add')),
   'match-open': coachOnly(el => openMatch(el.dataset.id)),
+  'roster-arrival-toggle': coachOnly(el=>{
+    const id=el.dataset.id,pid=el.dataset.pid,m=matchById(id);
+    const section=el.closest('#sheet .match-arrival-checkin');
+    if(!m||!pid||state.sheet!=='match:'+id||!section)return;
+    const gate=matchArrivalGate(data,m,M.clubOf(ws,data),todayISO());
+    if(!gate.mayRecord||!gate.playerIds.includes(pid)||
+       section.dataset.teamId!==data.id||
+       section.dataset.matchId!==id||
+       section.dataset.seasonId!==gate.seasonId||
+       section.dataset.matchDate!==m.date){
+      toast('The match, season or squad changed. Reopen Match details to review.');
+      return;
+    }
+    // Deliberate coach toggle, isolated to this fixture's arrival map.
+    const next={...obj(m.arrived)};
+    if(next[pid]===true)delete next[pid];else next[pid]=true;
+    m.arrived=next;
+    save();
+    refreshMatch(id);
+    const current=$('#sheet .match-roster-readiness');
+    if(current)current.open=true;
+    const arrival=$('#sheet .match-arrival-checkin');
+    if(arrival)arrival.open=true;
+    toast(next[pid]===true?'Venue arrival recorded':'Venue arrival undone');
+  }),
   // Target the exact player record, never a display name or jersey number.
   // No RSVP updates happen on navigation. The coach decides whether to edit.
   'roster-player-rsvp': coachOnly(el=>{
