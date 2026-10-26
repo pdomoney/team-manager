@@ -1,0 +1,113 @@
+{
+  "roadmapIssue": 41,
+  "description": "A fixed denominator uses known merged PR checkpoints plus named future checkpoints and 3 acceptance gates. Replace one named future checkpoint with its PR number when opened; never infer effort from PR count.",
+  "phases": [
+    {
+      "phase": "P00",
+      "issue": 42,
+      "pulls": [
+        53
+      ]
+    },
+    {
+      "phase": "P01",
+      "issue": 43,
+      "pulls": [
+        54
+      ]
+    },
+    {
+      "phase": "P02",
+      "issue": 44,
+      "pulls": [
+        56
+      ]
+    },
+    {
+      "phase": "P03",
+      "issue": 45,
+      "pulls": [
+        57
+      ]
+    },
+    {
+      "phase": "P04",
+      "issue": 46,
+      "pulls": [
+        58,
+        59,
+        60,
+        61,
+        63
+      ]
+    },
+    {
+      "phase": "P05",
+      "issue": 47,
+      "pulls": [
+        64,
+        65,
+        66,
+        67,
+        68
+      ]
+    },
+    {
+      "phase": "P06",
+      "issue": 48,
+      "pulls": [
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76
+      ]
+    },
+    {
+      "phase": "P07",
+      "issue": 49,
+      "pulls": [
+        79,
+        80,
+        81,
+        82
+      ],
+      "futureCheckpoints": []
+    },
+    {
+      "phase": "P08",
+      "issue": 50,
+      "pulls": [
+        83,
+        84,
+        85
+      ],
+      "futureCheckpoints": []
+    },
+    {
+      "phase": "P09",
+      "issue": 51,
+      "pulls": [
+        86,
+        87,
+        88,
+        89
+      ],
+      "futureCheckpoints": []
+    },
+    {
+      "phase": "P10",
+      "issue": 52,
+      "pulls": [
+        90,
+        91,
+        92,
+        93
+      ],
+      "futureCheckpoints": []
+    }
+  ]
+}

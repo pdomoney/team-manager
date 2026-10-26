@@ -1,0 +1,38 @@
+name: Issue Progress
+
+# Runs only the version on main. Never executes code from an unmerged PR.
+on:
+  pull_request:
+    types: [closed]
+  issues:
+    types: [closed, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: team-manager-issue-progress
+  cancel-in-progress: false
+
+jobs:
+  update-progress:
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout accepted main only
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Update roadmap and issue milestone bars
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/update-issue-progress.mjs

@@ -26,14 +26,37 @@ import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
+import { sportCapabilities } from './p08-sport-capabilities.js';
+import { playTeachingCompatibility } from './p08-play-compatibility.js';
+import { libraryCopyReview, libraryOrigin } from './p08-library-provenance.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
+import { inputField, selectField, radioChoices } from './form-controls.js';
+import { personField, helperPlayerField } from './p09-person-form.js';
+import { organisationPreview, ORG_PREVIEW_MODES, nextOrgPreviewSelection } from './p09-org-preview.js';
+import { QA_ROLES, qaPreview } from './p11-qa-personas.js';
+import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
+import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
+import { crewCoverageSummary } from './p06-crew-summary.js';
+import { fixtureReadinessIndex } from './p06-readiness.js';
+import { clubCrewActions } from './p06-actions.js';
+import { volunteerRemovalCheck } from './p06-volunteer-lifecycle.js';
+import { localWorkspaceCalendar } from './p07-calendar.js';
+import { planFixtureRevision, commitFixtureRevision, fixtureSnapshot } from './p07-fixture-amendments.js';
+import { workspaceCrewOverview } from './p06-workspace-overview.js';
+import { reviewVolunteerAppointments } from './p06-appointments.js';
+import { APPOINTMENT_STATES, APPOINTMENT_STATUS_LABELS, upsertVolunteerAppointment } from './p06-appointment-store.js';
 import { TEAM_STYLES, CLASSIC, styleById, normStyle, effectiveStyle, resolveStyle, styleVars, STYLE_VARS, suggestStyle } from './team-style.js';
 import { sportIcon, sportMaskUrl } from './sport-icons.js';
+import { directoryRecords, filterClubDirectory, directoryClubDraft, DIRECTORY_STATES } from './club-directory.js';
+import { clubNameKey, managedClubCandidates, clubLinkPreview, applyClubDirectoryMatch, linkedDirectoryRecord } from './club-link.js';
 import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-badges.js';
 import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
 import * as M from './model.js';
+import { localPeopleNamespace, localPeopleReviewView, acceptLocalPeopleLink, undoLocalPeopleLink } from './people-ui.js';
+import { prepareStaffSourceIds } from './staff-source-ids.js';
+import { REPORTED_RELATIONSHIPS, recordGuardianReview, amendGuardianReview } from './guardian-reviews.js';
 
 const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
 
@@ -79,7 +102,7 @@ const NAV = [
   { id: 'tactics', label: 'Tactics', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14M5 5.5h14M5 18.5h14"/>',
     views: [['field', 'Lineup'], ['plays', 'Plays'], ['rules', 'Rules'], ['library', 'Library', true]] },
   { id: 'more', label: 'More', icon: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
-    views: [['more', 'More'], ['club', 'Club'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['teams', 'Clubs and teams', true], ['comps', 'Competitions', true], ['notices', 'Notices'], ['tally', 'Volunteer tally', true]] }
+    views: [['more', 'More'], ['people', 'People', true], ['club', 'Club'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['teams', 'Clubs and teams', true], ['comps', 'Competitions', true], ['notices', 'Notices'], ['tally', 'Volunteer tally', true]] }
 ];
 const VIEW_IDS = NAV.flatMap(g => g.views.map(v => v[0]));
 
@@ -292,9 +315,11 @@ const state = {
   folded: {},
   system: null, sysFlip: false,
   playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
-  taskFilter: 'up', taskPick: null, crewClubId: '',
+  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, peopleSearch: '',
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
+  orgPreview: null,
+  qaPersona: null, qaScope: '', qaJourney: '', // Ephemeral QA-only fictional layout and guided tests, never saved
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
 };
@@ -662,9 +687,68 @@ const playerPic = (p, big = false) => isCoach() && M.validPhoto(p.photo)
 const isOut = p => isCoach() && p.status && p.status !== 'available';
 const statusPill = p => isOut(p) ? ` <span class="pill ${p.status}">${STATUS[p.status]}</span>` : '';
 
+function qaEnabled() {
+  // The actual coach workspace and even live player preview must never acquire simulated grants.
+  return S.role === 'coach' && !state.preview && S.trial === true && !!ws?.testLibrary &&
+    Number(ws.testLibrary.version) >= 3;
+}
+function renderQaSelector() {
+  const host = $('#qa-persona-control'); if (!host) return;
+  host.hidden = !qaEnabled();
+  if (host.hidden) { host.innerHTML = ''; return; }
+  host.innerHTML = '<span class="qa-mode-flag">TEST</span><select id="qa-persona-select" data-change="qa-persona" aria-label="Test persona — simulated view, no real access">' +
+    '<option value="">Coach workspace</option>' +
+    QA_ROLES.map(r => '<option value="' + esc(r.id) + '"' + (state.qaPersona === r.id ? ' selected' : '') + '>' + esc(r.label) + '</option>').join('') +
+    '</select>' + (state.qaPersona ? '<span class="qa-header-scope" title="Simulated context">' + esc(qaPreview(state.qaPersona, state.qaScope)?.scopeLabel || '') + '</span>' : '');
+}
+function renderQaScreen() {
+  const x=qaPreview(state.qaPersona,state.qaScope);
+  if (!qaEnabled() || !x) { state.qaPersona=null;state.qaScope='';return render(); }
+  state.qaScope=x.scope;
+  document.body.classList.remove('game');
+  $('#tabs').hidden=true;
+  $('#team-crest').hidden=true;
+  $('#days-chip').hidden=true;
+  $('#bell-btn').hidden=true;
+  $('#menu-btn').hidden=true;
+  $('#team-title').classList.remove('with-season');
+  $('#team-title').textContent='QA persona · ' + x.roleLabel;
+  $('#status').hidden=false;
+  $('#status').className='status info';
+  $('#status').innerHTML='<span class="dot" aria-hidden="true"></span><span class="grow">Synthetic QA preview only. No real login, authorisation, or GitHub publishing.</span>';
+  const journeys=qaJourneys(x.role,x.scope),active=qaJourney(x.role,x.scope,state.qaJourney);
+  const guide=active ? '<section class="qa-guide" aria-label="Synthetic QA walkthrough" data-qa-journey="'+esc(active.id)+'">'+
+    '<div class="sec-h"><h3>'+esc(active.title)+'</h3><button type="button" class="btn sm" data-act="qa-journey-back">All QA journeys</button></div>'+
+    '<p class="muted small">'+esc(active.description)+'</p>'+
+    '<p class="qa-guide-context">Simulated scope: <strong>'+esc(active.scopeLabel)+'</strong></p>'+
+    '<ol class="qa-steps">'+active.steps.map(step=>'<li>'+esc(step)+'</li>').join('')+'</ol>'+
+    '<h4>Visible example context</h4>'+
+    (active.visibleEntities.length ? '<ul class="qa-identity-list">'+active.visibleEntities.map(v=>'<li>'+esc(v.name)+'</li>').join('')+'</ul>' : '<p>No fictional records in this example scope.</p>')+
+    '<p class="hint">Illustrative test steps only. No form, publication, person data or actual role permission is accessed.</p></section>' : '';
+  const list=(items,empty)=>items.length
+    ? '<ul class="qa-identity-list">' + items.map(a=>'<li>'+esc(a.name)+(a.sport?' · '+esc(a.sport):'')+'</li>').join('')+'</ul>'
+    : '<p class="muted small">'+esc(empty)+'</p>';
+  $('#view').innerHTML='<section class="qa-preview" data-qa-role="'+esc(x.role)+'" data-qa-scope="'+esc(x.scope)+'">' +
+    '<p class="note" role="status"><strong>TEST PERSONA · SIMULATED VIEW</strong> — this is a read-only fictional layout, not a signed-in role or a security test. Real records are not read or displayed here.</p>' +
+    '<div class="sec-h"><h2>'+esc(x.roleLabel)+'</h2><button type="button" class="btn sm" data-act="qa-exit">Exit QA</button></div>' +
+    '<label class="field-l qa-scope"><span>Simulated organisation / club / team</span><select data-change="qa-scope" aria-label="Synthetic scope">' +
+    x.scopes.map(o=>'<option value="'+esc(o.id)+'"'+(o.id===x.scope?' selected':'')+'>'+esc(o.name)+'</option>').join('')+'</select></label>'+
+    '<p class="hint">Selected context: <strong>'+esc(x.scopeLabel)+'</strong>. Switching a test persona never changes actual authentication, data ownership or access permissions.</p>' +
+    '<div class="qa-tiles"><section><h3>Associations</h3>'+list(x.associations,'No associations in this simulated scope')+'</section>' +
+    '<section><h3>Clubs</h3>'+list(x.clubs,'No clubs in this simulated scope')+'</section>' +
+    '<section><h3>Teams</h3>'+list(x.teams,'No teams in this simulated scope')+'</section>' +
+    '<section><h3>Guided QA journeys</h3><p class="muted small">Fictional walkthroughs — no editing or publishing.</p><div class="qa-journey-buttons">'+journeys.map(j=>'<button type="button" class="btn sm" data-act="qa-journey" data-id="'+esc(j.id)+'" aria-pressed="'+(active?.id===j.id)+'">'+esc(j.title)+'</button>').join('')+'</div></section></div>' +
+    guide +
+    '<p class="hint">No edits, invitations, password operations, sensitive-person access or publication are available in this simulated view. Real team and account roles require the future server-enforced authorisation work (#55).</p></section>';
+  document.title='Test persona · '+x.roleLabel+' · Team Manager';
+}
 function render() {
   animStop();
   if (!S.role) return renderLock();
+  if (!qaEnabled()) { state.qaPersona=null;state.qaScope=''; }
+  renderQaSelector();
+  applyLayout();
+  if (state.qaPersona) return renderQaScreen();
   V = curView();
   if (!VIEW_IDS.includes(state.tab) || !viewsOf(navOf(state.tab)).some(v => v[0] === state.tab)) state.tab = 'home';
   if (state.tab === 'matchday' && (!state.matchDayId || !matchById(state.matchDayId))) state.tab = 'matches';
@@ -698,14 +782,14 @@ function render() {
   const v = $('#view'), g = navOf(state.tab);
   state.lastView[g.id] = state.tab;
   document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
-  v.innerHTML = subNav(g) + (state.tab === 'home' ? '' : seasonBanner()) + VIEWS[state.tab]();
+  v.innerHTML = subNav(g) + (['home', 'people'].includes(state.tab) ? '' : seasonBanner()) + VIEWS[state.tab]();
   if (state.tab === 'field' || state.tab === 'matchday') bindField();
   fitSubnav();
   foldLongPage();
   renderAsk();
 }
 const VIEWS = {
-  home: () => viewHome(), agenda: () => viewAgenda(), training: () => viewSchedule(), matches: () => viewMatches(), attendance: () => viewAttendance(), matchday: () => viewMatchDay(),
+  home: () => viewHome(), people: () => viewPeople(), agenda: () => viewAgenda(), training: () => viewSchedule(), matches: () => viewMatches(), attendance: () => viewAttendance(), matchday: () => viewMatchDay(),
   squad: () => viewSquad(), tasks: () => viewTaskList(), helpers: () => viewHelpers(), crew: () => viewCrew(), tally: () => viewHelped(),
   field: () => viewField(), plays: () => viewPlays(), rules: () => viewRules(), library: () => viewLibrary(),
   more: () => viewMore(), club: () => viewClub(), messages: () => viewMessages(), reports: () => viewReports(), teams: () => viewTeams(), comps: () => viewComps(), notices: () => viewNotices()
@@ -769,6 +853,12 @@ function renderNav() {
 const online = () => navigator.onLine !== false;
 function renderStatus() {
   const el = $('#status');
+  if (state.qaPersona && qaEnabled()) {
+    el.hidden=false;
+    el.className='status info';
+    el.innerHTML='<span class="dot" aria-hidden="true"></span><span class="grow">Synthetic QA preview only. No real login, authorisation, or GitHub publishing.</span>';
+    return;
+  }
   if (S.role !== 'coach') {
     el.hidden = !(S.role === 'player' && (!online() || S.fromCache));
     if (!el.hidden) { el.className = 'status warn'; el.innerHTML = `<span class="dot" aria-hidden="true"></span><span class="grow">No connection. You’re seeing the copy saved on this phone.</span>`; }
@@ -799,6 +889,9 @@ setInterval(() => { if (S.role === 'coach' && !S.publishing) renderStatus(); }, 
 
 /* ---------- Lock screen and setup ---------- */
 function renderLock() {
+  const density=$('#density-btn');if(density)density.hidden=true;
+  const qa=$('#qa-persona-control');if(qa)qa.hidden=true;
+  state.qaPersona=null;state.qaScope='';
   $('#tabs').hidden = true; $('#status').hidden = true; $('#days-chip').hidden = true; $('#menu-btn').hidden = true; $('#bell-btn').hidden = true; $('#team-crest').hidden = true;
   document.body.classList.remove('game');
   $('#team-title').textContent = 'Team Manager';
@@ -1095,7 +1188,7 @@ function playerForm(p) {
   return `<form data-form="player" autocomplete="off">
     <input type="hidden" name="id" value="${esc(p.id || '')}">
     <div class="photo-row"><span class="photo-prev">${playerPic(p, true)}</span>
-      <div class="grow"><label class="field-l" style="margin-bottom:6px"><span>Name</span><input type="text" name="name" required value="${esc(p.name)}" autocapitalize="words"></label>
+      <div class="grow">${personField('player','name',p.name)}
       <div class="btn-row" style="margin:0"><label class="btn sm file-btn"><input type="file" accept="image/*" data-change="player-photo" aria-label="Choose a photo of the player">${p.photo ? 'Change photo' : 'Add photo'}</label><button type="button" class="btn sm" data-act="player-photo-clear" ${p.photo ? '' : 'hidden'}>Remove photo</button></div></div></div>
     <div class="player-crop-panel" hidden>
       <p class="hint">Crop before saving. Zoom and move the photo so the player’s face fits the square.</p>
@@ -1116,11 +1209,11 @@ function playerForm(p) {
       <label class="field-l"><span>Jersey no. · this team</span><input type="text" name="number" inputmode="numeric" maxlength="3" value="${esc(p.number)}"><small>Allocating a number records the jersey as issued on save. ${data.team.jerseyLoan ? 'Loan returns are tracked below.' : 'Enable loaned jerseys in Settings › Jerseys to record returns.'}</small></label>
       <label class="field-l"><span>Status</span><select name="status">${Object.entries(STATUS).map(([k, l]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>
-    <label class="field-l"><span>Mobile</span><input type="tel" name="phone" placeholder="04xx xxx xxx" value="${esc(p.phone)}"><small>Coach only. For messaging them directly on WhatsApp.</small></label>
+    ${personField('player','phone',p.phone)}
     <div class="field-l"><span>Preferred positions · this team</span><div class="opts">
       ${[...new Set([...M.positionsFor(data.team, M.clubOf(ws, data)), ...arr(p.positions)])].map(x => `<label class="opt"><input type="checkbox" name="positions" value="${esc(x)}" ${p.positions.includes(x) ? 'checked' : ''}><span>${esc(x)}</span></label>`).join('')}
     </div><small>These are the <b>${esc(M.teamSport(data.team, M.clubOf(ws, data)))}</b> positions for <b>${esc(M.teamName(data))}</b> (${data.team.sport ? 'team sport override' : 'inherited club default'}). Change the team's sport or customise the list in Settings › Team.</small></div>
-    <label class="field-l"><span>Notes</span><input type="text" name="notes" value="${esc(p.notes)}" placeholder="Coach only, e.g. works Thursdays"></label>
+    ${personField('player','notes',p.notes)}
     ${isNew ? '' : jerseyBlock(p)}
     ${isNew ? '<p class="hint">Already plays for another team in this workspace? Use <b>From another team</b> on the Squad page instead, so the records are linked without copying uniform numbers or positions.</p>' : playerOtherTeams(p)}
     ${st && st.total ? `<p class="note" style="background:var(--ok-soft)">Training: ${st.att} of ${st.total} sessions (${st.pct}%)${st.late ? `, ${st.late} late` : ''}${st.apol ? `, ${st.apol} apolog${st.apol === 1 ? 'y' : 'ies'}` : ''}.</p>` : ''}
@@ -1240,12 +1333,38 @@ function replyText(kind, rec, v) {
 }
 
 /* ----- Upcoming: training, matches and tasks together ----- */
+// Coach-only summary of locally recorded dates across teams, not an organiser-owned calendar.
+function localCalendarSection() {
+  if (!isCoach()) return '';
+  const clubs=arr(ws.clubs).filter(c=>c?.id);
+  const selected=clubs.some(c=>c.id===state.agendaClubId) ? state.agendaClubId : '';
+  const from=todayISO(),to=toISODate(new Date(Date.now()+42*86400000));
+  const summary=localWorkspaceCalendar(ws,{clubId:selected,from,to});
+  const events=summary.events.slice(0,25);
+  const label={match:'Match',training:'Training',duty:'Duty'};
+  return `<section class="sec calendar-local-overview" aria-label="Local workspace calendar">
+    <div class="sec-h"><h2>Across your teams</h2></div>
+    <p class="hint">Read-only coach view of matches, training and volunteer tasks already recorded in this encrypted workspace. Dates and times are shown as entered; official fixtures are not independently verified.</p>
+    ${clubs.length>1 ? `<label class="field-l"><span>Club</span><select name="agendaClubId" data-change="agenda-club-filter">
+      <option value="">All clubs in this workspace</option>
+      ${clubs.map(c=>`<option value="${esc(c.id)}" ${selected===c.id?'selected':''}>${esc(c.name||'Unnamed club')}</option>`).join('')}
+    </select></label>` : ''}
+    <p class="hint">${summary.totals.events} entries over six weeks · ${summary.totals.matches} matches · ${summary.totals.training} training · ${summary.totals.duties} duties${summary.totals.review?` · ${summary.totals.review} fixture links need review`:''}</p>
+    ${events.length?`<ul class="calendar-local-list">${events.map(e=>`<li>
+      <span class="calendar-local-when">${esc(e.date)}${e.start?' · '+esc(e.start):''}</span>
+      <span class="calendar-local-details"><strong>${esc(label[e.kind]||'Event')} · ${esc(e.title)}</strong>
+      <span class="sub">${esc(e.teamName)} · ${esc(e.sport)}${e.venue?' · '+esc(e.venue):''}${e.cancelled?' · Cancelled':''}${e.authorityReview?' · Fixture source needs review':''}</span></span>
+    </li>`).join('')}</ul>`:'<p class="hint">No local schedule records for this selection in the next six weeks.</p>'}
+    ${summary.totals.events>events.length?`<p class="hint">Showing first ${events.length} entries. Use the team agenda for the complete schedule.</p>`:''}
+    <p class="hint">Private staffing, attendance, contacts and RSVPs are not shown here. Club events without a dated team record are not invented.</p>
+  </section>`;
+}
 function viewAgenda() {
   const items = M.agenda(V, todayISO(), 42), coach = isCoach();
   const days = [];
   items.forEach(it => { const d = days[days.length - 1]; if (d && d.date === it.date) d.items.push(it); else days.push({ date: it.date, items: [it] }); });
   const notices = V.notices.slice(0, 2);
-  return `${notices.length ? `<section class="sec"><div class="sec-h"><h2>Latest notices</h2></div><div class="list">${notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p></div>`).join('')}</div></section>` : ''}
+  return `${coach?localCalendarSection():''}${notices.length ? `<section class="sec"><div class="sec-h"><h2>Latest notices</h2></div><div class="list">${notices.map(n => `<div class="notice"><span class="sub">${esc(fmtStamp(n.at))}</span><p>${esc(n.text)}</p></div>`).join('')}</div></section>` : ''}
     <div class="sec-h"><h2>Next six weeks</h2>${coach ? `<button class="btn sm" data-act="avail-ask">${icon('chat', 18)}Availability check</button>` : ''}</div>
     ${days.length ? days.map(d => `<section class="ag-day" aria-label="${esc(fmtLong(d.date))}"><h3 class="ag-date">${d.date === todayISO() ? 'Today · ' : ''}${esc(fmtLong(d.date))}</h3>
       <div class="list">${d.items.map(agendaItem).join('')}</div></section>`).join('')
@@ -2428,6 +2547,7 @@ const visiblePlays = () => {
   return V.plays.filter(p => p.sport ? p.sport === sport : !p.builtin || sport === 'Oztag');
 };
 const playById = id => visiblePlays().find(p => p.id === id);
+const teachingContext = p => playTeachingCompatibility(p, V.team, curClub());
 const playSteps = (play, side) => {
   const text = side !== (play.side || 'right') ? mirrorText(play.steps, textPairs(play)) : play.steps;
   return String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -2444,7 +2564,7 @@ function viewPlays() {
     <p class="hint" style="margin:-4px 0 12px">${oztag ? 'Every play works both ways. Open one and switch between attacking left and right.' : `Plays tagged ${esc(sport)} are shown for this team, as well as its earlier untagged custom plays marked for review. Legacy Oztag starters remain with Oztag teams. New plays use the selected sport; diagrams are an eight-position teaching canvas and not a full-field formation.`}</p>
     ${plays.length ? `<div class="list grid plays-grid ${cardClass('plays')}">${plays.map(p => `<button class="play-row" data-act="play-open" data-id="${esc(p.id)}">
       <span class="play-thumb">${playSVG(p, state.playSide, { thumb: true })}</span>
-      <span class="grow"><span class="name" style="display:block">${esc(p.name)}${!p.sport && !p.builtin && !oztag ? ' <span class="pill neutral">Review sport</span>' : ''}${coach && p.lib ? ' <span class="pill neutral">Library</span>' : ''}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
+      <span class="grow"><span class="name" style="display:block">${esc(p.name)}${teachingContext(p).status === 'unconfirmed-play-sport' ? ' <span class="pill neutral">Review sport</span>' : ''}${teachingContext(p).diagramMode === 'eight-slot-concept' ? ' <span class="pill neutral">Teaching canvas</span>' : ''}${coach && p.lib ? ' <span class="pill neutral">Library</span>' : ''}</span><span class="sub play-when">${p.set && p.set !== 'oztag' ? `${esc(getSet(p.set).name)} · ` : ''}${phaseCount(p) > 1 ? `${phaseCount(p)} phases · ` : ''}${esc(playHeadline(p, state.playSide) || playWhen(p, state.playSide))}</span></span>
       <span class="pill neutral">${esc(p.category || 'Other')}</span>
     </button>`).join('')}</div>` : `<div class="empty"><p>${coach ? 'No plays yet. Add a play for this team.' : 'No plays yet.'}</p></div>`}
     ${coach && missing ? `<button class="link-btn" data-act="plays-restore">Restore the ${missing} missing starter play${missing === 1 ? '' : 's'}</button>` : ''}`;
@@ -2473,6 +2593,7 @@ function studyFigure(p, side, cards) {
 }
 function viewPlay(p) {
   const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side);
+  const compatibility = teachingContext(p);
   const mode = state.playMode || (coach ? 'watch' : 'learn');
   const cards = studySequence(p, side);
   state.studyIndex = clamp(state.studyIndex || 0, 0, cards.length - 1);
@@ -2482,6 +2603,11 @@ function viewPlay(p) {
   const codes = [...new Set(Object.values(geom.codes))].filter(Boolean);
   return `<button class="toggle-past" data-act="play-back">← All plays</button>
     <div class="sec-h"><h2>${esc(p.name)}</h2><span class="pills">${p.set && p.set !== 'oztag' ? `<span class="pill neutral">${esc(getSet(p.set).name)}</span>` : ''}<span class="pill neutral">${esc(p.category || 'Other')}</span></span></div>
+    ${compatibility.reviewRequired ? `<div class="note play-sport-context" role="note">
+      <strong>${compatibility.status === 'sport-matched' ? 'Teaching canvas' : 'Review play sport'}:</strong>
+      ${esc(compatibility.notice)}
+      ${compatibility.rulePackMismatch ? '<span> The team’s selected rule pack belongs to another sport; review it before using this play.</span>' : ''}
+    </div>` : ''}
     <div class="seg play-modes" role="group" aria-label="How to explore this play">
       <button data-act="play-mode" data-mode="learn" aria-pressed="${mode === 'learn'}">Learn step by step</button>
       <button data-act="play-mode" data-mode="watch" aria-pressed="${mode === 'watch'}">Watch animation</button>
@@ -2542,12 +2668,15 @@ function castKey(play, side) {
 /* ----- Cross-sport play adaptation (coach review, concept only) ----- */
 // No automatic changes to play geometry, rule labels, source steps or other teams.
 function transferSource(p) {
-  // Existing eight-slot drawings are historically Oztag. This is only a default.
-  return TRANSFER_SPORTS.includes(p.originSport) ? p.originSport : 'Oztag';
+  // Explicit play sport overrides geometry. Only legacy built-in Oztag starter
+  // content has an assumed Oztag source; custom old plays require a coach choice.
+  if (TRANSFER_SPORTS.includes(p.originSport)) return p.originSport;
+  if (TRANSFER_SPORTS.includes(p.sport)) return p.sport;
+  return p.builtin ? 'Oztag' : '';
 }
 const transferKey = (from, to) => from + ' → ' + to;
 function transferSportSelect(name, chosen) {
-  return `<select name="${name}" aria-label="${name === 'source' ? 'Original sport' : 'Target sport'}">${TRANSFER_SPORTS.map(x =>
+  return `<select name="${name}" aria-label="${name === 'source' ? 'Original sport' : 'Target sport'}" ${name === 'source' ? 'required' : ''}>${name === 'source' ? '<option value="">Choose the original sport</option>' : ''}${TRANSFER_SPORTS.map(x =>
     `<option value="${esc(x)}" ${x === chosen ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
 }
 function openTransferChoices(p, from = transferSource(p), to = 'Rugby league') {
@@ -2559,7 +2688,7 @@ function openTransferChoices(p, from = transferSource(p), to = 'Rugby league') {
   </div>
   <form data-form="transfer-choose" autocomplete="off">
     <input type="hidden" name="id" value="${esc(p.id)}">
-    <label class="field-l"><span>Original sport</span>${transferSportSelect('source', from)}<small>Earlier plays use an Oztag-shaped diagram; change this if its coaching concept came from another sport.</small></label>
+    <label class="field-l"><span>Original sport</span>${transferSportSelect('source', from)}<small>Only built-in Oztag starters have a known legacy source. For older custom plays choose the actual sport; an eight-slot diagram does not establish the sport.</small></label>
     <label class="field-l"><span>Adapt towards</span>${transferSportSelect('target', to)}<small>This will not change the original play or generate extra on-field players.</small></label>
     <button class="btn primary block" type="submit">Compare the mechanics</button>
   </form>`, 'transfer');
@@ -3596,6 +3725,11 @@ function viewCrew() {
     .find(({comp})=>comp.id===rules.competitionId) : null;
   const contextValid = policyFitsContext(rules,{team:{...data.team,sport}},selectedPolicyEntry);
   const policyScope = selectedPolicyEntry?.comp?.name || 'Friendly / unlinked matches';
+  const readiness = selectedId ? fixtureReadinessIndex(ws, selectedId) : null;
+  const readinessActions = selectedId ? clubCrewActions(ws, selectedId) : [];
+  const appointments = reviewVolunteerAppointments(arr(ws.matchOfficials), arr(ws.volunteerAppointments), {type:'club',id:selectedId});
+  const overviewSports = [...new Set(M.activeTeams(ws).filter(t=>!!M.clubOf(ws,t)).map(t=>M.teamSport(t.team,M.clubOf(ws,t))))].sort();
+  const workspaceOverview = arr(ws.clubs).length>1 ? workspaceCrewOverview(ws,{sport:state.crewOverviewSport || ''}) : null;
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><div class="btn-row">${cardToggle('crew')}<button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div></div>
@@ -3609,6 +3743,23 @@ function viewCrew() {
       </label>
     </div>
     <p class="crew-intro">The club directory lists people. Staffing requirements belong to the selected team, sport and competition.</p>
+    ${readiness ? `<section class="sec crew-readiness-summary"><h3>Club fixture readiness (coach-recorded)</h3>
+      <p class="hint">For the selected club: ${readiness.totals.fixtures} fixtures · ${readiness.totals.covered} covered · ${readiness.totals.attention} need attention · ${readiness.totals.unverified} without verified requirements.</p>
+      <p class="hint">Based on manual club records only. Review match requirements and registration evidence before relying on these counts.</p>
+      ${readinessActions.length ? `<h4>Actions to review (${readinessActions.length})</h4><ul class="crew-req">${readinessActions.slice(0,12).map(x=>`<li>${esc(x.date || 'Date not set')} · ${esc(x.sport)} · ${esc(x.action)}</li>`).join('')}</ul>${readinessActions.length>12?`<p class="hint">Showing the first 12 of ${readinessActions.length} actions.</p>`:''}` : '<p class="hint">No outstanding actions identified from recorded fixtures.</p>'}</section>` : ''}
+    ${workspaceOverview ? `<section class="sec crew-workspace-overview" aria-label="Workspace club staffing overview">
+      <h3>Clubs in this workspace</h3>
+      <p class="hint">Read-only comparison of clubs already present in this encrypted coach workspace. This is not an association-wide directory or access grant.</p>
+      <label class="field-l"><span>Filter fixture sport</span><select name="crewOverviewSport" data-change="crew-overview-sport">
+        <option value="">All sports</option>
+        ${overviewSports.map(s=>`<option value="${esc(s)}" ${state.crewOverviewSport===s?'selected':''}>${esc(s)}</option>`).join('')}
+      </select></label>
+      <p class="hint">${workspaceOverview.totals.fixtures} fixtures · ${workspaceOverview.totals.covered} covered · ${workspaceOverview.totals.attention} need attention · ${workspaceOverview.totals.unverified} unverified policies</p>
+      ${workspaceOverview.clubs.length ? `<ul class="crew-req">${workspaceOverview.clubs.map(c=>`<li><strong>${esc(c.clubName)}</strong> · ${c.fixtures} fixtures · ${c.covered} covered · ${c.attention} attention · ${c.unverified} unverified
+        <span class="sub"> · ${c.manualAcceptedAppointments} manually accepted appointments · ${c.appointmentsNeedingReview} appointments needing review</span></li>`).join('')}</ul>`
+        : '<p class="hint">No recorded fixtures match this sport in the current workspace.</p>'}
+      <p class="hint">Counts are based only on coach records, not verified with governing bodies. No private volunteer information is included.</p>
+    </section>` : ''}
     <nav class="crew-page-nav" aria-label="Match staff sections"><button class="btn sm" data-act="crew-jump" data-to="crew-directory-section">Club volunteers</button><button class="btn sm" data-act="crew-jump" data-to="crew-rules-section">Team requirements</button></nav>
     <details class="info-note crew-help"><summary>${icon('info', 18)}How these records work</summary><div>
       <p class="hint">A person can appear in more than one club and help several teams: open their profile and tick the teams. Club membership, registration and accreditation are reviewed separately for each sport. These records stay in the encrypted coach copy, not a global member directory.</p>
@@ -3634,6 +3785,15 @@ function viewCrew() {
         : '<div class="empty"><p>No volunteers are recorded for this club. Add someone manually, link an existing workspace record or prepare an email invitation.</p></div>'}
       ${pool.length ? badgeLegend(sport) : ''}
     </div>
+    </section>
+    <section class="sec crew-section crew-appointment-panel" id="crew-appointment-section">
+      <div class="sec-h"><h3>Club appointments</h3><button class="btn sm" data-act="crew-appointment-new" ${!selectedId || !pool.length ? 'disabled' : ''}>Record appointment</button></div>
+      <p class="crew-section-help">Manual club role records are separate from sport accreditation, match-day assignments and app permissions. No invitation is sent by this screen.</p>
+      ${appointments.length ? `<ul class="crew-req">${appointments.map(a=>`<li>
+        <button class="btn sm" data-act="crew-appointment-edit" data-id="${esc(a.id)}">${esc(crewPerson(a.personId)?.name || 'Unknown volunteer')}</button>
+        · ${esc(a.role || 'Role not recorded')} · ${esc(APPOINTMENT_STATUS_LABELS[a.status] || 'Status requires review')}
+        ${a.issues.length ? `<span class="sub"> · ${esc(a.issues.join('; '))}</span>` : ''}
+      </li>`).join('')}</ul>` : '<p class="hint">No club appointments recorded. This does not mean no volunteers are registered.</p>'}
     </section>
     <section class="sec crew-section crew-rules-panel" id="crew-rules-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">${rules.source ? 'Configure' : 'Set up'}</button></div>
       <p class="crew-section-help">Requirements apply to the selected team, not the volunteer directory.</p>
@@ -3664,54 +3824,62 @@ function intakeTeamOptions(clubId, selectedId = '') {
 function intakeClubLabel(clubId) {
   return arr(ws.clubs).find(c=>c.id===clubId)?.name || 'Team without a club';
 }
+// A single team selector is used by each volunteer entry route, so a club-only
+// volunteer remains possible without silently assigning a sport/clearance.
+function intakeTeamField(clubId, label = 'Team assignment (optional)', help = '') {
+  const options=[{value:'',label:'No team assignment yet'},
+    ...intakeClubTeams(clubId).map(t=>({value:t.id,label:M.teamName(t)+' · '+
+      M.teamSport(t.team,M.clubOf(ws,t))}))];
+  return selectField({name:'teamId',label,options,help});
+}
 function crewIntakeStartForm() {
   const selected = intakeClubId();
+  const clubs = arr(ws.clubs).map(c=>({value:c.id,label:c.name}));
+  clubs.push({value:'',label:'No club / current team only'});
   return '<form data-form="crew-intake-start" autocomplete="off">' +
     '<p class="hint">Start with the club, then choose how to add the volunteer. ' +
     'Only clubs in this encrypted coach workspace are available; individual account permissions are not yet implemented.</p>' +
-    '<label class="field-l"><span>Club</span><select name="clubId">' +
-    arr(ws.clubs).map(c=>'<option value="'+esc(c.id)+'" '+(c.id===selected?'selected':'')+'>'+esc(c.name)+'</option>').join('') +
-    '<option value="" '+(!arr(ws.clubs).length?'selected':'')+'>No club / current team only</option></select></label>' +
-    '<fieldset class="crew-entry-choices"><legend>How would you like to add a volunteer?</legend>' +
-    '<label class="opt"><input type="radio" name="method" value="existing"><span><strong>Existing volunteer</strong><small>Link someone already in this coach workspace, without duplicating their record</small></span></label>' +
-    '<label class="opt"><input type="radio" name="method" value="invite"><span><strong>Email invitation</strong><small>Prepare an email in your mail app; online enrolment is not available yet</small></span></label>' +
-    '<label class="opt"><input type="radio" name="method" value="manual" checked><span><strong>Add manually</strong><small>Record personal details now; assign a team and check accreditation later</small></span></label>' +
-    '</fieldset><button class="btn primary block" type="submit">Continue</button></form>';
+    selectField({name:'clubId',label:'Club',selected,options:clubs}) +
+    radioChoices({name:'method',legend:'How would you like to add a volunteer?',selected:'manual',options:[
+      {value:'existing',label:'Existing volunteer',description:'Link someone already in this coach workspace, without duplicating their record'},
+      {value:'invite',label:'Email invitation',description:'Prepare an email in your mail app; online enrolment is not available yet'},
+      {value:'manual',label:'Add manually',description:'Record personal details now; assign a team and check accreditation later'}
+    ]}) +
+    '<button class="btn primary block" type="submit">Continue</button></form>';
 }
 function crewManualForm(clubId) {
-  return '<form data-form="crew-manual" autocomplete="off"><input type="hidden" name="clubId" value="' + esc(clubId) + '">' +
-    '<p class="hint">Adding to ' + esc(intakeClubLabel(clubId)) + '. This creates a local coach-recorded directory entry, not an account. Qualifications are not verified automatically.</p>' +
-    crewField('name','Full name','','text','required maxlength="120"') +
-    crewField('email','Email (optional)','','email','maxlength="254" placeholder="volunteer@example.com"') +
-    crewField('phone','Mobile / contact number (optional)','','tel','maxlength="40"') +
-    (clubId ? crewField('joined','First joined club (year, optional)','','number','min="1900" max="'+String(new Date().getFullYear())+'"') : '') +
-    '<label class="field-l"><span>Team assignment (optional)</span><select name="teamId">' +
-    intakeTeamOptions(clubId) + '</select><small>Club membership comes first. You can add a team and enter the sport-specific qualifications later.</small></label>' +
+  return '<form data-form="crew-manual" autocomplete="off"><input type="hidden" name="clubId" value="'+esc(clubId)+'">' +
+    '<p class="hint">Adding to '+esc(intakeClubLabel(clubId))+'. This creates a local coach-recorded directory entry, not an account. Qualifications are not verified automatically.</p>' +
+    personField('volunteer','name') +
+    personField('volunteer','email') +
+    personField('volunteer','phone') +
+    (clubId ? inputField({name:'joined',label:'First joined club (year, optional)',type:'number',min:1900,max:new Date().getFullYear()}) : '') +
+    intakeTeamField(clubId,'Team assignment (optional)',
+      'Club membership comes first. You can add a team and enter the sport-specific qualifications later.') +
     '<button class="btn primary block" type="submit">Save volunteer record</button>' +
     '<button class="btn block" type="button" data-act="crew-intake-back">Back</button></form>';
 }
 function crewExistingForm(clubId) {
   // The shared coach workspace is NOT a global account directory.
   const pool = arr(ws.matchOfficials).slice().sort((a,b)=>a.name.localeCompare(b.name));
-  return '<form data-form="crew-existing" autocomplete="off"><input type="hidden" name="clubId" value="' + esc(clubId) + '">' +
-    '<p class="hint">Choose a volunteer previously entered in this workspace and associate them with ' +
-    esc(intakeClubLabel(clubId)) + '. Existing registration and accreditation checks do not transfer to this club or another sport.</p>' +
-    (pool.length ? '<label class="field-l"><span>Existing person</span><select name="personId" required><option value="">Choose a person</option>' +
-      pool.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name) +
-        (p.email ? ' · '+esc(p.email) : '') + (memberOfClub(p,clubId) ? ' · already at this club' : '') + '</option>').join('') +
-      '</select></label>' : '<p class="crew-notready">No existing volunteers are recorded in this workspace. Use manual entry.</p>') +
-    '<label class="field-l"><span>Team assignment (optional)</span><select name="teamId">' +
-    intakeTeamOptions(clubId) + '</select><small>No team assignment or clearance is assumed.</small></label>' +
+  const options=[{value:'',label:'Choose a person'}, ...pool.map(p=>({value:p.id,label:p.name+
+    (p.email?' · '+p.email:'')+(memberOfClub(p,clubId)?' · already at this club':'')}))];
+  return '<form data-form="crew-existing" autocomplete="off"><input type="hidden" name="clubId" value="'+esc(clubId)+'">' +
+    '<p class="hint">Choose a volunteer previously entered in this workspace and associate them with '+
+    esc(intakeClubLabel(clubId))+'. Existing registration and accreditation checks do not transfer to this club or another sport.</p>' +
+    (pool.length ? selectField({name:'personId',label:'Existing person',options,required:true}) :
+      '<p class="crew-notready">No existing volunteers are recorded in this workspace. Use manual entry.</p>') +
+    intakeTeamField(clubId,'Team assignment (optional)','No team assignment or clearance is assumed.') +
     '<button class="btn primary block" type="submit" '+(!pool.length?'disabled':'')+'>Link volunteer to club</button>' +
     '<button class="btn block" type="button" data-act="crew-intake-back">Back</button></form>';
 }
 function crewInviteForm(clubId) {
-  return '<form data-form="crew-invite-draft" autocomplete="off"><input type="hidden" name="clubId" value="' + esc(clubId) + '">' +
-    '<p class="hint">Prepare an invitation from ' + esc(intakeClubLabel(clubId)) +
+  return '<form data-form="crew-invite-draft" autocomplete="off"><input type="hidden" name="clubId" value="'+esc(clubId)+'">' +
+    '<p class="hint">Prepare an invitation from '+esc(intakeClubLabel(clubId))+
     '. Team Manager does not yet provide user accounts, an enrolment URL or automated invitations. Your email app will open a draft for you to review and send.</p>' +
-    crewField('email','Recipient email','','email','required maxlength="254" placeholder="volunteer@example.com"') +
-    '<label class="field-l"><span>Team (optional)</span><select name="teamId">' + intakeTeamOptions(clubId) +
-    '</select></label><button class="btn primary block" type="submit">Open email draft</button>' +
+    inputField({name:'email',label:'Recipient email',type:'email',required:true,maxLength:254,placeholder:'volunteer@example.com'}) +
+    intakeTeamField(clubId,'Team (optional)') +
+    '<button class="btn primary block" type="submit">Open email draft</button>' +
     '<button class="btn block" type="button" data-act="crew-intake-back">Back</button></form>';
 }
 // The teams a volunteer helps, grouped by club, ticked on their profile. Club members can be picked for
@@ -3733,6 +3901,27 @@ function crewTeamsFields(p) {
     ${teams.length ? '' : '<p class="muted small">No teams in this workspace yet.</p>'}
   </fieldset>`;
 }
+function crewAppointmentForm(record = null) {
+  const clubId = intakeClubId();
+  const existing = record && record.scopeType === 'club' && record.scopeId === clubId ? record : null;
+  const pool = localClubDirectory(arr(ws.matchOfficials), clubId, M.activeTeams(ws));
+  const person = existing ? crewPerson(existing.personId) : null;
+  return `<form data-form="crew-appointment" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(existing?.id || M.uid())}">
+    <input type="hidden" name="scopeId" value="${esc(clubId)}">
+    <p class="hint">For ${esc(intakeClubLabel(clubId))}. Records are manually maintained in this encrypted workspace. No email or invitation is sent, and an appointment does not confirm match-day eligibility.</p>
+    ${existing ? `<input type="hidden" name="personId" value="${esc(existing.personId)}"><p><strong>${esc(person?.name || 'Volunteer no longer found')}</strong></p>`
+      : `<label class="field-l"><span>Existing club volunteer</span><select name="personId" required>
+        <option value="">Choose a volunteer</option>${pool.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}
+      </select></label>`}
+    <label class="field-l"><span>Organisational role</span><input name="role" required maxlength="80" placeholder="e.g. Volunteer coordinator" value="${esc(existing?.role || '')}"></label>
+    <label class="field-l"><span>Manually recorded status</span><select name="status">
+      ${APPOINTMENT_STATES.map(status=>`<option value="${status}" ${(existing?.status || 'proposed')===status?'selected':''}>${esc(APPOINTMENT_STATUS_LABELS[status])}</option>`).join('')}
+    </select></label>
+    <p class="hint">Choose Ended or Suspended to preserve history rather than deleting the record. This screen does not grant association, club or application access.</p>
+    <button class="btn primary block" type="submit">Save appointment</button>
+  </form>`;
+}
 function crewBasicForm(person) {
   const p=normCrewPerson(person), id=intakeClubId();
   const selected = arr(ws.clubs).find(c=>c.id===id);
@@ -3751,9 +3940,9 @@ function crewBasicForm(person) {
     '<div><label class="btn sm file-btn"><input type="file" accept="image/*" data-change="crew-photo" aria-label="Choose volunteer photo">Choose photo</label>' +
     '<button class="btn sm" type="button" data-act="crew-photo-clear" '+(!p.photo?'hidden':'')+'>Remove photo</button></div></div>' +
     '<input type="hidden" name="photo" value="'+esc(p.photo)+'">' +
-    crewField('name','Full name',p.name,'text','required maxlength="120"') +
-    '<div class="two">'+crewField('email','Email (optional)',p.email,'email','maxlength="254"')+
-    crewField('phone','Mobile / contact phone (optional)',p.phone,'tel','maxlength="40"')+'</div>' +
+    personField('volunteer','name',p.name) +
+    '<div class="two">'+personField('volunteer','email',p.email)+
+    personField('volunteer','phone',p.phone)+'</div>' +
     (sameClub ? crewField('joined','First joined '+esc(selected.name)+' (year)',since,'number','min="1900" max="'+validYear+'" placeholder="e.g. 2020"')+
       '<p class="hint">'+(years===null?'Club service start has not been recorded.':esc(years)+' calendar years since first joining; this does not prove uninterrupted service.')+'</p>' : '')+
     crewTeamsFields(p) +
@@ -3874,6 +4063,7 @@ function crewMatchForm(m) {
 // and a finished match only lists who was there.
 function crewMatchSummary(m) {
   const c = crewStatus(m), rules = crewPolicy(m), past = matchPhase(m) === 'after' || matchPhase(m) === 'off';
+  const coverage = crewCoverageSummary(c);
   const sport = M.teamSport(data.team, M.clubOf(ws, data));
   const slots = c.slots.length ? `<ul class="crew-slots">${c.slots.map(a => { const p = crewPerson(a.personId), bs = p ? crewBadges(p, sport, crewDay(m)) : [];
       return `<li>${badgeStrip(bs.filter(b => b.key === 'wwcc' || b.key === a.role), { size: 24 })}<span><strong>${esc(a.name)}</strong> · ${esc(CREW_ROLES[a.role] || a.role)}${a.confirmed ? '' : ' · not confirmed'}<span class="sr-only">. ${esc(bs.filter(b => b.key === 'wwcc' || b.key === a.role).map(b => b.text).join('. '))}</span></span></li>`; }).join('')}</ul>` : '';
@@ -3887,8 +4077,9 @@ function crewMatchSummary(m) {
       <p class="crew-quiet">${icon('info', 18)}<span>${rules.source ? 'Staff requirements: set up for another season, competition or age group' : 'Staff requirements: not set up'}</span></p>
       ${slots}${slotIssues.length ? `<ul class="diff-list warn-list">${slotIssues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${buttons}</section>`;
   return `<section class="crew-match-summary"><h3 class="form-sec">Match-day staff</h3>
-    <div class="crew-status ${c.ready ? 'crew-okay' : 'crew-alert'}"><strong>${c.ready ? 'All configured roles covered (coach-recorded)' : 'Match-day staffing needs attention'}</strong>
-    <span class="sub">${esc(c.source)}</span></div>
+    <div class="crew-status ${coverage.state === 'covered' ? 'crew-okay' : 'crew-alert'}"><strong>${esc(coverage.headline)}</strong>
+    <span class="sub">${esc(c.source)} · Confirmed ${coverage.confirmed} / Required ${coverage.required} · Missing ${coverage.missing}</span>
+    <small class="sub">${esc(coverage.explanation)}</small></div>
     ${slots}
     ${c.shortages.length ? `<ul class="crew-req">${c.shortages.map(r => `<li>${esc(r.name)}: ${r.have}/${r.min}${r.missing ? ' · ' + r.missing + ' missing' : ' · covered'}</li>`).join('')}</ul>` : ''}
     ${c.issues.length ? `<ul class="diff-list issues">${c.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
@@ -3909,13 +4100,13 @@ function helperForm(h) {
   const isNew = !h; h = h || { name: '', phone: '', relation: '', playerId: '', notes: '' };
   return `<form data-form="helper" autocomplete="off">
     <input type="hidden" name="id" value="${esc(h.id || '')}">
-    <label class="field-l"><span>Name</span><input type="text" name="name" required value="${esc(h.name)}" autocapitalize="words"></label>
-    <label class="field-l"><span>Mobile</span><input type="tel" name="phone" placeholder="04xx xxx xxx" value="${esc(h.phone)}"><small>Coach only. For asking them on WhatsApp.</small></label>
+    ${personField('helper','name',h.name)}
+    ${personField('helper','phone',h.phone)}
     <div class="two">
-      <label class="field-l"><span>Who they are</span><input type="text" name="relation" value="${esc(h.relation)}" placeholder="e.g. Mia’s mum"></label>
-      <label class="field-l"><span>Linked player</span><select name="playerId"><option value="">None</option>${sortedPlayers().map(p => `<option value="${p.id}" ${h.playerId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+      ${personField('helper','relation',h.relation)}
+      ${helperPlayerField(sortedPlayers(),h.playerId)}
     </div>
-    <label class="field-l"><span>Notes</span><input type="text" name="notes" value="${esc(h.notes)}" placeholder="e.g. has a ute, first aid trained"></label>
+    ${personField('helper','notes',h.notes)}
     <button class="btn primary block" type="submit">${isNew ? 'Add helper' : 'Save changes'}</button>
     ${isNew ? '' : `<button type="button" class="btn danger block" style="margin-top:10px" data-act="helper-del" data-id="${h.id}">Remove helper</button>`}
   </form>`;
@@ -4169,6 +4360,34 @@ function viewMatches() {
     + `<section class="sec"><div class="sec-h"><h2>${days.length ? 'Other matches' : 'Coming up'}</h2></div>${up.length ? `<div class="list grid sess-grid ${cardClass('matches')}">${up.map(matchRow).join('')}</div>` : '<p class="muted small">Nothing else coming up.</p>'}</section>`
     + (past.length ? `<section class="sec"><div class="sec-h"><h2>Played</h2>${coach ? `<button class="btn sm" data-act="results-share">${icon('chat', 18)}Send results</button>` : ''}</div><div class="list grid sess-grid ${cardClass('matches')}">${past.map(matchRow).join('')}</div></section>` : '');
 }
+// Fixture changes are coach-recorded, explicitly reviewed, and saved only after confirmation.
+function fixtureRevisionReview(p) {
+  const before=p.before,after=p.after;
+  const row=(label,b,a)=>b===a?'':`<li><strong>${label}</strong>: ${esc(b||'Not set')} → ${esc(a||'Not set')}</li>`;
+  const changed=['date','start','venue','field','status'].map(k=>row(k,before[k],after[k])).filter(Boolean).join('');
+  const m=matchById(p.id),review=planFixtureRevision(m,p.fields);
+  return `<section class="fixture-revision-review">
+    <p class="hint">This change is a manual coach record, not confirmation from a competition organiser or official feed.</p>
+    <ul class="diff-list">${changed}</ul>
+    <p><strong>Reason:</strong> ${esc(p.reason)}</p>
+    ${review.warnings?.length?`<ul class="diff-list">${review.warnings.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
+    <p class="hint">Existing results, lineups, RSVPs and staffing are preserved. Linked tasks require a separate choice when relevant. No notifications are sent automatically.</p>
+    <div class="btn-row"><button class="btn primary" data-act="fixture-revision-confirm">Confirm fixture change</button>
+    <button class="btn" data-act="close-sheet">Cancel — keep existing fixture</button></div>
+  </section>`;
+}
+function saveReviewedFixture(m,p,disposition='none') {
+  if(!m || !p || p.teamId!==data.id || m.id!==p.id)return {error:'Fixture or team selection changed. Reopen the fixture'};
+  const result=commitFixtureRevision(m,p.fields,{
+    confirmed:true,reason:p.reason,expectedBefore:p.before,
+    at:new Date().toISOString(),taskDisposition:disposition
+  });
+  if(result.error)return result;
+  Object.assign(m,p.fields);
+  if(!p.fields.tournament)delete m.tournament;
+  setEntry(m,p.entry);
+  return result;
+}
 function matchForm(m) {
   const isNew = !m || !m.id, T = data.team;
   m = m || { date: T.eventStart && T.eventStart >= todayISO() ? T.eventStart : todayISO(), start: '', opponent: '', venue: T.venue || '', field: '', round: '', notes: '', coachNotes: '', status: 'scheduled' };
@@ -4191,6 +4410,14 @@ function matchForm(m) {
     <label class="check"><input type="checkbox" name="tournament" ${m.tournament || (T.eventStart && m.date >= T.eventStart && m.date <= (T.eventEnd || T.eventStart)) ? 'checked' : ''}><span>Show in the ${esc(T.event || 'tournament')} draw</span></label>
     <label class="field-l"><span>Notes for players</span><input type="text" name="notes" value="${esc(m.notes || '')}" placeholder="e.g. Meet 45 minutes early, white tops"></label>
     <label class="field-l"><span>Coach notes</span><input type="text" name="coachNotes" value="${esc(m.coachNotes || '')}" placeholder="Only coaches see these"></label>
+    ${isNew ? '' : `<label class="field-l"><span>Reason for any fixture change</span><input type="text" name="changeReason" maxlength="200" placeholder="e.g. Organiser advised a later start"></label>
+      <p class="hint">If you change the date, start time, venue, field or status, you'll review the change before it is saved. Existing results, crew, lineups and availability remain and may need rechecking.</p>
+      ${arr(m.fixtureRevisions).length ? `<details class="more fixture-change-history"><summary>Previous fixture changes (${arr(m.fixtureRevisions).length})</summary>
+        <ul class="diff-list">${arr(m.fixtureRevisions).slice(-5).reverse().map(x=>`<li>
+          <strong>${esc(x.at?.slice(0,16)||'Recorded locally')}</strong> · ${esc(x.reason||'No reason recorded')}
+          <span class="sub" style="display:block;white-space:normal">${esc(x.before?.date||'?')} ${esc(x.before?.start||'')} → ${esc(x.after?.date||'?')} ${esc(x.after?.start||'')} · ${esc(x.after?.status||'')}</span>
+        </li>`).join('')}</ul>
+      </details>` : ''}`}
     <button class="btn primary block" type="submit">${isNew ? 'Add match' : 'Save changes'}</button>
   </form>`;
 }
@@ -4427,20 +4654,33 @@ function askLinked(p) {
   openSheet('Linked tasks', `<p style="margin-bottom:10px">${verb} ${esc(eventName(p.kind, ev))}. ${tasks.length === 1 ? 'This task is' : `These ${tasks.length} tasks are`} linked to it:</p>
     <ul class="diff-list">${tasks.map(t => `<li>${esc(t.title)} <span class="muted">(${esc(fmtDay(t.date))}${t.start ? ' ' + esc(fmtTime(t.start)) : ''}${t.cancelled ? ', cancelled' : ''})</span></li>`).join('')}</ul>
     <h3 class="form-sec">What should happen to ${tasks.length === 1 ? 'it' : 'them'}?</h3>
-    <div class="list">${LINK_OPTS[p.op].map(([c, l, d]) => `<button class="pick" data-act="link-choice" data-c="${c}"><span class="grow"><span class="name" style="display:block">${l}</span><span class="tagline">${d}</span></span></button>`).join('')}</div>
+    <div class="list">${(p.fixtureRevision ? LINK_OPTS[p.op].filter(([c])=>c!=='remove') : LINK_OPTS[p.op]).map(([c, l, d]) => `<button class="pick" data-act="link-choice" data-c="${c}"><span class="grow"><span class="name" style="display:block">${l}</span><span class="tagline">${d}</span></span></button>`).join('')}</div>
     <button class="btn block" style="margin-top:12px" data-act="close-sheet">Don’t change anything</button>`, 'linked');
 }
 function applyLinkChoice(c) {
   const p = state.pending; state.pending = null;
+  // A decision from a dismissed linked-duty review must never be replayed.
+  if (p?.fixtureRevision && state.sheet !== 'linked') return;
   const ev = p && eventOf(p.kind, p.id); if (!ev) { closeSheet(); return; }
   const s = n => `${n} task${n === 1 ? '' : 's'}`;
   let msg = 'Saved';
+  const wasOff=ev.status==='cancelled'||ev.status==='postponed';
+  if(p.fixtureRevision){
+    // These paths may affect task history; P07C disallows destructive 'remove'.
+    const allowed=p.op==='cancel'?['keep','cancel']:['move','detach'];
+    if(p.kind!=='match'||!allowed.includes(c)||p.teamId!==data.id){
+      toast('Fixture revision decision is invalid');closeSheet();return;
+    }
+    const result=saveReviewedFixture(ev,p,c);
+    if(result.error){toast(result.error);closeSheet();return;}
+  }
   if (p.op === 'edit') {
-    Object.assign(ev, p.fields);
-    msg = c === 'move' ? `Saved. ${s(M.followEvent(data, p.kind, p.id, p.before, p.after))} moved with it` : `Saved. ${s(M.detachTasks(data, p.kind, p.id))} left on the old day, unlinked`;
+    if(!p.fixtureRevision)Object.assign(ev, p.fields);
+    msg = c === 'move' ? `Saved. ${s(M.followEvent(data, p.kind, p.id, p.fixtureRevision ? p.taskBefore : p.before, p.fixtureRevision ? p.taskAfter : p.after))} moved with it` : `Saved. ${s(M.detachTasks(data, p.kind, p.id))} left on the old day, unlinked`;
+    if(p.fixtureRevision && wasOff && ev.status==='scheduled') M.reinstateTasks(data,'match',p.id);
   }
   if (p.op === 'cancel') {
-    if (p.kind === 'session') ev.cancelled = true; else Object.assign(ev, p.fields || {}, { status: p.status || 'cancelled' });
+    if (p.kind === 'session') ev.cancelled = true; else if(!p.fixtureRevision) Object.assign(ev, p.fields || {}, { status: p.status || 'cancelled' });
     msg = c === 'cancel' ? `Cancelled, with ${s(M.cancelTasks(data, p.kind, p.id))}` : c === 'remove' ? `Cancelled, and ${s(M.removeTasks(data, p.kind, p.id))} deleted` : 'Cancelled. The tasks are still on';
   }
   if (p.op === 'delete') {
@@ -4556,27 +4796,188 @@ function openWhatsApp(text, phone) {
 // messages and players' password; switching only changes which one is on screen. Archiving takes a
 // team's players' file off the site (its data stays in the coach's copy) until it's restored.
 const multiTeam = () => S.role === 'coach' && M.activeTeams(ws).length > 1;
+// Browsing/filtering never mutates the workspace or assigns club permissions.
+const teamFinder = { text: '', sport: '', club: '' };
+const clubFinder = { text: '', sport: '', state: '', limit: 30 };
+const finderMatch = (txt, needle) => String(txt || '').toLocaleLowerCase('en-AU').includes(needle.toLocaleLowerCase('en-AU'));
+const directorySource = u => {
+  const url = String(u || '').split(/[;|\s]+/)[0];
+  return /^https:\/\/[^\s<>"]+$/.test(url) ? url : '';
+};
+function managedTeamResults() {
+  const all = M.teamsOf(ws), activeN = all.filter(t => !t.archived).length;
+  const q = teamFinder.text.trim(), sport = teamFinder.sport, clubId = teamFinder.club;
+  const row = t => {
+    const sp = M.teamSport(t.team, M.clubOf(ws, t));
+    return `<div class="row team-row ${t === data ? 'current' : ''}">
+      <span class="grow"><span class="name" style="display:block">${sportIcon(sp, 18)} ${esc(M.teamName(t))}${t === data ? ' <span class="pill ok">On screen</span>' : ''}${t.archived ? ' <span class="pill neutral">Archived</span>' : ''}</span>
+      <span class="sub" style="display:block">${esc([sp, t.team.division, M.TEAM_CATEGORIES[t.team.category], (M.activeSeason(t) || {}).name || 'No active season', `${M.activeLens(t).players.length} players`].filter(Boolean).join(' · '))}</span></span>
+      <button class="btn sm" data-act="season-open" data-team="${esc(t.id)}" aria-label="Seasons of ${esc(M.teamName(t))}">Seasons</button>
+      ${t.archived ? `<button class="btn sm" data-act="team-restore" data-id="${esc(t.id)}">Restore</button>` : t === data ? '' : `<button class="btn sm" data-act="team-pick" data-id="${esc(t.id)}">Switch</button>`}
+      ${t.archived ? '' : `<button class="btn sm" data-act="team-archive" data-id="${esc(t.id)}" ${activeN < 2 ? 'disabled title="At least one team stays active"' : ''}>Archive</button>`}
+    </div>`;
+  };
+  const sortT = ts => ts.slice().sort((a, b) => (a.archived - b.archived) || M.teamName(a).localeCompare(M.teamName(b)));
+  const clubs = arr(ws.clubs).filter(c => (!clubId || c.id === clubId) && (!sport || c.sport === sport || M.clubTeams(ws,c.id).some(t=>M.teamSport(t.team,c)===sport)))
+    .slice().sort((a, b) => a.name.localeCompare(b.name));
+  const visibleTeams = ts => sortT(ts.filter(t => (!sport || M.teamSport(t.team, M.clubOf(ws,t))===sport) && (!q || [M.teamName(t),t.team.division].some(x=>finderMatch(x,q)))));
+  const sections = clubs.map(c => {
+    const ts=visibleTeams(M.clubTeams(ws,c.id));
+    if (q && !finderMatch(c.name,q) && !finderMatch(c.shortName,q) && !ts.length) return '';
+    // A club-name search shows all its teams; a team-name search shows only matching teams.
+    const displayTeams = q && (finderMatch(c.name,q)||finderMatch(c.shortName,q)) ? sortT(M.clubTeams(ws,c.id).filter(t=>!sport||M.teamSport(t.team,c)===sport)) : ts;
+    return `<section class="sec club-group">
+      <div class="club-head">${crest(clubBadge(c))}<span class="grow"><span class="name" style="display:block">${sportIcon(c.sport,18)} ${esc(c.name)}</span><span class="sub">${esc([c.sport,c.governingBody,`${displayTeams.length} team${displayTeams.length===1?'':'s'}`].filter(Boolean).join(' · '))}</span></span>
+      <button class="btn sm" data-act="club-edit" data-id="${esc(c.id)}">Edit club</button><button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
+      ${displayTeams.length ? `<div class="list">${displayTeams.map(row).join('')}</div>` : '<p class="muted small">No matching teams in this club.</p>'}
+    </section>`;
+  }).filter(Boolean);
+  const loose = !clubId ? visibleTeams(all.filter(t => !M.clubOf(ws,t))) : [];
+  if (loose.length) sections.push(`<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name">Not in a club</span></span></div><div class="list">${loose.map(row).join('')}</div></section>`);
+  return sections.join('') || '<div class="empty"><p>No clubs or teams match. Change your filters or clear the search.</p></div>';
+}
+let directoryLinkState = null;
+
+function directoryLinkReview() {
+  if (!directoryLinkState) return '';
+  const candidate=directoryRecords().find(c => c.id===directoryLinkState.refId);
+  const managed=arr(ws.clubs).find(c => c.id===directoryLinkState.clubId);
+  if (!candidate || !managed) return '<p class="hint">Choose a managed club to compare its details.</p>';
+  const preview=clubLinkPreview(managed,candidate,{includeColours:directoryLinkState.colours});
+  if (!preview) return '<p class="hint">This is not the same sport. Choose a different club.</p>';
+  const listing = (values, format) => values.length ? `<ul class="club-link-list">${values.map(format).join('')}</ul>` : '<p class="hint">None.</p>';
+  return `<p class="hint"><b>Your saved club:</b> ${esc(managed.name)} · ${M.clubTeams(ws,managed.id).length} existing team(s). Its ID, logo, branding, roles, people, seasons and teams stay unchanged.</p>
+    ${preview.blocked ? '<p class="note">Already linked to a different directory candidate. This link must be reviewed separately; no replacement is offered.</p>' : ''}
+    <h3>Blank fields that will be filled (${preview.additions.length})</h3>
+    ${listing(preview.additions, a => `<li><b>${esc(a.label)}:</b> ${esc(a.value)}</li>`)}
+    <h3>Existing values that will be kept (${preview.kept.length})</h3>
+    ${listing(preview.kept, a => `<li><b>${esc(a.label)}:</b> ${esc(a.current)}<small class="sub" style="display:block">Directory suggests: ${esc(a.proposed)} (not used)</small></li>`)}
+    <p class="hint">This confirms the two records describe the same club in your workspace, not that the directory listing is officially verified. No new club or team is created.</p>
+    <button type="button" class="btn primary block" data-act="directory-link-confirm" ${preview.blocked?'disabled':''}>Confirm same club and fill ${preview.additions.length} blank field${preview.additions.length===1?'':'s'}</button>`;
+}
+
+function directoryLinkSheet() {
+  const c=directoryRecords().find(x=>x.id===directoryLinkState?.refId);
+  if(!c)return;
+  const options=managedClubCandidates(c,arr(ws.clubs));
+  const match=options.find(x=>x.club.id===directoryLinkState.clubId);
+  const source=directorySource(c.sourceUrl);
+  openSheet('Confirm club match · '+c.name,`<p class="hint">This is an <b>unverified research listing</b> for ${esc(c.name)} (${esc(c.sport)} · ${esc(c.state)}). Check it against your own club before linking. ${source?`<a href="${esc(source)}" target="_blank" rel="noopener noreferrer">View research source ↗</a>`:''}</p>
+    <label class="field-l"><span>Which of your managed clubs is this?</span>
+      <select data-change="directory-link-pick" aria-label="Existing managed club">
+        <option value="">Choose existing club</option>
+        ${options.map(({club,score})=>`<option value="${esc(club.id)}" ${club.id===directoryLinkState.clubId?'selected':''}>${esc(club.name)}${score>=100?' · likely name match':''}</option>`).join('')}
+      </select>
+    </label>
+    ${c.colours?`<label class="check"><input type="checkbox" data-change="directory-link-colours" ${directoryLinkState.colours?'checked':''}><span>Also use published colour words if my club has none (unverified, no theme or logo changes)</span></label>`:''}
+    <div id="club-link-review" aria-live="polite">${directoryLinkReview()}</div>
+    <div class="btn-row" style="margin-top:14px">
+      <button type="button" class="btn" data-act="directory-link-new">Not the same · create separate club</button>
+      <button type="button" class="btn" data-act="close-sheet">Cancel</button>
+    </div>`, 'club-directory-link');
+}
+
+function openDirectoryLink(refId, preferred='') {
+  const c=directoryRecords().find(x=>x.id===refId);
+  if(!c)return;
+  const choices=managedClubCandidates(c,arr(ws.clubs));
+  if(!choices.length){toast('No managed clubs of this sport yet. Choose Use details to create one.');return;}
+  const initial=choices.some(x=>x.club.id===preferred)?preferred:(choices[0].score>=50?choices[0].club.id:'');
+  directoryLinkState={refId:c.id,clubId:initial,colours:false};
+  directoryLinkSheet();
+}
+
+function clubDirectoryResults() {
+  const filtered = filterClubDirectory({query:clubFinder.text,sport:clubFinder.sport,state:clubFinder.state});
+  const cap = clubFinder.limit;
+  const rows = filtered.slice(0,cap).map(c => { const matches=managedClubCandidates(c,arr(ws.clubs)); const suggested=matches.find(x=>x.score>=100); return `<div class="row directory-row">
+    <span class="directory-sport">${sportIcon(c.sport,22)}</span><span class="grow">
+      <span class="name" style="display:block">${esc(c.name)}</span>
+      <span class="sub" style="display:block">${esc([c.sport,c.state,c.region||c.suburb].filter(Boolean).join(' · '))}</span>
+      ${c.venues?.length > 1 ? `<span class="sub" style="display:block">${c.venues.length} listed venues (verify)</span>` : c.ground ? `<span class="sub" style="display:block">Ground: ${esc(c.ground)}</span>` : ''}
+      ${c.registrationLinks?.length > 1 ? `<span class="sub" style="display:block">${c.registrationLinks.length} registration portals (review junior/senior details)</span>` : ''}
+      ${c.colours ? `<span class="sub" style="display:block">Published colours (verify): ${esc(c.colours)}</span>` : ''}
+      ${c.sourceClass === 'historical_location' ? '<span class="pill neutral">Historical lead</span>' : '<span class="pill neutral">Unverified listing</span>'}
+      ${directorySource(c.sourceUrl) ? ` <a href="${esc(directorySource(c.sourceUrl))}" target="_blank" rel="noopener noreferrer">Source ↗</a>` : ''}
+      ${directorySource(c.website) ? ` <a href="${esc(c.website)}" target="_blank" rel="noopener noreferrer">Website ↗</a>` : ''}
+      ${directorySource(c.brandSource) ? ` <a href="${esc(directorySource(c.brandSource))}" target="_blank" rel="noopener noreferrer" title="Logo research source; verify current branding and usage rights">Brand research ↗</a>` : ''}
+    </span><span class="directory-actions"><button class="btn sm" data-act="directory-use" data-id="${esc(c.id)}">${suggested?.score===200?'Review link':'Use details'}</button>
+    ${matches.length? `<button class="link-btn" data-act="directory-match" data-id="${esc(c.id)}">Match existing club</button>` : ''}</span>
+  </div>`; }).join('');
+  return `<p class="muted small" role="status">${filtered.length} research candidate${filtered.length===1?'':'s'}; showing ${Math.min(cap,filtered.length)}. Not an authoritative current-registration list.</p>
+    <div class="list">${rows || '<p class="muted small">No entries match these filters.</p>'}</div>
+    ${filtered.length>cap ? `<button class="btn block" data-act="directory-more">Show more (${filtered.length-cap} remaining)</button>` : ''}`;
+}
+// P09C: local, trusted-owner design previews only. The projected data contains
+// club/team identity metadata; never route player contacts, volunteers or guardian
+// information into role-style cards or pretend the selector grants permission.
+function orgPreviewBody() {
+  const config=state.orgPreview||{mode:'association',clubId:curClub()?.id||'',teamId:data.id};
+  const preview=organisationPreview({
+    clubs:arr(ws.clubs).map(c=>({id:c.id,name:c.name,shortName:c.shortName,sport:c.sport})),
+    teams:M.activeTeams(ws).map(t=>({id:t.id,name:M.teamName(t),
+      clubId:M.clubOf(ws,t)?.id||'',sport:M.teamSport(t.team,M.clubOf(ws,t)),
+      division:t.team?.division||''})),
+    ...config
+  });
+  const choices=ORG_PREVIEW_MODES.map(m=>
+    `<button type="button" class="btn sm" data-act="org-preview-mode" data-mode="${esc(m.id)}"
+      aria-pressed="${m.id===preview.mode}">${esc(m.label)}</button>`).join('');
+  const clubs=preview.mode==='club' ? `<div class="org-preview-clubs" role="group" aria-label="Choose a managed club">
+    ${preview.clubs.map(c=>`<button type="button" class="btn sm" data-act="org-preview-club"
+      data-id="${esc(c.id)}" aria-pressed="${c.id===preview.selectedClubId}">${esc(c.name)}</button>`).join('')||'<p class="muted">No managed clubs yet.</p>'}
+    </div>` : '';
+  const rows=preview.teams.map(t=>{
+    const club=arr(ws.clubs).find(c=>c.id===t.clubId);
+    return `<div class="org-preview-team-row">
+      ${crest(club?clubBadge(club):null)}
+      <span class="grow"><span class="name">${esc(t.name)}</span>
+        <small class="sub">${esc([t.clubName,t.sport,t.division].filter(Boolean).join(' · '))}</small></span>
+      <button type="button" class="btn sm" data-act="org-preview-team" data-id="${esc(t.id)}">Open team</button>
+      </div>`;
+  }).join('');
+  return `<section class="org-preview-layout" data-mode="${esc(preview.mode)}" aria-label="Local organisational design preview">
+    <p class="note"><strong>DESIGN PREVIEW ONLY — not a signed-in role.</strong>
+      This reuses this coach's decrypted local workspace. It does not check membership,
+      give someone access or publish any information.</p>
+    <div class="org-preview-modes" role="group" aria-label="Choose a layout concept">${choices}</div>
+    <h3 class="form-sec">${esc(preview.title)}</h3><p class="hint">${esc(preview.description)}</p>
+    ${clubs}
+    <p class="org-preview-count" role="status">${preview.totalClubs} managed club${preview.totalClubs===1?'':'s'} in workspace ·
+      ${preview.totalTeams} team${preview.totalTeams===1?'':'s'} in this concept</p>
+    <div class="org-preview-team-list">${rows||'<p class="muted">No teams for this context.</p>'}</div>
+    ${preview.mode==='individual'?'<button type="button" class="btn block" data-act="org-preview-player">Open actual restricted player-view preview</button>':''}
+    <p class="hint">Open team switches only the existing coach's active team. No new role, tenant, association
+      affiliation, guardianship or sign-in credentials are created.</p>
+  </section>`;
+}
+function openOrgPreview() {
+  if(!state.orgPreview)state.orgPreview={mode:'association',clubId:curClub()?.id||'',teamId:data.id};
+  openSheet('Organisational layouts · local design review',orgPreviewBody(),'org-preview');
+}
 function viewTeams() {
   if (!isCoach()) return '';
-  const all = M.teamsOf(ws), activeN = all.filter(t => !t.archived).length;
-  const row = t => `<div class="row team-row ${t === data ? 'current' : ''}">
-      <span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}${t === data ? ' <span class="pill ok">On screen</span>' : ''}${t.archived ? ' <span class="pill neutral">Archived</span>' : ''}</span>
-      <span class="sub" style="display:block">${esc([t.team.division, M.TEAM_CATEGORIES[t.team.category], (M.activeSeason(t) || {}).name || 'No active season', `${M.activeLens(t).players.length} players`].filter(Boolean).join(' · '))}</span></span>
-      <button class="btn sm" data-act="season-open" data-team="${t.id}" aria-label="Seasons of ${esc(M.teamName(t))}">Seasons</button>
-      ${t.archived ? `<button class="btn sm" data-act="team-restore" data-id="${t.id}">Restore</button>` : t === data ? '' : `<button class="btn sm" data-act="team-pick" data-id="${t.id}">Switch</button>`}
-      ${t.archived ? '' : `<button class="btn sm" data-act="team-archive" data-id="${t.id}" ${activeN < 2 ? 'disabled title="At least one team stays active"' : ''}>Archive</button>`}
-    </div>`;
-  const sortT = ts => ts.slice().sort((a, b) => (a.archived - b.archived) || M.teamName(a).localeCompare(M.teamName(b)));
-  const clubs = arr(ws.clubs).slice().sort((a, b) => a.name.localeCompare(b.name));
-  const loose = sortT(all.filter(t => !M.clubOf(ws, t)));
-  return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus', 18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus', 18)}New team</button><button class="btn sm" data-act="team-template-choose">Use existing setup</button></div></div>
-    ${clubs.map(c => { const ts = sortT(M.clubTeams(ws, c.id)); return `<section class="sec club-group">
-      <div class="club-head">${crest(clubBadge(c))}<span class="grow"><span class="name" style="display:block">${esc(c.name)}</span><span class="sub">${esc([c.sport, c.governingBody, `${ts.length} team${ts.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '))}</span></span>
-        <button class="btn sm" data-act="club-edit" data-id="${esc(c.id)}">Edit club</button><button class="btn sm" data-act="club-open" data-id="${esc(c.id)}">Club details</button></div>
-      ${ts.length ? `<div class="list">${ts.map(row).join('')}</div>` : '<p class="muted small">No teams in this club yet.</p>'}
-    </section>`; }).join('')}
-    ${loose.length ? `<section class="sec club-group"><div class="club-head"><span class="grow"><span class="name" style="display:block">Not in a club</span><span class="sub">Choose a club in Settings › Team</span></span></div><div class="list">${loose.map(row).join('')}</div></section>` : ''}
-    <p class="hint">A club keeps what its teams share: contacts, home ground, links and officials. Each team has its own division, staff, players’ file and team password, so players only ever see their own team (and their club’s public details). Archiving takes a team’s file off the site until you restore it.</p>`;
+  const clubs = arr(ws.clubs).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  return `<div class="sec-h"><h2>Clubs and teams</h2><div class="btn-row"><button class="btn sm" data-act="club-new">${icon('plus',18)}New club</button><button class="btn primary sm" data-act="team-new">${icon('plus',18)}New team</button><button class="btn sm" data-act="team-template-choose">Use existing setup</button><button class="btn sm" data-act="org-preview-open">Preview role layouts</button></div></div>
+    <section class="directory-filters" aria-label="Filter managed clubs and teams">
+      <label class="field-l"><span>Find a club or team</span><input type="search" data-input="managed-find" value="${esc(teamFinder.text)}" placeholder="Club or team name"></label>
+      <label class="field-l"><span>Sport</span><select data-change="managed-sport"><option value="">All sports</option>${M.SPORTS.map(x=>`<option value="${esc(x)}" ${x===teamFinder.sport?'selected':''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="field-l"><span>Club</span><select data-change="managed-club"><option value="">All managed clubs</option>${clubs.map(x=>`<option value="${esc(x.id)}" ${x.id===teamFinder.club?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>
+      <button class="btn sm" data-act="managed-clear">Clear</button>
+    </section>
+    <div id="managed-team-results">${managedTeamResults()}</div>
+    <p class="hint">Managed clubs are private to this coach workspace. Team selection, season history, branding and role permissions are unchanged by the reference directory below.</p>
+    <section class="sec" id="national-club-directory">
+      <div class="sec-h"><h2>Find a club · National directory</h2><span class="pill neutral">${directoryRecords().length} research candidates</span></div>
+      <p class="hint">These are publicly sourced club and association candidates, not verified registrations. Oztag venues may share an association; no official logo is used. Selecting a result <b>only opens an editable draft</b> and never grants club access.</p>
+      <div class="directory-filters" aria-label="Search national club directory">
+        <label class="field-l"><span>Club or location</span><input type="search" data-input="directory-find" value="${esc(clubFinder.text)}" placeholder="Search name, region or venue"></label>
+        <label class="field-l"><span>Sport</span><select data-change="directory-sport"><option value="">Both sports</option>${['Rugby league','Oztag'].map(x=>`<option value="${x}" ${clubFinder.sport===x?'selected':''}>${x}</option>`).join('')}</select></label>
+        <label class="field-l"><span>State</span><select data-change="directory-state"><option value="">All states</option>${DIRECTORY_STATES.map(x=>`<option value="${x}" ${clubFinder.state===x?'selected':''}>${x}</option>`).join('')}</select></label>
+        <button class="btn sm" data-act="directory-clear">Clear</button>
+      </div>
+      <div id="national-directory-results">${clubDirectoryResults()}</div>
+    </section>`;
 }
 // Links from what the coach typed: web addresses, email and phone.
 const webLink = (u, label) => { if (!u) return ''; const href = /^https?:\/\//i.test(u) ? u : `https://${u.replace(/^\/+/, '')}`; return `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(label || u.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, ''))}</a>`; };
@@ -4592,6 +4993,7 @@ function viewClub() {
   const staff = coach ? arr(data.team.staff) : arr(V.staff);
   return `${coach ? '<button class="link-btn" data-act="tab" data-tab="teams" style="padding-top:0">‹ Clubs and teams</button>' : ''}<div class="sec-h"><h2 class="club-title">${crest(clubBadge(c), true)}<span>${esc(c.name)}</span></h2>${coach ? `<button class="btn sm" data-act="club-edit" data-id="${esc(c.id)}">Edit club</button>` : ''}</div>
     <p class="muted" style="margin:-4px 0 14px">${esc([c.sport, c.governingBody && `under ${c.governingBody}`, c.founded && `since ${c.founded}`].filter(Boolean).join(' · '))}</p>
+    ${coach && linkedDirectoryRecord(c)?'<p class="hint">Linked to a user-confirmed directory research record. This is not proof of current official registration.</p>':''}
     <div class="cols"><div class="col">
     <section class="sec"><div class="sec-h"><h2>Contact</h2></div><dl class="club-dl">
       ${line('Website', webLink(c.website))}${line('Email', mailLink(c.email))}${line('Phone', telLink(c.phone))}${line('Post', esc(c.postal))}
@@ -4612,11 +5014,12 @@ function viewClub() {
     </div></div>`;
 }
 const CLUB_SPORTS = M.SPORTS;
-function clubForm(c) {
-  const isNew = !c; c = M.normClub(c || { name: '' });
+function clubForm(c, forceNew = false) {
+  const isNew = !c || forceNew; c = M.normClub(c || { name: '' });
   const f = (name, label, ph = '', type = 'text') => `<label class="field-l"><span>${label}</span><input type="${type}" name="${name}" value="${esc(c[name])}" placeholder="${esc(ph)}"></label>`;
   const rows = [...c.officials, { role: 'President', name: '', phone: '', email: '' }, { role: 'Secretary', name: '', phone: '', email: '' }];
   return `<form data-form="club" autocomplete="off"><input type="hidden" name="id" value="${isNew ? '' : esc(c.id)}">
+    ${!isNew ? `<p class="hint">${linkedDirectoryRecord(c)?'Linked to directory research (user confirmed).':'Entered as a managed club.'} <button type="button" class="link-btn inline" data-act="club-find-directory" data-id="${esc(c.id)}">Find or review directory details</button></p>` : ''}
     <div class="two">${f('name', 'Club name', 'e.g. St George Oztag')}${f('shortName', 'Short name', 'e.g. St George')}</div>
     <div class="field-l logo-field"><span id="club-logo-l">Logo</span>
       <div class="logo-row"><span class="logo-prev">${crest(clubBadge(c), true)}</span>
@@ -4639,7 +5042,7 @@ function clubForm(c) {
     <div class="two">${f('nights', 'Nights played', 'e.g. Tue mixed, Wed men’s')}${f('colours', 'Colours', 'e.g. red and white')}</div>
     <div class="two">${f('registration', 'Registration link', 'https://')}${f('conduct', 'Code of conduct link', 'https://')}</div>
     <h3 class="form-sec">Officials <span class="small muted">coaches only</span></h3>
-    ${rows.map((o, i) => `<fieldset class="person-row"><legend class="sr-only">Official ${i + 1}</legend>
+    ${rows.map((o, i) => `<fieldset class="person-row"><legend class="sr-only">Official ${i + 1}</legend><input type="hidden" name="o-id" value="${esc(o.id || '')}">
       <div class="two"><label class="field-l"><span>Role</span><select name="o-role">${M.CLUB_ROLES.map(r => `<option ${r === o.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label><label class="field-l"><span>Name</span><input type="text" name="o-name" value="${esc(o.name)}"></label></div>
       <div class="two"><label class="field-l"><span>Mobile</span><input type="tel" name="o-phone" value="${esc(o.phone)}"></label><label class="field-l"><span>Email</span><input type="email" name="o-email" value="${esc(o.email)}"></label></div></fieldset>`).join('')}
     <p class="hint" style="margin:-4px 0 12px">Leave a name blank to leave that row out. Save and reopen to add more.</p>
@@ -4740,12 +5143,12 @@ function teamDetailsFields(T, { staff: withStaff = true, maxMales = false, after
 }
 function staffFields(staff) {
   return `<h3 class="form-sec">Team staff</h3>
-    ${staff.map((x, i) => `<fieldset class="person-row"><legend class="sr-only">Staff member ${i + 1}</legend>
+    ${staff.map((x, i) => `<fieldset class="person-row"><legend class="sr-only">Staff member ${i + 1}</legend><input type="hidden" name="st-id" value="${esc(x.id || '')}">
       <div class="two"><label class="field-l"><span>Role</span><select name="st-role">${M.TEAM_ROLES.map(r => `<option ${r === x.role ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label><label class="field-l"><span>Name</span><input type="text" name="st-name" value="${esc(x.name)}"></label></div>
       <div class="two"><label class="field-l"><span>Mobile</span><input type="tel" name="st-phone" value="${esc(x.phone)}"></label><label class="field-l"><span>Email</span><input type="email" name="st-email" value="${esc(x.email)}"></label></div></fieldset>`).join('')}
     <p class="hint" style="margin:-4px 0 14px">Players see staff names and roles; mobiles and emails stay with coaches. Leave a name blank to leave a row out.</p>`;
 }
-const peopleRows = (f, p) => f.getAll(p + '-name').map((name, i) => ({ role: String(f.getAll(p + '-role')[i] || 'Other'), name: String(name).trim(), phone: String(f.getAll(p + '-phone')[i] || '').trim(), email: String(f.getAll(p + '-email')[i] || '').trim() })).filter(x => x.name);
+const peopleRows = (f, p) => f.getAll(p + '-name').map((name, i) => ({ ...(String(f.getAll(p + '-id')[i] || '').trim() ? { id: String(f.getAll(p + '-id')[i]).trim() } : {}), role: String(f.getAll(p + '-role')[i] || 'Other'), name: String(name).trim(), phone: String(f.getAll(p + '-phone')[i] || '').trim(), email: String(f.getAll(p + '-email')[i] || '').trim() })).filter(x => x.name);
 function teamTemplatePicker() {
   const teams = M.activeTeams(ws);
   return `<p class="hint">Choose a team in this coach workspace explicitly. Only selected setup values can be reused; no players, staff, private contacts, passwords, matches, jersey histories or season records will transfer.</p>
@@ -5041,7 +5444,7 @@ function afterJersey(p, msg) {
 const SAFE_ACTS = new Set(('tab nav close-sheet settings layout layout-width lock-mode refresh sign-out squad-filter train-view report-range toggle-past attendance '
   + 'lineup-menu layer system sys-side sys-play task-view task-filter task-waiting play-open play-phase anim-play anim-slow anim-restart play-back play-side play-mode study-prev study-next plays-view psets '
   + 'preview-on preview-off teams team-switch team-pick home-scope home-days home-more home-go updates rules-open rules-seen review-system review-play club-open '
-  + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open').split(' '));
+  + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open people-undo people-staff-prepare guardian-correct guardian-reverse').split(' '));
 const pastMsg = () => V && V.viewSeason ? `${V.viewSeason.name} is read-only. Go back to the current season, or make a correction.` : 'Start a season first: Seasons, from the season under the team name.';
 function blockedInPast(act) {
   if (!V || S.role !== 'coach' || state.preview || /^(season|comp|club)-/.test(act) || SAFE_ACTS.has(act)) return false;
@@ -5179,14 +5582,18 @@ function libRow(kind, li) {
   const act = !mine ? `<button class="btn sm primary" data-act="lib-add" data-k="${kind}" data-id="${esc(li.id)}">Add to this team</button>`
     : st === 'current' ? `<span class="pill ok">In this team</span>`
     : `<button class="btn sm" data-act="lib-take" data-k="${kind}" data-id="${esc(kind === 'systems' ? li.id : mine.id)}">Use library version</button>`;
+  const origin=libraryOrigin(li);
+  const review=libraryCopyReview(ws,li,data);
+  const provenance=origin ? `Source: ${esc(origin.sport)} · local coach workspace` : 'Source sport not recorded (older/imported entry)';
   return `<div class="row lib-row"><span class="grow"><span class="name" style="display:block">${esc(name)} <span class="muted small">v${li.rev || 1}</span></span>
-      <span class="sub lib-use">${libUseLine(kind, li)}</span></span>${act}
+      <span class="sub lib-use">${libUseLine(kind, li)}</span>
+      <span class="sub lib-origin">${provenance}${review.requiresExplicitReview ? ' · Review before copying to this team' : ''}</span></span>${act}
       <button class="icon-btn" data-act="lib-remove" data-k="${kind}" data-id="${esc(li.id)}" aria-label="Take ${esc(name)} out of the library">${icon('close', 18)}</button></div>`;
 }
 function viewLibrary() {
   if (!isCoach()) return '';
   const sec = (kind, title, empty) => { const items = M.libItems(ws, kind); return `<h3 class="form-sec">${title} (${items.length})</h3>${items.length ? `<div class="list">${items.map(li => libRow(kind, li)).join('')}</div>` : `<p class="muted small">${empty}</p>`}`; };
-  return `<div class="sec-h"><h2>Library</h2></div><p class="hint" style="margin:-4px 0 6px">Shared across your teams. Save plays, game systems and custom diagram role labels to the library, then reuse them in another team. Teams that haven’t changed their copy get each new library version; a team that has keeps its own.</p>
+  return `<div class="sec-h"><h2>Library</h2></div><p class="hint" style="margin:-4px 0 6px">This is one local coach workspace library, not an independently authorised club or association library. Source sport and club are shown for review. New teams copy only confirmed matching-context entries; different or unknown sport/club sources require a deliberate manual choice. Unedited linked team copies follow new versions; edited copies are retained.</p>
     ${sec('plays', 'Plays', 'No plays yet. Open a play and choose Save to library.')}
     ${sec('systems', 'Game systems', 'None yet. Show a game system on the Lineup page and choose Save to library.')}
     ${sec('playerSets', 'Diagram role labels', 'No custom diagram labels in the shared library yet.')}
@@ -5288,11 +5695,132 @@ function viewMore() {
     ${coach ? '' : item('tab', 'data-tab="club"', curClub() ? esc(curClub().name) : 'Club', 'Club contacts, ground and links', 'team')}
     ${coach ? item('tab', 'data-tab="comps"', 'Competitions', (n => `${n} competition${n === 1 ? '' : 's'}: entries, fixtures and results`)(M.compsOf(ws).filter(c => c.status !== 'archived').length), 'chart') : ''}
     ${coach ? item('tab', 'data-tab="teams"', 'Clubs and teams', esc(clubsTeamsLine()), 'team') : ''}
+    ${coach ? item('tab', 'data-tab="people"', 'People', 'Coach-only records, locally reviewed links and guardian candidates', 'team') : ''}
     ${item('settings', '', 'Settings', coach ? 'Team, field, team contact, publishing, backups, screen layout' : 'Screen layout, updates, sign out', 'cog')}
   </div>
   ${coach ? '' : `<p class="hint">${S.fromCache ? 'No connection: you’re seeing the copy saved on this phone. ' : ''}The coach keeps everything up to date. Use Settings › Check for updates to get the latest.</p>`}`;
 }
 // The noticeboard on its own page: players read it; the coach posts and takes notices down here.
+// P04B: the People screen is only available within the trusted coach copy.
+// Local review records are NOT global Person identities, legal guardian proof,
+// or club/association/child account permissions.
+const peopleScope = () => localPeopleNamespace({ owner: S.trial ? (gh.owner || 'local') : gh.owner, repo: S.trial ? (gh.repo || 'sample') : gh.repo, trial: S.trial });
+const peopleKind = { player:'Player', helper:'Helper', 'match-official':'Match staff',
+  'club-official':'Club official', 'team-staff':'Team staff', 'season-staff':'Season staff' };
+const peopleSourceName = x => {
+  let teamName='';
+  try {
+    const ref=JSON.parse(x.sourceRef||'null');
+    if(Array.isArray(ref)&&['player','helper','team-staff','season-staff'].includes(x.kind))
+      teamName=M.findTeam(ws,ref[2])?.team?.name||ref[2];
+  }catch{ /* missing display source */ }
+  const clubName=x.clubId && (arr(ws.clubs).find(c=>c.id===x.clubId)?.name||x.clubId);
+  return [x.displayName || 'Unnamed', peopleKind[x.kind] || x.kind,
+    x.role && x.role !== x.kind ? x.role : '',teamName,
+    clubName ? 'Club '+clubName : ''
+  ].filter(Boolean).join(' · ');
+};
+function viewPeople() {
+  if (!isCoach()) return '<div class="empty"><p>People records are available only in the coach workspace.</p></div>';
+  const namespace=peopleScope();
+  if (!namespace) return '<div class="empty"><p>Set a valid GitHub repository in Settings to identify this coach workspace before reviewing people.</p></div>';
+  const page=localPeopleReviewView(ws,namespace);
+  if(page.error) return `<div class="sec-h"><h2>People</h2></div><div class="note">${esc(page.error)}. Correct the source data and try again.</div>`;
+  const stable=page.sources.filter(x=>x.durable);
+  const prep=page.staffReadiness;
+  const opts=stable.map(x=>`<option value="${esc(x.sourceRef)}">${esc(peopleSourceName(x))}</option>`).join('');
+  const list=page.sources.map(x=>`<div class="row helper-card" data-people-name="${esc(peopleSourceName(x).toLocaleLowerCase('en-AU'))}">
+    <span class="helper-avatar" aria-hidden="true">${esc(initials({name:x.displayName||'?' }))}</span>
+    <div class="grow"><span class="name" style="display:block">${esc(x.displayName||'Unnamed')}</span>
+      <span class="sub" style="display:block">${esc((peopleKind[x.kind]||x.kind)+(x.role?' · '+x.role:'')+(x.clubId?' · '+x.clubId:''))}</span>
+      ${x.durable?'':'<span class="sub">Staff snapshot · stable ID needed before linking</span>'}
+    </div></div>`).join('');
+  const reviews=page.reviews.map(r=>`<div class="row helper-card">
+    <div class="grow"><span class="name" style="display:block">${esc(r.sources.map(peopleSourceName).join(' ↔ '))}</span>
+      <span class="sub" style="display:block">${esc(r.status==='reviewed'?'Locally reviewed (not verified identity)':r.status==='reversed'?'Review reversed':'Review needs checking: '+r.status)} · ${esc(r.reviewedAt)}</span>
+      <span class="sub" style="display:block">Recorded by ${esc(r.reviewedBy||'Coach workspace')}; no contact or account permissions shared</span>
+    </div>
+    ${r.canReverse?`<button class="btn sm" type="button" data-act="people-undo" data-id="${esc(r.id)}">Reverse review</button>`:''}
+  </div>`).join('');
+  const guardianOptions=(kind)=>page.sources.filter(x=>x.kind===kind)
+    .map(x=>`<option value="${esc(x.sourceRef)}">${esc(peopleSourceName(x))}</option>`).join('');
+  const guardianHistory=page.guardianLedger.reviews.map(r=>`<div class="row helper-card">
+    <div class="grow">
+      <span class="name" style="display:block">${esc(r.helperName)} · ${esc(r.childName)}</span>
+      <span class="sub" style="display:block">${esc(r.helperTeamId)} → ${esc(r.childTeamId)} · ${esc(
+        r.status==='recorded'?'Reported relationship, NOT legal verification':
+        r.status==='reversed'?'Review reversed':'Source needs checking: '+r.status)}</span>
+      <span class="sub" style="display:block">${esc(REPORTED_RELATIONSHIPS[r.relationship]||'No relationship recorded')} ·
+        ${r.history.length} review event${r.history.length===1?'':'s'}</span>
+      <span class="sub" style="display:block">No guardian account or permission to access child records</span>
+      <details><summary>Review history (${r.history.length})</summary>
+        <ol>${r.history.map(e=>`<li>${esc(e.action==='record'?'Recorded':e.action==='correct'?'Corrected':'Reversed')} ·
+          ${esc(e.at)} · ${esc(e.by)}
+          ${e.relationship?` · ${esc(REPORTED_RELATIONSHIPS[e.relationship]||'Unconfirmed')}`:''}</li>`).join('')}</ol>
+      </details>
+    </div>
+    <div class="btn-row">
+      ${r.canCorrect?`<button type="button" class="btn sm" data-act="guardian-correct" data-id="${esc(r.id)}">Correct</button>`:''}
+      ${r.canReverse?`<button type="button" class="btn sm" data-act="guardian-reverse" data-id="${esc(r.id)}">Reverse</button>`:''}
+    </div>
+  </div>`).join('');
+  const guardians=page.guardianCandidates.map(c=>`<div class="row helper-card">
+    <div class="grow"><span class="name" style="display:block">${esc(c.helper)} · ${esc(c.child)}</span>
+      <span class="sub" style="display:block">${esc(c.teamId)} · ${c.missing?'Player record missing':'Helper-to-player reference only'} · Not a verified guardian</span>
+    </div></div>`).join('');
+  return `<div class="sec-h"><h2>People</h2><span class="sub">Coach-only · ${page.sourceCount} source records · ${page.reviewedCount} local reviews</span></div>
+    <p class="hint">One person may be recorded as a player, coach, official or volunteer in several teams. Names alone never join records. This page cannot create logins, grant access or verify a parent's legal authority.</p>
+    <section class="card" aria-labelledby="people-staff-prepare-title">
+      <h3 id="people-staff-prepare-title">Prepare club and team staff records</h3>
+      <p class="hint">Legacy staff entries had no persistent IDs. They are listed for reference but cannot be safely linked until each row has its own identifier. Preparing IDs does not verify identity or merge any records.</p>
+      ${prep.error ? `<p class="hint">${esc(prep.error)}</p>` :
+      `<p class="hint">${prep.ready} prepared · ${prep.missing} needing IDs (club, team and historical season staff)</p>
+      ${prep.missing>0?`<button type="button" class="btn sm" data-act="people-staff-prepare">Prepare ${prep.missing} staff record${prep.missing===1?'':'s'} for linking</button>`:'<p class="hint">All current staff sources have stable IDs.</p>'}`}
+    </section>
+    <section class="card" aria-labelledby="people-review-title">
+      <h3 id="people-review-title">Review two records</h3>
+      <p class="hint">Choose two <strong>distinct</strong> eligible records, including club or team staff after their IDs have been prepared. Confirm only when you personally know they refer to the same person. Existing player IDs, jerseys, history and contact details are unchanged.</p>
+      <form data-form="people-link">
+        <div class="two">
+          <label class="field-l"><span>First record</span><select name="firstRef" required><option value="">Choose person record</option>${opts}</select></label>
+          <label class="field-l"><span>Second record</span><select name="secondRef" required><option value="">Choose another record</option>${opts}</select></label>
+        </div>
+        <button class="btn primary" type="submit">Review and record link</button>
+      </form>
+      <p class="hint">Staff without stable record IDs remain view-only until prepared using the action above.</p>
+    </section>
+    <section class="card" aria-labelledby="people-sources-title">
+      <div class="sec-h"><h3 id="people-sources-title">Existing records</h3></div>
+      <label class="field-l"><span>Find a person, role or club</span><input type="search" data-input="people-search" value="${esc(state.peopleSearch)}" placeholder="Search this coach workspace"></label>
+      <div id="people-source-list" class="list">${list||'<p class="hint">No person records yet.</p>'}</div>
+    </section>
+    <section class="card" aria-labelledby="people-ledger-title"><h3 id="people-ledger-title">Reviewed links · ${page.reviews.length}</h3>
+      <p class="hint">These are historical coach acknowledgements, not a shared login or verified personal identity. Reversal keeps a record for backup and merge conflicts.</p>
+      <div class="list">${reviews||'<p class="hint">No locally reviewed links yet.</p>'}</div>
+    </section>
+    <section class="card" aria-labelledby="guardian-record-title">
+      <h3 id="guardian-record-title">Reported guardian and carer relationships · ${page.guardianLedger.reviews.length}</h3>
+      <p class="hint"><strong>Private coach review only.</strong> Choose a helper/parent/carer record and an individual player record. A reported relationship may be mistaken or out of date. Recording or correcting it <strong>does not verify legal guardianship</strong>, confirm consent, or grant any access to a child's records.</p>
+      <form data-form="guardian-review">
+        <div class="two">
+          <label class="field-l"><span>Adult / helper record</span><select name="guardianRef" required>
+            <option value="">Choose existing helper</option>${guardianOptions('helper')}</select></label>
+          <label class="field-l"><span>Child / player record</span><select name="childPlayerRef" required>
+            <option value="">Choose player and team</option>${guardianOptions('player')}</select></label>
+        </div>
+        <label class="field-l"><span>Reported relationship</span><select name="relationship" required>
+          ${Object.entries(REPORTED_RELATIONSHIPS).map(([k,v])=>`<option value="${esc(k)}">${esc(v)}</option>`).join('')}</select></label>
+        <button class="btn primary" type="submit">Review and record relationship</button>
+      </form>
+      <p class="hint">If an adult is not in the list, add their record as a Helper for one of your teams first. This alone does not make them a volunteer or an authorised guardian.</p>
+      <div class="list">${guardianHistory||'<p class="hint">No reported relationships recorded yet.</p>'}</div>
+    </section>
+    <section class="card" aria-labelledby="guardian-review-title"><h3 id="guardian-review-title">Guardian relationship candidates · ${page.guardianCandidates.length}</h3>
+      <p class="hint">A helper linked to a player may be a guardian, another relative or a volunteer. This is a private review list only. No relationship here is legally verified, and guardians cannot sign in or access child records.</p>
+      <div class="list">${guardians||'<p class="hint">No helper-to-player candidates recorded.</p>'}</div>
+    </section>`;
+}
+
 function viewNotices() {
   const coach = isCoach();
   return `<div class="sec-h"><h2>${coach ? 'Noticeboard' : 'Notices'}</h2>${coach ? `<button class="btn primary sm" data-act="add-notice">${icon('plus', 18)}Post a notice</button>` : ''}</div>
@@ -5345,7 +5873,19 @@ function loadWatch() {
 }
 function viewRules() {
   const rs = curRules(), coach = isCoach(), T = V.team;
-  if (!rs) return '<div class="empty"><p>No rule set chosen for this team.</p></div>';
+  const coverage = sportCapabilities(T, curClub());
+  if (!rs) return `<section class="sec sport-rules-coverage" aria-label="Sport rules coverage">
+    <div class="sec-h"><h2>${esc(coverage.sport)} rules</h2></div>
+    <p class="note" role="status">No built-in rule pack is available for this team's sport. The app cannot verify its field layout, game format or scoring rules.</p>
+    <p class="hint">You can keep team-specific positions and competition by-laws, but confirm requirements with the relevant organiser and governing body. Do not use another sport's rules as though they apply automatically.</p>
+    ${coach ? '<button class="btn sm" data-act="settings" data-sec="team">Review team sport and rules</button>' : ''}
+  </section>`;
+  if (coverage.crossSportRulePack) return `<section class="sec sport-rules-mismatch" aria-label="Sport rules mismatch">
+    <div class="sec-h"><h2>Sport and rule set need review</h2></div>
+    <p class="note" role="status">This team is recorded as ${esc(coverage.sport)}, but its selected rule pack is ${esc(rs.sportName)}. These rules are not verified for this team's sport.</p>
+    <p class="hint">Scoring, restarts, player numbers and gameplay from the other code are hidden until the coach reviews this selection. Saved team rules and competition by-laws are not changed.</p>
+    ${coach ? '<button class="btn sm" data-act="settings" data-sec="team">Review selection</button>' : '<p class="hint">Ask your coach to review the team sport and rule set.</p>'}
+  </section>`;
   const bylaws = arr(T.bylaws), replaced = new Map(bylaws.filter(b => b.replaces).map(b => [b.replaces, b]));
   const unseen = rulesUnseen(), fresh = new Set(unseen.flatMap(c => arr(c.rules)));
   const mm = M.maxMalesOf(T, curClub()), values = { ...rs.values };
@@ -5450,18 +5990,34 @@ function bylawForm(b) {
 // wide screen, a comfortable width or the full width of the window.
 const layoutPref = () => ['auto', 'phone', 'wide'].includes(store.get('tm-layout')) ? store.get('tm-layout') : 'auto';
 const widthPref = () => store.get('tm-width') === 'full' ? 'full' : 'comfy';
+// Density changes visual rhythm, never the browser zoom or encrypted team data.
+const densityPref = () => normalizeDensity(store.get('tm-density'));
 function applyLayout() {
   const pref = layoutPref(), wide = pref === 'wide' || (pref === 'auto' && window.innerWidth >= 1000);
   document.body.classList.toggle('wide', wide);
   document.body.classList.toggle('full', wide && widthPref() === 'full');
+  const eligible = mayUseCompactDensity(wide, window.innerWidth);
+  const compact = eligible && densityPref() === 'compact';
+  document.body.classList.toggle('density-compact', compact);
+  const quick = $('#density-btn');
+  if (quick) {
+    quick.hidden = !eligible || !S.role || !!state.qaPersona;
+    quick.textContent = compact ? 'Comfortable' : 'Compact';
+    quick.setAttribute('aria-label', compact ? 'Use comfortable dashboard layout' : 'Use compact dashboard layout');
+    quick.setAttribute('aria-pressed', String(compact));
+    quick.title = compact ? 'Switch to comfortable spacing' : 'Fit more information on screen';
+  }
   const top = $('.top'); if (top) document.body.style.setProperty('--top-h', `${top.offsetHeight}px`);
 }
 function layoutSettings() {
-  const pref = layoutPref(), w = widthPref();
+  const pref = layoutPref(), w = widthPref(), d = densityPref();
   return `<h3 class="form-sec" style="margin-top:0">Screen layout</h3>
     <div class="seg" role="group" aria-label="Screen layout">${[['auto', 'Auto'], ['phone', 'Phone'], ['wide', 'Wide']].map(([v, l]) => `<button type="button" data-act="layout" data-v="${v}" aria-pressed="${pref === v}">${l}</button>`).join('')}</div>
     <div class="seg" role="group" aria-label="Width on a wide screen">${[['comfy', 'Comfortable width'], ['full', 'Full width']].map(([v, l]) => `<button type="button" data-act="layout-width" data-v="${v}" aria-pressed="${w === v}">${l}</button>`).join('')}</div>
-    <p class="hint" style="margin:-4px 0 18px">Wide puts the sections down the side and uses the extra space on a computer: two columns, bigger diagrams and a bigger play editor. Auto uses it on any screen wider than a tablet. Saved on this device only.</p>`;
+    <h3 class="form-sec">Display density</h3>
+    <div class="seg" role="group" aria-label="Display density">${[['comfortable', 'Comfortable'], ['compact', 'Compact']].map(([v, l]) => `<button type="button" data-act="layout-density" data-v="${v}" aria-pressed="${d === v}">${l}</button>`).join('')}</div>
+    <p class="hint" style="margin:-4px 0 14px">Compact fits more of the dashboard on a desktop by tightening spacing and headings. It does not alter browser zoom, mobile touch controls, or shared team data. The quick toggle also appears in the desktop header.</p>
+    <p class="hint" style="margin:0 0 18px">Wide puts the sections down the side and uses the extra space on a computer. Auto uses it on any screen wider than a tablet. Preferences are saved on this device only.</p>`;
 }
 function settingsBody() {
   if (S.role === 'player') {
@@ -5479,7 +6035,7 @@ const SETTINGS_SECS = [
   ['contacts', 'Contacts', 'Team contact and team staff'], ['training', 'Training', 'Usual venue and times'],
   ['field', 'Field', 'Zones and channels on the Lineup field'], ['players', 'Jerseys', 'Whether jerseys are lent and handed back'],
   ['publishing', 'Publishing', 'Players’ access, passwords and GitHub'], ['backup', 'Backup', 'Export, import and this phone'],
-  ['layout', 'Screen layout', 'Phone or wide layout on this device'], ['teams', 'Teams', 'Run more than one team'], ['testlib', 'Test data', 'The test library and a data check to compare devices']];
+  ['layout', 'Screen layout', 'Width and display density on this device'], ['teams', 'Teams', 'Run more than one team'], ['testlib', 'Test data', 'The test library and a data check to compare devices']];
 function settingsSummary(k) {
   const T = data.team, club = M.clubOf(ws, data);
   const fmtR = (a, b) => [a, b].filter(Boolean).map(fmtTime).join('–');
@@ -5492,7 +6048,7 @@ function settingsSummary(k) {
     players: T.jerseyLoan ? 'Lent to players and handed back' : 'Given to players to keep',
     publishing: S.trial ? 'Test mode: nothing is shared yet' : ghReady() ? `GitHub connected${gh.autoPublish ? ' · publishes automatically' : ''}` : 'GitHub not connected',
     backup: 'Encrypted backup of every team',
-    layout: { auto: 'Auto', phone: 'Phone', wide: 'Wide' }[layoutPref()] || 'Auto',
+    layout: `${{ auto: 'Auto', phone: 'Phone', wide: 'Wide' }[layoutPref()] || 'Auto'} · ${densityPref() === 'compact' ? 'Compact' : 'Comfortable'}`,
     teams: `${M.activeTeams(ws).length} team${M.activeTeams(ws).length === 1 ? '' : 's'}`,
     testlib: `${ws.testLibrary ? `Test library from ${fmtDay(ws.testLibrary.day)} · ` : ''}data check ${dataCheck(ws)}`
   }[k] || '';
@@ -5751,6 +6307,9 @@ function requestCloseSheet() {
   closeSheet();
 }
 function closeSheet() {
+  // Dismissing either confirmation sheet revokes the pending fixture amendment.
+  state.fixturePending = null;
+  if (state.pending?.fixtureRevision) state.pending = null;
   stopPlayerCrop();
   const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; document.body.classList.remove('locked'); state.sheet = null;
   if (state.stylePreview) { state.stylePreview = false; applyTeamStyle(); }
@@ -6062,9 +6621,66 @@ function extendTestLibrary(day) {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
+  'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';render(); },
+  'qa-journey': el => {
+    if(!qaEnabled()||!state.qaPersona)return;
+    const j=qaJourney(state.qaPersona,state.qaScope,el.dataset.id);
+    if(!j)return;
+    state.qaJourney=j.id;render();
+  },
+  'qa-journey-back': () => { if(state.qaPersona&&qaEnabled()){state.qaJourney='';render();} },
   'tab': el => { if (el.dataset.tab === 'club') state.clubId = null; goTo(el.dataset.tab); },
   'nav': el => { const g = NAV.find(x => x.id === el.dataset.g); if (!g) return; const last = state.lastView[g.id]; goTo(last && viewsOf(g).some(v => v[0] === last) && navOf(state.tab) !== g ? last : viewsOf(g)[0][0]); },
   'close-sheet': () => requestCloseSheet(),
+  'guardian-correct': coachOnly(el => {
+    if(!isCoach())return;
+    const page=localPeopleReviewView(ws,peopleScope());
+    const r=page.guardianLedger?.reviews.find(x=>x.id===el.dataset.id && x.canCorrect);
+    if(!r){toast('Relationship is unavailable or needs a new review');return;}
+    openSheet('Correct reported relationship', `<form data-form="guardian-correct">
+      <input type="hidden" name="recordId" value="${esc(r.id)}">
+      <p class="hint">${esc(r.helperName)} · ${esc(r.childName)}. This correction changes only the coach review history and never verifies legal authority.</p>
+      <label class="field-l"><span>Correct reported relationship</span><select name="relationship" required>
+        ${Object.entries(REPORTED_RELATIONSHIPS).map(([k,v])=>`<option value="${esc(k)}" ${r.relationship===k?'selected':''}>${esc(v)}</option>`).join('')}
+      </select></label><button class="btn primary block" type="submit">Save correction</button>
+    </form>`, 'guardian-correct');
+  }),
+  'guardian-reverse': coachOnly(el => {
+    if(!isCoach())return;
+    const ns=peopleScope(),page=localPeopleReviewView(ws,ns);
+    const r=page.guardianLedger?.reviews.find(x=>x.id===el.dataset.id && x.canReverse);
+    if(!r){toast('Relationship review is no longer available');return;}
+    if(!confirm(`Reverse the reported relationship between ${r.helperName} and ${r.childName}?\n\nThis retains historical review events but does not remove or modify any player, helper or sporting records. A reversed relationship cannot be silently reactivated.`))return;
+    const result=amendGuardianReview(ws,page.index,{recordId:r.id,by:'Shared coach workspace',
+      at:new Date().toISOString(),action:'reverse'});
+    if(result.error){toast(result.error);return;}
+    ws.guardianReviews=result.workspace.guardianReviews;
+    save();render();toast('Reported relationship reversed; history retained');
+  }),
+  'people-staff-prepare': coachOnly(() => {
+    if(!isCoach())return;
+    const ns=peopleScope(),page=localPeopleReviewView(ws,ns);
+    if(page.error || page.staffReadiness?.error){toast(page.error||page.staffReadiness.error);return;}
+    const count=page.staffReadiness.missing;
+    if(!count){toast('All staff records are already prepared');return;}
+    if(!confirm(`Assign stable IDs to ${count} current club/team/season staff records in this coach workspace?\n\nThis preserves all names, roles, contacts and season records, and does not combine or verify people. Save an encrypted backup if you want a rollback copy.`))return;
+    const selected=data.id,result=prepareStaffSourceIds(ws);
+    if(result.error){toast(result.error);return;}
+    ws=result.workspace;pickTeam(selected);save();render();
+    toast(`${result.assigned} staff record${result.assigned===1?'':'s'} prepared and saved`);
+  }),
+  'people-undo': coachOnly(el => {
+    if (!isCoach()) return;
+    const ns=peopleScope();
+    const page=localPeopleReviewView(ws,ns);
+    const r=page.reviews?.find(x=>x.id===el.dataset.id && x.canReverse);
+    if (!r) { toast('Review not found in this workspace. Refresh and try again.'); return; }
+    if (!confirm('Reverse this local person review? Original player and helper records remain unchanged; the reversal is saved in review history.')) return;
+    const result=undoLocalPeopleLink(ws,ns,{recordId:r.id,reversedBy:'Shared coach workspace',reversedAt:new Date().toISOString()});
+    if(result.error){toast(result.error);return;}
+    ws.peopleReviews=result.workspace.peopleReviews;
+    save(); render(); toast('Person review reversed and saved');
+  }),
   'settings': el => { if (state.stylePreview) { state.stylePreview = false; applyTeamStyle(); } const k = el && el.dataset && el.dataset.sec; if (k && S.role === 'coach') openSheet(SETTINGS_SECS.find(x => x[0] === k)?.[1] || 'Settings', settingsSection(k), 'settings'); else openSheet('Settings', settingsBody(), 'settings'); },
   'settings-sec': el => actions.settings(el),
   'layout': el => { store.set('tm-layout', el.dataset.v); applyLayout(); document.querySelectorAll('[data-act="layout"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
@@ -6074,6 +6690,17 @@ const actions = {
     state.cardViews[page] = mode; store.set('tm-card-views', JSON.stringify(state.cardViews)); render();
   },
   'layout-width': el => { store.set('tm-width', el.dataset.v); applyLayout(); document.querySelectorAll('[data-act="layout-width"]').forEach(b => b.setAttribute('aria-pressed', String(b === el))); },
+  'layout-density': el => {
+    if (!['comfortable', 'compact'].includes(el.dataset.v)) return;
+    store.set('tm-density', el.dataset.v); applyLayout();
+    document.querySelectorAll('[data-act="layout-density"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === el.dataset.v)));
+  },
+  'layout-density-quick': () => {
+    if (!document.body.classList.contains('wide') || window.innerWidth < 1000 || !S.role || state.qaPersona) return;
+    store.set('tm-density', densityPref() === 'compact' ? 'comfortable' : 'compact');
+    applyLayout();
+    document.querySelectorAll('[data-act="layout-density"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === densityPref())));
+  },
   'lock-mode': el => { state.lockMode = el.dataset.mode; state.lockMsg = ''; renderLock(); },
   'refresh': async () => {
     try { await openPlayer(S.teamLock, false, S.teamFile); closeSheet(); render(); toast(S.fromCache ? 'No connection. Showing the copy saved on this phone.' : 'Up to date'); }
@@ -6183,6 +6810,32 @@ const actions = {
   }),
   'md-send-lineup': coachOnly(el => { const m = matchById(el.dataset.id); if (m) sendWa(matchLineupText(m), { ref: 'match:' + m.id }); }),
   'result-share': coachOnly(el => { const m = matchById(el.dataset.id); if (m && (M.matchOutcome(m) || m.status !== 'scheduled')) sendWa(oneResultText(m), { ref: 'result:' + m.id }); }),
+  'fixture-revision-confirm': coachOnly(() => {
+    if(state.sheet!=='fixture-revision')return;
+    const p=state.fixturePending;state.fixturePending=null;
+    const m=p&&p.teamId===data.id&&matchById(p.id);
+    if(!m){toast('Fixture no longer belongs to the selected team');return;}
+    const plan=planFixtureRevision(m,p.fields);
+    if(plan.error || !plan.changed || Object.keys(p.before).some(k=>p.before[k]!==plan.before[k])){
+      toast('Fixture changed since you opened it. Reopen before updating.');return;
+    }
+    const linked=M.linkedTasks(data,'match',p.id);
+    const off=x=>x==='cancelled'||x==='postponed';
+    if(off(p.fields.status)&&!off(m.status)&&linked.some(t=>!t.cancelled)){
+      askLinked({...p,kind:'match',op:'cancel',status:p.fields.status,fixtureRevision:true});return;
+    }
+    const before={date:m.date,start:m.start,end:'',place:matchWhere(m)};
+    const after={date:p.fields.date,start:p.fields.start,end:'',place:matchWhere(p.fields)};
+    if(linked.length&&M.whenChanged(before,after)){
+      askLinked({...p,kind:'match',op:'edit',taskBefore:before,taskAfter:after,fixtureRevision:true});return;
+    }
+    const wasOff=off(m.status),result=saveReviewedFixture(m,p,'none');
+    if(result.error){toast(result.error);return;}
+    const restored=wasOff&&!off(m.status)?M.reinstateTasks(data,'match',p.id):0;
+    save();closeSheet();render();openMatch(p.id);
+    toast(restored?`Fixture change recorded; ${restored} linked tasks reinstated. Reconfirm attendance.`:
+      'Fixture change recorded. Review staffing and notify participants manually.');
+  }),
   'match-edit': coachOnly(el => { const m = matchById(el.dataset.id); if (m) openSheet('Edit match', matchForm(m), 'match-edit'); }),
   'match-del': coachOnly(el => {
     const m = matchById(el.dataset.id); if (!m) return;
@@ -6338,6 +6991,20 @@ const actions = {
     if (!t.cancelled && !confirm(`Mark “${t.title}” on ${fmtDay(t.date)} as cancelled? Everyone stays on it in case it’s back on.`)) return;
     t.cancelled = !t.cancelled; delete t.cancelledWith; save(); refreshTask(t.id); toast(t.cancelled ? 'Task cancelled' : 'Task back on');
   }),
+  'crew-appointment-new': coachOnly(() => {
+    const clubId = intakeClubId();
+    if (!clubId || !arr(ws.clubs).some(c=>c.id===clubId) ||
+        !localClubDirectory(arr(ws.matchOfficials),clubId,M.activeTeams(ws)).length) {
+      toast('Select a club with an existing volunteer first'); return;
+    }
+    openSheet('Record club appointment', crewAppointmentForm(), 'crew-appointment');
+  }),
+  'crew-appointment-edit': coachOnly(el => {
+    const clubId = intakeClubId();
+    const row = arr(ws.volunteerAppointments).find(a => a.id===el.dataset.id && a.scopeType==='club' && a.scopeId===clubId);
+    if (!row) { toast('Appointment is not available for this club'); return; }
+    openSheet('Edit club appointment', crewAppointmentForm(row), 'crew-appointment');
+  }),
   'crew-new': coachOnly(() => openSheet('Add a volunteer',crewIntakeStartForm(),'crew-intake-start')),
   'crew-intake-back': coachOnly(() => openSheet('Add a volunteer',crewIntakeStartForm(),'crew-intake-start')),
   'crew-basic': coachOnly(el => { const p = crewPerson(el.dataset.id); if(p) openSheet('Volunteer profile',crewBasicForm(p),'crew-basic'); }),
@@ -6391,8 +7058,12 @@ const actions = {
   }),
   'crew-delete': coachOnly(el => {
     const p = crewPerson(el.dataset.id); if (!p) return;
-    const used = M.teamsOf(ws).some(t => arr(t.matches).some(m => arr(m.crew).some(a => a.personId === p.id)));
-    if (used) { toast('This person is assigned to match records. Mark them inactive instead to preserve history.'); return; }
+    const removal = volunteerRemovalCheck(ws,p.id);
+    if (!removal.allowed) {
+      toast(removal.matches ? 'This volunteer has match-day history. Mark them inactive instead of removing the record.'
+        : 'This volunteer has an organisational appointment record, including ended appointments. Mark them inactive to preserve history.');
+      return;
+    }
     if (!confirm('Remove ' + p.name + ' from the match staff directory?')) return;
     ws.matchOfficials = arr(ws.matchOfficials).filter(x => x.id !== p.id);
     save(); closeSheet(); render();
@@ -6437,7 +7108,12 @@ const actions = {
     const p = playById(el.dataset.id); if (!p || !confirm(`Delete “${p.name}”?${p.builtin ? ' You can restore the starter plays later.' : ''}`)) return;
     data.plays = data.plays.filter(x => x.id !== p.id); state.playId = null; save(); render(); toast('Play deleted');
   }),
-  'play-share': coachOnly(el => { const p = playById(el.dataset.id); if (!p) return; sendWa(playShareText(p, state.playSide), { ref: 'play:' + p.id }); }),
+  'play-share': coachOnly(el => {
+    const p = playById(el.dataset.id); if (!p) return;
+    if (teachingContext(p).shareRequiresConfirmation &&
+        !confirm('This play needs a sport/rules review before sharing. The diagram is not a verified full-team formation. Share the instructions anyway?')) return;
+    sendWa(playShareText(p, state.playSide), { ref: 'play:' + p.id });
+  }),
   'play-transfer': coachOnly(el => { const p = playById(el.dataset.id); if(p) openTransferChoices(p); }),
   'transfer-change': coachOnly(el => { const p = playById(el.dataset.id); if(p) openTransferChoices(p, el.dataset.from, el.dataset.to); }),
   'transfer-copy': coachOnly(el => {
@@ -6635,6 +7311,33 @@ const actions = {
   'teams': coachOnly(() => goTo('teams')),
   'team-switch': coachOnly(() => teamSwitcher()),
   'team-pick': coachOnly(el => switchTeam(el.dataset.id)),
+  'org-preview-open': coachOnly(() => openOrgPreview()),
+  'org-preview-mode': coachOnly(el => {
+    const next=nextOrgPreviewSelection(state.orgPreview,{kind:'mode',id:el.dataset.mode});
+    if(!next)return;
+    state.orgPreview=next;
+    openOrgPreview();
+  }),
+  'org-preview-club': coachOnly(el => {
+    const next=nextOrgPreviewSelection(state.orgPreview,{kind:'club',id:el.dataset.id},
+      {clubs:arr(ws.clubs)});
+    if(!next)return;
+    state.orgPreview=next;
+    openOrgPreview();
+  }),
+  'org-preview-team': coachOnly(el => {
+    const team=M.activeTeams(ws).find(t=>t.id===el.dataset.id);
+    if(!team)return;
+    // This is a local coach team switch, never a role or tenant permission.
+    const next=nextOrgPreviewSelection(state.orgPreview,{kind:'team',id:team.id},
+      {teams:[{id:team.id,clubId:M.clubOf(ws,team)?.id||''}]});
+    if(!next)return;
+    state.orgPreview=next;
+    switchTeam(team.id);goTo('home');
+  }),
+  'org-preview-player': coachOnly(() => {
+    state.preview=true;state.moveMode=false;closeSheet();render();window.scrollTo(0,0);
+  }),
   'season-pick': coachOnly(() => seasonPicker()),
   'comp-open': coachOnly(el => { state.compId = el.dataset.id; closeSheet(); state.tab = 'comps'; history.replaceState(null, '', '#comps'); render(); window.scrollTo(0, 0); }),
   'comp-back': () => { state.compId = null; render(); window.scrollTo(0, 0); },
@@ -6739,6 +7442,44 @@ const actions = {
     if (!source || source.archived) { toast('That setup source is no longer available.'); return; }
     state.teamTemplateSource = source.id;
     openSheet('Create from ' + M.teamName(source), teamForm(), 'team-new');
+  }),
+  'managed-clear': coachOnly(() => {Object.assign(teamFinder,{text:'',sport:'',club:''});render();}),
+  'directory-clear': coachOnly(() => {Object.assign(clubFinder,{text:'',sport:'',state:'',limit:30});render();}),
+  'directory-more': coachOnly(() => {clubFinder.limit+=40;const v=$('#national-directory-results');if(v)v.innerHTML=clubDirectoryResults();}),
+  'directory-use': coachOnly(el => {
+    const c=directoryRecords().find(x=>x.id===el.dataset.id), draft=directoryClubDraft(c);
+    if (!draft) return;
+    const likely=managedClubCandidates(c,arr(ws.clubs)).find(x=>x.score>=100);
+    if(likely){openDirectoryLink(c.id,likely.club.id);return;}
+    state.clubFor=null;
+    openSheet('Review club details · '+c.name,clubForm(draft,true),'club');
+    toast('Research candidate: review the details, colours and logo before creating a local club.');
+  }),
+  'directory-match': coachOnly(el => openDirectoryLink(el.dataset.id)),
+  'directory-link-new': coachOnly(() => {
+    const c=directoryRecords().find(x=>x.id===directoryLinkState?.refId), draft=directoryClubDraft(c);
+    if(!draft)return;
+    directoryLinkState=null;state.clubFor=null;
+    openSheet('Create separate club · '+c.name,clubForm(draft,true),'club');
+  }),
+  'directory-link-confirm': coachOnly(() => {
+    const c=directoryRecords().find(x=>x.id===directoryLinkState?.refId);
+    const managed=arr(ws.clubs).find(x=>x.id===directoryLinkState?.clubId);
+    const preview=clubLinkPreview(managed,c,{includeColours:!!directoryLinkState?.colours});
+    if(!preview || preview.blocked){toast('Choose a compatible, unlinked club to confirm.');return;}
+    const merged=applyClubDirectoryMatch(managed,c,{includeColours:!!directoryLinkState?.colours});
+    if(!merged){toast('Could not link those clubs.');return;}
+    Object.assign(managed,merged);const n=preview.additions.length;
+    state.clubId=managed.id;directoryLinkState=null;
+    save();closeSheet();render();
+    openSheet('Review club · '+managed.name,clubForm(managed),'club');
+    toast('Club linked. '+n+' blank field'+(n===1?'':'s')+' filled; existing information preserved.');
+  }),
+  'club-find-directory': coachOnly(el => {
+    const club=arr(ws.clubs).find(x=>x.id===el.dataset.id);if(!club)return;
+    clubFinder.text=clubNameKey(club.name);clubFinder.sport=club.sport;clubFinder.limit=30;
+    goTo('teams');
+    const d=$('#national-club-directory');if(d)d.scrollIntoView({block:'start',behavior:'instant'});
   }),
   'club-new': coachOnly(() => { state.clubFor = state.sheet === 'settings' ? data.id : null; openSheet('New club', clubForm(null), 'club'); }),
   'club-brand-open': coachOnly(el => { const c=arr(ws.clubs).find(x=>x.id===el.dataset.id); if(c)openSheet('Edit '+c.name,clubForm(c),'club'); }),
@@ -6848,7 +7589,12 @@ const actions = {
     save(); render(); if (state.sheet === 'psets') openPlayerLists(); toast(libSaveReport(r));
   }),
   'lib-add': coachOnly(el => {
-    const kind = el.dataset.k, x = M.libAdd(ws, data, kind, el.dataset.id); if (!x) return;
+    const kind = el.dataset.k, li = M.libGet(ws,kind,el.dataset.id);
+    if (!li) return;
+    const review=libraryCopyReview(ws,li,data);
+    if (review.requiresExplicitReview &&
+      !confirm(`Copy into ${data.team.name}? This is a local coaching copy, not an authorised shared club resource. Source sport: ${review.sourceSport}. Target sport: ${review.targetSport}. Review all positions, rules and diagrams before use.`)) return;
+    const x = M.libAdd(ws, data, kind, el.dataset.id); if (!x) return;
     save(); render(); toast(kind === 'plays' ? `${x.name} added to ${data.team.name}` : `Added to ${data.team.name}`);
   }),
   'lib-take': coachOnly(el => {
@@ -6875,6 +7621,8 @@ const actions = {
 
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
+  // QA screen is read-only even for forged clicks aimed at existing coach actions.
+  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back'].includes(el.dataset.act)) { e.preventDefault();return; }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
@@ -6888,7 +7636,16 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('input', e => {
   const k = e.target.dataset.input; if (!k) return;
+  if (k === 'managed-find') { teamFinder.text=e.target.value; const v=$('#managed-team-results'); if(v)v.innerHTML=managedTeamResults(); }
+  if (k === 'directory-find') { clubFinder.text=e.target.value; clubFinder.limit=30; const v=$('#national-directory-results'); if(v)v.innerHTML=clubDirectoryResults(); }
   if (k === 'squad-search') { state.squadSearch = e.target.value; const l = $('#squad-list'); if (l) l.innerHTML = squadList(); }
+  if (k === 'people-search') {
+    state.peopleSearch = e.target.value;
+    const term=e.target.value.trim().toLocaleLowerCase('en-AU');
+    document.querySelectorAll('#people-source-list [data-people-name]').forEach(row => {
+      row.hidden = !!term && !row.dataset.peopleName.includes(term);
+    });
+  }
   if (k === 'anim-seek') animSeek(e.target.value);
   if (k === 'team-positions') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'msg') state.msgDraft = e.target.value;
@@ -6912,8 +7669,40 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
+  if (k === 'qa-persona') {
+    const role=e.target.value;
+    if (!qaEnabled() || (role && !QA_ROLES.some(x=>x.id===role))) { state.qaPersona=null;state.qaScope='';render();return; }
+    state.qaPersona=role||null;
+    state.qaJourney='';
+    state.qaScope=state.qaPersona ? qaPreview(state.qaPersona,'')?.scope||'' : '';
+    if (!$('#sheet').hidden) closeSheet();
+    render();return;
+  }
+  if (state.qaPersona) {
+    if (k === 'qa-scope' && qaEnabled()) {
+      const next=qaPreview(state.qaPersona,e.target.value);
+      if (next && next.scope===e.target.value) {state.qaScope=next.scope;state.qaJourney='';render();}
+    }
+    return;
+  }
+  if (k === 'managed-sport' || k === 'managed-club') { teamFinder[k==='managed-sport'?'sport':'club']=e.target.value; const v=$('#managed-team-results'); if(v)v.innerHTML=managedTeamResults(); }
+  if (k === 'directory-link-pick' && directoryLinkState) {
+    directoryLinkState.clubId=e.target.value;
+    const v=$('#club-link-review');if(v)v.innerHTML=directoryLinkReview();
+  }
+  if (k === 'directory-link-colours' && directoryLinkState) {
+    directoryLinkState.colours=e.target.checked;
+    const v=$('#club-link-review');if(v)v.innerHTML=directoryLinkReview();
+  }
+  if (k === 'directory-sport' || k === 'directory-state') { clubFinder[k==='directory-sport'?'sport':'state']=e.target.value; clubFinder.limit=30; const v=$('#national-directory-results'); if(v)v.innerHTML=clubDirectoryResults(); }
   if (k === 'player-crop-adjust' && activePlayerCrop) drawPlayerCrop();
   if (k === 'lineup') { state.lineupId = e.target.value; render(); }
+  if (k === 'crew-overview-sport' && isCoach()) { state.crewOverviewSport = e.target.value; render(); }
+  if (k === 'agenda-club-filter' && isCoach()) {
+    const id=e.target.value;
+    if(id && !arr(ws.clubs).some(c=>c.id===id))return;
+    state.agendaClubId=id; render();
+  }
   if (k === 'crew-team-pick' && isCoach()) {
     const t=M.activeTeams(ws).find(t=>t.id===e.target.value);
     if(!t)return;
@@ -7016,11 +7805,62 @@ document.addEventListener('change', e => {
 document.addEventListener('submit', async e => {
   const form = e.target, kind = form.dataset.form; if (!kind) return;
   e.preventDefault();
-  if (readOnlyView() && !/^(season|comp|club|settings)/.test(kind)) { toast(pastMsg()); return; }
+  if (state.qaPersona) return; // synthetic preview cannot write to the coach workspace
+  if (readOnlyView() && !/^(season|comp|club|settings|people-link|guardian-review|guardian-correct)/.test(kind)) { toast(pastMsg()); return; }
   const f = new FormData(form);
   const str = k => String(f.get(k) ?? '').trim();
   const raw = k => String(f.get(k) ?? '');
 
+  if(kind==='guardian-review'){
+    if(!isCoach())return;
+    const namespace=peopleScope(),page=localPeopleReviewView(ws,namespace);
+    const g=page.sources?.find(x=>x.sourceRef===str('guardianRef')&&x.kind==='helper');
+    const child=page.sources?.find(x=>x.sourceRef===str('childPlayerRef')&&x.kind==='player');
+    if(!g||!child){toast('Select an existing helper and player');return;}
+    const choice=str('relationship');
+    if(!Object.prototype.hasOwnProperty.call(REPORTED_RELATIONSHIPS,choice)){
+      toast('Choose a valid reported relationship');return;
+    }
+    if(!confirm(`Record this UNVERIFIED relationship?\n\n${peopleSourceName(g)}\n${peopleSourceName(child)}\n\n${REPORTED_RELATIONSHIPS[choice]}\n\nNo legal identity, parental consent or access rights are verified or granted.`))return;
+    const result=recordGuardianReview(ws,page.index,{helperRef:g.sourceRef,
+      childPlayerRef:child.sourceRef,relationship:choice,
+      by:'Shared coach workspace',at:new Date().toISOString()});
+    if(result.error){toast(result.error);return;}
+    ws.guardianReviews=result.workspace.guardianReviews;
+    save();render();toast('Reported relationship saved (not legally verified)');
+    return;
+  }
+  if(kind==='guardian-correct'){
+    if(!isCoach())return;
+    const page=localPeopleReviewView(ws,peopleScope()),recordId=str('recordId');
+    const row=page.guardianLedger?.reviews.find(x=>x.id===recordId && x.canCorrect);
+    if(!row){toast('Relationship source has changed; refresh and review');return;}
+    const choice=str('relationship');
+    if(!Object.prototype.hasOwnProperty.call(REPORTED_RELATIONSHIPS,choice)){toast('Invalid reported relationship');return;}
+    if(!confirm(`Correct this UNVERIFIED relationship to ${REPORTED_RELATIONSHIPS[choice]}?\n\nNo legal authority or child data access is created.`))return;
+    const result=amendGuardianReview(ws,page.index,{recordId,relationship:choice,
+      by:'Shared coach workspace',at:new Date().toISOString(),action:'correct'});
+    if(result.error){toast(result.error);return;}
+    ws.guardianReviews=result.workspace.guardianReviews;
+    save();closeSheet();render();toast('Reported relationship corrected; history retained');
+    return;
+  }
+  if (kind === 'people-link') {
+    if (!isCoach()) return;
+    const ns=peopleScope(), firstRef=str('firstRef'), secondRef=str('secondRef');
+    const page=localPeopleReviewView(ws,ns);
+    const a=page.sources?.find(x=>x.sourceRef===firstRef);
+    const b=page.sources?.find(x=>x.sourceRef===secondRef);
+    if (!a || !b || !a.durable || !b.durable || a.sourceRef===b.sourceRef) {
+      toast('Select two distinct eligible person records.'); return;
+    }
+    if (!confirm(`Are these the same person in this coach workspace?\n\n${peopleSourceName(a)}\n${peopleSourceName(b)}\n\nThis only saves your local review history; it does not merge records, verify identity or grant access.`)) return;
+    const result=acceptLocalPeopleLink(ws,ns,{firstRef,secondRef,reviewedBy:'Shared coach workspace',reviewedAt:new Date().toISOString()});
+    if(result.error){toast(result.error);return;}
+    ws.peopleReviews=result.workspace.peopleReviews;
+    save(); render(); toast('Local person review saved');
+    return;
+  }
   if (kind === 'unlock') {
     const role = form.dataset.role, pw = raw('password');
     state.remember = !!f.get('remember');
@@ -7112,16 +7952,25 @@ document.addEventListener('submit', async e => {
       return;
     }
     const m = matchById(id); if (!m) return;
-    setEntry(m, str('entry'));
     const status = M.MATCH_STATUS[str('status')] ? str('status') : m.status;
-    const before = { date: m.date, start: m.start, end: '', place: matchWhere(m) }, after = { date, start: fields.start, end: '', place: matchWhere(fields) };
-    const linked = M.linkedTasks(data, 'match', id), off = s => s === 'cancelled' || s === 'postponed';
-    if (!('tournament' in fields)) delete m.tournament;
-    if (off(status) && !off(m.status) && linked.some(t => !t.cancelled)) { askLinked({ kind: 'match', id, op: 'cancel', status, fields }); return; }
-    if (linked.length && M.whenChanged(before, after)) { askLinked({ kind: 'match', id, op: 'edit', fields: { ...fields, status }, before, after }); return; }
-    const back = off(m.status) && !off(status) ? M.reinstateTasks(data, 'match', id) : 0;
-    Object.assign(m, fields, { status }); save(); closeSheet(); render(); openMatch(id);
-    toast(back ? `Saved, and ${back} task${back === 1 ? '' : 's'} back on` : 'Saved');
+    const amendment = planFixtureRevision(m, { ...fields, status });
+    if(amendment.error) { toast(amendment.error); return; }
+    if(amendment.changed) {
+      const reason=str('changeReason');
+      if(reason.length<3 || reason.length>200) {
+        fieldError(form,'changeReason','Record a reason (3 to 200 characters) for a fixture change');
+        return;
+      }
+      state.fixturePending={id,teamId:data.id,fields:{...fields,status},entry:str('entry'),
+        reason,before:amendment.before,after:amendment.after};
+      openSheet('Review fixture change',fixtureRevisionReview(state.fixturePending),'fixture-revision');
+      return;
+    }
+    // Non-scheduling edits retain the existing behaviour and do not create a false revision.
+    setEntry(m,str('entry'));
+    if(!fields.tournament)delete m.tournament;
+    Object.assign(m,fields,{status});save();closeSheet();render();openMatch(id);
+    toast('Saved');
     return;
   }
   if (kind === 'match-day') {
@@ -7232,7 +8081,10 @@ document.addEventListener('submit', async e => {
     t.teamPass = pass; t.teamSalt = '';
     M.addTeam(ws, t);
     if (withLibrary) ['plays', 'systems', 'playerSets']
-      .forEach(k => M.libItems(ws, k).forEach(li => M.libAdd(ws, t, k, li.id)));
+      // Never silently carry an unknown/cross-club/cross-sport library item to
+      // a newly created team. It remains available for deliberate review later.
+      .forEach(k => M.libItems(ws, k).filter(li => libraryCopyReview(ws,li,t).automaticCopy)
+        .forEach(li => M.libAdd(ws,t,k,li.id)));
     pickTeam(t.id); Object.assign(state, { lineupId: null, playId: null, msgDraft: null, tab: 'home', newTeamClub: null, teamTemplateSource: '' });
     history.replaceState(null, '', '#home');
     save(); closeSheet(); render(); toast(`${name} created and on screen`);
@@ -7257,6 +8109,26 @@ document.addEventListener('submit', async e => {
     state.lineupId = null; state.msgDraft = null; state.playId = null;
     save(); closeSheet(); render();
     toast(`Cleared: ${Object.entries(n).map(([k, v]) => `${v} ${k === 'squad' ? 'players' : k === 'training' ? 'sessions' : k}`).join(', ')}`);
+    return;
+  }
+  if (kind === 'crew-appointment') {
+    if (!isCoach()) return;
+    const scopeId=str('scopeId'), id=str('id'), status=str('status');
+    if (!scopeId || scopeId!==intakeClubId() || !arr(ws.clubs).some(c=>c.id===scopeId)) {
+      toast('Choose the correct club before saving this appointment'); return;
+    }
+    const previous=arr(ws.volunteerAppointments).find(a=>a.id===id);
+    const personId=previous?.personId || str('personId');
+    const selectable=localClubDirectory(arr(ws.matchOfficials),scopeId,M.activeTeams(ws));
+    if (!previous && !selectable.some(p=>p.id===personId)) {
+      toast('Select an existing volunteer from this club'); return;
+    }
+    const updated=upsertVolunteerAppointment(ws.volunteerAppointments,
+      {id,personId,scopeType:'club',scopeId,role:str('role'),status},
+      ws.matchOfficials,{type:'club',id:scopeId});
+    if (updated.error) { toast(updated.error); return; }
+    ws.volunteerAppointments=updated.records;
+    save(); closeSheet(); render(); toast('Appointment saved as a manual club record');
     return;
   }
   if (kind === 'crew-directory') {
@@ -7332,11 +8204,13 @@ document.addEventListener('submit', async e => {
       clubId: shownClubs.includes(p.clubId) && !clubIds.includes(p.clubId) ? '' : p.clubId,
       clubIds, teamIds,
       active:!!f.get('active')});
+    const becameInactive = p.active !== false && saved.active === false;
     Object.assign(p,saved);save();
     const review = str('review') && M.activeTeams(ws).find(t => t.id === str('review'));
     if (review) { render(); openSheet('Roles for ' + M.teamName(review), crewPersonForm(p, review, { back: true }), 'crew-person'); return; }
     closeSheet();render();
-    toast(onMatches.length ? `Profile saved. ${p.name} is still on upcoming matches for ${onMatches.map(t => M.teamName(t)).join(', ')}; check those.` : 'Volunteer profile updated');return;
+    toast(becameInactive ? 'Volunteer marked inactive. Historical matches and organisational appointments remain recorded; review future staffing and manually accepted appointments.'
+      : onMatches.length ? `Profile saved. ${p.name} is still on upcoming matches for ${onMatches.map(t => M.teamName(t)).join(', ')}; check those.` : 'Volunteer profile updated');return;
   }
   if (kind === 'crew-pick-team' || kind === 'crew-pick-view') {
     const target=M.activeTeams(ws).find(t=>t.id===str('teamId'));

@@ -27,7 +27,12 @@ with sync_playwright() as p:
     c.ok(W('W.testLibrary.version') >= 3 and W('M.teamsOf(W).length') == 6 and W('W.clubs.map(c => c.id).sort()') == ['engadinedragons', 'penrithoztag', 'stgeorge', 'tarenpointtitans'] and W('W.matchOfficials.length') == 6, 'six teams in the four real clubs, and six volunteers')
     c.ok(W('D.id') == W('W.id') and W('D.players.length') == 16 and W("D.players.every(p => /^tst\\d+$/.test(p.id))"), 'opens on the Mixed 20s; ids are the numbered test ones')
     today = W("(t => t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'))(new Date())")
-    c.ok(W(f"D.matches.filter(m => m.date === '{today}').length") == 5 and W(f"D.matches.filter(m => m.date === '{today}').every(m => m.entryId)"), 'a gala day today with five games, in its competition')
+    # A separate, pre-existing sample match may also fall on today's date.
+    # Assert the five purpose-built gala games, not all matches scheduled today.
+    gala = W(f"D.matches.filter(m => m.date === '{today}' && /^Pool B, game [1-5]$/.test(m.round || ''))")
+    c.ok(len(gala) == 5 and all(m.get('entryId') for m in gala)
+         and sorted(m.get('round') for m in gala) == [f'Pool B, game {i}' for i in range(1, 6)],
+         'a gala day today with five linked competition games')
     c.ok('Test library' in phone.inner_text('#status'), 'the status line says it’s the test library')
     time.sleep(1.5)   # the second device loads a moment later
     ctx2, laptop, _ = page(browser, url + '#home', width=1280, height=860, errors=errs)
@@ -108,7 +113,7 @@ with sync_playwright() as p:
     a.evaluate(act, ['go-live', {}]); a.fill('#sheet input[name=coach]', 'coach password one'); a.fill('#sheet input[name=coach2]', 'coach password one')
     a.fill('#sheet input[name=team]', 'team password one'); a.fill('#sheet input[name=team2]', 'team password one'); a.click('#sheet button[type=submit]')
     a.wait_for_function('window.__team.S.trial === false', timeout=20000); done(a)
-    c.ok(Wd(a, 'S.pub') == 'ok' and len(gh.files()) == 6, f'live: the test library published, one players’ file per team ({len(gh.files())} files)')
+    c.ok(Wd(a, 'S.pub') == 'ok' and len(gh.files()) == 7, f'live: the test library published, one players’ file per team ({len(gh.files())} files)')
     cb, bb = device(1280); bb.goto(url + '#home'); bb.wait_for_selector("text=I'm the coach"); bb.click("text=I'm the coach")
     bb.fill('input[name=password]', 'coach password one'); bb.click('button[type=submit]'); bb.wait_for_function('window.__team.ws', timeout=30000); bb.wait_for_timeout(200)
     c.ok(check(a) == check(bb) and Wd(bb, 'W.testLibrary.version') >= 1, 'live: the laptop signs in and holds the same data (same data check)')

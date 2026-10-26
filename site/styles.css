@@ -41,6 +41,37 @@ p{margin:0}
 .team-btn{appearance:none;background:none;border:0;color:inherit;font:inherit;display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:4px 6px 4px 0;cursor:pointer;min-height:40px}
 .team-btn svg{flex:none;opacity:.8}
 #team-title{min-width:0}
+/* Isolated, read-only synthetic QA persona preview. Hidden in all live modes. */
+.qa-persona-control{display:flex;align-items:center;gap:5px;flex:0 1 auto;min-width:0;max-width:265px}
+.qa-mode-flag{font-size:10px;letter-spacing:.07em;font-weight:700;background:#FFF2C9;color:#583C00;padding:3px 5px;border-radius:4px}
+.qa-persona-control select{background:#fff;color:#16201B;border:1px solid #C9D3CA;border-radius:8px;max-width:180px;min-width:105px;min-height:40px;font-size:13px;padding:6px 7px}
+.qa-header-scope{font-size:11px;max-width:95px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+.qa-preview>.note{margin-bottom:14px}
+.qa-preview .qa-scope{margin:12px 0}
+.qa-preview .qa-scope select{min-height:44px;width:100%;background:#fff}
+.qa-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}
+.qa-tiles section{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.qa-tiles h3{font-size:16px;margin-bottom:8px}
+.qa-identity-list{margin:0;padding-left:20px;font-size:14px;overflow-wrap:anywhere}
+.qa-identity-list li{margin:3px 0}
+.qa-journey-buttons{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.qa-journey-buttons .btn{font-size:13px;white-space:normal;text-align:left;flex:1 1 140px}
+.qa-journey-buttons [aria-pressed="true"]{border-color:var(--pitch);box-shadow:inset 0 0 0 1px var(--pitch)}
+.qa-guide{margin:14px 0;background:var(--paper);padding:14px;border:1px solid var(--line);border-radius:12px}
+.qa-guide .sec-h{align-items:flex-start;flex-wrap:wrap}
+.qa-guide h3{font-size:18px}
+.qa-guide h4{font-size:15px;margin:12px 0 6px}
+.qa-guide-context{margin:10px 0;font-size:14px}
+.qa-steps{padding-left:24px;margin:10px 0;line-height:1.5}
+.qa-steps li{margin:7px 0}
+
+@media(max-width:600px){
+  .qa-persona-control{max-width:132px;gap:3px}
+  .qa-persona-control select{min-width:0;max-width:106px;font-size:12px;padding:5px 3px}
+  .qa-header-scope{display:none}
+  .qa-tiles{grid-template-columns:1fr}
+}
+
 
 main{max-width:720px;margin:0 auto;padding:16px}
 .sec{margin:0 0 24px}
@@ -978,6 +1009,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px soli
 .pphoto.big{width:72px;height:72px;border-radius:14px;font-size:24px}
 .pphoto.big b{font-size:14px;padding:3px 5px}
 .photo-row{display:flex;gap:12px;align-items:flex-start;margin-bottom:6px}
+/* P09B: shared player name input retains its original compact photo-row spacing. */
+#sheet form[data-form="player"] .photo-row .grow > .field-l{margin-bottom:6px}
 .jersey-list .row{padding:8px 6px 8px 10px}
 .jersey-list .jersey{width:30px;height:30px;font-size:16px}
 
@@ -1008,6 +1041,38 @@ div.cl-match{cursor:default}
 div.cl-line,p.cl-line{cursor:default}
 .cl-open{margin-top:14px}
 .rtable .pill{white-space:nowrap}
+
+/* P06G: keep multi-club readiness summaries within the mobile viewport.
+   The generic .sub style uses white-space:nowrap, which expands this list at 390px. */
+.crew-workspace-overview{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.crew-workspace-overview .crew-req,
+.crew-workspace-overview .crew-req li{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.crew-workspace-overview .crew-req .sub{
+  display:block;
+  max-width:100%;
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+  overflow-wrap:anywhere
+}
+.crew-workspace-overview .field-l,
+.crew-workspace-overview select{min-width:0;max-width:100%}
+
+/* P07B: privacy-minimised cross-team calendar. Constrained at phone widths. */
+.calendar-local-overview{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.calendar-local-overview .field-l{max-width:100%;min-width:0}
+.calendar-local-overview select{min-width:0;max-width:100%}
+.calendar-local-list{list-style:none;margin:10px 0 12px;padding:0;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.calendar-local-list li{display:flex;align-items:flex-start;gap:12px;padding:10px 12px;min-width:0;border-bottom:1px solid var(--line)}
+.calendar-local-list li:last-child{border-bottom:0}
+.calendar-local-when{flex:none;font-size:13px;color:var(--muted);line-height:1.5;min-width:95px}
+.calendar-local-details{display:block;flex:1;min-width:0;overflow-wrap:anywhere}
+.calendar-local-details strong{display:block;font-weight:600;line-height:1.4}
+.calendar-local-details .sub{display:block;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.5}
+@media(max-width:500px){
+  .calendar-local-list li{flex-direction:column;gap:3px}
+  .calendar-local-when{min-width:0}
+}
 
 /* Coach-only match-day officials and trainer compliance aide. */
 .crew-section{margin-bottom:16px}
@@ -1079,15 +1144,11 @@ div.cl-line,p.cl-line{cursor:default}
 .crew-directory-picker{display:flex;align-items:end;gap:10px;margin:12px 0 18px}
 .crew-directory-picker>.field-l{flex:1;min-width:0;margin:0}
 .crew-directory-picker>.btn{flex:none;margin-bottom:0}
-.crew-entry-choices{border:0;margin:14px 0 18px;padding:0}
-.crew-entry-choices legend{font-weight:600;margin-bottom:10px}
-.crew-entry-choices .opt{display:flex;align-items:flex-start;gap:10px;white-space:normal;
-  padding:12px 13px;border:1px solid var(--line);border-radius:12px;margin-bottom:9px;background:var(--paper)}
-.crew-entry-choices .opt span{display:block;white-space:normal}
-.crew-entry-choices .opt strong{display:block;font-weight:600;margin-bottom:3px}
-.crew-entry-choices .opt small{display:block;color:var(--muted);line-height:1.5}
+.crew-entry-choices{border:0;margin:10px 0 14px;padding:0;min-width:0}
+.crew-entry-choices legend{font-weight:600;margin-bottom:8px}
 @media(max-width:600px){.crew-directory-picker{flex-direction:column;align-items:stretch}
-.crew-directory-picker>.btn{align-self:flex-start}.crew-entry-choices .opt{padding:11px}}
+.crew-directory-picker>.btn{align-self:flex-start}}
+
 
 /* Club match staff profile details: preserve existing common form tokens. */
 .crew-avatar{flex:none;width:44px;height:44px;border-radius:12px;background:var(--paper);
@@ -1386,12 +1447,20 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
 /* One selectable surface, not a pill nested in another bordered card. */
 .crew-entry-choices .opt{position:relative;display:block;border:0;padding:0;margin:0 0 8px;
   border-radius:11px;background:transparent}
-.crew-entry-choices .opt > span{display:block;border:1px solid var(--line);border-radius:11px;
-  background:var(--paper);padding:12px 14px;font-size:15px;font-weight:500}
+.crew-entry-choices .opt input{z-index:1;cursor:pointer}
+.crew-entry-choices .opt > span{display:block;position:relative;min-height:48px;
+  border:1px solid var(--line);border-radius:11px;
+  background:var(--paper);padding:10px 48px 10px 13px;font-size:15px;font-weight:500}
 .crew-entry-choices .opt strong{font-size:16px;font-weight:600}
 .crew-entry-choices .opt small{font-size:14px;line-height:1.45;font-weight:400;color:var(--muted)}
 .crew-entry-choices .opt input:checked + span{background:var(--pitch);border-color:var(--pitch);color:#fff}
 .crew-entry-choices .opt input:checked + span small{color:#fff;opacity:1}
+.crew-entry-choices .opt input:checked + span::after{content:"✓";position:absolute;right:13px;top:50%;transform:translateY(-50%);
+  width:23px;height:23px;display:grid;place-items:center;border:1px solid currentColor;border-radius:50%;
+  font-size:15px;font-weight:700}
+.crew-entry-choices .opt:hover > span{border-color:var(--pitch)}
+.crew-entry-choices .opt input:checked + span:hover{border-color:var(--pitch)}
+.crew-entry-choices .opt input:focus + span,
 .crew-entry-choices .opt input:focus-visible + span{outline:3px solid var(--gold);outline-offset:2px}
 @media(max-width:600px){
   .crew-directory-panel,.crew-rules-panel{padding:12px}
@@ -1464,4 +1533,123 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   .card-mode button{padding:6px 9px;min-height:36px}
   #view .sec-h>.btn-row{gap:6px}
   .view-list.sess-grid .m-time{font-size:17px}
+}
+
+
+/* Managed-team and national research club filters. No branding applied from unverified sources. */
+.directory-filters { display:grid;grid-template-columns:minmax(180px,2fr) minmax(130px,1fr) minmax(125px,1fr) auto;gap:10px;align-items:end;margin:12px 0 18px; }
+.directory-filters .field-l { margin:0;min-width:0; }
+.directory-filters .field-l input,.directory-filters .field-l select { width:100%;min-width:0; }
+.directory-filters .btn { align-self:end;min-height:40px; }
+#national-club-directory { margin-top:30px; }
+.directory-row .directory-sport { width:28px;flex-shrink:0;color:var(--pitch);align-self:flex-start;margin-top:3px; }
+.directory-row .sport-ic { vertical-align:-3px; }
+.directory-row .sub { font-size:12px; }
+.directory-row .pill { display:inline-block;margin-top:4px; }
+.directory-row a { font-size:12px;display:inline-block;margin:5px 10px 0 0; }
+.team-row .sport-ic,.club-head .sport-ic { vertical-align:-4px;margin-right:4px;opacity:.7; }
+@media(max-width:660px) {
+  .directory-filters { grid-template-columns:repeat(2,minmax(0,1fr));gap:8px; }
+  .directory-filters .field-l:first-child { grid-column:1 / -1; }
+  .directory-row { flex-wrap:wrap; }
+  .directory-row > .btn { margin-left:36px; }
+}
+@media(max-width:380px) { .directory-filters { grid-template-columns:1fr; } .directory-filters .field-l:first-child { grid-column:auto; } }
+
+
+/* Manual-club matching is a deliberate opt-in; avoid cramped actions on mobile. */
+.directory-row .directory-actions { display:flex;flex:0 0 auto;flex-direction:column;align-items:stretch;gap:7px;max-width:155px; }
+.directory-row .directory-actions .link-btn { font-size:12px;line-height:1.35;text-align:center;white-space:normal; }
+.club-link-list { margin:6px 0 18px;padding-left:22px;overflow-wrap:anywhere; }
+.club-link-list li { padding:5px 0;line-height:1.45; }
+#club-link-review { margin-top:14px; }
+#club-link-review h3 { font-size:15px;font-weight:600;margin:20px 0 8px; }
+@media(max-width:410px) {
+  .directory-row .directory-actions { max-width:125px; }
+  .directory-row .directory-actions .btn { white-space:normal;padding:9px 7px; }
+}
+
+
+/* P09C: deliberately labelled, non-authoritative organisation layout concepts. */
+.org-preview-layout{min-width:0}
+.org-preview-layout .note{font-weight:400;line-height:1.5}
+.org-preview-modes,.org-preview-clubs{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}
+.org-preview-modes .btn,.org-preview-clubs .btn{min-height:44px;white-space:normal;text-align:left}
+.org-preview-modes [aria-pressed="true"],.org-preview-clubs [aria-pressed="true"]{
+  border-color:var(--pitch);background:var(--pitch);color:white}
+.org-preview-count{font-size:14px;color:var(--muted);margin:10px 0}
+.org-preview-team-list{display:grid;gap:9px;min-width:0}
+.org-preview-team-row{display:flex;align-items:center;gap:10px;min-width:0;padding:10px 11px;
+  background:var(--paper);border:1px solid var(--line);border-radius:11px}
+.org-preview-team-row .grow{display:flex;flex-direction:column;min-width:0;gap:4px}
+.org-preview-team-row .name{font-weight:600;overflow-wrap:anywhere}
+.org-preview-team-row .sub{font-size:13px;line-height:1.4;overflow-wrap:anywhere}
+.org-preview-team-row .btn{flex:none;min-height:44px}
+@media(max-width:410px){
+  .org-preview-team-row{flex-wrap:wrap}
+  .org-preview-team-row .btn{margin-left:auto}
+}
+
+
+/* Optional desktop density. Equivalent information hierarchy with less vertical waste.
+   No zoom/transform/font scaling, no data changes; phones retain comfortable touch targets. */
+.density-quick{appearance:none;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.22);border-radius:9px;color:#fff;font:600 13px var(--font-b);padding:6px 11px;min-height:40px;cursor:pointer;white-space:nowrap;flex:none}
+.density-quick[aria-pressed="true"]{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.45)}
+.density-quick:hover{background:rgba(255,255,255,.25)}
+@media(max-width:999px){.density-quick{display:none!important}}
+@media(min-width:1000px){
+  body.wide.density-compact{grid-template-columns:188px minmax(0,1fr);font-size:14px;line-height:1.38}
+  body.wide.density-compact:has(> .tabs[hidden]){grid-template-columns:minmax(0,1fr)}
+  body.wide.density-compact .top{padding:7px 18px 7px 20px}
+  body.wide.density-compact .top-row{min-height:40px;gap:8px}
+  body.wide.density-compact .top h1{font-size:19px}
+  body.wide.density-compact #team-title .t-context{font-size:12px}
+  body.wide.density-compact #team-title .season-tag{font-size:12px}
+  body.wide.density-compact .days-chip{font-size:14px;padding:5px 8px}
+  body.wide.density-compact .status{margin-top:5px;padding:5px 9px;font-size:13px}
+  body.wide.density-compact main{max-width:1180px;padding:17px 22px 28px}
+  body.wide.density-compact.full main{max-width:none}
+  body.wide.density-compact .tabs{padding:10px 8px;gap:0}
+  body.wide.density-compact .tabs .nav-main{font-size:14px;height:40px;gap:10px;padding:0 12px}
+  body.wide.density-compact .tabs .nav-sub{margin:0 0 3px 30px;gap:0}
+  body.wide.density-compact .tabs .nav-sub button{font-size:13px;min-height:32px;padding:5px 10px}
+  body.wide.density-compact .sec{margin-bottom:16px}
+  body.wide.density-compact .sec-h{margin-bottom:7px}
+  body.wide.density-compact .sec-h h2{font-size:23px}
+  body.wide.density-compact .cols{column-gap:24px}
+  body.wide.density-compact .scope{margin-bottom:9px}
+  body.wide.density-compact .scope-row{gap:6px;padding-bottom:2px}
+  body.wide.density-compact .scope-club{font-size:13px;gap:6px;min-height:40px;padding:3px 10px 3px 3px}
+  body.wide.density-compact .scope-team{font-size:13px;min-height:34px;padding:5px 9px}
+  body.wide.density-compact .focus{padding:10px 12px 12px;margin-bottom:12px}
+  body.wide.density-compact .focus h2{font-size:26px;line-height:1.05;margin-bottom:4px}
+  body.wide.density-compact .focus.calm h2{font-size:22px}
+  body.wide.density-compact .spot-k{font-size:13px;gap:6px;margin-bottom:4px}
+  body.wide.density-compact .spot-why{font-size:13px;margin-bottom:5px}
+  body.wide.density-compact .spot-issues li{font-size:12px;padding:2px 6px}
+  body.wide.density-compact .focus .btn-row{margin-top:7px}
+  body.wide.density-compact .btn{font-size:14px;padding:7px 11px;min-height:40px}
+  body.wide.density-compact .btn.sm{font-size:13px;padding:5px 9px;min-height:36px}
+  body.wide.density-compact .home-up .sec-h,body.wide.density-compact .home-act .sec-h{margin-bottom:6px}
+  body.wide.density-compact .tl-row{padding:8px 10px;gap:9px}
+  body.wide.density-compact .tl-when{width:57px;font-size:12px}
+  body.wide.density-compact .tl-when b{font-size:15px}
+  body.wide.density-compact .tl-sub{padding:1px 10px 8px 76px;font-size:12px}
+  body.wide.density-compact .tl-issue{font-size:12px}
+  body.wide.density-compact .ins-grid>div{padding:7px 10px}
+  body.wide.density-compact .ins-grid dt{font-size:12px}
+  body.wide.density-compact .ins-grid dd{font-size:17px}
+  body.wide.density-compact .ins-grid .sub{font-size:12px}
+  body.wide.density-compact .ag-day{margin-bottom:10px}
+  body.wide.density-compact .ag-date{font-size:15px}
+  body.wide.density-compact .sess{padding:9px 8px;gap:8px}
+  body.wide.density-compact .row{padding:8px 8px 8px 10px;gap:9px}
+  body.wide.density-compact .m-opp{font-size:17px}
+  body.wide.density-compact .m-where{font-size:13px}
+  body.wide.density-compact .sub{font-size:12px}
+  body.wide.density-compact .stat{padding:8px 4px}
+  body.wide.density-compact .stat b{font-size:24px}
+  body.wide.density-compact .stat span{font-size:12px}
+  /* Dialog forms remain readable; no animation or optical scaling is used. */
+  body.wide.density-compact .panel,body.wide.density-compact .sheet{font-size:15px}
 }

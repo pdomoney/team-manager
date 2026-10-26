@@ -24,9 +24,15 @@ export { RULES };
 // Schema 4 adds seasons (team.seasons, and a seasonId on training, matches, tasks, messages and
 // notices) and competitions (ws.competitions, with entries for a team's season). Both are additions:
 // an earlier app still opens a schema 4 copy, showing every season's records together.
+// Bounded, optional schema-4 provenance: reviewed Person-link proposals are
+// coach-only and stored with the existing encrypted workspace, not team files.
+import { normalizePersonReviews } from './people-ledger.js';
+import { normalizeGuardianReviews } from './guardian-reviews.js';
+import { normalizeVolunteerAppointments } from './p06-appointment-store.js';
+
 export const SCHEMA = 4;
 export const PRIMARY_ID = 'team1';
-const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions', 'matchOfficials'];
+const WS_KEYS = ['schema', 'teams', 'library', 'clubs', 'competitions', 'matchOfficials', 'volunteerAppointments', 'peopleReviews', 'guardianReviews'];
 const TEAM_ID = /^[a-z0-9]{3,32}$/;
 
 export const arr = v => Array.isArray(v) ? v : [];
@@ -94,15 +100,25 @@ export function teamPlayerCandidates(ws, targetTeamId) {
 export function linkPlayerTeams(ws, sourceTeamId, sourcePlayerId, targetTeamId, targetPlayerId = '') {
   const source = findTeam(ws, sourceTeamId), target = findTeam(ws, targetTeamId);
   if (!source || !target || source.id === target.id) return { error: 'Choose two different teams.' };
+  // P05B: do not infer a person from duplicate or ambiguous local player IDs.
+  // Reject ambiguous workspaces before mutating records so historic jerseys remain intact.
+  if (teamsOf(ws).filter(t => t.id === sourceTeamId).length !== 1 ||
+      teamsOf(ws).filter(t => t.id === targetTeamId).length !== 1)
+    return { error: 'Team identifiers are ambiguous; resolve duplicate team IDs before linking.' };
   if (target.archived || !activeSeason(target)) return { error: 'The destination team needs an active season.' };
-  const p = arr(source.players).find(x => x.id === sourcePlayerId);
-  if (!p) return { error: 'Source player not found.' };
+  if (source.archived) return { error: 'Archived source teams cannot supply new player links.' };
+  const sources = arr(source.players).filter(x => x.id === sourcePlayerId);
+  if (!sources.length) return { error: 'Source player not found.' };
+  if (sources.length !== 1) return { error: 'Choose one valid, uniquely identified source player.' };
+  const p = sources[0];
   const key = personKey(source, p);
   if (arr(target.players).some(x => x.personId === key)) return { error: 'This player is already linked to that team.' };
   let dest = null;
   if (targetPlayerId) {
-    dest = arr(target.players).find(x => x.id === targetPlayerId);
-    if (!dest) return { error: 'The selected destination player was not found.' };
+    const destinations = arr(target.players).filter(x => x.id === targetPlayerId);
+    if (!destinations.length) return { error: 'The selected destination player was not found.' };
+    if (destinations.length !== 1) return { error: 'Choose one valid, uniquely identified destination player.' };
+    dest = destinations[0];
     if (dest.personId && dest.personId !== key) return { error: 'That player is already linked to another person.' };
   }
   // All validation precedes mutations, so rejected links cannot modify either team.
@@ -149,6 +165,9 @@ export function migrateWorkspace(raw, normTeam = t => t) {
   teamsOf(ws).forEach(t => ensureSeasons(t));
   ws.competitions = src.competitions === undefined ? seedCompetitions(ws) : arr(src.competitions).filter(isObj).map(normComp);
   ws.matchOfficials = arr(src.matchOfficials).filter(p => isObj(p) && typeof p.id === 'string' && typeof p.name === 'string');
+  ws.volunteerAppointments = normalizeVolunteerAppointments(src.volunteerAppointments);
+  ws.peopleReviews = normalizePersonReviews(src.peopleReviews);
+  ws.guardianReviews = normalizeGuardianReviews(src.guardianReviews);
   repairCompetitions(ws);
   syncEvents(ws);
   fixDefaultPositions(ws);
@@ -178,7 +197,7 @@ export function normSeason(x) {
   return {
     id: String(s.id || uid()), name: String(s.name || 'Season'), label: String(s.label || ''), year: String(s.year || ''),
     start: String(s.start || ''), end: String(s.end || ''), status: SEASON_STATUS[s.status] ? s.status : 'planned',
-    staff: arr(s.staff).filter(isObj).map(r => ({ role: String(r.role || 'Other'), name: String(r.name || ''), phone: String(r.phone || ''), email: String(r.email || '') })),
+    staff: arr(s.staff).filter(isObj).map(r => ({ ...(typeof r.id==='string'&&r.id?{id:r.id}:{}), role: String(r.role || 'Other'), name: String(r.name || ''), phone: String(r.phone || ''), email: String(r.email || '') })),
     defaults: Object.fromEntries(Object.entries(obj(s.defaults)).filter(([k]) => DEFAULT_KEYS.includes(k)).map(([k, v]) => [k, String(v || '')])),
     squad: arr(s.squad).filter(m => isObj(m) && m.playerId).map(m => ({ playerId: String(m.playerId), number: String(m.number || ''), positions: arr(m.positions).map(String),
       status: ['available', 'injured', 'unavailable'].includes(m.status) ? m.status : 'available', reg: REG_STATUS[m.reg] !== undefined ? m.reg : '' })),
@@ -232,7 +251,13 @@ function syncActive(t) {
   const old = new Map(s.squad.map(m => [m.playerId, m]));
   s.squad = seasonLens(t, s.id).players.map(p => ({ ...memberOf(p), reg: (old.get(p.id) || {}).reg || '' }));
   const T = obj(t.team);
-  s.staff = arr(T.staff).filter(isObj).map(r => ({ role: String(r.role || 'Other'), name: String(r.name || ''), phone: String(r.phone || ''), email: String(r.email || '') }));
+  // Preserve prepared P04C staff IDs when freezing an active season.
+  // Dropping them here made appointment references disappear on rollover.
+  s.staff = arr(T.staff).filter(isObj).map(r => ({
+    ...(typeof r.id === 'string' && r.id ? { id: r.id } : {}),
+    role: String(r.role || 'Other'), name: String(r.name || ''),
+    phone: String(r.phone || ''), email: String(r.email || '')
+  }));
   s.defaults = Object.fromEntries(DEFAULT_KEYS.map(k => [k, String(T[k] || '')]));
   if (t.team) t.team.season = s.name;
 }
@@ -552,7 +577,7 @@ export function normClub(c) {
   // Old saved clubs simply have no style and continue using the classic theme.
   const style = normStyle(out.style);
   if (style) out.style = style; else delete out.style;
-  out.officials = arr(out.officials).filter(isObj).map(o => ({ role: String(o.role || 'Other'), name: String(o.name || ''), phone: String(o.phone || ''), email: String(o.email || '') }));
+  out.officials = arr(out.officials).filter(isObj).map(o => ({ ...(typeof o.id==='string'&&o.id?{id:o.id}:{}), role: String(o.role || 'Other'), name: String(o.name || ''), phone: String(o.phone || ''), email: String(o.email || '') }));
   out.notes = String(out.notes || '');
   return out;
 }
@@ -1356,7 +1381,7 @@ export const lastMessage = (messages, ref) => ref ? arr(messages).find(m => m.re
 // a newer library version exists. Game systems are the playbook systems with the coach's changes,
 // so a library system is keyed by the system's id.
 export const LIB_KINDS = { plays: 'Play', systems: 'Game system', playerSets: 'Player list' };
-const LIB_STRIP = ['id', 'lib', 'rev', 'at', 'builtin', 'edited', 'setDef'];
+const LIB_STRIP = ['id', 'lib', 'rev', 'at', 'builtin', 'edited', 'setDef', 'libraryOrigin'];
 const SYS_KEYS = ['pos', 'when', 'points', 'jobs'];
 export function normLibrary(lib) {
   const L = obj(lib);
@@ -1413,7 +1438,15 @@ export function libSave(ws, t, kind, id, opts = {}) {
   let li = src.lib ? libGet(ws, kind, src.lib.id) : (kind === 'systems' ? libGet(ws, kind, id) : null);
   const rev = li ? (li.rev || 1) + 1 : 1;
   const libId = kind === 'systems' ? id : li ? li.id : 'lib' + uid();
-  const item = { ...content(kind, src), rev, at: now };
+  // P08B: provenance is local coach-workspace metadata, never a permission grant.
+  // Existing library versions keep their first recorded source team and sport.
+  const club = clubOf(ws,t);
+  const firstOrigin = { scope:'coach-workspace', teamId:t.id,
+    clubId:String(t.team?.clubId || club?.id || ''),
+    sport:teamSport(t.team,club) };
+  const savedOrigin = li?.libraryOrigin;
+  const item = { ...content(kind, src), rev, at: now,
+    libraryOrigin: savedOrigin?.scope==='coach-workspace' ? clone(savedOrigin) : firstOrigin };
   if (kind === 'plays' && opts.setDef) item.setDef = clone(opts.setDef);
   if (kind === 'systems') ws.library.systems[libId] = item;
   else {
@@ -1504,6 +1537,17 @@ export function records(ws) {
   // Match-day volunteers are their own records, so one added on another device isn't lost when copies combine.
   arr(ws.matchOfficials).forEach(p => { if (p && p.id) put(`off/${p.id}`, p, `Match-day volunteer: ${p.name || '?'}`); });
   compsOf(ws).forEach(c => { if (c && c.id) put(`comp/${c.id}`, c, `Competition: ${c.name || '?'}`); });
+  // Appointment records merge individually, never as a single clobberable collection.
+  normalizeVolunteerAppointments(ws.volunteerAppointments).forEach(a =>
+    put(`appointment/${encodeURIComponent(a.id)}`, a, `Local volunteer appointment: ${a.role || '?'}`));
+  // Separately tracked review rows enable conflict prompts on two devices:
+  // never lose a person's explicit review or undo during a workspace merge.
+  normalizePersonReviews(ws.peopleReviews).forEach(x =>
+    put(`person-review/${encodeURIComponent(x.id)}`, x, 'Local person-link review'));
+  // A separately encrypted coach-only relationship review. Source references
+  // and explicit corrections must never leak into a team/player projection.
+  normalizeGuardianReviews(ws.guardianReviews).forEach(x =>
+    put(`guardian-review/${encodeURIComponent(x.id)}`, x, 'Local reported guardian review'));
   const L = normLibrary(ws.library);
   ['plays', 'playerSets'].forEach(c => L[c].forEach(x => { if (x.id) put(`lib/${c}/${x.id}`, x, `Library · ${LABEL[c](x)}`); }));
   Object.entries(L.systems).forEach(([id, v]) => put(`lib/systems/${id}`, v, `Library · Game system: ${id}`));
@@ -1512,6 +1556,49 @@ export function records(ws) {
 // Put one record (or remove it, when value is undefined) into a workspace.
 function putRecord(ws, key, value, template) {
   const parts = key.split('/');
+  if (parts[0] === 'appointment') {
+    const id = decodeURIComponent(parts[1] || '');
+    ws.volunteerAppointments = normalizeVolunteerAppointments(ws.volunteerAppointments);
+    const i = ws.volunteerAppointments.findIndex(a => a.id === id);
+    if (value === undefined) { if (i >= 0) ws.volunteerAppointments.splice(i, 1); }
+    else { const a = normalizeVolunteerAppointments([value])[0];
+      if (!a || a.id !== id) return;
+      if (i >= 0) ws.volunteerAppointments[i] = a; else ws.volunteerAppointments.push(a);
+    }
+    ws.volunteerAppointments = normalizeVolunteerAppointments(ws.volunteerAppointments);
+    return;
+  }
+  if (parts[0] === 'guardian-review') {
+    ws.guardianReviews = normalizeGuardianReviews(ws.guardianReviews);
+    const id=decodeURIComponent(parts[1] || '');
+    const i=ws.guardianReviews.findIndex(x=>x.id===id);
+    if(value===undefined) {
+      if(i>=0) ws.guardianReviews.splice(i,1);
+    } else {
+      const clean=normalizeGuardianReviews([value])[0];
+      if(!clean||clean.id!==id)return;
+      if(i>=0) ws.guardianReviews[i]=clean;
+      else ws.guardianReviews.push(clean);
+    }
+    ws.guardianReviews=normalizeGuardianReviews(ws.guardianReviews);
+    return;
+  }
+  if (parts[0] === 'person-review') {
+    ws.peopleReviews = normalizePersonReviews(ws.peopleReviews);
+    const id=decodeURIComponent(parts[1] || '');
+    const i=ws.peopleReviews.findIndex(x=>x.id===id);
+    if (value===undefined) {
+      if (i>=0) ws.peopleReviews.splice(i,1);
+    } else {
+      const clean=normalizePersonReviews([value])[0];
+      if (!clean || clean.id!==id) return;
+      if (i>=0) ws.peopleReviews[i]=clean;
+      else ws.peopleReviews.push(clean);
+    }
+    // Deterministic order is necessary for round-trips and two-device merges.
+    ws.peopleReviews = normalizePersonReviews(ws.peopleReviews);
+    return;
+  }
   if (parts[0] === 'club' || parts[0] === 'comp' || parts[0] === 'off') {
     const k = { club: 'clubs', comp: 'competitions', off: 'matchOfficials' }[parts[0]];
     ws[k] = arr(ws[k]);

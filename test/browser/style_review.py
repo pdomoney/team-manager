@@ -83,6 +83,16 @@ with sync_playwright() as p:
     c.ok(pg.evaluate(NO_OVERFLOW), 'Matches fits a phone')
 
     # ---- Match sheet: ordered by when things are needed; quiet staff line
+    # The original synthetic scheduled match may now be TODAY, in which case
+    # Match Day rightly shows lineup before availability. Set this particular
+    # synthetic fixture two days ahead to explicitly exercise the before-day view.
+    pg.evaluate("""id => {
+      const m=window.__team.data.matches.find(x=>x.id===id);
+      const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+2);
+      const pad=x=>String(x).padStart(2,'0');
+      m.date=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+      m.status='scheduled';
+    }""", mid)
     past = W("D.matches.find(m => m.status === 'played').id")
     pg.evaluate(act, ['match-open', {'id': past}]); pg.wait_for_selector('#sheet .m-steps')
     heads = pg.evaluate("[...document.querySelectorAll('#sheet h3.form-sec')].map(h => h.textContent.trim())")

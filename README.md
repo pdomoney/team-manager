@@ -26,6 +26,17 @@ Anything on Home that belongs to another team switches to that team before openi
 
 **Site:** https://pdomoney.github.io/team-manager/
 
+
+### National club reference directory (candidate implementation)
+
+The coach-only **More → Clubs and teams** screen now provides (1) filters for **managed** club/team name, sport and club, and (2) a separate searchable **national club reference directory**. The reference has **143 rugby league club candidates** and **132 deduplicated Oztag organisation/location candidates**, drawn from 183 earlier Oztag source listings. These are **not verified current registration totals** and must not be equated to the 167 Oztag live location count supplied by the user.
+
+- Club names, state, source association/region, ground, general contacts, websites and registration links appear when actually captured from published sources; missing data remains blank. Sources are retained with each entry. Research-only entries are labelled unverified or historical.
+- A generic sport-specific ball/tag icon identifies **Rugby league** vs **Oztag**. A coach explicitly chooses **Use details** to open an editable **new club** draft. Browsing/selecting never edits, imports, assigns a team to, or grants management rights over any existing club. The coach confirms locally by pressing **Create club**. Clubs in other sports remain unchanged.
+- Existing private club records, club-role permissions, team-to-club linking, per-team sport overrides, logos, colours and encrypted data are untouched by upgrades. New generic palettes (e.g. Royal Blue & White, Green & White, Navy & White, Red & Gold, Purple & White, Red/Blue/White, Royal Blue/Sky/Red) are **choices**, not statements of official club colours.
+- Third-party logos, linked image assets, candidate colour schemes with no cited text and other copyrighted branding are **not** embedded, copied or automatically applied. Coaches may upload their own current authorised club mark after checking it. Even the published colour text for Engadine Dragons is only a suggested option; no palette is automatically assigned.
+- The reference bundle is public, name-level research; before a production merge verify applicable source-data reuse conditions, current club identities and any publication restrictions, plus mobile browser tests. The remaining research coverage gaps do not block local clubs from being created manually.
+
 ## Two roles
 
 | | Coach | Players |
@@ -211,3 +222,9 @@ On pull requests, GitHub Actions runs unit tests separately and browser qualific
 ## Licence
 
 MIT.
+
+
+### Link an existing manually created club to directory research (pending acceptance)
+
+The national research directory can suggest a likely match to a club already entered by a coach. **Use details** offers a comparison when the names match; **Match existing club** lets the coach select a managed club explicitly. The preview shows the blank fields that would be filled and conflicts that would remain untouched. Nothing is linked or saved until the coach confirms. Existing club records, teams, staff, seasons, logos, colour styles and permissions stay as they are, and public listings are **not** treated as verified current registration. The optional published colour words require a separate choice and never apply a logo/theme. See [club linking safeguards and regression checks](docs/club-research-linking.md).
+

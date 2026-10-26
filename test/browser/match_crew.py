@@ -87,6 +87,35 @@ with sync_playwright() as p:
              x['wwccStatus'] == 'checked' and (scope['club'] in x['clubIds'] if scope['club'] else scope['team'] in x['teamIds'])
              for x in people),
              f'[{width}] directory stores role and verification, scoped to the actual club or team')
+        # P06F: local organisational appointment is separate from game-day credentials.
+        c.ok(pg.locator('#view [data-act=crew-appointment-new]').count()==1,
+             f'[{width}] club appointment editor appears in private staff view')
+        pg.locator('#view [data-act=crew-appointment-new]').click()
+        pg.locator('#sheet form[data-form=crew-appointment] select[name=personId]').select_option(people[0]['id'])
+        pg.fill('#sheet form[data-form=crew-appointment] input[name=role]','Volunteer coordinator')
+        pg.locator('#sheet form[data-form=crew-appointment] select[name=status]').select_option('invited')
+        pg.locator('#sheet form[data-form=crew-appointment] button[type=submit]').click()
+        c.ok(pg.evaluate("window.__team.ws.volunteerAppointments.length") == 1 and
+             pg.evaluate("window.__team.ws.volunteerAppointments[0].status") == 'invited',
+             f'[{width}] recorded invitation persists without sending')
+        pg.locator('#view [data-act=crew-appointment-edit]').click()
+        pg.locator('#sheet form[data-form=crew-appointment] select[name=status]').select_option('accepted')
+        pg.locator('#sheet form[data-form=crew-appointment] button[type=submit]').click()
+        c.ok(pg.evaluate("window.__team.ws.volunteerAppointments[0].status") == 'accepted'
+             and pg.evaluate("window.__team.ws.matchOfficials.length") == len(people),
+             f'[{width}] accepted club appointment updates existing person without duplicate')
+        pg.locator('#view [data-act=crew-appointment-edit]').click()
+        pg.locator('#sheet form[data-form=crew-appointment] select[name=status]').select_option('ended')
+        pg.locator('#sheet form[data-form=crew-appointment] button[type=submit]').click()
+        c.ok(pg.evaluate("window.__team.ws.volunteerAppointments.length") == 1
+             and pg.evaluate("window.__team.ws.volunteerAppointments[0].status") == 'ended',
+             f'[{width}] ended appointment is retained rather than deleted')
+        # P06H: an ended appointment is history and must block volunteer hard-delete.
+        before_remove=pg.evaluate("window.__team.ws.matchOfficials.length")
+        pg.evaluate(act,['crew-delete',{'id':people[0]['id']}])
+        c.ok(pg.evaluate("window.__team.ws.matchOfficials.length") == before_remove
+             and pg.evaluate("window.__team.ws.volunteerAppointments.length") == 1,
+             f'[{width}] hard removal is refused when an ended appointment references the volunteer')
         pg.locator('[data-act=crew-policy-open]').click()
         pg.fill('#sheet [name=year]', info['year'])
         pg.fill('#sheet [name=source]', f'{info["year"]} local age-group requirements (synthetic test)')
@@ -136,6 +165,23 @@ with sync_playwright() as p:
           x.M.addTeam(x.ws,t);
         }""")
         pg.evaluate(act, ['tab', {'tab':'crew'}])
+        # P06G: aggregated club comparison stays in the same encrypted coach workspace.
+        c.ok(pg.locator('#view .crew-workspace-overview').count()==1 and
+             'not an association-wide directory' in pg.locator('#view .crew-workspace-overview').inner_text(),
+             f'[{width}] local club overview does not imply association or account access')
+        overview=pg.locator('#view .crew-workspace-overview')
+        c.ok('Taren Point Titans' in overview.inner_text() and 'PRIVATE MEDICAL' not in overview.inner_text()
+             and 'Casey Coach' not in overview.inner_text(),
+             f'[{width}] overview lists workspace clubs but suppresses individual volunteer details')
+        c.ok(pg.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'),
+             f'[{width}] multi-club readiness overview fits viewport without horizontal overflow')
+        c.ok(pg.locator('#view .crew-workspace-overview .crew-req .sub').evaluate_all(
+             "(nodes) => nodes.every(n => getComputedStyle(n).whiteSpace === 'normal')"),
+             f'[{width}] appointment summary wraps instead of forcing a single long line')
+        pg.locator('#view select[name=crewOverviewSport]').select_option('Oztag')
+        c.ok('Taren Point Titans' not in pg.locator('#view .crew-workspace-overview').inner_text(),
+             f'[{width}] sport filter excludes clubs with no Oztag fixtures')
+        pg.locator('#view select[name=crewOverviewSport]').select_option('')
         c.ok(pg.locator('#view [name=crewTeamId] option').count()>=2,
              f'[{width}] inline team selection includes the other club team')
         c.ok('Titans League U12' in pg.locator('#view [name=crewTeamId]').inner_text()
@@ -203,6 +249,15 @@ with sync_playwright() as p:
              and 'Open email draft' in pg.inner_text('#sheet'),
              f'[{width}] invitation entry makes no account or delivery claim')
         pg.locator('#sheet [data-act=close-sheet]').last.click()
+        # P06H: deactivation retains prior fixture and organisational history.
+        pg.evaluate(act,['crew-basic',{'id':ids['Casey Coach']}])
+        pg.locator('#sheet form[data-form=crew-basic] [name=active]').uncheck()
+        pg.locator('#sheet form[data-form=crew-basic] button[type=submit]').click()
+        c.ok(pg.evaluate("window.__team.ws.matchOfficials.find(p=>p.name==='Casey Coach').active === false")
+             and pg.evaluate("window.__team.ws.volunteerAppointments.length") == 1,
+             f'[{width}] volunteer deactivation retains identity and appointment history')
+        c.ok(pg.evaluate("window.__team.ws.matches.some(m => (m.crew||[]).some(a => a.personId === window.__team.ws.matchOfficials.find(p=>p.name==='Casey Coach').id))"),
+             f'[{width}] original match assignment history survives volunteer deactivation')
         pg.evaluate(act, ['preview-on', {}])
         c.ok(pg.locator('.nav-sub [data-tab=crew], .subnav [data-tab=crew]').count() == 0,
              f'[{width}] players do not get the private officials tab')
