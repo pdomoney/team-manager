@@ -6,6 +6,8 @@ Project: [Issue #31](https://github.com/pdomoney/team-manager/issues/31). Base: 
 
 The NRL [official junior community laws](https://www.playrugbyleague.com/laws-of-the-game-community/junior-league-laws-6-12s/) expressly require checking U9–12 competition formats with the local league; [support guidance](https://support.playrugbyleague.com/support/solutions/articles/51000424806-laws-of-the-game-codes-policies) says some rules differ between states and associations. Accordingly, **all junior scoring previews are disabled**.
 
+The app requires both an explicitly selected adult source pack and a matching adult team age/category (Open, Adult or Senior). Missing age/category, youth designations (including U16/U18), or mismatched grade/category fail closed even if an adult source pack is manually selected. These safeguards do not establish local organiser approval.
+
 The app already bundles these two historical official references, separately dated and subject to local competition variations:
 
 - **International Rugby league** (selected explicit `league/men` or `league/women` only), [2023 International Laws](https://www.playrugbyleague.com/media/14513/nrl-international-rules-book-2023_web-version-1.pdf), Section 6: try 4, conversion 2, penalty goal 2, field goal 1, 2-point field goal outside 40 m. Each event is its own counter; unlike the old Oztag +1 try counter, total points can never be represented as an undifferentiated number of tries.
