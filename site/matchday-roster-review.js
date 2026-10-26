@@ -37,6 +37,7 @@ export function rosterRecordReview(readiness){
       const issueCodes=reasonsFor(p);
       if(!issueCodes.length)continue;
       people.push(frozen({
+        playerId:p.playerId,
         name:p.name,number:p.number,
         issues:frozen(issueCodes.map(code=>frozen({code,label:defs[code]})))
       }));
