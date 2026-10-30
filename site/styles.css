@@ -54,6 +54,14 @@ p{margin:0}
 .qa-tiles h3{font-size:16px;margin-bottom:8px}
 .qa-identity-list{margin:0;padding-left:20px;font-size:14px;overflow-wrap:anywhere}
 .qa-identity-list li{margin:3px 0}
+/* P12D fictional workflow UI. Only appears inside the trial-only QA screen. */
+.qa-p12-workflow{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.qa-p12-workflow h3{font-size:17px;margin:0 0 8px}
+.qa-p12-workflow h4{font-size:14px;margin:12px 0 6px}
+.qa-p12-rows{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.qa-p12-rows li{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:9px;border:1px solid var(--line);border-radius:8px;min-width:0}
+.qa-p12-rows li strong{font-size:13px;min-width:0;overflow-wrap:anywhere}
+.qa-p12-rows li .btn{white-space:normal;text-align:left;font-size:12px;max-width:100%}
 .qa-journey-buttons{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .qa-journey-buttons .btn{font-size:13px;white-space:normal;text-align:left;flex:1 1 140px}
 .qa-journey-buttons [aria-pressed="true"]{border-color:var(--pitch);box-shadow:inset 0 0 0 1px var(--pitch)}
