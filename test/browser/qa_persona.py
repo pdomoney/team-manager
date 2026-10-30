@@ -15,7 +15,8 @@ with sync_playwright() as p:
         pg.click('#view [data-act=test-library]'); pg.wait_for_timeout(350)
         c.ok(pg.locator('#qa-persona-select').is_visible(),f'[{width}] trial + test library shows header selector')
         opts=pg.locator('#qa-persona-select option').all_text_contents()
-        c.ok(opts==['Coach workspace','Owner','Association Admin','Club Admin','Manager / Coach'],f'[{width}] four exact persona options')
+        c.ok(opts[:5]==['Coach workspace','Owner','Association Admin','Club Admin','Manager / Coach'] and len(opts)==25,
+             f'[{width}] four legacy role options retained plus twenty P12 synthetic profiles')
         prior=pg.evaluate('JSON.stringify(window.__team.ws)')
         for role,scope in [('owner','qa-platform'),('association','qa-west'),('club','qa-comets'),('coach','qa-stars-women')]:
             pg.select_option('#qa-persona-select',role)
