@@ -38,6 +38,7 @@ import { organisationPreview, ORG_PREVIEW_MODES, nextOrgPreviewSelection } from 
 import { QA_ROLES, qaPreview } from './p11-qa-personas.js';
 import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
 import { qaAcceptanceBoard, qaAcceptanceText } from './p11-qa-acceptance.js';
+import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
 import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
 import { matchDayPresentation } from './match-day-presentation.js';
 import { matchFormatSourceReview } from './match-format-source-review.js';
@@ -331,7 +332,7 @@ const state = {
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
-  qaPersona: null, qaScope: '', qaJourney: '', // Ephemeral QA-only fictional layout and guided tests, never saved
+  qaPersona: null, qaScope: '', qaJourney: '', qaProfile: '', qaContext: '', // Ephemeral QA-only fictional layout and guided tests, never saved
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
 };
@@ -708,12 +709,54 @@ function renderQaSelector() {
   const host = $('#qa-persona-control'); if (!host) return;
   host.hidden = !qaEnabled();
   if (host.hidden) { host.innerHTML = ''; return; }
-  host.innerHTML = '<span class="qa-mode-flag">TEST</span><select id="qa-persona-select" data-change="qa-persona" aria-label="Test persona — simulated view, no real access">' +
+  const p12=state.qaPersona==='p12' ? p12QaView(state.qaProfile,state.qaContext) : null;
+  const currentScope=p12?.selected?.groupLabel || (state.qaPersona && state.qaPersona!=='p12' ? qaPreview(state.qaPersona,state.qaScope)?.scopeLabel : '');
+  host.innerHTML = '<span class="qa-mode-flag">TEST</span><select id="qa-persona-select" data-change="qa-persona" aria-label="Test persona — fictional preview only; not actual permissions">' +
     '<option value="">Coach workspace</option>' +
-    QA_ROLES.map(r => '<option value="' + esc(r.id) + '"' + (state.qaPersona === r.id ? ' selected' : '') + '>' + esc(r.label) + '</option>').join('') +
-    '</select>' + (state.qaPersona ? '<span class="qa-header-scope" title="Simulated context">' + esc(qaPreview(state.qaPersona, state.qaScope)?.scopeLabel || '') + '</span>' : '');
+    '<optgroup label="Legacy role previews">' +
+    QA_ROLES.map(r => '<option value="' + esc(r.id) + '"' + (state.qaPersona === r.id ? ' selected' : '') + '>' + esc(r.label) + '</option>').join('') + '</optgroup>' +
+    '<optgroup label="P12 · fictional profiles">' +
+    P12_QA_PROFILES.map(p => '<option value="p12:' + esc(p.id) + '"' + (state.qaPersona==='p12' && state.qaProfile===p.id ? ' selected' : '') + '>' + esc(p.id.toUpperCase()+' · '+p.label) + '</option>').join('') + '</optgroup>' +
+    '</select>' + (currentScope ? '<span class="qa-header-scope" title="Simulated context">' + esc(currentScope) + '</span>' : '');
+}
+// P12C uses only fixed fictional profile and group data, never ws or real identities.
+function renderP12QaScreen() {
+  const p=p12QaView(state.qaProfile,state.qaContext);
+  if(!qaEnabled() || !p) { state.qaPersona=null;state.qaProfile='';state.qaContext='';return render(); }
+  state.qaContext=p.selected?.id||'';
+  document.body.classList.remove('game');
+  $('#tabs').hidden=true;
+  $('#team-crest').hidden=true;
+  $('#days-chip').hidden=true;
+  $('#bell-btn').hidden=true;
+  $('#menu-btn').hidden=true;
+  $('#team-title').classList.remove('with-season');
+  $('#team-title').textContent='QA profile · '+p.profileId.toUpperCase();
+  $('#status').hidden=false;
+  $('#status').className='status info';
+  $('#status').innerHTML='<span class="dot" aria-hidden="true"></span><span class="grow">P12 simulated profile. No real login, role grant, private data, or publication.</span>';
+  const entries=p.contexts.map(c=>'<option value="'+esc(c.id)+'"'+(p.selected?.id===c.id?' selected':'')+'>'+esc(c.label+' · '+c.groupLabel+' ('+c.status+')')+'</option>').join('');
+  const rows=p.contexts.map(c=>'<li><strong>'+esc(c.label)+'</strong> · '+esc(c.groupLabel)+
+    ' <span class="muted small">('+esc(c.kind)+' · '+esc(c.status)+')</span></li>').join('');
+  const allowed=p.selected?.capabilities||[];
+  $('#view').innerHTML='<section class="qa-preview p12-qa-preview" data-qa-profile="'+esc(p.profileId)+'" data-qa-context="'+esc(state.qaContext)+'">'+
+    '<p class="note" role="status"><strong>P12 TEST PROFILE · FICTIONAL READ-ONLY VIEW</strong> — select a role/group relationship for UI testing only. These are not signed-in users, server permissions or real sporting accreditations.</p>'+
+    '<div class="sec-h"><h2>'+esc(p.profileId.toUpperCase()+' · '+p.profileLabel)+'</h2><button type="button" class="btn sm" data-act="qa-exit">Exit QA</button></div>'+
+    '<p class="hint">One fictional person · '+p.grantCount+' active access roles · '+p.relationshipCount+' sporting memberships · '+p.appointmentCount+' fixture duties. No personal or team records are loaded.</p>'+
+    '<label class="field-l qa-scope"><span>Acting as · role and exact group</span><select data-change="p12-context" aria-label="Select fictional person role and group">'+entries+'</select></label>'+
+    '<p class="hint">Active context: <strong>'+esc(p.selected?.label||'None')+' · '+esc(p.selected?.groupLabel||'None')+'</strong>. '+esc(p.selected?.status||'No assignment')+'</p>'+
+    '<div class="qa-tiles"><section><h3>Membership and role matrix</h3><ul class="qa-identity-list">'+rows+'</ul></section>'+
+    '<section><h3>Expected synthetic capabilities</h3>'+
+    (allowed.length?'<ul class="qa-identity-list">'+allowed.map(cap=>'<li>'+esc(cap)+'</li>').join('')+'</ul>':
+      '<p class="muted small">No app capabilities. A sporting membership, temporary duty, pending invitation or revoked role does not create access.</p>')+
+    '<p class="hint">All expected capabilities are simulated; actual access requires future verified server-side grants (#55).</p></section></div>'+
+    (p.note?'<p class="note">'+esc(p.note)+'</p>':'')+
+    '<button type="button" class="btn sm" data-act="qa-p12-reset">Reset selected context</button>'+
+    '<p class="hint">Fixture duties require independently verified registration, accreditation, approved competition policy and staffing coverage. Switching here does not change a team, score, permission, account, or encrypted workspace.</p></section>';
+  document.title='Test profile · '+p.profileId.toUpperCase()+' · Team Manager';
 }
 function renderQaScreen() {
+  if(state.qaPersona==='p12')return renderP12QaScreen();
   const x=qaPreview(state.qaPersona,state.qaScope);
   if (!qaEnabled() || !x) { state.qaPersona=null;state.qaScope='';return render(); }
   state.qaScope=x.scope;
@@ -763,7 +806,7 @@ function renderQaScreen() {
 function render() {
   animStop();
   if (!S.role) return renderLock();
-  if (!qaEnabled()) { state.qaPersona=null;state.qaScope=''; }
+  if (!qaEnabled()) { state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext=''; }
   renderQaSelector();
   applyLayout();
   if (state.qaPersona) return renderQaScreen();
@@ -908,7 +951,7 @@ setInterval(() => { if (S.role === 'coach' && !S.publishing) renderStatus(); }, 
 /* ---------- Lock screen and setup ---------- */
 function renderLock() {
   const qa=$('#qa-persona-control');if(qa)qa.hidden=true;
-  state.qaPersona=null;state.qaScope='';
+  state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';
   $('#tabs').hidden = true; $('#status').hidden = true; $('#days-chip').hidden = true; $('#menu-btn').hidden = true; $('#bell-btn').hidden = true; $('#team-crest').hidden = true;
   document.body.classList.remove('game');
   $('#team-title').textContent = 'Team Manager';
@@ -6802,7 +6845,8 @@ function extendTestLibrary(day) {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
-  'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';render(); },
+  'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';state.qaProfile='';state.qaContext='';render(); },
+  'qa-p12-reset': () => { if(qaEnabled()&&state.qaPersona==='p12'){state.qaContext='';render();} },
   'qa-journey': el => {
     if(!qaEnabled()||!state.qaPersona)return;
     const j=qaJourney(state.qaPersona,state.qaScope,el.dataset.id);
@@ -7983,7 +8027,7 @@ const actions = {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   // QA screen is read-only even for forged clicks aimed at existing coach actions.
-  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance'].includes(el.dataset.act)) { e.preventDefault();return; }
+  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset'].includes(el.dataset.act)) { e.preventDefault();return; }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
@@ -8032,15 +8076,24 @@ document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if (k === 'qa-persona') {
     const role=e.target.value;
-    if (!qaEnabled() || (role && !QA_ROLES.some(x=>x.id===role))) { state.qaPersona=null;state.qaScope='';render();return; }
-    state.qaPersona=role||null;
+    const profileId=role.startsWith('p12:')?role.slice(4):'';
+    const isP12=!!profileId && !!p12QaView(profileId);
+    if (!qaEnabled() || (role && !isP12 && !QA_ROLES.some(x=>x.id===role))) {
+      state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';render();return;
+    }
+    state.qaPersona=isP12?'p12':role||null;
+    state.qaProfile=isP12?profileId:'';
+    state.qaContext='';
     state.qaJourney='';
-    state.qaScope=state.qaPersona ? qaPreview(state.qaPersona,'')?.scope||'' : '';
+    state.qaScope=state.qaPersona && !isP12 ? qaPreview(state.qaPersona,'')?.scope||'' : '';
     if (!$('#sheet').hidden) closeSheet();
     render();return;
   }
   if (state.qaPersona) {
-    if (k === 'qa-scope' && qaEnabled()) {
+    if (k === 'p12-context' && state.qaPersona==='p12' && qaEnabled()) {
+      const next=p12QaView(state.qaProfile,e.target.value);
+      if (next?.selected?.id===e.target.value) {state.qaContext=e.target.value;render();}
+    } else if (k === 'qa-scope' && state.qaPersona!=='p12' && qaEnabled()) {
       const next=qaPreview(state.qaPersona,e.target.value);
       if (next && next.scope===e.target.value) {state.qaScope=next.scope;state.qaJourney='';render();}
     }
