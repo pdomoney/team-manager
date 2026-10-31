@@ -34,8 +34,8 @@ with sync_playwright() as p:
                      f'[{width}] trainer and acting coach appointments are not app grants')
             if profile=='qa-18':
                 select=pg.locator('#view select[data-change=p12-context]')
-                c.ok(select.locator('option').count()==9,
-                     f'[{width}] QA18 has five grants, two memberships and two proposed duties')
+                c.ok(select.locator('option').count()==11,
+                     f'[{width}] QA18 has seven grants, two memberships and two proposed duties')
                 select.select_option('grant:team_manager:team:qa-stars-women')
                 c.ok(pg.get_attribute('#view .p12-qa-preview','data-qa-context')==
                      'grant:team_manager:team:qa-stars-women',
