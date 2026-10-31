@@ -54,9 +54,11 @@ test('P12D: match staffing creates unverified fixture proposals without clearanc
   const next=apply(v,s,{kind:'propose-duty',volunteerId:s.volunteers[0].id,duty:'trainer'});
   assert.equal(next.proposedDuties.length,1);
   assert.deepEqual(next.proposedDuties[0],{
-    volunteerId:s.volunteers[0].id,duty:'trainer',fixtureId:s.fixtureId,
+    volunteerId:s.volunteers[0].id,personId:s.volunteers[0].personId,
+    previousRole:s.volunteers[0].role,duty:'trainer',fixtureId:s.fixtureId,
     status:'proposed',qualification:'unverified',registration:'unverified',
-    coverage:'not-verified',grantsAccess:false
+    coverage:'not-verified',grantsAccess:false,
+    coverageReviewRequired:true,actualPermissionChange:false
   });
   assert.equal(next.staffingVerified,false);
   assert.equal(inspectP12Workflow(v,next).canScore,false);
