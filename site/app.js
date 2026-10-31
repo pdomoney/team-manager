@@ -795,7 +795,8 @@ function renderP12QaScreen() {
     '<h4>Sample squad and coach-recorded RSVP</h4><ul class="qa-p12-rows">'+rosterRows+'</ul>'+
     '<h4>Team staff · '+workflow.staff.length+'</h4><ul class="qa-p12-rows">'+staffRows+'</ul>'+ 
     '<h4>Fixture volunteers · '+workflow.volunteers.length+'</h4><ul class="qa-p12-rows">'+volunteerRows+'</ul>'+
-    '<p class="hint">Unverified duty proposals: '+workflow.proposals.length+'. '+workflow.proposals.map(a=>esc(a.duty.replaceAll('_',' '))+' (unverified; needs role, qualification and coverage checks)').join(', ')+'</p>'+
+    '<p class="hint">Unverified duty proposals: '+workflow.proposals.length+'. '+workflow.proposals.map(a=>
+      esc((a.previousRole||'Unknown duty')+' → '+a.duty.replaceAll('_',' ')+' (unverified; replacement and qualification review required)')).join('; ')+'</p>'+
     '<p class="hint">The sandbox resets on profile/context switch or exit. It cannot write to encrypted team data or approve sport-specific eligibility.</p></section>' :
     '<section class="qa-p12-workflow-unavailable" role="status"><p class="hint">No editable fictional team workflow for this context. Club administration, player/guardian membership, pending roles and trainer appointments do not automatically grant team access.</p></section>';
   const governanceRows=governance?.records.map(r=>
