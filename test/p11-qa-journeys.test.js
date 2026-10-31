@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { qaPreview } from '../site/p11-qa-personas.js';
+import {sampleTeamsForClub} from '../site/p12-qa-club-teams.js';
 import { qaJourneys, qaJourney } from '../site/p11-qa-journeys.js';
 const roles=['owner','association','club','coach'];
 test('QA #62B journeys provide three deterministic fictional walkthroughs for each role',()=>{
@@ -26,7 +27,7 @@ test('QA #62B association guides contain only association-scoped synthetic clubs
 });
 test('QA #62B club and coach guides cannot include nonselected synthetic teams',()=>{
  const club=qaJourneys('club','qa-comets');
- assert.ok(club.every(j=>j.visibleEntities.map(x=>x.id).join(',')==='qa-comets-mixed,qa-comets-juniors'));
+ assert.ok(club.every(j=>j.visibleEntities.map(x=>x.id).join(',')===sampleTeamsForClub('qa-comets').map(t=>t.id).join(',')));
  const coach=qaJourneys('coach','qa-stars-women');
  assert.ok(coach.every(j=>j.visibleEntities.map(x=>x.id).join(',')==='qa-stars-women'));
  assert.ok(coach.every(j=>!JSON.stringify(j).includes('Example Rangers U16')));

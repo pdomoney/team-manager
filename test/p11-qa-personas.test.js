@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {QA_ROLES, qaPreview} from '../site/p11-qa-personas.js';
+import {sampleTeamsForClub} from '../site/p12-qa-club-teams.js';
 
 const all=()=>QA_ROLES.map(x=>qaPreview(x.id,''));
 test('post-P10 four named QA personas are deterministic and never authenticated roles',()=>{
@@ -16,10 +17,10 @@ test('post-P10 four named QA personas are deterministic and never authenticated 
 test('post-P10 synthetic role projection restricts association/club/team scope',()=>{
   const assoc=qaPreview('association','qa-west');
   assert.deepEqual(assoc.clubs.map(x=>x.id),['qa-rangers']);
-  assert.deepEqual(assoc.teams.map(x=>x.id),['qa-rangers-16']);
+  assert.deepEqual(assoc.teams.map(x=>x.id),sampleTeamsForClub('qa-rangers').map(x=>x.id));
   const club=qaPreview('club','qa-comets');
   assert.deepEqual(club.clubs.map(x=>x.id),['qa-comets']);
-  assert.deepEqual(club.teams.map(x=>x.id),['qa-comets-mixed','qa-comets-juniors']);
+  assert.deepEqual(club.teams.map(x=>x.id),sampleTeamsForClub('qa-comets').map(x=>x.id));
   const coach=qaPreview('coach','qa-stars-women');
   assert.deepEqual(coach.teams.map(x=>x.id),['qa-stars-women']);
   assert.deepEqual(coach.clubs.map(x=>x.id),['qa-stars']);

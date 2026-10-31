@@ -2,23 +2,18 @@
 // Approvals never modify p12QaView role fixtures, real people, contacts, coach
 // workspaces, encrypted data, server grants, registrations or child records.
 import {P12_ACCESS_ROLES,evaluateP12Access} from './p12-role-groups.js';
+import {P12_TEAM_TO_CLUB,P12_SAMPLE_GROUP_NAMES} from './p12-qa-club-teams.js';
 
 export const P12_GOVERNANCE_CLOCK='2026-10-31T00:00:00Z';
 // Explicit, bounded administrative APPROVAL relationships only. These do not
 // convey data access, club/team membership or resource permission inheritance.
-const TEAM_CLUB=Object.freeze({
-  'qa-rangers-16':'qa-rangers',
-  'qa-stars-women':'qa-stars',
-  'qa-comets-mixed':'qa-comets',
-  'qa-comets-juniors':'qa-comets'
-});
+const TEAM_CLUB=P12_TEAM_TO_CLUB;
 const FIXTURE_CLUB=Object.freeze({'qa-fixture-001':'qa-rangers'});
 const GROUP_NAME=Object.freeze({
-  'qa-rangers-16':'Example Rangers U16','qa-stars-women':'Example Stars Women',
-  'qa-comets-mixed':'Example Comets Mixed','qa-comets-juniors':'Example Comets U14',
-  'qa-rangers':'Example Rangers Club','qa-stars':'Example Stars Club',
-  'qa-comets':'Example Comets Club','qa-east':'Sample Harbour Sporting Association',
-  'qa-west':'Sample Valley Sporting Association','qa-fixture-001':'Example Fixture 001',
+  ...P12_SAMPLE_GROUP_NAMES,
+  'qa-east':'Sample Harbour Sporting Association',
+  'qa-west':'Sample Valley Sporting Association',
+  'qa-fixture-001':'Example Fixture 001',
   'qa-platform':'Synthetic platform'
 });
 const request=(id,profileId,role,type,groupId,status='proposed',until=null)=>({

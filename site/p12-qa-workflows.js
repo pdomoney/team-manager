@@ -2,28 +2,14 @@
 // Pure data operations. Never load / mutate coach workspaces, accounts or real records.
 // This is a UI-behaviour simulator, NOT production security, compliance or eligibility.
 import {P12_ACCESS_ROLES} from './p12-role-groups.js';
-
-const TEAM_TEMPLATES=Object.freeze({
-  'qa-rangers-16':Object.freeze({sport:'Rugby league',fixture:'qa-rangers-fixture',name:'Example Rangers U16',
-    players:['Rangers Demo Player A','Rangers Demo Player B','Rangers Demo Player C'],
-    volunteers:['Rangers Demo Volunteer A','Rangers Demo Volunteer B']}),
-  'qa-stars-women':Object.freeze({sport:'Touch',fixture:'qa-stars-fixture',name:'Example Stars Women',
-    players:['Stars Demo Player A','Stars Demo Player B','Stars Demo Player C'],
-    volunteers:['Stars Demo Volunteer A','Stars Demo Volunteer B']}),
-  'qa-comets-mixed':Object.freeze({sport:'Oztag',fixture:'qa-comets-fixture',name:'Example Comets Mixed',
-    players:['Comets Demo Player A','Comets Demo Player B','Comets Demo Player C'],
-    volunteers:['Comets Demo Volunteer A','Comets Demo Volunteer B']}),
-  'qa-comets-juniors':Object.freeze({sport:'Oztag',fixture:'qa-comets-junior-fixture',name:'Example Comets U14',
-    players:['Junior Demo Player A','Junior Demo Player B','Junior Demo Player C'],
-    volunteers:['Junior Demo Volunteer A','Junior Demo Volunteer B']})
-});
+import {sampleTeam,makeP12SampleRoster} from './p12-qa-club-teams.js';
 
 const byValue=(items,id)=>items.find(x=>x.id===id);
 const exactContext=view=>{
   const chosen=view?.selected;
   if(view?.mode!=='SYNTHETIC_ONLY_NO_AUTHORIZATION'||view.mayGrantAccess!==false||
      !chosen||chosen.kind!=='access'||chosen.status!=='active'||
-     chosen.group?.type!=='team'||!Object.hasOwn(TEAM_TEMPLATES,chosen.group.id))return null;
+     chosen.group?.type!=='team'||!sampleTeam(chosen.group.id))return null;
   const definition=Object.hasOwn(P12_ACCESS_ROLES,chosen.role)?P12_ACCESS_ROLES[chosen.role]:null;
   if(definition?.scope!=='team')return null;
   const allowed=definition.capabilities.filter(c=>chosen.capabilities?.includes(c));
@@ -33,14 +19,14 @@ const exactContext=view=>{
 export function makeP12WorkflowSandbox(view){
   const ctx=exactContext(view);
   if(!ctx)return null;
-  const t=TEAM_TEMPLATES[ctx.teamId];
+  const t=makeP12SampleRoster(ctx.teamId);
   return {
     mode:'DISPOSABLE_SYNTHETIC_WORKFLOW',profileId:view.profileId,
-    contextId:view.selected.id,role:ctx.role,teamId:ctx.teamId,
-    teamName:t.name,sport:t.sport,fixtureId:t.fixture,fixtureStatus:'scheduled',
-    players:t.players.map((name,i)=>({id:ctx.teamId+'-player-'+(i+1),name,
-      selected:i<2,rsvp:'pending'})),
-    volunteers:t.volunteers.map((name,i)=>({id:ctx.teamId+'-volunteer-'+(i+1),name})),
+    contextId:view.selected.id,role:ctx.role,teamId:ctx.teamId,clubId:t.clubId,
+    teamName:t.teamName,clubName:t.clubName,sport:t.sport,
+    category:t.category,ageGroup:t.ageGroup,season:t.season,
+    fixtureId:t.fixtureId,fixtureStatus:'scheduled',
+    players:t.players,staff:t.staff,volunteers:t.volunteers,
     proposedDuties:[],log:[],rulesApproved:false,staffingVerified:false,
     published:false,containsRealPeople:false,transient:true
   };
@@ -58,11 +44,12 @@ export function applyP12WorkflowAction(view,sandbox,request={}){
      sandbox.containsRealPeople!==false)return {error:'Synthetic workflow context does not match'};
   const kind=request.kind;
   const permission={'toggle-roster':'roster:manage','set-rsvp':'schedule:manage',
-    'propose-duty':'match-staff:manage'}[kind];
+    'propose-duty':'match-staff:manage','propose-role-change':'match-staff:manage'}[kind];
   if(!permission||!context.allowed.includes(permission))return {error:'Role lacks this synthetic action'};
   const people=sandbox.players;
   const player=byValue(people,request.playerId);
   const volunteers=sandbox.volunteers;
+  const staff=sandbox.staff;
   let next,detail;
   if(kind==='toggle-roster'){
     if(!player)return {error:'Player does not belong to this exact team'};
@@ -72,20 +59,57 @@ export function applyP12WorkflowAction(view,sandbox,request={}){
     if(!player||!['yes','no','pending'].includes(request.status))return {error:'Invalid player or RSVP status'};
     next={...sandbox,players:people.map(p=>p.id===player.id?{...p,rsvp:request.status}:{...p})};
     detail='Coach-recorded fictional RSVP: '+player.id+' = '+request.status;
-  } else {
+  } else if(kind==='propose-duty') {
     const volunteer=byValue(volunteers,request.volunteerId);
     const duty=request.duty;
     if(!volunteer||!['trainer','acting_coach'].includes(duty))return {error:'Invalid volunteer or proposed duty'};
     if(sandbox.proposedDuties.some(p=>p.volunteerId===volunteer.id&&p.duty===duty))
       return {error:'Duplicate fixture duty proposal'};
     next={...sandbox,proposedDuties:[...sandbox.proposedDuties,{
-      volunteerId:volunteer.id,duty,fixtureId:sandbox.fixtureId,status:'proposed',
+      volunteerId:volunteer.id,personId:volunteer.personId,
+      previousRole:volunteer.role,duty,fixtureId:sandbox.fixtureId,status:'proposed',
       qualification:'unverified',registration:'unverified',coverage:'not-verified',
-      grantsAccess:false
+      grantsAccess:false,coverageReviewRequired:true,actualPermissionChange:false
     }]};
     detail='Unverified fixture duty proposed: '+duty+' for '+volunteer.id;
+  } else {
+    const member=byValue(staff,request.staffId);
+    if(!member||!['trainer','acting_coach'].includes(request.duty))
+      return {error:'Unknown staff member or requested fixture duty'};
+    if(!request.reason||typeof request.reason!=='string')
+      return {error:'A reason for the acting appointment is required'};
+    const duty=request.duty;
+    if(sandbox.proposedDuties.some(p=>p.staffId===member.id&&p.duty===duty))
+      return {error:'Duplicate acting-role proposal'};
+    next={...sandbox,proposedDuties:[...sandbox.proposedDuties,{
+      staffId:member.id,personId:member.personId,previousRole:member.role,
+      duty,fixtureId:sandbox.fixtureId,reason:request.reason.slice(0,160),
+      status:'proposed',qualification:'unverified',registration:'unverified',
+      coverage:'not-verified',grantsAccess:false,
+      staffReplacementRequired:true,coverageReviewRequired:true,actualPermissionChange:false
+    }]};
+    detail='Acting role requested: '+member.role+' to '+duty+' for '+member.id;
   }
   return {...next,log:[...sandbox.log,detail]};
+}
+
+// Potential fixture conflicts are a *warning* only. We do not invent a
+// governing-body staffing rule: P12F must apply an approved competition profile.
+export function p12PotentialDutyConflicts(proposals=[]){
+  if(!Array.isArray(proposals))return [];
+  const combinations=new Set(),warnings=[];
+  for(const a of proposals){
+    if(!a?.personId||!a?.fixtureId||!a?.duty)continue;
+    const key=a.fixtureId+'|'+a.personId;
+    const duties=[...new Set(proposals.filter(p=>p?.personId===a.personId&&
+      p.fixtureId===a.fixtureId).map(p=>p.duty))];
+    if(duties.length>1&&!combinations.has(key)){
+      combinations.add(key);
+      warnings.push({personId:a.personId,fixtureId:a.fixtureId,duties,
+        decision:'requires-competition-specific-review',autoApproved:false});
+    }
+  }
+  return warnings;
 }
 
 // Display-only summary. This deliberately never claims a scheduled match is staffed,
@@ -97,7 +121,10 @@ export function inspectP12Workflow(view,sandbox){
      sandbox.role!==ctx.role||sandbox.mode!=='DISPOSABLE_SYNTHETIC_WORKFLOW')return null;
   return {
     teamId:sandbox.teamId,teamName:sandbox.teamName,sport:sandbox.sport,
-    fixtureId:sandbox.fixtureId,players:sandbox.players.map(x=>({...x})),
+    fixtureId:sandbox.fixtureId,clubId:sandbox.clubId,
+    category:sandbox.category,ageGroup:sandbox.ageGroup,season:sandbox.season,
+    players:sandbox.players.map(x=>({...x})),
+    staff:sandbox.staff.map(x=>({...x})),
     volunteers:sandbox.volunteers.map(x=>({...x})),
     proposals:sandbox.proposedDuties.map(x=>({...x})),
     selectedCount:sandbox.players.filter(x=>x.selected).length,
@@ -105,6 +132,8 @@ export function inspectP12Workflow(view,sandbox){
     canRsvp:ctx.allowed.includes('schedule:manage'),
     canPropose:ctx.allowed.includes('match-staff:manage'),
     activityCount:sandbox.log.length,
+    roleChangeReviewRequired:sandbox.proposedDuties.some(p=>p.coverageReviewRequired===true),
+    dutyConflicts:p12PotentialDutyConflicts(sandbox.proposedDuties),
     officialRuleApproval:false,matchEligibilityConfirmed:false,
     canScore:false,canPublish:false,realWorkspaceAffected:false
   };

@@ -20,11 +20,11 @@ with sync_playwright() as p:
         board=pg.locator('#view .qa-p12-workflow')
         c.ok(board.count()==1 and board.get_attribute('data-qa-workflow')=='qa-rangers-16',
              f'[{width}] QA18 coach creates exact Rangers team sandbox')
-        c.ok('Rangers Demo Player A' in board.inner_text() and 'Stars Demo Player A' not in board.inner_text(),
+        c.ok('Rangers U16 · Sample Player 01' in board.inner_text() and 'Stars Women · Sample Player 01' not in board.inner_text(),
              f'[{width}] Rangers sandbox has only Rangers fictional squad')
-        c.ok(board.locator('[data-kind=toggle-roster]').count()==3,
+        c.ok(board.locator('[data-kind=toggle-roster]').count()==22,
              f'[{width}] coach may select fictional match squad')
-        c.ok(board.locator('[data-kind=set-rsvp]').count()==6,
+        c.ok(board.locator('[data-kind=set-rsvp]').count()==44,
              f'[{width}] coach may record fictional attendance')
         c.ok(board.locator('[data-kind=propose-duty]').count()==0,
              f'[{width}] coach has no implicit staff-management capability')
@@ -41,11 +41,11 @@ with sync_playwright() as p:
 
         pg.locator('#view select[data-change=p12-context]').select_option('grant:team_manager:team:qa-stars-women')
         board=pg.locator('#view .qa-p12-workflow')
-        c.ok(board.get_attribute('data-qa-workflow')=='qa-stars-women' and 'Rangers Demo Player A' not in board.inner_text(),
+        c.ok(board.get_attribute('data-qa-workflow')=='qa-stars-women' and 'Rangers U16 · Sample Player 01' not in board.inner_text(),
              f'[{width}] changing role/group clears old team data and starts Stars sandbox')
         c.ok('Local actions this session: 0' in board.inner_text(),
              f'[{width}] switching context resets disposable action history')
-        c.ok(board.locator('[data-kind=propose-duty][data-duty=trainer]').count()==2,
+        c.ok(board.locator('[data-kind=propose-duty][data-duty=trainer]').count()==4,
              f'[{width}] team manager may propose fictional trainer duties')
         board.locator('[data-kind=propose-duty][data-duty=trainer]').first.click()
         c.ok('Unverified duty proposals: 1' in board.inner_text() and 'unverified' in board.inner_text(),
