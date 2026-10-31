@@ -46,7 +46,7 @@ test('P12C: QA-18 displays independent club, team and association role assignmen
 
 test('P12C: select a scoped context explicitly, invalid selections fall back safely',()=>{
   const x=p12QaView('qa-18');
-  const id=x.contexts.find(c=>c.role==='team_manager').id;
+  const id=x.contexts.find(c=>c.role==='team_manager' && c.group.id==='qa-stars-women').id;
   const selected=p12QaView('qa-18',id);
   assert.equal(selected.selected.id,id);
   assert.equal(selected.selected.group.id,'qa-stars-women');
