@@ -133,7 +133,7 @@ test('P12 role-change: manager may propose fixture-bounded acting duties for exi
   assert.equal(proposal.status,'proposed');
   assert.equal(proposal.staffReplacementRequired,true);
   assert.equal(proposal.registration,'unverified');
-  assert.equal(proposal.accreditation,'unverified');
+  assert.equal(proposal.qualification,'unverified');
   assert.equal(proposal.actualPermissionChange,false);
   assert.equal(proposal.grantsAccess,false);
   assert.equal(inspectP12Workflow(actor,next).matchEligibilityConfirmed,false);
