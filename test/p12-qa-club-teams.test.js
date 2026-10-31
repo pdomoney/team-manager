@@ -161,3 +161,29 @@ test('P12 role-change: coach cannot promote themselves; cross-team and malformed
   }).error,'Role lacks this synthetic action');
   assert.equal(makeP12WorkflowSandbox(manager).proposedDuties.length,0);
 });
+
+
+test('P12 role-change: trainer to acting coach on one fixture warns about unverified double-duty',()=>{
+  // A Coach profile cannot propose a staff assignment. Use a Team Manager
+  // context to review two candidate roles for one fictional person.
+  const actor=active('qa-09','team_manager','qa-comets-mixed');
+  const original=makeP12WorkflowSandbox(actor);
+  const person=original.volunteers[0];
+  const trainer=applyP12WorkflowAction(actor,original,{
+    kind:'propose-duty',volunteerId:person.id,duty:'trainer'
+  });
+  const acting=applyP12WorkflowAction(actor,trainer,{
+    kind:'propose-duty',volunteerId:person.id,duty:'acting_coach'
+  });
+  assert.equal(acting.proposedDuties.length,2);
+  const view=inspectP12Workflow(actor,acting);
+  assert.equal(view.dutyConflicts.length,1);
+  assert.equal(view.dutyConflicts[0].personId,person.personId);
+  assert.deepEqual(new Set(view.dutyConflicts[0].duties),new Set(['trainer','acting_coach']));
+  assert.equal(view.dutyConflicts[0].autoApproved,false);
+  assert.equal(view.officialRuleApproval,false);
+  assert.equal(view.canPublish,false);
+  assert.equal(view.matchEligibilityConfirmed,false);
+  assert.equal(acting.staffingVerified,false);
+  assert.equal(makeP12WorkflowSandbox(actor).proposedDuties.length,0);
+});
