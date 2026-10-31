@@ -20,8 +20,8 @@ test('P12D: only a fictional team access grant opens a new disposable sandbox',(
   assert.equal(s.mode,'DISPOSABLE_SYNTHETIC_WORKFLOW');
   assert.equal(s.teamId,'qa-rangers-16');
   assert.equal(s.sport,'Rugby league');
-  assert.equal(s.players.length,3);
-  assert.equal(s.volunteers.length,2);
+  assert.equal(s.players.length,22);
+  assert.equal(s.volunteers.length,6);
   assert.equal(s.published,false);
   assert.equal(s.containsRealPeople,false);
   assert.equal(s.rulesApproved,false);
