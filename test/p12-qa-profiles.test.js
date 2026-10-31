@@ -27,14 +27,16 @@ test('P12C: exactly twenty unique fictional profiles and no sensitive data field
 
 test('P12C: QA-18 displays independent club, team and association role assignments',()=>{
   const x=p12QaView('qa-18');
-  assert.equal(x.grantCount,5);
+  assert.equal(x.grantCount,7);
   assert.equal(x.relationshipCount,2);
   assert.equal(x.appointmentCount,2);
-  assert.equal(x.contexts.length,9);
+  assert.equal(x.contexts.length,11);
   const get=(kind,role,id)=>x.contexts.find(c=>c.kind===kind&&c.role===role&&c.group.id===id);
   assert.ok(get('access','club_admin','qa-rangers').capabilities.includes('club:manage'));
   assert.ok(get('access','team_coach','qa-rangers-16').capabilities.includes('roster:manage'));
   assert.ok(get('access','team_manager','qa-stars-women').capabilities.includes('match-staff:manage'));
+  assert.ok(get('access','team_coach','qa-rangers-u12').capabilities.includes('roster:manage'));
+  assert.ok(get('access','team_manager','qa-comets-u16').capabilities.includes('match-staff:manage'));
   assert.ok(get('access','association_viewer','qa-west').capabilities.includes('association:view'));
   assert.ok(get('access','club_support','qa-comets').capabilities.includes('club:view'));
   assert.equal(get('membership','player','qa-comets-mixed').capabilities.length,0);
