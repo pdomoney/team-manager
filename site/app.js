@@ -41,6 +41,7 @@ import { qaAcceptanceBoard, qaAcceptanceText } from './p11-qa-acceptance.js';
 import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
 import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
+import {p12SampleTeamSummary,makeP12SampleRoster} from './p12-qa-club-teams.js';
 import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
 import { matchDayPresentation } from './match-day-presentation.js';
 import { matchFormatSourceReview } from './match-format-source-review.js';
@@ -730,6 +731,7 @@ function renderP12QaScreen() {
     state.qaSandbox=makeP12WorkflowSandbox(p);
   }
   const workflow=inspectP12Workflow(p,state.qaSandbox);
+  const sampleTeams=p12SampleTeamSummary(p);
   if(!state.qaGovernance)state.qaGovernance=createP12GovernanceScenario();
   const governance=inspectP12Governance(state.qaGovernance,p);
   document.body.classList.remove('game');
@@ -747,13 +749,39 @@ function renderP12QaScreen() {
   const rows=p.contexts.map(c=>'<li><strong>'+esc(c.label)+'</strong> · '+esc(c.groupLabel)+
     ' <span class="muted small">('+esc(c.kind)+' · '+esc(c.status)+')</span></li>').join('');
   const allowed=p.selected?.capabilities||[];
+  const clubOverviewRows=sampleTeams.map(t=>{
+    const r=makeP12SampleRoster(t.teamId);
+    const staff=r.staff.map(x=>'<li>'+esc(x.name)+' · '+esc(x.role)+' (registration unverified)</li>').join('');
+    const volunteers=r.volunteers.map(x=>'<li>'+esc(x.name)+' · '+esc(x.role)+' (unverified)</li>').join('');
+    return '<details class="qa-p12-team-summary" data-qa-team-summary="'+esc(t.teamId)+'">'+
+      '<summary><strong>'+esc(t.name)+'</strong> · '+esc(t.category)+' '+esc(t.ageGroup)+
+      ' · '+t.players+' players · '+t.staff+' staff · '+t.volunteers+' volunteers</summary>'+
+      '<p class="hint">Example squad size and roles for UI testing only. Not approved playing numbers or accredited staffing.</p>'+
+      '<p class="hint">Fictional squad examples: '+r.players.slice(0,3).map(x=>esc(x.name)+' (#'+x.jersey+', preference '+esc(x.preferredPositions.join(', '))+')').join('; ')+'</p>'+
+      '<h4>Team staff</h4><ul class="qa-identity-list">'+staff+'</ul>'+
+      '<h4>Match-day volunteers</h4><ul class="qa-identity-list">'+volunteers+'</ul>'+
+      '</details>';
+  }).join('');
+  const clubOverviewHtml=sampleTeams.length?
+    '<section class="qa-p12-club-teams" aria-label="Fictional team portfolio">'+
+    '<h3>Teams in selected fictional role scope · '+sampleTeams.length+'</h3>'+
+    '<p class="hint">Read-only catalogue, not permission to edit every team. Open a team summary to inspect sample players, staff and volunteers.</p>'+
+    clubOverviewRows+'</section>':'';
   const rosterRows=workflow ? workflow.players.map(q=>
     '<li class="p12-sandbox-row"><strong>'+esc(q.name)+'</strong> <span class="muted small">Selected: '+(q.selected?'yes':'no')+' · RSVP: '+esc(q.rsvp)+'</span>'+
     (workflow.canRoster?' <button type="button" class="btn sm" data-act="qa-p12-workflow" data-kind="toggle-roster" data-player="'+esc(q.id)+'">'+(q.selected?'Remove from sample lineup':'Select for sample lineup')+'</button>':'')+
     (workflow.canRsvp?' <button type="button" class="btn sm" data-act="qa-p12-workflow" data-kind="set-rsvp" data-player="'+esc(q.id)+'" data-status="yes">RSVP yes</button> <button type="button" class="btn sm" data-act="qa-p12-workflow" data-kind="set-rsvp" data-player="'+esc(q.id)+'" data-status="no">RSVP no</button>':'')+'</li>'
   ).join('') : '';
+  const staffRows=workflow ? workflow.staff.map(q=>
+    '<li class="p12-sandbox-row"><strong>'+esc(q.name)+'</strong> · '+esc(q.role)+
+    ' <span class="muted small">(registration unverified)</span>'+
+    (workflow.canPropose?
+      ' <button type="button" class="btn sm" data-act="qa-p12-workflow" data-kind="propose-role-change" data-staff="'+esc(q.id)+'" data-duty="trainer" data-reason="Simulated match-day replacement">Request acting Trainer</button>'+
+      ' <button type="button" class="btn sm" data-act="qa-p12-workflow" data-kind="propose-role-change" data-staff="'+esc(q.id)+'" data-duty="acting_coach" data-reason="Simulated coach absence">Request Acting Coach</button>':'')+'</li>'
+  ).join('') : '';
   const volunteerRows=workflow ? workflow.volunteers.map(q=>
-    '<li class="p12-sandbox-row"><strong>'+esc(q.name)+'</strong>'+
+    '<li class="p12-sandbox-row"><strong>'+esc(q.name)+'</strong> · '+esc(q.role)+
+    ' <span class="muted small">(unverified)</span>'+
     (workflow.canPropose?' <button type="button" class="btn sm" data-act="qa-p12-workflow" data-kind="propose-duty" data-volunteer="'+esc(q.id)+'" data-duty="trainer">Propose Trainer</button> <button type="button" class="btn sm" data-act="qa-p12-workflow" data-kind="propose-duty" data-volunteer="'+esc(q.id)+'" data-duty="acting_coach">Propose Acting Coach</button>':
       ' <span class="muted small">No match-staff management grant in this context</span>')+'</li>'
   ).join('') : '';
@@ -761,12 +789,13 @@ function renderP12QaScreen() {
     '<section class="qa-p12-workflow" data-qa-workflow="'+esc(workflow.teamId)+'" aria-label="Disposable fictional match workflow">'+
     '<div class="sec-h"><h3>Disposable workflow sandbox</h3><button type="button" class="btn sm" data-act="qa-p12-workflow-reset">Reset this scenario</button></div>'+
     '<p class="hint">'+esc(workflow.teamName)+' · '+esc(workflow.sport)+' · Fixture '+esc(workflow.fixtureId)+
-    '. Locally simulated: no official rules approval, staffing eligibility, notifications, scoring or publishing.</p>'+
+    ' · '+esc(workflow.category)+' '+esc(workflow.ageGroup)+' · '+esc(workflow.season)+'. Locally simulated: no official rules approval, staffing eligibility, notifications, scoring or publishing.</p>'+
     '<p class="hint">Selected fictional squad: <strong>'+workflow.selectedCount+'</strong> of '+workflow.players.length+
     '. Local actions this session: <strong>'+workflow.activityCount+'</strong>.</p>'+
     '<h4>Sample squad and coach-recorded RSVP</h4><ul class="qa-p12-rows">'+rosterRows+'</ul>'+
-    '<h4>Fixture volunteer proposals</h4><ul class="qa-p12-rows">'+volunteerRows+'</ul>'+
-    '<p class="hint">Unverified duty proposals: '+workflow.proposals.length+'. '+workflow.proposals.map(a=>esc(a.duty.replaceAll('_',' '))+' (unverified)').join(', ')+'</p>'+
+    '<h4>Team staff · '+workflow.staff.length+'</h4><ul class="qa-p12-rows">'+staffRows+'</ul>'+ 
+    '<h4>Fixture volunteers · '+workflow.volunteers.length+'</h4><ul class="qa-p12-rows">'+volunteerRows+'</ul>'+
+    '<p class="hint">Unverified duty proposals: '+workflow.proposals.length+'. '+workflow.proposals.map(a=>esc(a.duty.replaceAll('_',' '))+' (unverified; needs role, qualification and coverage checks)').join(', ')+'</p>'+
     '<p class="hint">The sandbox resets on profile/context switch or exit. It cannot write to encrypted team data or approve sport-specific eligibility.</p></section>' :
     '<section class="qa-p12-workflow-unavailable" role="status"><p class="hint">No editable fictional team workflow for this context. Club administration, player/guardian membership, pending roles and trainer appointments do not automatically grant team access.</p></section>';
   const governanceRows=governance?.records.map(r=>
@@ -799,6 +828,7 @@ function renderP12QaScreen() {
       '<p class="muted small">No app capabilities. A sporting membership, temporary duty, pending invitation or revoked role does not create access.</p>')+
     '<p class="hint">All expected capabilities are simulated; actual access requires future verified server-side grants (#55).</p></section></div>'+
     (p.note?'<p class="note">'+esc(p.note)+'</p>':'')+
+    clubOverviewHtml+
     workflowHtml+
     governanceHtml+
     '<button type="button" class="btn sm" data-act="qa-p12-reset">Reset selected context</button>'+
@@ -6919,7 +6949,8 @@ const actions = {
     const view=p12QaView(state.qaProfile,state.qaContext);
     const result=applyP12WorkflowAction(view,state.qaSandbox,{
       kind:el.dataset.kind,playerId:el.dataset.player,
-      status:el.dataset.status,volunteerId:el.dataset.volunteer,duty:el.dataset.duty
+      status:el.dataset.status,volunteerId:el.dataset.volunteer,duty:el.dataset.duty,
+      staffId:el.dataset.staff,reason:el.dataset.reason
     });
     if(result.error){toast('Synthetic test action blocked: '+result.error);return;}
     state.qaSandbox=result;render();
