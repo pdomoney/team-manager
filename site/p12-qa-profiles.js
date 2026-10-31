@@ -2,6 +2,7 @@
 // This module contains no real people, workspace access, storage, credentials or network.
 // A test context is a preview label, NOT an authenticated identity or permission grant.
 import {P12_ACCESS_ROLES,evaluateP12Access,listP12TestContexts} from './p12-role-groups.js';
+import {P12_SAMPLE_GROUP_NAMES} from './p12-qa-club-teams.js';
 
 const scope=(type,id)=>({type,id});
 const grant=(role,type,id,status='active')=>({role,group:scope(type,id),status});
@@ -24,9 +25,9 @@ export const P12_QA_PROFILES=Object.freeze([
   C({id:'qa-04',label:'Club Administrator',grants:[G('club_admin','club',rangers)]}),
   C({id:'qa-05',label:'Large Club Administrator',grants:[G('club_admin','club',rangers),G('club_admin','club',comets)]}),
   C({id:'qa-06',label:'Club Support Officer',grants:[G('club_support','club',stars)]}),
-  C({id:'qa-07',label:'Head Coach',grants:[G('team_coach','team',rangers16)],duties:[D('head_coach')]}),
+  C({id:'qa-07',label:'Head Coach',grants:[G('team_coach','team',rangers16),G('team_coach','team','qa-rangers-u14')],duties:[D('head_coach')]}),
   C({id:'qa-08',label:'Assistant Coach',grants:[G('team_assistant','team',rangers16),G('team_assistant','team',junior)],duties:[D('assistant_coach')]}),
-  C({id:'qa-09',label:'Team Manager',grants:[G('team_manager','team',mixed)],duties:[D('team_manager')]}),
+  C({id:'qa-09',label:'Team Manager',grants:[G('team_manager','team',mixed),G('team_manager','team','qa-comets-u12')],duties:[D('team_manager')]}),
   C({id:'qa-10',label:'Match Scorekeeper',grants:[G('fixture_scorekeeper','fixture',fixture)],duties:[D('scorekeeper')]}),
   C({id:'qa-11',label:'LeagueSafe Volunteer',memberships:[M('staff','club',rangers)],duties:[D('league_safe')],note:'Role eligibility needs competition-specific verification.'}),
   C({id:'qa-12',label:'Dual-qualified Trainer / Acting Coach',memberships:[M('staff','club',rangers)],duties:[D('trainer'),D('acting_coach')],note:'Both fixture duties are proposals only. Incompatible simultaneous duties must not be double-counted.'}),
@@ -37,7 +38,7 @@ export const P12_QA_PROFILES=Object.freeze([
   C({id:'qa-17',label:'General Volunteer',memberships:[M('helper','club',comets)],duties:[D('helper')]}),
   C({id:'qa-18',label:'Multi-role / Multi-club User',grants:[
     G('association_viewer','association',west),G('club_admin','club',rangers),
-    G('team_coach','team',rangers16),G('team_manager','team',women),
+    G('team_coach','team',rangers16),G('team_coach','team','qa-rangers-u12'),G('team_manager','team',women),G('team_manager','team','qa-comets-u16'),
     G('club_support','club',comets)
   ],memberships:[M('player','team',mixed),M('helper','club',comets)],
   duties:[D('trainer'),D('acting_coach')],
@@ -46,16 +47,10 @@ export const P12_QA_PROFILES=Object.freeze([
   C({id:'qa-20',label:'Pending Invitation',grants:[G('team_manager','team',mixed,'proposed')],note:'Pending invitations never create app access.'})
 ]);
 export const P12_QA_GROUP_NAMES=Object.freeze({
+  ...P12_SAMPLE_GROUP_NAMES,
   'qa-platform':'Synthetic platform',
   [assoc]:'Sample Harbour Sporting Association',
   [west]:'Sample Valley Sporting Association',
-  [comets]:'Example Comets Club',
-  [stars]:'Example Stars Club',
-  [rangers]:'Example Rangers Club',
-  [mixed]:'Example Comets Mixed',
-  [junior]:'Example Comets U14',
-  [women]:'Example Stars Women',
-  [rangers16]:'Example Rangers U16',
   [fixture]:'Example Fixture 001'
 });
 const labelScope=g=>P12_QA_GROUP_NAMES[g.id]||'Unknown fictional group';
