@@ -1,3 +1,4 @@
+import {P12_SAMPLE_CLUBS,P12_SAMPLE_TEAMS} from './p12-qa-club-teams.js';
 // Post-P10 #62: read-only, synthetic UI layout previews, never real role grants.
 // IMPORTANT: do not pass a coach workspace, credentials, players or contacts to this module.
 export const QA_ROLES=Object.freeze([
@@ -10,17 +11,9 @@ const ASSOCIATIONS=Object.freeze([
   Object.freeze({id:'qa-east',name:'Sample Harbour Sporting Association'}),
   Object.freeze({id:'qa-west',name:'Sample Valley Sporting Association'})
 ]);
-const CLUBS=Object.freeze([
-  Object.freeze({id:'qa-comets',associationId:'qa-east',name:'Example Comets Club',sport:'Oztag'}),
-  Object.freeze({id:'qa-stars',associationId:'qa-east',name:'Example Stars Club',sport:'Touch'}),
-  Object.freeze({id:'qa-rangers',associationId:'qa-west',name:'Example Rangers Club',sport:'Rugby league'})
-]);
-const TEAMS=Object.freeze([
-  Object.freeze({id:'qa-comets-mixed',clubId:'qa-comets',name:'Example Comets Mixed',sport:'Oztag'}),
-  Object.freeze({id:'qa-comets-juniors',clubId:'qa-comets',name:'Example Comets U14',sport:'Oztag'}),
-  Object.freeze({id:'qa-stars-women',clubId:'qa-stars',name:'Example Stars Women',sport:'Touch'}),
-  Object.freeze({id:'qa-rangers-16',clubId:'qa-rangers',name:'Example Rangers U16',sport:'Rugby league'})
-]);
+// The P11 and P12 previews share one non-production club/team catalogue.
+const CLUBS=P12_SAMPLE_CLUBS;
+const TEAMS=P12_SAMPLE_TEAMS;
 const WORKFLOWS=Object.freeze({
   owner:Object.freeze(['Platform configuration concept','Association catalogue concept','Licence review concept']),
   association:Object.freeze(['Affiliated clubs concept','Association seasons concept','Organisation report concept']),
