@@ -40,6 +40,7 @@ import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
 import { qaAcceptanceBoard, qaAcceptanceText } from './p11-qa-acceptance.js';
 import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
+import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
 import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
 import { matchDayPresentation } from './match-day-presentation.js';
 import { matchFormatSourceReview } from './match-format-source-review.js';
@@ -333,7 +334,7 @@ const state = {
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
-  qaPersona: null, qaScope: '', qaJourney: '', qaProfile: '', qaContext: '', qaSandbox: null, // Ephemeral QA-only fictional layout and guided tests, never saved
+  qaPersona: null, qaScope: '', qaJourney: '', qaProfile: '', qaContext: '', qaSandbox: null, qaGovernance: null, // Ephemeral QA-only fictional layout and guided tests, never saved
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
 };
@@ -729,6 +730,8 @@ function renderP12QaScreen() {
     state.qaSandbox=makeP12WorkflowSandbox(p);
   }
   const workflow=inspectP12Workflow(p,state.qaSandbox);
+  if(!state.qaGovernance)state.qaGovernance=createP12GovernanceScenario();
+  const governance=inspectP12Governance(state.qaGovernance,p);
   document.body.classList.remove('game');
   $('#tabs').hidden=true;
   $('#team-crest').hidden=true;
@@ -766,6 +769,24 @@ function renderP12QaScreen() {
     '<p class="hint">Unverified duty proposals: '+workflow.proposals.length+'. '+workflow.proposals.map(a=>esc(a.duty.replaceAll('_',' '))+' (unverified)').join(', ')+'</p>'+
     '<p class="hint">The sandbox resets on profile/context switch or exit. It cannot write to encrypted team data or approve sport-specific eligibility.</p></section>' :
     '<section class="qa-p12-workflow-unavailable" role="status"><p class="hint">No editable fictional team workflow for this context. Club administration, player/guardian membership, pending roles and trainer appointments do not automatically grant team access.</p></section>';
+  const governanceRows=governance?.records.map(r=>
+    '<li class="qa-p12-governance-row" data-qa-governance-row="'+esc(r.id)+'">'+
+    '<strong>'+esc(r.id.toUpperCase())+'</strong> · '+esc(r.role.replaceAll('_',' '))+
+    ' · '+esc(r.groupLabel)+' · <span class="muted small">'+esc(r.profileId)+' · '+esc(r.effectiveStatus)+'</span>'+
+    (r.canApprove?' <button type="button" class="btn sm" data-act="qa-p12-governance" data-id="'+esc(r.id)+'" data-decision="approve">Approve (fictional)</button>':'')+
+    (r.canReject?' <button type="button" class="btn sm" data-act="qa-p12-governance" data-id="'+esc(r.id)+'" data-decision="reject">Reject (fictional)</button>':'')+
+    (r.canRevoke?' <button type="button" class="btn sm" data-act="qa-p12-governance" data-id="'+esc(r.id)+'" data-decision="revoke">Revoke (fictional)</button>':'')+'</li>'
+  ).join('')||'';
+  const auditRows=governance?.audit.map(a=>'<li>'+esc(a.requestId)+' · '+esc(a.decision)+
+    ' · reviewer '+esc(a.reviewerProfile)+' · '+esc(a.from)+' → '+esc(a.to)+'</li>').join('')||'';
+  const governanceHtml='<section class="qa-p12-governance" aria-label="Fictional approval and revocation simulator">'+
+    '<div class="sec-h"><h3>Role governance testing</h3><button type="button" class="btn sm" data-act="qa-p12-governance-reset">Reset governance</button></div>'+
+    '<p class="hint"><strong>Simulated only.</strong> This is a fictional review queue. Approver eligibility comes from the selected test role and organisation, not an actual user login. No production grant, real registration, notification or permission is changed.</p>'+
+    '<p class="hint">Pending: '+governance.pending+' · Active: '+governance.active+' · Expired: '+governance.expired+' · Audit events: <strong>'+governance.auditCount+'</strong></p>'+
+    '<ul class="qa-p12-rows">'+governanceRows+'</ul>'+
+    '<details><summary>Fictional approval audit · '+governance.auditCount+' events</summary>'+
+    (auditRows?'<ol class="qa-identity-list">'+auditRows+'</ol>':'<p class="hint">No fictional approval actions in this session.</p>')+
+    '</details><p class="hint">A reviewer cannot approve their own request or another club’s grant. Expired/revoked roles are never restored by selecting a profile. Evidence and permissions remain synthetic, not authoritative.</p></section>';
   $('#view').innerHTML='<section class="qa-preview p12-qa-preview" data-qa-profile="'+esc(p.profileId)+'" data-qa-context="'+esc(state.qaContext)+'">'+
     '<p class="note" role="status"><strong>P12 TEST PROFILE · FICTIONAL READ-ONLY VIEW</strong> — select a role/group relationship for UI testing only. These are not signed-in users, server permissions or real sporting accreditations.</p>'+
     '<div class="sec-h"><h2>'+esc(p.profileId.toUpperCase()+' · '+p.profileLabel)+'</h2><button type="button" class="btn sm" data-act="qa-exit">Exit QA</button></div>'+
@@ -779,6 +800,7 @@ function renderP12QaScreen() {
     '<p class="hint">All expected capabilities are simulated; actual access requires future verified server-side grants (#55).</p></section></div>'+
     (p.note?'<p class="note">'+esc(p.note)+'</p>':'')+
     workflowHtml+
+    governanceHtml+
     '<button type="button" class="btn sm" data-act="qa-p12-reset">Reset selected context</button>'+
     '<p class="hint">Fixture duties require independently verified registration, accreditation, approved competition policy and staffing coverage. Switching here does not change a team, score, permission, account, or encrypted workspace.</p></section>';
   document.title='Test profile · '+p.profileId.toUpperCase()+' · Team Manager';
@@ -834,7 +856,7 @@ function renderQaScreen() {
 function render() {
   animStop();
   if (!S.role) return renderLock();
-  if (!qaEnabled()) { state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';state.qaSandbox=null; }
+  if (!qaEnabled()) { state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null; }
   renderQaSelector();
   applyLayout();
   if (state.qaPersona) return renderQaScreen();
@@ -979,7 +1001,7 @@ setInterval(() => { if (S.role === 'coach' && !S.publishing) renderStatus(); }, 
 /* ---------- Lock screen and setup ---------- */
 function renderLock() {
   const qa=$('#qa-persona-control');if(qa)qa.hidden=true;
-  state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;
+  state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;
   $('#tabs').hidden = true; $('#status').hidden = true; $('#days-chip').hidden = true; $('#menu-btn').hidden = true; $('#bell-btn').hidden = true; $('#team-crest').hidden = true;
   document.body.classList.remove('game');
   $('#team-title').textContent = 'Team Manager';
@@ -6873,8 +6895,21 @@ function extendTestLibrary(day) {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
-  'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;render(); },
+  'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;render(); },
   'qa-p12-reset': () => { if(qaEnabled()&&state.qaPersona==='p12'){state.qaContext='';state.qaSandbox=null;render();} },
+  'qa-p12-governance-reset': () => {
+    if(!qaEnabled()||state.qaPersona!=='p12')return;
+    state.qaGovernance=createP12GovernanceScenario();render();
+  },
+  'qa-p12-governance': el => {
+    if(!qaEnabled()||state.qaPersona!=='p12'||!state.qaGovernance)return;
+    const actor=p12QaView(state.qaProfile,state.qaContext);
+    const result=applyP12GovernanceAction(state.qaGovernance,actor,{
+      id:el.dataset.id,decision:el.dataset.decision
+    });
+    if(result.error){toast('Simulated governance denied: '+result.error);return;}
+    state.qaGovernance=result;render();
+  },
   'qa-p12-workflow-reset': () => {
     if(!qaEnabled()||state.qaPersona!=='p12')return;
     state.qaSandbox=makeP12WorkflowSandbox(p12QaView(state.qaProfile,state.qaContext));render();
@@ -8069,7 +8104,7 @@ const actions = {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   // QA screen is read-only even for forged clicks aimed at existing coach actions.
-  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset'].includes(el.dataset.act)) { e.preventDefault();return; }
+  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset'].includes(el.dataset.act)) { e.preventDefault();return; }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
@@ -8127,6 +8162,7 @@ document.addEventListener('change', e => {
     state.qaProfile=isP12?profileId:'';
     state.qaContext='';
     state.qaSandbox=null;
+    if(!isP12)state.qaGovernance=null;
     state.qaJourney='';
     state.qaScope=state.qaPersona && !isP12 ? qaPreview(state.qaPersona,'')?.scope||'' : '';
     if (!$('#sheet').hidden) closeSheet();

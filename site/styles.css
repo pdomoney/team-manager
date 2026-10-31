@@ -56,6 +56,10 @@ p{margin:0}
 .qa-identity-list li{margin:3px 0}
 /* P12D fictional workflow UI. Only appears inside the trial-only QA screen. */
 .qa-p12-workflow{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.qa-p12-governance{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.qa-p12-governance h3{font-size:17px;margin:0 0 8px}
+.qa-p12-governance details{margin-top:12px}
+.qa-p12-governance-row{overflow-wrap:anywhere}
 .qa-p12-workflow h3{font-size:17px;margin:0 0 8px}
 .qa-p12-workflow h4{font-size:14px;margin:12px 0 6px}
 .qa-p12-rows{list-style:none;margin:0;padding:0;display:grid;gap:7px}

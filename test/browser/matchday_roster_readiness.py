@@ -27,9 +27,18 @@ with sync_playwright() as p:
                 pg.locator('#sheet form[data-form=match-lineup]').count()==0 and
                 pg.locator('#sheet form[data-form=match-result]').count()==0,
                 f'[{width}] {sport}: 4 RSVP cohorts with no borrowed scoring/lineup editor')
-            checks.ok('Preferences' in content and 'verified' in content.lower() and
-                pg.locator('#sheet .match-roster-readiness button').count()==0,
-                f'[{width}] {sport}: preferences with no actionable eligibility or lineup')
+            # Venue arrivals are deliberately editable ON the fixture date. On
+            # earlier CI runs this sample fixture was not yet today (runner UTC),
+            # so the outdated 'no buttons' check passed accidentally. Review and
+            # check-in actions are valid, but never imply lineup/score eligibility.
+            actions=block.locator('button[data-act]').evaluate_all(
+                '(nodes)=>nodes.map(n=>n.dataset.act)')
+            allowed={'rsvp-open','roster-player-rsvp','roster-arrival-toggle'}
+            checks.ok('position preferences' in content.lower() and
+                'not verified assignments' in content.lower() and
+                all(a in allowed for a in actions) and
+                block.locator('form[data-form=match-lineup],form[data-form=match-result]').count()==0,
+                f'[{width}] {sport}: only review/check-in actions, never lineup/score: {actions}')
             checks.ok(pg.evaluate('JSON.stringify(window.__team.ws)')==baseline,
                 f'[{width}] {sport}: roster rendering never writes shared workspace')
             checks.ok(pg.evaluate('document.documentElement.scrollWidth <= innerWidth+1'),
