@@ -93,6 +93,25 @@ export function applyP12WorkflowAction(view,sandbox,request={}){
   return {...next,log:[...sandbox.log,detail]};
 }
 
+// Potential fixture conflicts are a *warning* only. We do not invent a
+// governing-body staffing rule: P12F must apply an approved competition profile.
+export function p12PotentialDutyConflicts(proposals=[]){
+  if(!Array.isArray(proposals))return [];
+  const combinations=new Set(),warnings=[];
+  for(const a of proposals){
+    if(!a?.personId||!a?.fixtureId||!a?.duty)continue;
+    const key=a.fixtureId+'|'+a.personId;
+    const duties=[...new Set(proposals.filter(p=>p?.personId===a.personId&&
+      p.fixtureId===a.fixtureId).map(p=>p.duty))];
+    if(duties.length>1&&!combinations.has(key)){
+      combinations.add(key);
+      warnings.push({personId:a.personId,fixtureId:a.fixtureId,duties,
+        decision:'requires-competition-specific-review',autoApproved:false});
+    }
+  }
+  return warnings;
+}
+
 // Display-only summary. This deliberately never claims a scheduled match is staffed,
 // approved, scored or published. Unsupported roles show no team sandbox.
 export function inspectP12Workflow(view,sandbox){
@@ -113,6 +132,8 @@ export function inspectP12Workflow(view,sandbox){
     canRsvp:ctx.allowed.includes('schedule:manage'),
     canPropose:ctx.allowed.includes('match-staff:manage'),
     activityCount:sandbox.log.length,
+    roleChangeReviewRequired:sandbox.proposedDuties.some(p=>p.coverageReviewRequired===true),
+    dutyConflicts:p12PotentialDutyConflicts(sandbox.proposedDuties),
     officialRuleApproval:false,matchEligibilityConfirmed:false,
     canScore:false,canPublish:false,realWorkspaceAffected:false
   };
