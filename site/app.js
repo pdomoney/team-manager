@@ -797,6 +797,8 @@ function renderP12QaScreen() {
     '<h4>Fixture volunteers · '+workflow.volunteers.length+'</h4><ul class="qa-p12-rows">'+volunteerRows+'</ul>'+
     '<p class="hint">Unverified duty proposals: '+workflow.proposals.length+'. '+workflow.proposals.map(a=>
       esc((a.previousRole||'Unknown duty')+' → '+a.duty.replaceAll('_',' ')+' (unverified; replacement and qualification review required)')).join('; ')+'</p>'+
+    (workflow.roleChangeReviewRequired?'<p class="hint">Role change review required: existing duties and staffing cover must be checked independently.</p>':'')+
+    (workflow.dutyConflicts.length?'<p class="hint" role="alert">Potential simultaneous-duty conflict: '+workflow.dutyConflicts.length+' person(s) assigned different proposed duties in this fixture. Not approved.</p>':'')+
     '<p class="hint">The sandbox resets on profile/context switch or exit. It cannot write to encrypted team data or approve sport-specific eligibility.</p></section>' :
     '<section class="qa-p12-workflow-unavailable" role="status"><p class="hint">No editable fictional team workflow for this context. Club administration, player/guardian membership, pending roles and trainer appointments do not automatically grant team access.</p></section>';
   const governanceRows=governance?.records.map(r=>
