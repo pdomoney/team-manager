@@ -95,3 +95,32 @@ export function makeP12SampleRoster(teamId){
     compliantStaffCoverage:false,accreditationsVerified:false
   });
 }
+
+
+// Projection is only for the fictional QA directory. Association/club/owner
+// contexts may view public sample team summaries, NOT edit another team's data.
+// Exact team-scoped contexts see only that team. Membership/appointment does
+// not expose an organisational overview.
+export function p12SampleTeamSummary(view){
+  if(view?.mode!=='SYNTHETIC_ONLY_NO_AUTHORIZATION'||view.mayGrantAccess!==false)return [];
+  const c=view.selected;
+  if(!c||c.kind!=='access'||c.status!=='active')return [];
+  const g=c.group;
+  let teams=[];
+  if(g.type==='personal'&&g.id==='qa-platform'&&c.role==='personal_owner'){
+    teams=P12_SAMPLE_TEAMS;
+  }else if(g.type==='association'&&['association_admin','association_viewer'].includes(c.role)){
+    const clubs=P12_SAMPLE_CLUBS.filter(x=>x.associationId===g.id).map(x=>x.id);
+    teams=P12_SAMPLE_TEAMS.filter(t=>clubs.includes(t.clubId));
+  }else if(g.type==='club'&&['club_admin','club_support'].includes(c.role)){
+    teams=sampleTeamsForClub(g.id);
+  }else if(g.type==='team'&&['team_coach','team_assistant','team_manager','team_viewer'].includes(c.role)){
+    teams=P12_SAMPLE_TEAMS.filter(t=>t.id===g.id);
+  }
+  return teams.map(t=>({
+    teamId:t.id,clubId:t.clubId,name:t.name,sport:t.sport,
+    category:t.category,ageGroup:t.ageGroup,
+    players:t.playerCount,staff:t.staffCount,volunteers:t.volunteerCount,
+    sampleOnly:true,mayManage:false
+  }));
+}
