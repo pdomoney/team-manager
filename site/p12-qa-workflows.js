@@ -66,9 +66,10 @@ export function applyP12WorkflowAction(view,sandbox,request={}){
     if(sandbox.proposedDuties.some(p=>p.volunteerId===volunteer.id&&p.duty===duty))
       return {error:'Duplicate fixture duty proposal'};
     next={...sandbox,proposedDuties:[...sandbox.proposedDuties,{
-      volunteerId:volunteer.id,duty,fixtureId:sandbox.fixtureId,status:'proposed',
+      volunteerId:volunteer.id,personId:volunteer.personId,
+      previousRole:volunteer.role,duty,fixtureId:sandbox.fixtureId,status:'proposed',
       qualification:'unverified',registration:'unverified',coverage:'not-verified',
-      grantsAccess:false
+      grantsAccess:false,coverageReviewRequired:true,actualPermissionChange:false
     }]};
     detail='Unverified fixture duty proposed: '+duty+' for '+volunteer.id;
   } else {
@@ -85,7 +86,7 @@ export function applyP12WorkflowAction(view,sandbox,request={}){
       duty,fixtureId:sandbox.fixtureId,reason:request.reason.slice(0,160),
       status:'proposed',qualification:'unverified',registration:'unverified',
       coverage:'not-verified',grantsAccess:false,
-      staffReplacementRequired:true,actualPermissionChange:false
+      staffReplacementRequired:true,coverageReviewRequired:true,actualPermissionChange:false
     }]};
     detail='Acting role requested: '+member.role+' to '+duty+' for '+member.id;
   }
