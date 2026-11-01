@@ -829,7 +829,7 @@ function renderP12QaScreen() {
           '<select data-change="p12-safety-replacement" aria-label="Choose a different fictional on-field safety nominee">'+
           '<option value="">No replacement nominated</option>'+
           fixtureCase.participants.filter(x=>x.personId!==selectedDuty.personId&&
-            /Sports trainer \(blue|orange\)/i.test(x.role)).map(x=>
+            /Sports trainer \((?:blue|orange)\)/i.test(x.role)).map(x=>
             '<option value="'+esc(x.personId)+'"'+(state.qaSafetyReplacement===x.personId?' selected':'')+'>'+esc(x.name)+' · '+esc(x.role)+'</option>').join('')+
           '</select></label>':'')+
       '<p class="hint"><strong>Review status: '+esc(actingCase?.status||'blocked')+
@@ -8247,7 +8247,7 @@ document.addEventListener('change', e => {
   if (state.qaPersona) {
     if (k==='p12-safety-replacement' && state.qaPersona==='p12' && qaEnabled()) {
       const c=makeP12FixtureStaffingScenario(p12QaView(state.qaProfile,state.qaContext)?.selected?.group?.id);
-      const allowed=c?.participants.some(x=>x.personId===e.target.value&&/Sports trainer \\(blue|orange\\)/i.test(x.role));
+      const allowed=c?.participants.some(x=>x.personId===e.target.value&&/Sports trainer \((?:blue|orange)\)/i.test(x.role));
       if(e.target.value===''||allowed){state.qaSafetyReplacement=e.target.value;render();}
     } else if (k === 'p12-context' && state.qaPersona==='p12' && qaEnabled()) {
       const next=p12QaView(state.qaProfile,e.target.value);
