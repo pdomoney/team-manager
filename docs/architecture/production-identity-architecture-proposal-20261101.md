@@ -6,6 +6,8 @@ Prepared: 1 November 2026. Based on exact accepted `main` `98f66f140adfc6cd81558
 
 Related decisions: [#55 backend/security approval gate](https://github.com/pdomoney/team-manager/issues/55), [#35 scoped club and volunteer access](https://github.com/pdomoney/team-manager/issues/35), [#124 completed synthetic P12](https://github.com/pdomoney/team-manager/issues/124), [#131 physical Safari/VoiceOver follow-up](https://github.com/pdomoney/team-manager/issues/131).
 
+For the 1 November 2026 provider comparison, current published cost and region sources, explicit decision register, and full-risk checks, see the [P13A backend provider security scorecard](p13a-backend-provider-security-scorecard-20261101.md). **This scorecard is evaluation material only, not provider selection or purchasing authority.**
+
 ## Decision requested
 
 Choose **one architecture and provider** for implementing **real**, individually authenticated, server-enforced, organisation-scoped identities and private sporting data, in a later separately authorised implementation programme. This ADR is a product/security design proposal, **not approval to purchase a service, provision infrastructure, deploy authentication, send invitations, or migrate data**.
