@@ -5834,6 +5834,9 @@ const SAFE_ACTS = new Set(('tab nav close-sheet settings layout layout-width loc
   + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open people-undo people-staff-prepare guardian-correct guardian-reverse').split(' '));
 const pastMsg = () => V && V.viewSeason ? `${V.viewSeason.name} is read-only. Go back to the current season, or make a correction.` : 'Start a season first: Seasons, from the season under the team name.';
 function blockedInPast(act) {
+  // Profile preview and its synthetic-only actions are not edits to the
+  // selected real season. The normal click allowlist still blocks coach writes.
+  if (act.startsWith('desktop-profile-') || state.qaPersona) return false;
   if (!V || S.role !== 'coach' || state.preview || /^(season|comp|club)-/.test(act) || SAFE_ACTS.has(act)) return false;
   if (correcting()) {
     if (!['add-player', 'bulk-add', 'edit-player', 'delete-player', 'sample'].includes(act)) return false;
