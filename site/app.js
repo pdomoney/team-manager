@@ -722,10 +722,10 @@ function renderDesktopProfileControl() {
   const panel=$('#desktop-profile-panel'),exit=$('#desktop-profile-exit');
   if (!host||!button||!panel||!exit)return;
   const allowed=desktopPreviewAllowed();
+  const inPreview=allowed&&state.desktopProfileActive&&state.qaPersona==='p12';
+  document.body.classList.toggle('desktop-profile-active',inPreview);
   host.hidden=!allowed;
   if(!allowed){state.desktopProfileOpen=false;panel.hidden=true;panel.innerHTML='';return;}
-  const inPreview=state.desktopProfileActive&&state.qaPersona==='p12';
-  document.body.classList.toggle('desktop-profile-active',inPreview);
   button.textContent=inPreview?'Change profile':'View as profile';
   button.setAttribute('aria-label',inPreview?'Change fictional test profile':'View app as a fictional test profile');
   button.setAttribute('aria-expanded',String(!!state.desktopProfileOpen));
@@ -8251,6 +8251,13 @@ document.addEventListener('click', e => {
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
   fn(el, e);
+});
+window.matchMedia('(min-width: 900px)').addEventListener('change', () => {
+  // A desktop-only test session cannot persist when the viewport switches to
+  // phone size. Never change the real workspace, just leave the fictional view.
+  if(state.desktopProfileActive&&!desktopPreviewAllowed()){
+    actions['desktop-profile-exit']();
+  }else if(S.role){render();}
 });
 document.addEventListener('keydown', e => {
   if(e.key==='Escape'&&state.desktopProfileOpen){
