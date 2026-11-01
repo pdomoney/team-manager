@@ -1,5 +1,7 @@
 # Roles, logins and volunteer tasks: the agreed plan
 
+> **Historical proposal, not current implementation approval (1 November 2026).** This 15 October plan mentioned Supabase and WhatsApp login links. The later [production security gate #55](https://github.com/pdomoney/team-manager/issues/55) explicitly deferred backend choice, subscription, authentication and data migration. P12 completed fictional/QA role testing only. See the [P13 production identity architecture proposal](architecture/production-identity-architecture-proposal-20261101.md) for provider-neutral options and the decisions that require separate owner approval. **Do not deploy or provision based on this historic document.**
+
 Agreed with the coach on 15 October 2026. Build order: the features first (volunteer tasks), then roles and logins.
 
 ## Log in approach
