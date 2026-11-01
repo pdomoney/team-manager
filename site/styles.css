@@ -46,6 +46,22 @@ p{margin:0}
 .qa-mode-flag{font-size:10px;letter-spacing:.07em;font-weight:700;background:#FFF2C9;color:#583C00;padding:3px 5px;border-radius:4px}
 .qa-persona-control select{background:#fff;color:#16201B;border:1px solid #C9D3CA;border-radius:8px;max-width:180px;min-width:105px;min-height:40px;font-size:13px;padding:6px 7px}
 .qa-header-scope{font-size:11px;max-width:95px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+/* Desktop-only owner QA: the selector drives fictional P12 views, not login.
+   The existing mobile/header test-library picker remains unchanged. */
+.desktop-profile-control{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+.desktop-profile-button,.desktop-profile-exit{border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;min-height:40px;padding:7px 12px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.desktop-profile-button:hover,.desktop-profile-exit:hover{background:rgba(255,255,255,.22)}
+.desktop-profile-exit{background:#fff;color:#17271e;border-color:#fff}
+.desktop-profile-panel{position:absolute;top:calc(100% + 10px);right:0;width:min(380px,calc(100vw - 24px));max-height:min(75vh,620px);overflow:auto;overscroll-behavior:contain;z-index:40;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 45px rgba(0,0,0,.23);padding:14px}
+.desktop-profile-panel section{margin-top:12px}
+.desktop-profile-panel h3{font:600 13px/1.35 var(--font-b);letter-spacing:0;color:var(--muted);margin:0 0 6px}
+.desktop-profile-options{display:grid;grid-template-columns:1fr;gap:4px}
+.desktop-profile-options button{display:block;text-align:left;line-height:1.3;background:#fff;border:1px solid var(--line);border-radius:7px;min-height:37px;padding:8px 10px;color:var(--ink);font-size:13px;cursor:pointer}
+.desktop-profile-options button:hover,.desktop-profile-options button:focus-visible{background:var(--chalk)}
+.desktop-profile-options button[aria-pressed="true"]{border-color:var(--turf);background:var(--ok-soft)}
+.desktop-profile-disclaimer{font-size:12px;line-height:1.4;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.desktop-profile-active .qa-persona-control{display:none}
+@media(max-width:899px){.desktop-profile-control{display:none!important}}
 .qa-preview>.note{margin-bottom:14px}
 .qa-preview .qa-scope{margin:12px 0}
 .qa-preview .qa-scope select{min-height:44px;width:100%;background:#fff}
