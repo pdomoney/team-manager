@@ -1,0 +1,610 @@
+{
+  "format": "p13-security-contract-vectors",
+  "schemaVersion": 1,
+  "sourceDocument": "docs/architecture/p13b-provider-neutral-security-test-contract-20261101.md",
+  "sourceRevision": "3c9d401ed30d03c3a8c97155bfc4ec29765ef249",
+  "environment": "NO_BACKEND",
+  "note": "Executable expectations for future adapters. All cases UNTESTED. No real authorization or live tenant isolation was exercised.",
+  "vectors": [
+    {
+      "id": "ID-001",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "Anonymous requests private team roster",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-002",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "Signed-in J requests Rangers roster",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-003",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "Rangers Admin B requests Rangers Club settings with explicit club grant",
+      "expected": "ALLOW-LIMITED",
+      "expectedOutcome": "ALLOW-LIMITED",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-004",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "Rangers Admin B requests Comets Club settings",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-005",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "B uses Rangers club grant to update Rangers U16 lineup without team grant",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-006",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "Explicit Rangers Coach grant allows B a permitted team operation",
+      "expected": "ALLOW-LIMITED",
+      "expectedOutcome": "ALLOW-LIMITED",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-007",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "D reads Rangers roster under Rangers team Coach scope",
+      "expected": "ALLOW-LIMITED",
+      "expectedOutcome": "ALLOW-LIMITED",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-008",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "D reads Stars team manager records under Stars exact role",
+      "expected": "ALLOW-LIMITED",
+      "expectedOutcome": "ALLOW-LIMITED",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-009",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "D requests unrelated Rangers U8 sensitive record without grant",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-010",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "D uses Comets Player membership to list Comets private staff contacts",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-011",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "E attempts Comets Club Admin operation",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-012",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "Association East admin attempts private Rangers team request",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-013",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "Association East admin attempts private Stars team edit based only on association affiliation",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-014",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "Signed-in account changes browser persona to platform owner and calls protected API",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-015",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "J guesses a valid Person ID belonging to B's club",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-016",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "B searches private members of another club by email/name/phone",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-017",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "Public club directory query searches user membership, junior profiles or guardian private data",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-018",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "B attempts bulk export containing Comets team contact data",
+      "expected": "DENY, no partial forbidden data",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-019",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "Partial export includes only explicitly authorised team fields",
+      "expected": "ALLOW-LIMITED",
+      "expectedOutcome": "ALLOW-LIMITED",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-020",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "B fetches injury/safeguarding data relying only on Coach role",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-021",
+      "category": "tenant-and-sensitive-data",
+      "attempt": "Platform owner A fetches child health data without separate purpose-bound access",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-022",
+      "category": "guardian-and-minor",
+      "attempt": "F performs specifically granted RSVP for verified child J1",
+      "expected": "ALLOW-LIMITED",
+      "expectedOutcome": "ALLOW-LIMITED",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-023",
+      "category": "guardian-and-minor",
+      "attempt": "F attempts RSVP for unrelated child J2 using same surname",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-024",
+      "category": "guardian-and-minor",
+      "attempt": "F attempts any child record after guardian link revoked",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-025",
+      "category": "guardian-and-minor",
+      "attempt": "F tries updating J1's registration evidence or club-granted role",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-026",
+      "category": "role-and-approval",
+      "attempt": "G uses proposed but not active role to edit team",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-027",
+      "category": "role-and-approval",
+      "attempt": "H replays API call after own grant revoked",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-028",
+      "category": "role-and-approval",
+      "attempt": "I replays expired grant using old but cryptographically valid session token",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-029",
+      "category": "role-and-approval",
+      "attempt": "K approves own pending Coach grant as Club Admin",
+      "expected": "DENY and audit",
+      "expectedOutcome": "DENY",
+      "requiresAudit": true,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-030",
+      "category": "role-and-approval",
+      "attempt": "Rangers Admin approves a Coach grant targeting Comets",
+      "expected": "DENY and audit",
+      "expectedOutcome": "DENY",
+      "requiresAudit": true,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-031",
+      "category": "role-and-approval",
+      "attempt": "Eligible delegated admin approves exact Rangers team role, with verified candidate",
+      "expected": "REVIEW then active only on server-controlled acceptance",
+      "expectedOutcome": "REVIEW",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-032",
+      "category": "role-and-approval",
+      "attempt": "Applicant edits approval state or approver ID in request body",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-033",
+      "category": "role-and-approval",
+      "attempt": "Revoked admin attempts to revoke someone else's grant",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-034",
+      "category": "role-and-approval",
+      "attempt": "Duplicate approval request races with revocation",
+      "expected": "One valid atomic transition, no double grant",
+      "expectedOutcome": "ATOMIC-ONE",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-035",
+      "category": "invitation-recovery",
+      "attempt": "Expired invite token is redeemed",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-036",
+      "category": "invitation-recovery",
+      "attempt": "Single-use invite is redeemed twice or from different account",
+      "expected": "First valid redemption only; subsequent DENY",
+      "expectedOutcome": "ONE-TIME",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-037",
+      "category": "invitation-recovery",
+      "attempt": "Invite link targets different account/role/group than approved",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-038",
+      "category": "invitation-recovery",
+      "attempt": "New account takes over old account's role via same email after recovery",
+      "expected": "DENY unless verified server linking and policy checks",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-039",
+      "category": "match-appointment",
+      "attempt": "Team Manager proposes Trainer assignment and asserts qualification through client field",
+      "expected": "REVIEW, never certified eligible",
+      "expectedOutcome": "REVIEW",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-040",
+      "category": "match-appointment",
+      "attempt": "Required Trainer is proposed as Acting Coach without replacement where NSWRL policy applies",
+      "expected": "DENY proposed staffing approval",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-041",
+      "category": "match-appointment",
+      "attempt": "Acting Coach proposal attempts to create permanent Team Coach app grant",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-042",
+      "category": "match-appointment",
+      "attempt": "Touch/Oztag fixture request uses Rugby League 2026 rule profile",
+      "expected": "DENY/review as unknown, no inferred compliance",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-043",
+      "category": "storage-export-subscription",
+      "attempt": "Team A player image key is guessed by unaffiliated Account J",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-044",
+      "category": "storage-export-subscription",
+      "attempt": "Foreign club file is downloaded with altered signed URL/group metadata",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-045",
+      "category": "storage-export-subscription",
+      "attempt": "Background import / admin batch job omits tenant scope",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-046",
+      "category": "storage-export-subscription",
+      "attempt": "Websocket subscription continues to emit team private updates after role revocation",
+      "expected": "DENY/detach promptly per approved revocation SLO",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-047",
+      "category": "storage-export-subscription",
+      "attempt": "Offline queued roster edit replays after team role revocation",
+      "expected": "DENY, no overwrite",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-048",
+      "category": "storage-export-subscription",
+      "attempt": "User attempts foreign-club access via direct URL/resource ID or manipulated API query parameter",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-049",
+      "category": "storage-export-subscription",
+      "attempt": "API paginated list returns unauthorized person's count or presence",
+      "expected": "DENY/no existence leak",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-050",
+      "category": "account-session-privilege",
+      "attempt": "Disable Account B, then call cached team API from another browser",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-051",
+      "category": "account-session-privilege",
+      "attempt": "Re-login/recovery restores previously revoked role",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-052",
+      "category": "account-session-privilege",
+      "attempt": "Non-admin frontend submits privileged service role/API key value",
+      "expected": "DENY; no privileged key accepted from client",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-053",
+      "category": "account-session-privilege",
+      "attempt": "Authenticated user accesses audit logs or private exports of unrelated club",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-054",
+      "category": "account-session-privilege",
+      "attempt": "Developer mistakes production QA sample profile for a real verified Account",
+      "expected": "DENY, QA data excluded from trusted auth store",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-055",
+      "category": "personal-and-boundaries",
+      "attempt": "User requests own allowed personal profile fields",
+      "expected": "ALLOW-LIMITED without unrelated clubs' records",
+      "expectedOutcome": "ALLOW-LIMITED",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-056",
+      "category": "personal-and-boundaries",
+      "attempt": "One Person exists in two clubs; one club edits its own data",
+      "expected": "ALLOW-LIMITED, no automatic cross-club mutation",
+      "expectedOutcome": "ALLOW-LIMITED",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-057",
+      "category": "personal-and-boundaries",
+      "attempt": "Club A public directory listing used to infer private member relationships",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-058",
+      "category": "personal-and-boundaries",
+      "attempt": "API operation omits group, lacks policy version or uses unexpected resource type",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-059",
+      "category": "personal-and-boundaries",
+      "attempt": "Guardian verification pending but applicant has link URL",
+      "expected": "DENY",
+      "expectedOutcome": "DENY",
+      "requiresAudit": false,
+      "requiresServerEvidence": true,
+      "state": "UNTESTED"
+    },
+    {
+      "id": "ID-060",
+      "category": "legacy-history",
+      "attempt": "Access request relies on data from old publicly hosted encrypted GitHub blob",
+      "expected": "Cannot enforce retrospective revocation; separate history/key risk and migration acceptance",
+      "expectedOutcome": "MANUAL-RISK",
+      "requiresAudit": false,
+      "requiresServerEvidence": false,
+      "state": "UNTESTED"
+    }
+  ]
+}
