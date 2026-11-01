@@ -42,6 +42,7 @@ import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
 import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
 import {p12SampleTeamSummary,makeP12SampleRoster} from './p12-qa-club-teams.js';
+import {makeP12FixtureStaffingScenario,assessP12FixtureActingDuty,P12_STAFFING_POLICY} from './p12-fixture-role-review.js';
 import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
 import { matchDayPresentation } from './match-day-presentation.js';
 import { matchFormatSourceReview } from './match-format-source-review.js';
@@ -335,7 +336,7 @@ const state = {
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
-  qaPersona: null, qaScope: '', qaJourney: '', qaProfile: '', qaContext: '', qaSandbox: null, qaGovernance: null, // Ephemeral QA-only fictional layout and guided tests, never saved
+  qaPersona: null, qaScope: '', qaJourney: '', qaProfile: '', qaContext: '', qaSandbox: null, qaGovernance: null, qaSafetyReplacement: '', // Ephemeral QA-only fictional layout and guided tests, never saved
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
 };
@@ -732,6 +733,15 @@ function renderP12QaScreen() {
   }
   const workflow=inspectP12Workflow(p,state.qaSandbox);
   const sampleTeams=p12SampleTeamSummary(p);
+  const fixtureCase=workflow?makeP12FixtureStaffingScenario(workflow.teamId):null;
+  const selectedDuty=workflow?.proposals?.[0]||null;
+  const actingCase=fixtureCase&&selectedDuty?assessP12FixtureActingDuty(fixtureCase,{
+    candidatePersonId:selectedDuty.personId,
+    duty:selectedDuty.duty,
+    replacesPersonId:selectedDuty.duty==='acting_coach'?fixtureCase.baselineCoachId:'',
+    headCoachUnavailable:selectedDuty.duty==='acting_coach',
+    replacementSafetyPersonId:state.qaSafetyReplacement
+  }):null;
   if(!state.qaGovernance)state.qaGovernance=createP12GovernanceScenario();
   const governance=inspectP12Governance(state.qaGovernance,p);
   document.body.classList.remove('game');
@@ -801,6 +811,36 @@ function renderP12QaScreen() {
     (workflow.dutyConflicts.length?'<p class="hint" role="alert">Potential simultaneous-duty conflict: '+workflow.dutyConflicts.length+' person(s) assigned different proposed duties in this fixture. Not approved.</p>':'')+
     '<p class="hint">The sandbox resets on profile/context switch or exit. It cannot write to encrypted team data or approve sport-specific eligibility.</p></section>' :
     '<section class="qa-p12-workflow-unavailable" role="status"><p class="hint">No editable fictional team workflow for this context. Club administration, player/guardian membership, pending roles and trainer appointments do not automatically grant team access.</p></section>';
+  const staffingReviewHtml=fixtureCase?
+    '<section class="qa-p12-staffing-review" aria-label="Fixture acting-role impact assessment">'+
+    '<h3>Temporary fixture role review · P12F</h3>'+
+    '<p class="hint">Fictional match '+esc(fixtureCase.fixtureId)+' · '+esc(fixtureCase.ageGroup)+
+    '. Preview assumes the listed Head Coach is unavailable when Acting Coach is proposed. This is not a real attendance verification.</p>'+
+    (fixtureCase.policyId===P12_STAFFING_POLICY.id?
+      '<p class="hint">Specific source: NSWRL 2026, section 4.8. Coach and required on-field safety person must be different people. The separate NRL On-Field Policy age-grade coverage check is outstanding.</p>':
+      '<p class="hint">No approved sport-specific staffing profile for this fixture. Do not apply Rugby League rules to Touch or Oztag.</p>')+
+    (selectedDuty?
+      '<p class="hint">Reviewing first fictional proposal: '+esc(selectedDuty.previousRole||'Existing volunteer')+
+        ' → '+esc(selectedDuty.duty.replaceAll('_',' '))+'. Candidate registration, accreditation and required replacement coverage are unverified.</p>'+
+      (fixtureCase.policyId===P12_STAFFING_POLICY.id&&
+        selectedDuty.duty==='acting_coach'&&
+        selectedDuty.personId===fixtureCase.baselineSafetyId?
+        '<label class="field-l"><span>Alternate on-field safety nominee (fictional)</span>'+
+          '<select data-change="p12-safety-replacement" aria-label="Choose a different fictional on-field safety nominee">'+
+          '<option value="">No replacement nominated</option>'+
+          fixtureCase.participants.filter(x=>x.personId!==selectedDuty.personId&&
+            /Sports trainer \(blue|orange\)/i.test(x.role)).map(x=>
+            '<option value="'+esc(x.personId)+'"'+(state.qaSafetyReplacement===x.personId?' selected':'')+'>'+esc(x.name)+' · '+esc(x.role)+'</option>').join('')+
+          '</select></label>':'')+
+      '<p class="hint"><strong>Review status: '+esc(actingCase?.status||'blocked')+
+        '</strong>. Fixture-specific assessment only; no permission, approval or match-start clearance.</p>'+
+      '<p class="hint">Blockers: '+(actingCase?.blockers?.length?actingCase.blockers.map(esc).join('; '):'No structural blocker in this fictional scenario')+'</p>'+
+      '<p class="hint">Outstanding checks: '+(actingCase?.verificationRequired?.length?
+        actingCase.verificationRequired.map(esc).join('; '):'None specified')+'</p>'+
+      '<p class="hint">Additional warnings: '+(actingCase?.warnings?.length?actingCase.warnings.map(esc).join('; '):'None')+'</p>'+
+      '<p class="hint">Fixture expires '+esc(fixtureCase.fixtureEnd)+'. All acting assignments end with the fixture; no permanent role is changed.</p>':
+      '<p class="hint">Propose a Trainer or Acting Coach role in the fictional team workflow above to inspect fixture coverage and qualification gaps.</p>')+
+    '</section>':'';
   const governanceRows=governance?.records.map(r=>
     '<li class="qa-p12-governance-row" data-qa-governance-row="'+esc(r.id)+'">'+
     '<strong>'+esc(r.id.toUpperCase())+'</strong> · '+esc(r.role.replaceAll('_',' '))+
@@ -833,6 +873,7 @@ function renderP12QaScreen() {
     (p.note?'<p class="note">'+esc(p.note)+'</p>':'')+
     clubOverviewHtml+
     workflowHtml+
+    staffingReviewHtml+
     governanceHtml+
     '<button type="button" class="btn sm" data-act="qa-p12-reset">Reset selected context</button>'+
     '<p class="hint">Fixture duties require independently verified registration, accreditation, approved competition policy and staffing coverage. Switching here does not change a team, score, permission, account, or encrypted workspace.</p></section>';
@@ -6928,7 +6969,7 @@ function extendTestLibrary(day) {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
-  'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;render(); },
+  'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;state.qaSafetyReplacement='';render(); },
   'qa-p12-reset': () => { if(qaEnabled()&&state.qaPersona==='p12'){state.qaContext='';state.qaSandbox=null;render();} },
   'qa-p12-governance-reset': () => {
     if(!qaEnabled()||state.qaPersona!=='p12')return;
@@ -6945,7 +6986,7 @@ const actions = {
   },
   'qa-p12-workflow-reset': () => {
     if(!qaEnabled()||state.qaPersona!=='p12')return;
-    state.qaSandbox=makeP12WorkflowSandbox(p12QaView(state.qaProfile,state.qaContext));render();
+    state.qaSandbox=makeP12WorkflowSandbox(p12QaView(state.qaProfile,state.qaContext));state.qaSafetyReplacement='';render();
   },
   'qa-p12-workflow': el => {
     if(!qaEnabled()||state.qaPersona!=='p12')return;
@@ -6956,7 +6997,7 @@ const actions = {
       staffId:el.dataset.staff,reason:el.dataset.reason
     });
     if(result.error){toast('Synthetic test action blocked: '+result.error);return;}
-    state.qaSandbox=result;render();
+    state.qaSandbox=result;state.qaSafetyReplacement='';render();
   },
   'qa-journey': el => {
     if(!qaEnabled()||!state.qaPersona)return;
@@ -8196,6 +8237,7 @@ document.addEventListener('change', e => {
     state.qaProfile=isP12?profileId:'';
     state.qaContext='';
     state.qaSandbox=null;
+    state.qaSafetyReplacement='';
     if(!isP12)state.qaGovernance=null;
     state.qaJourney='';
     state.qaScope=state.qaPersona && !isP12 ? qaPreview(state.qaPersona,'')?.scope||'' : '';
@@ -8203,9 +8245,13 @@ document.addEventListener('change', e => {
     render();return;
   }
   if (state.qaPersona) {
-    if (k === 'p12-context' && state.qaPersona==='p12' && qaEnabled()) {
+    if (k==='p12-safety-replacement' && state.qaPersona==='p12' && qaEnabled()) {
+      const c=makeP12FixtureStaffingScenario(p12QaView(state.qaProfile,state.qaContext)?.selected?.group?.id);
+      const allowed=c?.participants.some(x=>x.personId===e.target.value&&/Sports trainer \\(blue|orange\\)/i.test(x.role));
+      if(e.target.value===''||allowed){state.qaSafetyReplacement=e.target.value;render();}
+    } else if (k === 'p12-context' && state.qaPersona==='p12' && qaEnabled()) {
       const next=p12QaView(state.qaProfile,e.target.value);
-      if (next?.selected?.id===e.target.value) {state.qaContext=e.target.value;state.qaSandbox=null;render();}
+      if (next?.selected?.id===e.target.value) {state.qaContext=e.target.value;state.qaSandbox=null;state.qaSafetyReplacement='';render();}
     } else if (k === 'qa-scope' && state.qaPersona!=='p12' && qaEnabled()) {
       const next=qaPreview(state.qaPersona,e.target.value);
       if (next && next.scope===e.target.value) {state.qaScope=next.scope;state.qaJourney='';render();}
