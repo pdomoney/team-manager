@@ -4,6 +4,8 @@
 
 Source of architecture contract: [ADR-P13-001](production-identity-architecture-proposal-20261101.md) and [candidate data/role contract](production-role-data-contract-20261101.md). Parent approval gate [#55](https://github.com/pdomoney/team-manager/issues/55). The reference P12 implementation [#124](https://github.com/pdomoney/team-manager/issues/124) is fictional and non-authorising.
 
+For the proposed 60-test, provider-neutral **server-side security acceptance** plan that any future provider must satisfy, see [P13B authorization and privacy negative-security contract](p13b-provider-neutral-security-test-contract-20261101.md). It is a **design specification only**, not functioning API security or a provider approval.
+
 ## Outcome sought
 
 Select an affordable backend and identity architecture for real Team Manager user accounts, verified Person linking, group-scoped grants, minors/guardians, fixture duties, private team records and secure authorisation while retaining the GitHub Pages static frontend.
