@@ -82,6 +82,21 @@ with sync_playwright() as p:
              f'[{width}] exit restores original coach workspace view')
         c.ok(pg.evaluate('JSON.stringify(window.__team.ws)')==original,
              f'[{width}] exit did not alter original workspace')
+        # The button is also available to the Coach in non-trial mode. This
+        # only opens fictional fixtures; it cannot read or change live records.
+        pg.evaluate('window.__team.S.trial=false')
+        pg.evaluate(act,['qa-exit',{}])
+        c.ok(pg.locator('#desktop-profile-control').is_visible() and
+             pg.locator('#qa-persona-control').is_hidden(),
+             f'[{width}] non-trial Coach has desktop synthetic preview, not unrestricted QA controls')
+        pg.click('#desktop-profile-button')
+        pg.click('#desktop-profile-panel [data-profile=qa-04]')
+        c.ok(pg.locator('#view [data-qa-profile=qa-04]').count()==1 and
+             pg.evaluate('JSON.stringify(window.__team.ws)')==original,
+             f'[{width}] non-trial Coach can inspect fictional Club Admin without data transfer')
+        pg.click('#desktop-profile-exit')
+        pg.evaluate('window.__team.S.trial=true')
+        pg.evaluate(act,['qa-exit',{}])
         pg.evaluate(act,['preview-on',{}])
         c.ok(pg.locator('#desktop-profile-control').is_hidden(),
              f'[{width}] player preview never exposes desktop Owner simulation')
