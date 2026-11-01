@@ -35,7 +35,10 @@ const timeBounds=s=>{
   return {begin,finish};
 };
 const unique=(x)=>[...new Set(x)];
-const memberFor=(r,id)=>[...r.staff,...r.volunteers].find(p=>p.personId===id)||null;
+const memberFor=(scenario,id)=>{
+  const r=makeP12SampleRoster(scenario?.teamId);
+  return r?[...r.staff,...r.volunteers].find(p=>p.personId===id)||null:null;
+};
 const isSafetyTitle=x=>/Sports trainer \((?:blue|orange)\)/i.test(x?.role||'');
 // This is a *sample nomination*, not an accreditation or rules-minimum calculation.
 export function makeP12FixtureStaffingScenario(teamId){
