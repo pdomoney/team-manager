@@ -27,7 +27,7 @@ export const P12_QA_PROFILES=Object.freeze([
   C({id:'qa-06',label:'Club Support Officer',grants:[G('club_support','club',stars)]}),
   C({id:'qa-07',label:'Head Coach',grants:[G('team_coach','team',rangers16),G('team_coach','team','qa-rangers-u14')],duties:[D('head_coach')]}),
   C({id:'qa-08',label:'Assistant Coach',grants:[G('team_assistant','team',rangers16),G('team_assistant','team',junior)],duties:[D('assistant_coach')]}),
-  C({id:'qa-09',label:'Team Manager',grants:[G('team_manager','team',mixed),G('team_manager','team','qa-comets-u12')],duties:[D('team_manager')]}),
+  C({id:'qa-09',label:'Team Manager',grants:[G('team_manager','team',mixed),G('team_manager','team','qa-comets-u12'),G('team_manager','team',rangers16)],duties:[D('team_manager')]}),
   C({id:'qa-10',label:'Match Scorekeeper',grants:[G('fixture_scorekeeper','fixture',fixture)],duties:[D('scorekeeper')]}),
   C({id:'qa-11',label:'LeagueSafe Volunteer',memberships:[M('staff','club',rangers)],duties:[D('league_safe')],note:'Role eligibility needs competition-specific verification.'}),
   C({id:'qa-12',label:'Dual-qualified Trainer / Acting Coach',memberships:[M('staff','club',rangers)],duties:[D('trainer'),D('acting_coach')],note:'Both fixture duties are proposals only. Incompatible simultaneous duties must not be double-counted.'}),
