@@ -39,6 +39,7 @@ import { QA_ROLES, qaPreview } from './p11-qa-personas.js';
 import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
 import { qaAcceptanceBoard, qaAcceptanceText } from './p11-qa-acceptance.js';
 import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
+import {desktopProfileAvailable,desktopProfileChoices,resolveDesktopProfile} from './desktop-profile-preview.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
 import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
 import {p12SampleTeamSummary,makeP12SampleRoster} from './p12-qa-club-teams.js';
@@ -337,6 +338,7 @@ const state = {
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
   qaPersona: null, qaScope: '', qaJourney: '', qaProfile: '', qaContext: '', qaSandbox: null, qaGovernance: null, qaSafetyReplacement: '', // Ephemeral QA-only fictional layout and guided tests, never saved
+  desktopProfileActive: false, desktopProfileOpen: false, // Session-only QA; never saved or published
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
 };
@@ -704,10 +706,39 @@ const playerPic = (p, big = false) => isCoach() && M.validPhoto(p.photo)
 const isOut = p => isCoach() && p.status && p.status !== 'available';
 const statusPill = p => isOut(p) ? ` <span class="pill ${p.status}">${STATUS[p.status]}</span>` : '';
 
+function desktopPreviewAllowed() {
+  // A shared Coach password is NOT proof of a real owner identity. This only
+  // enables fictional previews; no role grants or workspace writes occur.
+  return desktopProfileAvailable({role:S.role,playerPreview:state.preview,
+    width:window.innerWidth});
+}
 function qaEnabled() {
-  // The actual coach workspace and even live player preview must never acquire simulated grants.
-  return S.role === 'coach' && !state.preview && S.trial === true && !!ws?.testLibrary &&
-    Number(ws.testLibrary.version) >= 3;
+  return (S.role==='coach' && !state.preview && S.trial===true &&
+    !!ws?.testLibrary && Number(ws.testLibrary.version)>=3) ||
+    (state.desktopProfileActive && desktopPreviewAllowed());
+}
+function renderDesktopProfileControl() {
+  const host=$('#desktop-profile-control'),button=$('#desktop-profile-button');
+  const panel=$('#desktop-profile-panel'),exit=$('#desktop-profile-exit');
+  if (!host||!button||!panel||!exit)return;
+  const allowed=desktopPreviewAllowed();
+  const inPreview=allowed&&state.desktopProfileActive&&state.qaPersona==='p12';
+  document.body.classList.toggle('desktop-profile-active',inPreview);
+  host.hidden=!allowed;
+  if(!allowed){state.desktopProfileOpen=false;panel.hidden=true;panel.innerHTML='';return;}
+  button.textContent=inPreview?'Change profile':'View as profile';
+  button.setAttribute('aria-label',inPreview?'Change fictional test profile':'View app as a fictional test profile');
+  button.setAttribute('aria-expanded',String(!!state.desktopProfileOpen));
+  exit.hidden=!inPreview;
+  panel.hidden=!state.desktopProfileOpen;
+  if(!state.desktopProfileOpen){panel.innerHTML='';return;}
+  panel.innerHTML='<p class="desktop-profile-disclaimer"><strong>FICTIONAL PROFILE PREVIEW</strong> · No real sign-in, data sharing or permission changes.</p>'+
+    desktopProfileChoices().map(group=>
+      '<section aria-label="'+esc(group.label)+'"><h3>'+esc(group.label)+'</h3><div class="desktop-profile-options">'+
+      group.profiles.map(p=>'<button type="button" data-act="desktop-profile-pick" data-profile="'+esc(p.id)+'" '+
+        'aria-pressed="'+(state.qaPersona==='p12'&&state.qaProfile===p.id?'true':'false')+'">'+
+        esc(p.id.toUpperCase()+' · '+p.label)+'</button>').join('')+
+      '</div></section>').join('');
 }
 function renderQaSelector() {
   const host = $('#qa-persona-control'); if (!host) return;
@@ -930,7 +961,8 @@ function renderQaScreen() {
 function render() {
   animStop();
   if (!S.role) return renderLock();
-  if (!qaEnabled()) { state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null; }
+  if (!qaEnabled()) { state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;state.desktopProfileActive=false;state.desktopProfileOpen=false; }
+  renderDesktopProfileControl();
   renderQaSelector();
   applyLayout();
   if (state.qaPersona) return renderQaScreen();
@@ -5802,6 +5834,9 @@ const SAFE_ACTS = new Set(('tab nav close-sheet settings layout layout-width loc
   + 'export export-legacy export-pre export-pre-seasons match-open edit-session task-open roll rsvp-open people-undo people-staff-prepare guardian-correct guardian-reverse').split(' '));
 const pastMsg = () => V && V.viewSeason ? `${V.viewSeason.name} is read-only. Go back to the current season, or make a correction.` : 'Start a season first: Seasons, from the season under the team name.';
 function blockedInPast(act) {
+  // Profile preview and its synthetic-only actions are not edits to the
+  // selected real season. The normal click allowlist still blocks coach writes.
+  if (act.startsWith('desktop-profile-') || state.qaPersona) return false;
   if (!V || S.role !== 'coach' || state.preview || /^(season|comp|club)-/.test(act) || SAFE_ACTS.has(act)) return false;
   if (correcting()) {
     if (!['add-player', 'bulk-add', 'edit-player', 'delete-player', 'sample'].includes(act)) return false;
@@ -6969,7 +7004,42 @@ function extendTestLibrary(day) {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
-  'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;state.qaSafetyReplacement='';render(); },
+  'desktop-profile-menu': () => {
+    if(!desktopPreviewAllowed())return;
+    state.desktopProfileOpen=!state.desktopProfileOpen;
+    render();
+    if(state.desktopProfileOpen)$('#desktop-profile-panel button[data-act="desktop-profile-pick"]')?.focus();
+    else $('#desktop-profile-button')?.focus();
+  },
+  'desktop-profile-pick': el => {
+    if(!desktopPreviewAllowed()||!state.desktopProfileOpen)return;
+    const choice=resolveDesktopProfile(el.dataset.profile);
+    if(!choice)return;
+    if(!$('#sheet').hidden)closeSheet();
+    state.desktopProfileActive=true;
+    state.desktopProfileOpen=false;
+    state.qaPersona='p12';
+    state.qaProfile=choice.profileId;
+    state.qaContext='';
+    state.qaScope='';
+    state.qaJourney='';
+    state.qaSandbox=null;
+    state.qaGovernance=null;
+    state.qaSafetyReplacement='';
+    render();
+    $('#desktop-profile-button')?.focus();
+  },
+  'desktop-profile-exit': () => {
+    if(!state.desktopProfileActive)return;
+    state.desktopProfileActive=false;
+    state.desktopProfileOpen=false;
+    state.qaPersona=null;state.qaScope='';state.qaJourney='';
+    state.qaProfile='';state.qaContext='';state.qaSandbox=null;
+    state.qaGovernance=null;state.qaSafetyReplacement='';
+    render();
+    $('#desktop-profile-button')?.focus();
+  },
+  'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;state.qaSafetyReplacement='';state.desktopProfileActive=false;state.desktopProfileOpen=false;render(); },
   'qa-p12-reset': () => { if(qaEnabled()&&state.qaPersona==='p12'){state.qaContext='';state.qaSandbox=null;render();} },
   'qa-p12-governance-reset': () => {
     if(!qaEnabled()||state.qaPersona!=='p12')return;
@@ -8179,13 +8249,23 @@ const actions = {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   // QA screen is read-only even for forged clicks aimed at existing coach actions.
-  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset'].includes(el.dataset.act)) { e.preventDefault();return; }
+  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit'].includes(el.dataset.act)) { e.preventDefault();return; }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
   fn(el, e);
 });
+window.matchMedia('(min-width: 900px)').addEventListener('change', () => {
+  // A desktop-only test session cannot persist when the viewport switches to
+  // phone size. Never change the real workspace, just leave the fictional view.
+  if(state.desktopProfileActive&&!desktopPreviewAllowed()){
+    actions['desktop-profile-exit']();
+  }else if(S.role){render();}
+});
 document.addEventListener('keydown', e => {
+  if(e.key==='Escape'&&state.desktopProfileOpen){
+    e.preventDefault();state.desktopProfileOpen=false;render();$('#desktop-profile-button')?.focus();return;
+  }
   if (e.key === 'Escape' && !$('#sheet').hidden) { requestCloseSheet(); return; }
   if (state.sheet !== 'play-editor' || !state.ped || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   if ((e.key === 'Delete' || e.key === 'Backspace') && pedDelete()) e.preventDefault();
