@@ -64,6 +64,10 @@ p{margin:0}
 .qa-p12-team-summary>p{margin:9px 0}
 .qa-p12-team-summary ul{margin-bottom:8px}
 .qa-p12-workflow .qa-p12-rows{max-height:440px;overflow:auto;overscroll-behavior:contain}
+.qa-p12-staffing-review{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.qa-p12-staffing-review h3{font-size:16px;margin:0 0 8px}
+.qa-p12-staffing-review p{overflow-wrap:anywhere}
+.qa-p12-staffing-review select{width:100%;max-width:100%}
 .qa-p12-governance{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
 .qa-p12-governance h3{font-size:17px;margin:0 0 8px}
 .qa-p12-governance details{margin-top:12px}
