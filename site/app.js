@@ -961,7 +961,10 @@ function renderQaScreen() {
 function render() {
   animStop();
   if (!S.role) return renderLock();
-  if (!qaEnabled()) { state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;state.desktopProfileActive=false;state.desktopProfileOpen=false; }
+  // The desktop menu must stay open while the user chooses a fictional profile.
+  // qaEnabled() is false before the Test Library loads; closing the menu here
+  // made View as profile look inert by resetting its state on every render.
+  if (!qaEnabled()) { state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;state.desktopProfileActive=false; }
   renderDesktopProfileControl();
   renderQaSelector();
   applyLayout();
