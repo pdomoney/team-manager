@@ -29,14 +29,14 @@ with sync_playwright() as p:
         pg.click('#home-profile-panel [data-profile=qa-15]')
         pg.wait_for_selector('#home-profile-button')
         c.ok(pg.evaluate("window.__team.state.preview") and
-             pg.evaluate("window.__team.data.id")=='qa-comets-juniors' and
+             pg.evaluate("window.__team.data.id")=='qacometsjuniors' and
              pg.locator('#view [data-role-workspace]').count()==0,
              f'[{width}] Player uses original Player screen for exact team')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
         c.ok(not pg.evaluate("window.__team.state.preview") and
              pg.locator('#tabs [data-g=tactics]').count()==0 and
-             pg.evaluate("window.__team.data.id")=='qa-comets-mixed',
+             pg.evaluate("window.__team.data.id")=='qacometsmixed',
              f'[{width}] Manager uses native shell with restricted navigation')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
@@ -44,7 +44,7 @@ with sync_playwright() as p:
              pg.locator('#view select[data-change=native-persona-team]').count()==1,
              f'[{width}] Coach has native Tactics and assigned-team selection')
         pg.locator('#view select[data-change=native-persona-team]').select_option('qa-stars-open')
-        c.ok(pg.evaluate("window.__team.data.id")=='qa-stars-open',
+        c.ok(pg.evaluate("window.__team.data.id")=='qastarsopen',
              f'[{width}] cross-club Coach team selection changes native team data')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-01]')
