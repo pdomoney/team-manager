@@ -67,3 +67,15 @@ test('one Coach switches assigned teams across clubs with actions isolated per c
  assert.equal(personaAction(b,change.records,{capability:'training',teamId:a.team.id,value:'Wrong club'}).error,
    'Action is outside the selected person and team scope');
 });
+
+test('guardian sees only linked fictional children teams, not every club roster',()=>{
+ const comets=personaSession('qa-16','membership:guardian:club:qa-comets');
+ const stars=personaSession('qa-16','membership:guardian:club:qa-stars');
+ assert.deepEqual(comets.allowedTeams.map(t=>t.id),['qa-comets-juniors']);
+ assert.deepEqual(stars.allowedTeams.map(t=>t.id),['qa-stars-u12']);
+ assert.equal(comets.sections.includes('Squad'),false);
+ assert.equal(comets.capabilities.includes('roster'),false);
+ const helper=personaSession('qa-17');
+ assert.deepEqual(helper.allowedTeams.map(t=>t.id),['qa-comets-mixed']);
+ assert.equal(helper.capabilities.length,0);
+});
