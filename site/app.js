@@ -8720,7 +8720,7 @@ document.addEventListener('change', e => {
     if (!$('#sheet').hidden) closeSheet();
     render();return;
   }
-  if (state.qaPersona) {
+  if (state.qaPersona && !DEV_SANDBOX) {
     if (k==='p12-safety-replacement' && state.qaPersona==='p12' && qaEnabled()) {
       const c=makeP12FixtureStaffingScenario(p12QaView(state.qaProfile,state.qaContext)?.selected?.group?.id);
       const allowed=c?.participants.some(x=>x.personId===e.target.value&&/Sports trainer \((?:blue|orange)\)/i.test(x.role));
@@ -8858,7 +8858,7 @@ document.addEventListener('change', e => {
 document.addEventListener('submit', async e => {
   const form = e.target, kind = form.dataset.form; if (!kind) return;
   e.preventDefault();
-  if (state.qaPersona) return; // synthetic preview cannot write to the coach workspace
+  if (state.qaPersona && !DEV_SANDBOX) return; // legacy QA cannot modify the coach workspace
   if (readOnlyView() && !/^(season|comp|club|settings|people-link|guardian-review|guardian-correct)/.test(kind)) { toast(pastMsg()); return; }
   const f = new FormData(form);
   const str = k => String(f.get(k) ?? '').trim();
