@@ -25,7 +25,7 @@ export const P12_QA_PROFILES=Object.freeze([
   C({id:'qa-04',label:'Club Administrator',grants:[G('club_admin','club',rangers)]}),
   C({id:'qa-05',label:'Large Club Administrator',grants:[G('club_admin','club',rangers),G('club_admin','club',comets)]}),
   C({id:'qa-06',label:'Club Support Officer',grants:[G('club_support','club',stars)]}),
-  C({id:'qa-07',label:'Head Coach',grants:[G('team_coach','team',rangers16),G('team_coach','team','qa-rangers-u14')],duties:[D('head_coach')]}),
+  C({id:'qa-07',label:'Head Coach',grants:[G('team_coach','team',rangers16),G('team_coach','team','qa-rangers-u14'),G('team_coach','team','qa-stars-open')],duties:[D('head_coach')]}),
   C({id:'qa-08',label:'Assistant Coach',grants:[G('team_assistant','team',rangers16),G('team_assistant','team',junior)],duties:[D('assistant_coach')]}),
   C({id:'qa-09',label:'Team Manager',grants:[G('team_manager','team',mixed),G('team_manager','team','qa-comets-u12'),G('team_manager','team',rangers16)],duties:[D('team_manager')]}),
   C({id:'qa-10',label:'Match Scorekeeper',grants:[G('fixture_scorekeeper','fixture',fixture)],duties:[D('scorekeeper')]}),
