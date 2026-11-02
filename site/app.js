@@ -776,6 +776,17 @@ function nativePersonaAllowedAction(name,el){
  if(session.role==='personal_owner'||session.role==='team_coach')return true;
  return false;
 }
+function applyNativeProfilePermissions(){
+  const session=nativePersona();
+  if(!session||['personal_owner','team_coach'].includes(session.role))return;
+  const view=$('#view');if(!view)return;
+  view.querySelectorAll('button[data-act]').forEach(b=>{
+    if(!nativePersonaAllowedAction(b.dataset.act,b)){
+      b.disabled=true;
+      b.title='Read-only in this fictional profile';
+    }
+  });
+}
 function seedNativePersonaData(){
  if(!DEV_SANDBOX||!ws)return;
  if(M.findTeam(ws,nativeTeamId(P12_SAMPLE_TEAMS[0].id)))return;
@@ -1296,6 +1307,7 @@ function render() {
   if (state.tab === 'field' || state.tab === 'matchday') bindField();
   fitSubnav();
   foldLongPage();
+  applyNativeProfilePermissions();
   renderAsk();
 }
 const VIEWS = {
