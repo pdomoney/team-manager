@@ -136,3 +136,17 @@ export function personaCurrentState(session,records={}){
  return COPY(records[session.profileId+'|'+session.contextId+'|'+session.team.id]||
   {selected:{},attendance:{},availability:'pending',staff:{},training:[]});
 }
+
+export function personaRoleTeams(id,role){
+ const p=p12QaView(id);
+ if(!p)return [];
+ const result=new Map();
+ for(const c of p.contexts){
+  if(c.role!==role||c.kind==='inactive'||c.kind==='appointment')continue;
+  for(const t of scopedTeams(c)){
+   if(!result.has(t.id))result.set(t.id,{...t,contextId:c.id,
+    clubName:P12_SAMPLE_CLUBS.find(cl=>cl.id===t.clubId)?.name||''});
+  }
+ }
+ return [...result.values()];
+}
