@@ -1931,3 +1931,39 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
  .home-profile-actions .btn{flex:1 1 auto}
  .home-profile-panel .desktop-profile-options{grid-template-columns:1fr}
 }
+
+/* P12 development persona app: actual role navigation, teams and workflows. */
+body.persona-mode #tabs{overflow-x:auto;overscroll-behavior-x:contain}
+body.persona-mode #tabs .nav-group{min-width:84px}
+body.persona-mode #tabs .nav-main{min-height:56px;padding:9px 6px;font-size:12px;white-space:normal;line-height:1.2}
+body.persona-mode .top{background:var(--turf)}
+.persona-app{padding-bottom:18px}
+.persona-context{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+.persona-context .field-l{flex:1 1 220px;min-width:0;margin:0}
+.persona-context select{max-width:100%;min-height:44px;background:var(--paper)}
+.persona-content{padding:16px;border-radius:12px;border:1px solid var(--line);background:var(--paper);min-height:240px}
+.persona-content h2{font-size:21px;margin:0 0 12px}
+.persona-content h3{font-size:16px;margin:16px 0 9px}
+.persona-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:18px}
+.persona-metrics>div{border:1px solid var(--line);padding:12px;border-radius:10px;display:flex;flex-direction:column;gap:5px}
+.persona-metrics strong{font-size:24px;font-weight:600;color:var(--turf)}
+.persona-metrics span{font-size:12px;color:var(--muted)}
+.persona-team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:10px}
+.persona-team-card{display:flex;flex-direction:column;gap:7px;text-align:left;padding:14px;min-height:82px;cursor:pointer;color:var(--ink);background:var(--chalk);border:1px solid var(--line);border-radius:11px;font:inherit}
+.persona-team-card.selected{border-color:var(--turf);box-shadow:inset 3px 0 var(--turf)}
+.persona-team-card:hover,.persona-team-card:focus-visible{border-color:var(--turf);outline-offset:3px}
+.persona-team-name{font-weight:600}
+.persona-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.persona-list-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--line);border-radius:9px;padding:12px;background:var(--chalk)}
+.persona-list-row>div:first-child{min-width:0;display:flex;flex-direction:column;gap:4px}
+.persona-row-actions{display:flex;flex-wrap:wrap;gap:6px}
+.persona-availability{padding:12px;background:var(--chalk);border:1px solid var(--line);border-radius:10px;margin:16px 0}
+@media(max-width:599px){
+  .persona-metrics{gap:5px}
+  .persona-metrics>div{padding:9px}
+  .persona-metrics strong{font-size:20px}
+  .persona-content{padding:12px}
+  .persona-team-grid{grid-template-columns:1fr}
+  .persona-row-actions{width:100%}
+  .persona-row-actions .btn{flex:1}
+}
