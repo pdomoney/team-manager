@@ -1,6 +1,6 @@
-// Desktop Owner QA profile picker. Never handles real identities or accounts.
-// This menu is available only to the existing Coach workspace (including a
-// trial) on desktop, and every selection maps to a fixed fictional P12 fixture.
+// Fictional profile picker for the signed-in Coach workspace. No real account impersonation.
+// Available at phone, tablet and desktop widths after Coach unlock. Every
+// selection maps to a fixed fictional P12 fixture, never production records.
 // It does NOT authenticate an Owner or grant any ability to impersonate users.
 import {P12_QA_PROFILES,p12QaView} from './p12-qa-profiles.js';
 
@@ -14,7 +14,7 @@ const GROUPS=Object.freeze([
 ]);
 
 export function desktopProfileAvailable({role,playerPreview=false,width=0}={}){
-  return role==='coach'&&playerPreview===false&&Number.isFinite(width)&&width>=900;
+  return role==='coach'&&playerPreview===false&&Number.isFinite(width)&&width>=320;
 }
 
 export function desktopProfileChoices(){
