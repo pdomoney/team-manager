@@ -66,7 +66,7 @@ with sync_playwright() as p:
         context.select_option('membership:player:team:qa-comets-mixed')
         c.ok(pg.locator('#view [data-role-workspace=player]').count()==1 and
              'Example Comets Mixed' in pg.locator('#view').inner_text() and
-             'Example Stars Women' not in pg.locator('#view').inner_text() and
+             pg.locator('#view .qa-role-team').count()==0 and
              pg.locator('#view [data-section="Match-day staff"]').count()==0,
              f'[{width}] Player role changes UI and cannot inherit Manager teams')
         pg.click('#desktop-profile-button')
