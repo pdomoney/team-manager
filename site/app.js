@@ -1627,8 +1627,20 @@ function liveCard(lc, coach) {
   </section>`;
 }
 function viewHome() {
+  const who=nativePersona();
+  if(who&&!who.team)return renderHomeProfilePicker()+
+    '<section class="sec"><h2>No assigned team</h2><p>This fictional profile has no active team access. Switch profiles to continue testing.</p></section>';
   if (!isCoach()) return renderHomeProfilePicker()+playerHome();
-  const hv = M.homeView(ws, homePref(), new Date(), { days: homeDays() });
+  // Non-Owner profiles see only assigned teams in the original Home dashboard.
+  const assigned=who&&who.role!=='personal_owner'?
+    personaRoleTeams(who.profileId,who.role).map(t=>M.findTeam(ws,t.id)).filter(Boolean):null;
+  const homeWs=assigned?.length?{
+    ...ws,...data,id:data.id,team:data.team,players:data.players,sessions:data.sessions,
+    matches:data.matches,tasks:data.tasks,
+    teams:assigned.filter(t=>t.id!==data.id),
+    clubs:(ws.clubs||[]).filter(c=>assigned.some(t=>t.team?.clubId===c.id))
+  }:ws;
+  const hv = M.homeView(homeWs, homeWs===ws?homePref():{kind:'all'}, new Date(), { days: homeDays() });
   const one = hv.scope.kind === 'team' && hv.teams[0] === data;
   const live = M.liveComps(ws, hv.teams, new Date()).map(lc => liveCard(lc, true)).join('');
   const left = (one && !M.activeLens(data).players.length ? startSquad() : '') + homeSpotlight(hv) + live + homeUpcoming(hv);
