@@ -1674,7 +1674,11 @@ function nativeHomeWorkspace(session) {
     clubs:(ws.clubs||[]).filter(c=>allowed.some(t=>t.team?.clubId===c.id))};
 }
 function viewHome() {
-  const who=nativePersona(),homeWs=nativeHomeWorkspace(who);
+  const who=nativePersona();
+  // Published player accounts do not have a coach workspace. Their original
+  // Home must never depend on the fictional development club selector.
+  if(!who&&!isCoach())return renderHomeProfilePicker()+playerHome();
+  const homeWs=nativeHomeWorkspace(who);
   if(!homeWs)return renderHomeProfilePicker()+
     '<section class="sec"><h2>No assigned team</h2><p>This fictional profile has no active team access. Switch profiles to continue testing.</p></section>';
   const scoped=who&&who.role!=='personal_owner';
