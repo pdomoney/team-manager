@@ -32,12 +32,29 @@ with sync_playwright() as p:
              pg.evaluate("window.__team.data.id")=='qacometsjuniors' and
              pg.locator('#view [data-role-workspace]').count()==0,
              f'[{width}] Player uses original Player screen for exact team')
+        # Multi-sport Players reuse the original menu without private coach stats.
+        pg.click('#home-profile-button')
+        pg.click('#home-profile-panel [data-profile=qa-14]')
+        c.ok(pg.locator('#view nav.scope .scope-club').count()==2 and
+             pg.locator('#view nav.scope .scope-team').count()==1 and
+             pg.locator('#view [data-change=native-persona-team]').count()==0,
+             f'[{width}] multi-sport Player has original scoped club/team navigation')
+        pg.locator('#view .scope-club[data-id=qa-stars]').click()
+        c.ok(pg.evaluate("window.__team.data.id")=='qastarswomen' and
+             pg.evaluate("window.__team.state.preview") and
+             pg.locator('#view .home-cols').count()==1,
+             f'[{width}] Player club menu changes to correct original Player team screen')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
         c.ok(not pg.evaluate("window.__team.state.preview") and
              pg.locator('#tabs [data-g=tactics]').count()==0 and
              pg.evaluate("window.__team.data.id")=='qacometsmixed',
              f'[{width}] Manager uses native shell with restricted navigation')
+        c.ok(pg.locator('#view nav.scope .scope-club').count()==3 and
+             pg.locator('#view .scope-team').count()==2 and
+             pg.locator('#view .scope-club[data-id=qa-stars]').count()==0 and
+             pg.locator('#view select[data-change=native-persona-team]').count()==0,
+             f'[{width}] Manager sees original menu for only two assigned clubs')
         # Native Home links remain usable as read-only navigation for a Manager.
         pg.locator('#view [data-act=home-days][data-v="30"]').click()
         c.ok(pg.locator('#view [data-act=home-days][data-v="30"]').get_attribute('aria-pressed')=='true',
@@ -55,11 +72,31 @@ with sync_playwright() as p:
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
         c.ok(pg.locator('#tabs [data-g=tactics]').count()==1 and
-             pg.locator('#view select[data-change=native-persona-team]').count()==1,
-             f'[{width}] Coach has native Tactics and assigned-team selection')
-        pg.locator('#view select[data-change=native-persona-team]').select_option('qa-stars-open')
-        c.ok(pg.evaluate("window.__team.data.id")=='qastarsopen',
-             f'[{width}] cross-club Coach team selection changes native team data')
+             pg.locator('#view nav.scope .scope-club').count()==3 and
+             pg.locator('#view .scope-club[data-id=qa-comets]').count()==0 and
+             pg.locator('#view select[data-change=native-persona-team]').count()==0,
+             f'[{width}] Coach has native Tactics and original assigned-club menu')
+        pg.locator('#view .scope-club[data-id=qa-stars]').click()
+        c.ok(pg.evaluate("window.__team.data.id")=='qastarsopen' and
+             pg.evaluate("window.__team.state.qaContext")=='grant:team_coach:team:qa-stars-open',
+             f'[{width}] native club menu switches Coach to assigned Stars team and grant')
+        c.ok(pg.locator('#view .scope-team[data-id=qastarsopen]').count()==1 and
+             pg.locator('#view .scope-team[data-id=qarangers16]').count()==0,
+             f'[{width}] native team list narrows to selected club')
+        pg.locator('#view .scope-team[data-id=qastarsopen]').click()
+        c.ok(pg.evaluate("window.__team.state.nativeHomeScope.kind")=='team' and
+             pg.evaluate("window.__team.data.id")=='qastarsopen',
+             f'[{width}] Coach team menu selects team-scoped original Home')
+        pg.click('#home-profile-button')
+        pg.click('#home-profile-panel [data-profile=qa-05]')
+        c.ok(pg.locator('#view .scope-club[data-id=qa-rangers]').count()==1 and
+             pg.locator('#view .scope-club[data-id=qa-comets]').count()==1 and
+             pg.locator('#view .scope-club[data-id=qa-stars]').count()==0,
+             f'[{width}] large Club Admin can navigate only assigned clubs')
+        pg.locator('#view .scope-club[data-id=qa-comets]').click()
+        c.ok(pg.evaluate("window.__team.data.team.clubId")=='qa-comets' and
+             pg.evaluate("window.__team.state.qaContext")=='grant:club_admin:club:qa-comets',
+             f'[{width}] cross-club admin navigation updates exact group and club banner')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-18]')
         pg.locator('#view select[data-change=native-persona-context]').select_option(
@@ -70,8 +107,9 @@ with sync_playwright() as p:
         pg.locator('#view select[data-change=native-persona-context]').select_option(
             'grant:team_manager:team:qa-comets-u16')
         c.ok(pg.evaluate("window.__team.data.id")=='qacometsu16' and
-             pg.evaluate("window.__team.state.qaContext")=='grant:team_manager:team:qa-comets-u16',
-             f'[{width}] multi-role user switches to exact Manager group without role snapback')
+             pg.evaluate("window.__team.state.qaContext")=='grant:team_manager:team:qa-comets-u16' and
+             pg.locator('#view .scope-club[data-id=qa-rangers]').count()==0,
+             f'[{width}] multi-role Manager role shows only role-scoped teams')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-01]')
         c.ok(pg.locator('#tabs .nav-group').count()==5 and

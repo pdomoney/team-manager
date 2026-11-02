@@ -346,6 +346,7 @@ const state = {
   qaPersona: null, qaScope: '', qaJourney: '', qaProfile: '', qaContext: '', qaSandbox: null, qaGovernance: null, qaSafetyReplacement: '', // Ephemeral QA-only fictional layout and guided tests, never saved
   personaTeamId: '', personaSeason: PERSONA_CURRENT_SEASON, personaRecords: {},
   desktopProfileActive: false, desktopProfileOpen: false, // Session-only QA; never saved or published
+  nativeHomeScope: null, // Test-only Home club/team choice, isolated from the Owner's stored preference
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
 };
@@ -766,6 +767,7 @@ function syncNativePersonaTeam(){
    choices.find(t=>t.id===session.team?.id)||choices[0];
  state.qaContext=session.contextId;
  state.personaTeamId=current?.id||'';
+ state.nativeHomeScope=current?{kind:'team',id:nativeTeamId(current.id)}:{kind:'all',id:''};
  if(current&&M.findTeam(ws,nativeTeamId(current.id)))
    pickTeam(nativeTeamId(current.id));
  state.preview=['player','guardian','helper','staff','none'].includes(session.role);
@@ -783,7 +785,7 @@ function nativeReadOnlyHomeTab(d){
 }
 function nativePersonaAllowedAction(name,el){
  const session=nativePersona();if(!session)return true;
- if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load'].includes(name))return true;
+ if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load','home-scope'].includes(name))return true;
  if(name==='home-team'||name==='team-pick'){
    const t=el?.dataset?.team||el?.dataset?.id||'';
    return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>nativeTeamId(x.id)===t);
@@ -847,22 +849,20 @@ function renderHomeProfilePicker() {
   if(!DEV_SANDBOX||S.role!=='coach')return '';
   const selected=P12_QA_PROFILES.find(p=>p.id===state.qaProfile);
   const session=nativePersona();
-  const portfolio=session?personaRoleTeams(session.profileId,session.role):[];
   const groups=state.desktopProfileOpen?desktopProfileChoices().map(group=>
     '<section aria-label="'+esc(group.label)+'"><h3>'+esc(group.label)+'</h3><div class="desktop-profile-options">'+
     group.profiles.map(p=>'<button type="button" data-act="desktop-profile-pick" data-profile="'+esc(p.id)+'" aria-pressed="'+(p.id===state.qaProfile?'true':'false')+'">'+esc(p.label)+'</button>').join('')+'</div></section>').join(''):'';
   const scope=session?.contexts?.length>1?
     '<label class="field-l"><span>Role and group</span><select data-change="native-persona-context" aria-label="Choose role and group">'+
     session.contexts.map(c=>'<option value="'+esc(c.id)+'"'+(c.id===state.qaContext?' selected':'')+'>'+esc(c.label+' · '+c.groupLabel)+'</option>').join('')+'</select></label>':'';
-  const teamPicker=portfolio.length>1?
-    '<label class="field-l"><span>Assigned team</span><select data-change="native-persona-team" aria-label="Choose assigned team">'+
-    portfolio.map(t=>'<option value="'+esc(t.id)+'"'+(t.id===state.personaTeamId?' selected':'')+'>'+esc(t.clubName+' · '+t.name)+'</option>').join('')+'</select></label>':'';
+  // Team choice belongs to the original Home club/team selector below.
+  // Only the fictional test person / role-context switch remains in this panel.
   const canSeed=!M.findTeam(ws,nativeTeamId(P12_SAMPLE_TEAMS[0].id))&&
     M.teamsOf(ws).every(t=>!(t.players||[]).length&&!(t.matches||[]).length&&!(t.sessions||[]).length);
   return '<section class="home-profile-switch" aria-label="Development profile switcher">'+
     '<div class="home-profile-head"><p class="home-profile-identity"><strong>'+esc(selected?.label||'Owner')+'</strong><span class="muted small"> · '+esc(session?.label||'Owner')+' · Fictional test profile</span></p>'+
     '<button id="home-profile-button" type="button" class="btn primary" data-act="desktop-profile-menu" aria-expanded="'+!!state.desktopProfileOpen+'" aria-controls="home-profile-panel">Switch profile</button></div>'+
-    (scope||teamPicker?'<div class="home-profile-context">'+scope+teamPicker+'</div>':'')+
+    (scope?'<div class="home-profile-context">'+scope+'</div>':'')+
     (canSeed?'<button class="btn sm" type="button" data-act="native-persona-load">Load fictional sample teams</button>':'')+
     '<div id="home-profile-panel" class="home-profile-panel" '+(state.desktopProfileOpen?'':'hidden')+'>'+groups+'</div></section>';
 }
@@ -1520,11 +1520,8 @@ function crest(c, big = false) {
   return `<span class="crest${big ? ' big' : ''}" style="background:${bg};color:${fg}${bg === '#FFFFFF' ? ';border-color:var(--line)' : ''}" aria-hidden="true">${esc(ini.toUpperCase())}</span>`;
 }
 const urgencyDot = u => u ? `<span class="u-dot ${u}" aria-hidden="true"></span><span class="sr-only">${u === 'critical' ? ', needs attention now' : ', needs attention soon'}</span>` : '';
-function homeSelector(hv) {
-  const T = data.team, club = M.clubOf(ws, data);
-  if (!hv.multi) return '';   // one team: the header already says which
-  if (!hv.multi) return `<div class="scope single">${crestWithSport(club ? clubBadge(club) : { id: M.NO_CLUB, name: 'No club' }, sportOfTeam(data))}
-    <span class="grow"><span class="name" style="display:block">${esc(T.name || 'Team')}</span><span class="sub" style="display:block">${esc([club && club.name, T.division, T.season].filter(Boolean).join(' · ') || 'Not in a club')}</span></span></div>`;
+function homeSelector(hv,{showAll=true}={}) {
+  if (!hv.multi) return '';   // One permitted team: its header already names it.
   const sc = hv.scope, clubOfScope = sc.kind === 'club' ? sc.id : sc.kind === 'team' ? (hv.clubs.find(c => c.teams.some(t => t.id === sc.id)) || {}).id : null;
   const clubUrg = c => c.teams.some(t => hv.urgency[t.id] === 'critical') ? 'critical' : c.teams.some(t => hv.urgency[t.id] === 'soon') ? 'soon' : '';
   const clubBtn = c => `<button class="scope-club" data-act="home-scope" data-kind="club" data-id="${esc(c.id)}" aria-pressed="${sc.kind === 'club' && sc.id === c.id}" ${clubOfScope === c.id ? 'data-open="1"' : ''} title="${esc(c.name)}">${crest(c)}<span class="scope-name">${esc(c.short)}</span>${urgencyDot(clubUrg(c))}</button>`;
@@ -1532,7 +1529,7 @@ function homeSelector(hv) {
   const teamBtn = t => `<button class="scope-team${t===data?' editing':''}" data-act="home-scope" data-kind="team" data-id="${esc(t.id)}" aria-pressed="${sc.kind === 'team' && sc.id === t.id}" title="${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}${t===data?' · Active team':''}"><span class="scope-name">${sportIcon(sportOfTeam(t), 15, 'sport-ic chip-ic')}${esc(M.teamName(t))}</span>${t === data ? '<span class="sr-only"> (the team you’re editing)</span>' : ''}${urgencyDot(hv.urgency[t.id])}</button>`;
   return `<nav class="scope" aria-label="Clubs and teams on Home">
     <div class="scope-row">
-      <button class="scope-club" data-act="home-scope" data-kind="all" aria-pressed="${sc.kind === 'all'}">${crest(null)}<span class="scope-name">All clubs</span></button>
+      ${showAll?'<button class="scope-club" data-act="home-scope" data-kind="all" aria-pressed="'+(sc.kind==='all')+'">'+crest(null)+'<span class="scope-name">'+(nativePersona()&&nativePersona().role!=='personal_owner'?'My clubs':'All clubs')+'</span></button>':''}
       ${hv.clubs.map(clubBtn).join('')}
     </div>
     <div class="scope-row teams" aria-label="${clubOfScope ? esc((hv.clubs.find(c => c.id === clubOfScope) || {}).name || '') + ' teams' : 'All teams'}" role="group">${teams.map(teamBtn).join('')}</div>
@@ -1662,26 +1659,46 @@ function liveCard(lc, coach) {
     ${coach ? `<button class="btn sm on-dark cl-open" data-act="home-go" data-team="${esc(lc.rows[0].teamId)}" data-go="comp-open" data-id="${esc(c.id)}">Open competition</button>` : ''}
   </section>`;
 }
+// Reuse the Platform Owner's original Home club/team menu for each fictional
+// role, but derive the displayed portfolio from that role's assigned teams.
+// This is a local preview filter, not a production permission boundary.
+function nativeHomeWorkspace(session) {
+  if(!session||session.role==='personal_owner')return ws;
+  const allowed=personaRoleTeams(session.profileId,session.role)
+    .map(t=>M.findTeam(ws,nativeTeamId(t.id))).filter(t=>t&&!t.archived);
+  if(!allowed.length)return null;
+  const current=allowed.find(t=>t.id===data.id)||allowed[0];
+  return {...ws,...current,id:current.id,team:current.team,
+    players:current.players,sessions:current.sessions,matches:current.matches,tasks:current.tasks,
+    teams:allowed.filter(t=>t.id!==current.id),
+    clubs:(ws.clubs||[]).filter(c=>allowed.some(t=>t.team?.clubId===c.id))};
+}
 function viewHome() {
   const who=nativePersona();
-  if(who&&!who.team)return renderHomeProfilePicker()+
+  // Published player accounts do not have a coach workspace. Their original
+  // Home must never depend on the fictional development club selector.
+  if(!who&&!isCoach())return renderHomeProfilePicker()+playerHome();
+  const homeWs=nativeHomeWorkspace(who);
+  if(!homeWs)return renderHomeProfilePicker()+
     '<section class="sec"><h2>No assigned team</h2><p>This fictional profile has no active team access. Switch profiles to continue testing.</p></section>';
-  if (!isCoach()) return renderHomeProfilePicker()+playerHome();
-  // Non-Owner profiles see only assigned teams in the original Home dashboard.
-  const assigned=who&&who.role!=='personal_owner'?
-    personaRoleTeams(who.profileId,who.role).map(t=>M.findTeam(ws,nativeTeamId(t.id))).filter(Boolean):null;
-  const homeWs=assigned?.length?{
-    ...ws,...data,id:data.id,team:data.team,players:data.players,sessions:data.sessions,
-    matches:data.matches,tasks:data.tasks,
-    teams:assigned.filter(t=>t.id!==data.id),
-    clubs:(ws.clubs||[]).filter(c=>assigned.some(t=>t.team?.clubId===c.id))
-  }:ws;
-  const hv = M.homeView(homeWs, homeWs===ws?homePref():{kind:'all'}, new Date(), { days: homeDays() });
-  const one = hv.scope.kind === 'team' && hv.teams[0] === data;
-  const live = M.liveComps(ws, hv.teams, new Date()).map(lc => liveCard(lc, true)).join('');
-  const left = (one && !M.activeLens(data).players.length ? startSquad() : '') + homeSpotlight(hv) + live + homeUpcoming(hv);
-  const right = homeActionList(hv) + (hv.insight ? homeInsight(hv) : '') + (one ? homeNotices(3) : '');
-  return `${renderHomeProfilePicker()}${(!nativePersona()||nativePersona().role==='personal_owner'?homeSelector(hv):'')}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
+  const scoped=who&&who.role!=='personal_owner';
+  const pref=scoped?state.nativeHomeScope:homePref();
+  if(!isCoach()){
+    // Player/guardian views retain their original privacy-aware layout.
+    // The reused club/team menu contains only their assignments and exposes
+    // no coach-only Home urgency or attendance figures.
+    const nav={clubs:M.homeClubs(homeWs),scope:M.homeScope(homeWs,pref),
+      urgency:{},multi:M.activeTeams(homeWs).length>1};
+    return renderHomeProfilePicker()+homeSelector(nav,{showAll:false})+playerHome();
+  }
+  const hv=M.homeView(homeWs,pref,new Date(),{days:homeDays()});
+  const one=hv.scope.kind==='team'&&hv.teams[0]===data;
+  const live=M.liveComps(ws,hv.teams,new Date()).map(lc=>liveCard(lc,true)).join('');
+  const left=(one&&!M.activeLens(data).players.length?startSquad():'')+
+    homeSpotlight(hv)+live+homeUpcoming(hv);
+  const right=homeActionList(hv)+(hv.insight?homeInsight(hv):'')+
+    (one?homeNotices(3):'');
+  return `${renderHomeProfilePicker()}${homeSelector(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
 }
 // Players see their own team only: what's next, the next two weeks, notices and where help is needed.
 function playerHome() {
@@ -5928,14 +5945,30 @@ async function teamPassProblem(p1, p2, team) {
   if (S.coachLock) { const c = await makeLock(p1, S.coachLock.salt, S.coachLock.iterations); if (await exportKey(c.key) === await exportKey(S.coachLock.key)) return 'Use a different password from the coach one.'; }
   return '';
 }
-function switchTeam(id) {
-  const t = M.findTeam(ws, id); if (!t) return;
+function switchTeam(id,{keepHomeScope=false}={}) {
+  const t=M.findTeam(ws,id);if(!t)return;
+  const session=nativePersona();
+  if(session){
+    const assigned=personaRoleTeams(session.profileId,session.role)
+      .find(p=>nativeTeamId(p.id)===id);
+    if(!assigned){toast('That team is not assigned to this test role');return;}
+    state.qaContext=assigned.contextId;
+    state.personaTeamId=assigned.id;
+    if(session.role!=='personal_owner'&&!keepHomeScope)
+      state.nativeHomeScope={kind:'team',id};
+  }
   pickTeam(id);
-  state.correcting = null;
-  const pref = homePref();   // Home showing one team follows the switch
-  if (pref && pref.kind === 'team') store.set('tm-home-scope', JSON.stringify({ kind: 'team', id: data.id }));
-  Object.assign(state, { lineupId: null, playId: null, msgDraft: null, msgSession: null, msgEvent: null, system: null, overlaysOpen: false, preview: false });
-  closeSheet(); render(); window.scrollTo(0, 0);
+  state.correcting=null;
+  // Do not overwrite the Platform Owner's saved Home selection when testing
+  // another person's club/team portfolio on this device.
+  if(!session||session.role==='personal_owner'){
+    const pref=homePref();
+    if(pref&&pref.kind==='team')store.set('tm-home-scope',JSON.stringify({kind:'team',id:data.id}));
+  }
+  Object.assign(state,{lineupId:null,playId:null,msgDraft:null,msgSession:null,
+    msgEvent:null,system:null,overlaysOpen:false,
+    preview:session?['player','guardian','helper','staff','none'].includes(session.role):false});
+  closeSheet();render();window.scrollTo(0,0);
   toast(`Now showing ${M.teamName(t)}`);
 }
 function teamSwitcher() {
@@ -8442,8 +8475,30 @@ const actions = {
     state.correcting = { team: data.id, season: s.id }; render(); toast(`Correcting ${s.name}`);
   }),
   'season-fix-done': coachOnly(() => { state.correcting = null; render(); toast('Corrections saved'); }),
-  'home-scope': coachOnly(el => {
-    const kind=el.dataset.kind,id=el.dataset.id||'';
+  'home-scope': el => {
+    // The original club/team picker is view navigation for Player previews too.
+    if(!isCoach()&&!nativePersona())return;
+    const kind=el.dataset.kind,id=el.dataset.id||'',session=nativePersona();
+    if(session&&session.role!=='personal_owner'){
+      const allowed=personaRoleTeams(session.profileId,session.role);
+      if(!allowed.length)return;
+      if(kind==='all'){
+        // No other club's records are brought into this scoped portfolio.
+        state.nativeHomeScope={kind:'all',id:''};state.homeAllUp=false;render();return;
+      }
+      let selected;
+      if(kind==='team')selected=allowed.find(t=>nativeTeamId(t.id)===id);
+      else if(kind==='club')selected=
+        allowed.find(t=>t.clubId===id&&nativeTeamId(t.id)===data.id)||
+        allowed.find(t=>t.clubId===id);
+      if(!selected)return; // Decline forged or stale out-of-scope choices.
+      state.nativeHomeScope={kind,id};state.homeAllUp=false;
+      const teamId=nativeTeamId(selected.id);
+      if(teamId!==data.id||state.qaContext!==selected.contextId)
+        switchTeam(teamId,{keepHomeScope:true});
+      else render();
+      return;
+    }
     store.set('tm-home-scope',JSON.stringify({kind,id}));state.homeAllUp=false;
     if(kind==='team' && id!==data.id){switchTeam(id);return;}
     if(kind==='club' && id!==data.team.clubId){
@@ -8453,7 +8508,7 @@ const actions = {
       if(first){switchTeam(first.id);return;}
     }
     render();
-  }),
+  },
   'home-days': el => { store.set('tm-home-days', el.dataset.v); render(); },
   'home-more': () => { state.homeAllUp = !state.homeAllUp; render(); },
   // Open a record from Home: switch to the team it belongs to first, then use the usual action.
