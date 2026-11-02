@@ -42,7 +42,7 @@ import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
 import {desktopProfileAvailable,desktopProfileChoices,resolveDesktopProfile} from './desktop-profile-preview.js';
 import {developmentSandbox} from './development-sandbox.js';
 import {personWorkspace} from './person-role-workspace.js';
-import {personaSession,personaRoleTeams,personaRoster,personaFixtures,personaSeasons,personaAction,personaCurrentState} from './persona-runtime.js';
+import {personaSession,personaRoleTeams,personaRoster,personaFixtures,personaSeasons,personaAction,personaCurrentState,upgradePersonaRecords} from './persona-runtime.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
 import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
 import {p12SampleTeamSummary,makeP12SampleRoster} from './p12-qa-club-teams.js';
@@ -7216,7 +7216,7 @@ const actions = {
     });
     if(result.error){toast(result.error);return;}
     state.personaRecords=result.records;
-    store.set('tm-persona-actions-v1',JSON.stringify(result.records));
+    store.set('tm-persona-actions-v2',JSON.stringify(result.records));
     render();
   },
   'desktop-profile-menu': () => {
@@ -9564,7 +9564,8 @@ function startTrial() {
       state.desktopProfileActive=true;state.qaPersona='p12';
       state.qaProfile='qa-01';state.qaContext='';state.personaTeamId='';
       state.rolePreviewSection='Home';
-      state.personaRecords=readJson('tm-persona-actions-v1')||{};
+      state.personaRecords=upgradePersonaRecords(readJson('tm-persona-actions-v2')||readJson('tm-persona-actions-v1')||{});
+      // Never delete the PR144 v1 record. Its content remains readable if needed.
     }
     render();
   });
