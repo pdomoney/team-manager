@@ -1900,3 +1900,7 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
 .qa-role-nav-item{display:inline-block;border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--chalk);font-size:13px}
 .qa-role-team-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;margin-top:10px}
 .qa-role-team{border:1px solid var(--line);border-radius:9px;padding:12px;background:var(--chalk)}
+
+.qa-role-nav-item{cursor:pointer;color:var(--ink);font-family:inherit}
+.qa-role-nav-item[aria-current="page"]{background:var(--pitch);color:#fff;border-color:var(--pitch)}
+.qa-role-nav-item:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
