@@ -708,8 +708,9 @@ const isOut = p => isCoach() && p.status && p.status !== 'available';
 const statusPill = p => isOut(p) ? ` <span class="pill ${p.status}">${STATUS[p.status]}</span>` : '';
 
 function desktopPreviewAllowed() {
-  // A shared Coach password is NOT proof of a real owner identity. This only
-  // enables fictional previews; no role grants or workspace writes occur.
+  // Coach workspace access is required, on any supported screen size.
+  // A shared Coach password is NOT production Owner identity. Preview actions
+  // only use isolated fictional fixtures, without role grants or saved edits.
   return desktopProfileAvailable({role:S.role,playerPreview:state.preview,
     width:window.innerWidth});
 }
@@ -723,6 +724,7 @@ function renderDesktopProfileControl() {
   const panel=$('#desktop-profile-panel'),exit=$('#desktop-profile-exit');
   if (!host||!button||!panel||!exit)return;
   const allowed=desktopPreviewAllowed();
+  document.body.classList.toggle('profile-switch-available',allowed);
   const inPreview=allowed&&state.desktopProfileActive&&state.qaPersona==='p12';
   document.body.classList.toggle('desktop-profile-active',inPreview);
   host.hidden=!allowed;
@@ -1170,6 +1172,10 @@ setInterval(() => { if (S.role === 'coach' && !S.publishing) renderStatus(); }, 
 /* ---------- Lock screen and setup ---------- */
 function renderLock() {
   const qa=$('#qa-persona-control');if(qa)qa.hidden=true;
+  const previewControl=$('#desktop-profile-control');if(previewControl)previewControl.hidden=true;
+  const previewPanel=$('#desktop-profile-panel');if(previewPanel)previewPanel.hidden=true;
+  state.desktopProfileActive=false;state.desktopProfileOpen=false;
+  document.body.classList.remove('desktop-profile-active','profile-switch-available');
   state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;
   $('#tabs').hidden = true; $('#status').hidden = true; $('#days-chip').hidden = true; $('#menu-btn').hidden = true; $('#bell-btn').hidden = true; $('#team-crest').hidden = true;
   document.body.classList.remove('game');
@@ -8321,11 +8327,9 @@ document.addEventListener('click', e => {
   fn(el, e);
 });
 window.matchMedia('(min-width: 900px)').addEventListener('change', () => {
-  // A desktop-only test session cannot persist when the viewport switches to
-  // phone size. Never change the real workspace, just leave the fictional view.
-  if(state.desktopProfileActive&&!desktopPreviewAllowed()){
-    actions['desktop-profile-exit']();
-  }else if(S.role){render();}
+  // Phone/desktop resizing is a layout change, not a new role assignment.
+  // Keep the selected fictional persona and original workspace untouched.
+  if(S.role)render();
 });
 document.addEventListener('keydown', e => {
   if(e.key==='Escape'&&state.desktopProfileOpen){
