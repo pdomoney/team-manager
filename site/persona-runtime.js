@@ -111,6 +111,38 @@ export function personaSeasons(session){
   status:year===2026?'Current example season':'Historical example season'
  })));
 }
+// Team-level workflow records must be shared by every fictional person
+// assigned to that team. Historical PR144 data used a person/context/team key;
+// the migration is additive, never deletes the original records.
+const blankRecord=()=>({selected:{},attendance:{},staff:{},training:[],availabilityByPerson:{}});
+const teamKey=teamId=>'team:'+teamId;
+export function upgradePersonaRecords(records={}){
+ if(!records||typeof records!=='object'||Array.isArray(records))return {};
+ const output={...records};
+ const staged={};
+ for(const [key,value] of Object.entries(records)){
+   const parts=key.split('|');
+   if(parts.length!==3||!value||typeof value!=='object'||Array.isArray(value))continue;
+   const [personId,contextId,teamId]=parts;
+   if(!P12_SAMPLE_TEAMS.some(t=>t.id===teamId))continue;
+   const session=personaSession(personId,contextId,teamId);
+   if(!session||session.contextId!==contextId||session.team?.id!==teamId)continue;
+   const k=teamKey(teamId),dest=staged[k]||(staged[k]=blankRecord());
+   for(const field of ['selected','attendance','staff']){
+     if(value[field]&&typeof value[field]==='object'&&!Array.isArray(value[field]))
+       Object.assign(dest[field],value[field]);
+   }
+   if(Array.isArray(value.training))
+     for(const item of value.training)if(typeof item==='string'&&!dest.training.includes(item))dest.training.push(item);
+   if(['yes','no','maybe'].includes(value.availability))
+     dest.availabilityByPerson[personId]=value.availability;
+ }
+ for(const [key,value] of Object.entries(staged)){
+   if(!Object.hasOwn(output,key))output[key]=value;
+ }
+ return output;
+}
+
 export function personaAction(session,records={},action={}){
  const fail=error=>({error,records});
  if(!session?.team||!session.context)return fail('No assigned team selected');
@@ -119,11 +151,14 @@ export function personaAction(session,records={},action={}){
  if(!session.capabilities.includes(action.capability))
   return fail('This role cannot perform that action');
  const roster=personaRoster(session);
- const key=session.profileId+'|'+session.contextId+'|'+session.team.id;
- const current=COPY(records[key]||{selected:{},attendance:{},availability:'pending',staff:{},training:[]});
+ const migrated=upgradePersonaRecords(records);
+ const key=teamKey(session.team.id);
+ const current=COPY(migrated[key]||blankRecord());
  if(action.capability==='roster'){
   if(!roster.players.some(p=>p.id===action.personId))return fail('Player is not in this squad');
-  current.selected[action.personId]=!current.selected[action.personId];
+  const baseline=roster.players.find(p=>p.id===action.personId)?.selected===true;
+  const previous=Object.hasOwn(current.selected,action.personId)?current.selected[action.personId]:baseline;
+  current.selected[action.personId]=!previous;
  }else if(action.capability==='attendance'){
   if(!roster.players.some(p=>p.id===action.personId)||!has(['yes','no','pending'],action.value))
    return fail('Invalid squad member or availability value');
@@ -132,7 +167,7 @@ export function personaAction(session,records={},action={}){
   if(!has(['yes','no','maybe'],action.value))return fail('Invalid availability response');
   if(session.role==='player'&&!session.memberships.some(t=>t.id===session.team.id))
    return fail('Person is not a player in this team');
-  current.availability=action.value;
+  current.availabilityByPerson[session.profileId]=action.value;
  }else if(action.capability==='staff'){
   if(!roster.volunteers.some(v=>v.id===action.personId))return fail('Volunteer not in this team');
   if(!has(['trainer','helper'],action.value))return fail('Unrecognised proposed duty');
@@ -142,12 +177,13 @@ export function personaAction(session,records={},action={}){
    return fail('Training title must be 3–160 characters');
   current.training.push(action.value.trim());
  }else return fail('Unknown action');
- return {records:{...records,[key]:current},state:current};
+ return {records:{...migrated,[key]:current},state:{...current,availability:current.availabilityByPerson[session.profileId]||'pending'}};
 }
 export function personaCurrentState(session,records={}){
- if(!session?.team)return {selected:{},attendance:{},availability:'pending',staff:{},training:[]};
- return COPY(records[session.profileId+'|'+session.contextId+'|'+session.team.id]||
-  {selected:{},attendance:{},availability:'pending',staff:{},training:[]});
+ if(!session?.team)return {...blankRecord(),availability:'pending'};
+ const shared=upgradePersonaRecords(records)[teamKey(session.team.id)]||blankRecord();
+ const state=COPY(shared);
+ return {...state,availability:state.availabilityByPerson?.[session.profileId]||'pending'};
 }
 
 export function personaRoleTeams(id,role){

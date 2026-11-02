@@ -41,18 +41,18 @@ with sync_playwright() as p:
              pg.locator('#view input[type=password]').count()==0,
              f'[{width}] Player opens personal Home with Switch profile, no password')
         c.ok('Example Comets U14' in pg.locator('#view').inner_text() and
-             pg.locator('#tabs [data-section="Match day staff"]').count()==0,
+             pg.locator('#tabs [data-section="Match staff"]').count()==0,
              f'[{width}] Junior Player sees assigned team, not Manager controls')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
         pg.wait_for_selector('#view [data-role-workspace=team_manager]')
-        c.ok(pg.locator('#view [data-section="Match-day staff"]').count()==1,
+        c.ok(pg.locator('#tabs [data-section="Match staff"]').count()==1,
              f'[{width}] Manager changes navigation and team role')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
         pg.wait_for_selector('#view [data-role-workspace=team_coach]')
         c.ok(pg.locator('#tabs [data-section=Training]').count()==1 and
-             pg.locator('#view [data-section="Match-day staff"]').count()==0,
+             pg.locator('#tabs [data-section="Match staff"]').count()==0,
              f'[{width}] Coach changes to own training navigation')
         pg.click('#view [data-act=desktop-profile-exit]')
         c.ok(pg.locator('#home-profile-button').is_visible() and
