@@ -1,76 +1,45 @@
-# Shared fictional fixture workflow across Manager, Coach and Player; historical seasons immutable.
+# Native Schedule must survive role changes. Legacy separate fixture editor is not the application.
 import sys
 from harness import *
 from playwright.sync_api import sync_playwright
-build();srv,url=serve()
-c=Check();errors=[]
+build();srv,url=serve();c=Check();errors=[]
+act="([name,values])=>{let b=document.createElement('button');b.dataset.act=name;Object.assign(b.dataset,values||{});document.body.appendChild(b);b.click();b.remove()}"
 with sync_playwright() as p:
     browser=p.chromium.launch()
     for width in (390,1280):
-        ctx,pg,_=page(browser,url+'?sandbox=1#home',width=width,height=860,errors=errors)
+        ctx,pg,_=page(browser,url+'?sandbox=1#home',width=width,height=844,errors=errors)
         pg.wait_for_selector('#home-profile-button')
-        original=pg.evaluate('JSON.stringify(window.__team.ws)')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
-        pg.wait_for_selector('#view [data-role-workspace=team_manager]')
-        pg.click('#tabs [data-section=Fixtures]')
-        editor=pg.locator('#view .persona-fixture-editor')
-        c.ok(editor.count()==1 and editor.is_visible(),
-             f'[{width}] Manager has real fixture edit form in exact assigned team')
-        editor.locator('[data-fixture-field=date]').fill('2026-11-21')
-        editor.locator('[data-fixture-field=opponent]').fill('Example Coast Team')
-        editor.locator('[data-fixture-field=venue]').fill('Example Central Park')
-        editor.locator('[data-act=persona-fixture-save]').click()
-        c.ok('Example Coast Team' in pg.locator('#view').inner_text() and
-             'Example Central Park' in pg.locator('#view').inner_text(),
-             f'[{width}] Manager fixture edit changes shared schedule')
-        pg.locator('#view [data-change=persona-season]').select_option('2025')
-        c.ok('2025-09-20' in pg.locator('#view').inner_text() and
-             editor.count()==0,
-             f'[{width}] historical season fixtures are independent and read-only')
-        pg.locator('#view [data-change=persona-season]').select_option('2026')
-        c.ok('Example Coast Team' in pg.locator('#view').inner_text(),
-             f'[{width}] current season fixture remains after switching seasons')
-        pg.click('#tabs [data-section=Home]')
-        pg.click('#home-profile-button')
-        pg.click('#home-profile-panel [data-profile=qa-14]')
-        pg.wait_for_selector('#view [data-role-workspace=player]')
-        pg.click('#tabs [data-section=Fixtures]')
-        c.ok('Example Coast Team' in pg.locator('#view').inner_text() and
+        pg.evaluate(act,['tab',{'tab':'matches'}])
+        c.ok('Example Opposition' in pg.locator('#view').inner_text() and
              pg.locator('#view .persona-fixture-editor').count()==0,
-             f'[{width}] same-team Player sees updated fixture without Manager editor')
-        pg.locator('#view select[data-change=p12-context]').select_option(
-            'membership:player:team:qa-stars-women')
-        pg.click('#tabs [data-section=Fixtures]')
-        c.ok('Example Coast Team' not in pg.locator('#view .persona-content').inner_text(),
-             f'[{width}] fixture changes do not leak to second sport/team')
-        pg.click('#tabs [data-section=Home]')
-        pg.click('#home-profile-button')
-        pg.click('#home-profile-panel [data-profile=qa-09]')
-        pg.locator('#view select[data-change=p12-context]').select_option(
-            'grant:team_manager:team:qa-rangers-16')
-        pg.click('#tabs [data-section=Fixtures]')
-        editor=pg.locator('#view .persona-fixture-editor')
-        editor.locator('[data-fixture-field=date]').fill('2026-12-05')
-        editor.locator('[data-fixture-field=opponent]').fill('Example Valley Team')
-        editor.locator('[data-fixture-field=venue]').fill('Example Rangers Oval')
-        editor.locator('[data-act=persona-fixture-save]').click()
-        pg.click('#tabs [data-section=Home]')
+             f'[{width}] Manager sees original Matches page not synthetic replacement')
+        pg.evaluate(act,['tab',{'tab':'home'}])
+        pg.locator('#view select[data-change=native-persona-team]').select_option('qa-rangers-16')
+        match=pg.evaluate("window.__team.data.matches[0].id")
+        pg.evaluate(act,['tab',{'tab':'matches'}])
+        c.ok(pg.evaluate('window.__team.data.id')=='qa-rangers-16' and
+             'Example Opposition' in pg.locator('#view').inner_text(),
+             f'[{width}] Manager uses original fixtures for assigned Rangers team')
+        pg.evaluate(act,['tab',{'tab':'home'}])
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
-        pg.click('#tabs [data-section=Matches]')
-        c.ok('Example Valley Team' in pg.locator('#view').inner_text() and
-             pg.locator('#view .persona-fixture-editor').count()==0,
-             f'[{width}] assigned Coach sees Manager fixture updates read-only')
-        c.ok(pg.evaluate('JSON.stringify(window.__team.ws)')==original,
-             f'[{width}] original Coach workspace and encrypted records remain unchanged')
-        pg.reload()
-        pg.wait_for_selector('#home-profile-button')
+        c.ok(pg.evaluate('window.__team.data.id')=='qa-rangers-16' and
+             pg.evaluate('window.__team.data.matches[0].id')==match,
+             f'[{width}] Coach sees same underlying team fixture record')
+        pg.evaluate(act,['tab',{'tab':'matches'}])
+        c.ok('Example Opposition' in pg.locator('#view').inner_text(),
+             f'[{width}] Coach uses original Matches UI')
+        pg.evaluate(act,['tab',{'tab':'home'}])
         pg.click('#home-profile-button')
-        pg.click('#home-profile-panel [data-profile=qa-09]')
-        pg.click('#tabs [data-section=Fixtures]')
-        c.ok('Example Coast Team' in pg.locator('#view').inner_text(),
-             f'[{width}] shared fixture update persists locally after reload')
+        pg.click('#home-profile-panel [data-profile=qa-14]')
+        pg.evaluate(act,['tab',{'tab':'matches'}])
+        c.ok(pg.evaluate('window.__team.data.id')=='qa-comets-mixed' and
+             pg.locator('#view .persona-fixture-editor').count()==0,
+             f'[{width}] Player sees normal team fixture view without Manager edit')
+        c.ok(not pg.evaluate("document.body.classList.contains('persona-mode')"),
+             f'[{width}] role switching never changes app shell')
         ctx.close()
     result=c.done(errors);browser.close()
 srv.shutdown();sys.exit(0 if result else 1)
