@@ -1894,3 +1894,9 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
 .match-arrival-checkin p.hint{line-height:1.5;margin:8px 0 10px}
 @media(max-width:600px){.match-arrival-checkin{padding:7px 10px}
   .match-arrival-checkin .btn{width:100%}}
+
+.qa-role-workspace{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px;margin:14px 0}
+.qa-role-navigation{display:flex;gap:7px;overflow-x:auto;padding:12px 0;flex-wrap:wrap}
+.qa-role-nav-item{display:inline-block;border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--chalk);font-size:13px}
+.qa-role-team-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;margin-top:10px}
+.qa-role-team{border:1px solid var(--line);border-radius:9px;padding:12px;background:var(--chalk)}
