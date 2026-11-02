@@ -809,28 +809,27 @@ function seedNativePersonaData(){
 }
 
 function renderHomeProfilePicker() {
-  if(!DEV_SANDBOX || S.role!=='coach')return '';
-  const selected=state.qaPersona==='p12' ? P12_QA_PROFILES.find(p=>p.id===state.qaProfile) : null;
-  const choices=state.desktopProfileOpen ? desktopProfileChoices().map(group=>
+  if(!DEV_SANDBOX||S.role!=='coach')return '';
+  const selected=P12_QA_PROFILES.find(p=>p.id===state.qaProfile);
+  const session=nativePersona();
+  const portfolio=session?personaRoleTeams(session.profileId,session.role):[];
+  const groups=state.desktopProfileOpen?desktopProfileChoices().map(group=>
     '<section aria-label="'+esc(group.label)+'"><h3>'+esc(group.label)+'</h3><div class="desktop-profile-options">'+
-    group.profiles.map(p=>'<button type="button" data-act="desktop-profile-pick" data-profile="'+esc(p.id)+'" aria-pressed="'+(p.id===state.qaProfile?'true':'false')+'">'+esc(p.label)+'</button>').join('')+
-    '</div></section>').join('') : '';
-  const session=nativePersona(),teams=session?personaRoleTeams(session.profileId,session.role):[];
+    group.profiles.map(p=>'<button type="button" data-act="desktop-profile-pick" data-profile="'+esc(p.id)+'" aria-pressed="'+(p.id===state.qaProfile?'true':'false')+'">'+esc(p.label)+'</button>').join('')+'</div></section>').join(''):'';
   const scope=session?.contexts?.length>1?
-    '<label class="field-l"><span>Acting role and group</span><select data-change="native-persona-context" aria-label="Choose role and group">'+
+    '<label class="field-l"><span>Role and group</span><select data-change="native-persona-context" aria-label="Choose role and group">'+
     session.contexts.map(c=>'<option value="'+esc(c.id)+'"'+(c.id===state.qaContext?' selected':'')+'>'+esc(c.label+' · '+c.groupLabel)+'</option>').join('')+'</select></label>':'';
-  const teamPicker=teams.length>1?
+  const teamPicker=portfolio.length>1?
     '<label class="field-l"><span>Assigned team</span><select data-change="native-persona-team" aria-label="Choose assigned team">'+
-    teams.map(t=>'<option value="'+esc(t.id)+'"'+(t.id===state.personaTeamId?' selected':'')+'>'+esc(t.clubName+' · '+t.name)+'</option>').join('')+'</select></label>':'';
+    portfolio.map(t=>'<option value="'+esc(t.id)+'"'+(t.id===state.personaTeamId?' selected':'')+'>'+esc(t.clubName+' · '+t.name)+'</option>').join('')+'</select></label>':'';
   const canSeed=!M.findTeam(ws,P12_SAMPLE_TEAMS[0].id)&&
     M.teamsOf(ws).every(t=>!(t.players||[]).length&&!(t.matches||[]).length&&!(t.sessions||[]).length);
-  const sampleButton=canSeed?'<button class="btn" type="button" data-act="native-persona-load">Load fictional sample teams</button>':'';
-  return '<section class="home-profile-switch" aria-label="Fictional profile switcher">'+
-    '<div class="home-profile-head"><div><h2>'+(selected?esc(selected.label)+' · Home':'Development home')+'</h2>'+
-    '<p class="muted small">'+(selected?'Viewing this fictional person’s assigned role and teams.':'Choose a fictional person to test their screens and workflows.')+'</p></div>'+
-    '<div class="home-profile-actions"><button id="home-profile-button" type="button" class="btn primary" data-act="desktop-profile-menu" aria-expanded="'+!!state.desktopProfileOpen+'" aria-controls="home-profile-panel">Switch profile</button>'+
-    (selected&&selected.id!=='qa-01'?'<button type="button" class="btn" data-act="desktop-profile-exit">Owner profile</button>':'')+sampleButton+'</div></div>'+scope+teamPicker+
-    '<div id="home-profile-panel" class="home-profile-panel" '+(state.desktopProfileOpen?'':'hidden')+'><p class="muted small">Fictional test profiles · no password required · no production data</p>'+choices+'</div></section>';
+  return '<section class="home-profile-switch" aria-label="Development profile switcher">'+
+    '<div class="home-profile-head"><p class="home-profile-identity"><strong>'+esc(selected?.label||'Owner')+'</strong><span class="muted small"> · '+esc(session?.label||'Owner')+' · Fictional test profile</span></p>'+
+    '<button id="home-profile-button" type="button" class="btn primary" data-act="desktop-profile-menu" aria-expanded="'+!!state.desktopProfileOpen+'" aria-controls="home-profile-panel">Switch profile</button></div>'+
+    (scope||teamPicker?'<div class="home-profile-context">'+scope+teamPicker+'</div>':'')+
+    (canSeed?'<button class="btn sm" type="button" data-act="native-persona-load">Load fictional sample teams</button>':'')+
+    '<div id="home-profile-panel" class="home-profile-panel" '+(state.desktopProfileOpen?'':'hidden')+'>'+groups+'</div></section>';
 }
 function renderDesktopProfileControl() {
   const host=$('#desktop-profile-control'),button=$('#desktop-profile-button');
@@ -1364,6 +1363,9 @@ function renderNav() {
 const online = () => navigator.onLine !== false;
 function renderStatus() {
   const el = $('#status');
+  if (DEV_SANDBOX&&state.qaPersona==='p12'){
+    el.hidden=true;return;
+  }
   if (state.qaPersona && qaEnabled()) {
     el.hidden=false;
     el.className='status info';
