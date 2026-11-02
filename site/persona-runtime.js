@@ -41,7 +41,20 @@ function scopedTeams(context){
  const {group,role,kind}=context;
  if(kind==='inactive'||kind==='appointment')return [];
  if(group?.type==='team')return P12_SAMPLE_TEAMS.filter(t=>t.id===group.id);
- if(group?.type==='club')return P12_SAMPLE_TEAMS.filter(t=>t.clubId===group.id);
+ if(group?.type==='club'){
+  // A club membership does not grant a directory view of every child.
+  // These deliberately narrow fictional relationships identify a single
+  // linked child or volunteer team for testing, not verified real assignments.
+  if(kind==='membership'){
+   const assigned={
+    guardian:{'qa-comets':'qa-comets-juniors','qa-stars':'qa-stars-u12'},
+    helper:{'qa-comets':'qa-comets-mixed'},
+    staff:{'qa-rangers':'qa-rangers-16'}
+   }[role]?.[group.id];
+   return P12_SAMPLE_TEAMS.filter(t=>t.id===assigned);
+  }
+  return P12_SAMPLE_TEAMS.filter(t=>t.clubId===group.id);
+ }
  if(group?.type==='association'){
   const ids=P12_SAMPLE_CLUBS.filter(c=>c.associationId===group.id).map(c=>c.id);
   return P12_SAMPLE_TEAMS.filter(t=>ids.includes(t.clubId));
