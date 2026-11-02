@@ -46,7 +46,7 @@ import {personaSession,personaRoleTeams,personaRoster,personaFixtures,personaSea
 import {PERSONA_SEASONS,PERSONA_CURRENT_SEASON} from './persona-fixtures.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
 import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
-import {p12SampleTeamSummary,makeP12SampleRoster} from './p12-qa-club-teams.js';
+import {p12SampleTeamSummary,makeP12SampleRoster,P12_SAMPLE_TEAMS,P12_SAMPLE_CLUBS} from './p12-qa-club-teams.js';
 import {makeP12FixtureStaffingScenario,assessP12FixtureActingDuty,P12_STAFFING_POLICY} from './p12-fixture-role-review.js';
 import { normalizeDensity, mayUseCompactDensity } from './display-density.js';
 import { matchDayPresentation } from './match-day-presentation.js';
@@ -714,6 +714,7 @@ const isOut = p => isCoach() && p.status && p.status !== 'available';
 const statusPill = p => isOut(p) ? ` <span class="pill ${p.status}">${STATUS[p.status]}</span>` : '';
 
 function desktopPreviewAllowed() {
+  if(DEV_SANDBOX)return S.role==='coach'&&window.innerWidth>=320;
   // Coach workspace access is required, on any supported screen size.
   // A shared Coach password is NOT production Owner identity. Preview actions
   // only use isolated fictional fixtures, without role grants or saved edits.
@@ -725,19 +726,122 @@ function qaEnabled() {
     !!ws?.testLibrary && Number(ws.testLibrary.version)>=3) ||
     (state.desktopProfileActive && desktopPreviewAllowed());
 }
+
+/* Use the existing Team Manager screens, never a replacement profile app. */
+const NATIVE_ROLE_TABS={
+ personal_owner:null,
+ association_admin:['home','agenda','matches','squad','people','teams','club','comps','reports','notices'],
+ association_viewer:['home','agenda','matches','squad','club','teams','comps','notices'],
+ club_admin:['home','agenda','training','matches','squad','tasks','helpers','crew','people','club','teams','comps','notices','reports'],
+ club_support:['home','agenda','matches','squad','helpers','crew','club','teams','notices'],
+ team_coach:['home','agenda','training','matches','attendance','matchday','squad','tasks','helpers','crew','field','plays','rules','notices'],
+ team_assistant:['home','agenda','training','matches','squad','field','plays','notices'],
+ team_manager:['home','agenda','matches','attendance','matchday','squad','tasks','helpers','crew','notices','messages'],
+ fixture_scorekeeper:['home','matches','matchday','notices'],
+ player:['home','agenda','matches','squad','notices','field'],
+ guardian:['home','agenda','matches','notices'],
+ helper:['home','agenda','matches','notices'],
+ staff:['home','agenda','matches','notices'],
+ none:['home']
+};
+const nativeTeamId=id=>String(id||'').replace(/-/g,'');
+const nativePersona=()=>DEV_SANDBOX&&state.qaPersona==='p12'?
+  personaSession(state.qaProfile,state.qaContext,state.personaTeamId):null;
+function nativeRoleAllows(tab){
+ const session=nativePersona();if(!session)return true;
+ const allowed=NATIVE_ROLE_TABS[session.role];
+ return allowed===null||!!allowed?.includes(tab);
+}
+function syncNativePersonaTeam(){
+ if(!DEV_SANDBOX)return;
+ const session=nativePersona();if(!session)return;
+ const choices=personaRoleTeams(session.profileId,session.role);
+ const current=choices.find(t=>t.id===state.personaTeamId)||
+   choices.find(t=>t.id===session.team?.id)||choices[0];
+ if(current){
+   state.qaContext=current.contextId;state.personaTeamId=current.id;
+   if(M.findTeam(ws,nativeTeamId(current.id)))pickTeam(nativeTeamId(current.id));
+ }
+ state.preview=['player','guardian','helper','staff','none'].includes(session.role);
+ state.tab='home';
+}
+function nativePersonaAllowedAction(name,el){
+ const session=nativePersona();if(!session)return true;
+ if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load'].includes(name))return true;
+ if(name==='home-team'||name==='team-pick'){
+   const t=el?.dataset?.team||el?.dataset?.id||'';
+   return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>nativeTeamId(x.id)===t);
+ }
+ // Non-Owner, non-Coach roles are read-only in this restoration slice.
+ if(session.role==='personal_owner'||session.role==='team_coach')return true;
+ return false;
+}
+function applyNativeProfilePermissions(){
+  const session=nativePersona();
+  if(!session||['personal_owner','team_coach'].includes(session.role))return;
+  const view=$('#view');if(!view)return;
+  view.querySelectorAll('button[data-act]').forEach(b=>{
+    if(!nativePersonaAllowedAction(b.dataset.act,b)){
+      b.disabled=true;
+      b.title='Read-only in this fictional profile';
+    }
+  });
+}
+function seedNativePersonaData(){
+ if(!DEV_SANDBOX||!ws)return;
+ if(M.findTeam(ws,nativeTeamId(P12_SAMPLE_TEAMS[0].id)))return;
+ if(M.teamsOf(ws).some(t=>(t.players||[]).length||(t.matches||[]).length||(t.sessions||[]).length))return;
+ // This runs only when no sandbox data was saved. Existing local and encrypted
+ // team files, previous fictional actions and backups are never overwritten.
+ const source=normalizeWs(null);
+ const clubs=P12_SAMPLE_CLUBS.map(c=>M.normClub({
+   id:c.id,name:c.name,shortName:c.name.replace('Example ',''),
+   sport:c.sport,notes:'Fictional development club'
+ }));
+ const make=t=>{
+   const roster=makeP12SampleRoster(t.id),base=defaultData();
+   base.id=nativeTeamId(t.id);
+   Object.assign(base.team,{name:t.name,clubId:t.clubId,sport:t.sport,
+     division:t.ageGroup,ageGroup:t.ageGroup,category:t.category,
+     event:'Example competition',season:'Example 2026 season'});
+   base.players=roster.players.map(p=>({id:p.id,name:p.name,gender:'',number:String(p.jersey),
+     positions:p.preferredPositions,status:'available',phone:'',notes:''}));
+   base.staff=roster.staff.map(p=>({role:p.role,name:p.name,phone:'',email:''}));
+   base.helpers=roster.volunteers.map(p=>({id:p.id,name:p.name,role:p.role,phone:''}));
+   base.matches=[{id:'match-'+t.id,date:'2026-11-14',start:'10:00',
+     opponent:'Example Opposition',venue:'Example Sports Ground',
+     status:'scheduled',rsvp:{},result:{},notes:''}];
+   return normalizeTeam(base);
+ };
+ const primary=make(P12_SAMPLE_TEAMS[0]);
+ ws=normalizeWs({...source,...primary,id:primary.id,team:primary.team,
+   clubs,teams:P12_SAMPLE_TEAMS.slice(1).map(make),
+   testLibrary:{version:TEST_LIBRARY_VERSION,day:todayISO()}});
+ pickTeam(ws.id);save();
+}
+
 function renderHomeProfilePicker() {
-  if(!DEV_SANDBOX || !desktopPreviewAllowed())return '';
-  const selected=state.qaPersona==='p12' ? P12_QA_PROFILES.find(p=>p.id===state.qaProfile) : null;
-  const choices=state.desktopProfileOpen ? desktopProfileChoices().map(group=>
+  if(!DEV_SANDBOX||S.role!=='coach')return '';
+  const selected=P12_QA_PROFILES.find(p=>p.id===state.qaProfile);
+  const session=nativePersona();
+  const portfolio=session?personaRoleTeams(session.profileId,session.role):[];
+  const groups=state.desktopProfileOpen?desktopProfileChoices().map(group=>
     '<section aria-label="'+esc(group.label)+'"><h3>'+esc(group.label)+'</h3><div class="desktop-profile-options">'+
-    group.profiles.map(p=>'<button type="button" data-act="desktop-profile-pick" data-profile="'+esc(p.id)+'" aria-pressed="'+(p.id===state.qaProfile?'true':'false')+'">'+esc(p.label)+'</button>').join('')+
-    '</div></section>').join('') : '';
-  return '<section class="home-profile-switch" aria-label="Fictional profile switcher">'+
-    '<div class="home-profile-head"><div><h2>'+(selected?esc(selected.label)+' · Home':'Development home')+'</h2>'+
-    '<p class="muted small">'+(selected?'Viewing this fictional person’s assigned role and teams.':'Choose a fictional person to test their screens and workflows.')+'</p></div>'+
-    '<div class="home-profile-actions"><button id="home-profile-button" type="button" class="btn primary" data-act="desktop-profile-menu" aria-expanded="'+!!state.desktopProfileOpen+'" aria-controls="home-profile-panel">Switch profile</button>'+
-    (selected?'<button type="button" class="btn" data-act="desktop-profile-exit">Back to Home</button>':'')+'</div></div>'+
-    '<div id="home-profile-panel" class="home-profile-panel" '+(state.desktopProfileOpen?'':'hidden')+'><p class="muted small">Fictional test profiles · no password required · no production data</p>'+choices+'</div></section>';
+    group.profiles.map(p=>'<button type="button" data-act="desktop-profile-pick" data-profile="'+esc(p.id)+'" aria-pressed="'+(p.id===state.qaProfile?'true':'false')+'">'+esc(p.label)+'</button>').join('')+'</div></section>').join(''):'';
+  const scope=session?.contexts?.length>1?
+    '<label class="field-l"><span>Role and group</span><select data-change="native-persona-context" aria-label="Choose role and group">'+
+    session.contexts.map(c=>'<option value="'+esc(c.id)+'"'+(c.id===state.qaContext?' selected':'')+'>'+esc(c.label+' · '+c.groupLabel)+'</option>').join('')+'</select></label>':'';
+  const teamPicker=portfolio.length>1?
+    '<label class="field-l"><span>Assigned team</span><select data-change="native-persona-team" aria-label="Choose assigned team">'+
+    portfolio.map(t=>'<option value="'+esc(t.id)+'"'+(t.id===state.personaTeamId?' selected':'')+'>'+esc(t.clubName+' · '+t.name)+'</option>').join('')+'</select></label>':'';
+  const canSeed=!M.findTeam(ws,nativeTeamId(P12_SAMPLE_TEAMS[0].id))&&
+    M.teamsOf(ws).every(t=>!(t.players||[]).length&&!(t.matches||[]).length&&!(t.sessions||[]).length);
+  return '<section class="home-profile-switch" aria-label="Development profile switcher">'+
+    '<div class="home-profile-head"><p class="home-profile-identity"><strong>'+esc(selected?.label||'Owner')+'</strong><span class="muted small"> · '+esc(session?.label||'Owner')+' · Fictional test profile</span></p>'+
+    '<button id="home-profile-button" type="button" class="btn primary" data-act="desktop-profile-menu" aria-expanded="'+!!state.desktopProfileOpen+'" aria-controls="home-profile-panel">Switch profile</button></div>'+
+    (scope||teamPicker?'<div class="home-profile-context">'+scope+teamPicker+'</div>':'')+
+    (canSeed?'<button class="btn sm" type="button" data-act="native-persona-load">Load fictional sample teams</button>':'')+
+    '<div id="home-profile-panel" class="home-profile-panel" '+(state.desktopProfileOpen?'':'hidden')+'>'+groups+'</div></section>';
 }
 function renderDesktopProfileControl() {
   const host=$('#desktop-profile-control'),button=$('#desktop-profile-button');
@@ -1157,15 +1261,15 @@ function renderQaScreen() {
 function render() {
   animStop();
   if (!S.role) return renderLock();
-  if(!state.qaPersona)document.body.classList.remove('persona-mode');
+  document.body.classList.remove('persona-mode');
   // The desktop menu must stay open while the user chooses a fictional profile.
   // qaEnabled() is false before the Test Library loads; closing the menu here
   // made View as profile look inert by resetting its state on every render.
-  if (!qaEnabled()) { state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;state.desktopProfileActive=false; }
+  if (!DEV_SANDBOX && !qaEnabled()) { state.qaPersona=null;state.qaScope='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;state.desktopProfileActive=false; }
   renderDesktopProfileControl();
   renderQaSelector();
   applyLayout();
-  if (state.qaPersona) return renderQaScreen();
+  if (state.qaPersona && !DEV_SANDBOX) return renderQaScreen();
   V = curView();
   if (!VIEW_IDS.includes(state.tab) || !viewsOf(navOf(state.tab)).some(v => v[0] === state.tab)) state.tab = 'home';
   if (state.tab === 'matchday' && (!state.matchDayId || !matchById(state.matchDayId))) state.tab = 'matches';
@@ -1203,6 +1307,7 @@ function render() {
   if (state.tab === 'field' || state.tab === 'matchday') bindField();
   fitSubnav();
   foldLongPage();
+  applyNativeProfilePermissions();
   renderAsk();
 }
 const VIEWS = {
@@ -1212,7 +1317,7 @@ const VIEWS = {
   more: () => viewMore(), club: () => viewClub(), messages: () => viewMessages(), reports: () => viewReports(), teams: () => viewTeams(), comps: () => viewComps(), notices: () => viewNotices()
 };
 const navOf = tab => NAV.find(g => g.views.some(v => v[0] === tab)) || NAV[0];
-const viewsOf = g => g.views.filter(v => !v[2] || isCoach());
+const viewsOf = g => g.views.filter(v => (!v[2] || isCoach()) && nativeRoleAllows(v[0]));
 const viewLabel = tab => (navOf(tab).views.find(v => v[0] === tab) || [, 'Home'])[1];
 // The views in a section, across the top of the page (on a wide screen they're in the side bar).
 const listedViews = g => viewsOf(g).filter(v => !v[3]);
@@ -1261,8 +1366,9 @@ function goTo(tab, focus = true) {
 function renderNav() {
   const nav = $('#tabs'), cur = navOf(state.tab);
   nav.hidden = false;
-  nav.style.gridTemplateColumns = `repeat(${NAV.length},1fr)`;
-  nav.innerHTML = NAV.map(g => { const vs = listedViews(g), on = g === cur;
+  const allowedNav=NAV.filter(g=>viewsOf(g).length>0);
+  nav.style.gridTemplateColumns = `repeat(${allowedNav.length},1fr)`;
+  nav.innerHTML = allowedNav.map(g => { const vs = listedViews(g), on = g === cur;
     return `<div class="nav-group${on ? ' on' : ''}"><button class="nav-main" data-act="nav" data-g="${g.id}" ${on ? 'aria-current="page"' : ''}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${g.icon}</svg>${g.label}</button>
       ${vs.length > 1 && g.id !== 'more' ? `<div class="nav-sub">${vs.map(([id, l]) => `<button data-act="tab" data-tab="${id}" ${id === state.tab ? 'aria-current="page"' : ''}>${esc(l)}</button>`).join('')}</div>` : ''}</div>`; }).join('');
 }
@@ -1270,6 +1376,9 @@ function renderNav() {
 const online = () => navigator.onLine !== false;
 function renderStatus() {
   const el = $('#status');
+  if (DEV_SANDBOX&&state.qaPersona==='p12'){
+    el.hidden=true;return;
+  }
   if (state.qaPersona && qaEnabled()) {
     el.hidden=false;
     el.className='status info';
@@ -1531,13 +1640,25 @@ function liveCard(lc, coach) {
   </section>`;
 }
 function viewHome() {
-  if (!isCoach()) return playerHome();
-  const hv = M.homeView(ws, homePref(), new Date(), { days: homeDays() });
+  const who=nativePersona();
+  if(who&&!who.team)return renderHomeProfilePicker()+
+    '<section class="sec"><h2>No assigned team</h2><p>This fictional profile has no active team access. Switch profiles to continue testing.</p></section>';
+  if (!isCoach()) return renderHomeProfilePicker()+playerHome();
+  // Non-Owner profiles see only assigned teams in the original Home dashboard.
+  const assigned=who&&who.role!=='personal_owner'?
+    personaRoleTeams(who.profileId,who.role).map(t=>M.findTeam(ws,nativeTeamId(t.id))).filter(Boolean):null;
+  const homeWs=assigned?.length?{
+    ...ws,...data,id:data.id,team:data.team,players:data.players,sessions:data.sessions,
+    matches:data.matches,tasks:data.tasks,
+    teams:assigned.filter(t=>t.id!==data.id),
+    clubs:(ws.clubs||[]).filter(c=>assigned.some(t=>t.team?.clubId===c.id))
+  }:ws;
+  const hv = M.homeView(homeWs, homeWs===ws?homePref():{kind:'all'}, new Date(), { days: homeDays() });
   const one = hv.scope.kind === 'team' && hv.teams[0] === data;
   const live = M.liveComps(ws, hv.teams, new Date()).map(lc => liveCard(lc, true)).join('');
   const left = (one && !M.activeLens(data).players.length ? startSquad() : '') + homeSpotlight(hv) + live + homeUpcoming(hv);
   const right = homeActionList(hv) + (hv.insight ? homeInsight(hv) : '') + (one ? homeNotices(3) : '');
-  return `${renderHomeProfilePicker()}${homeSelector(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
+  return `${renderHomeProfilePicker()}${(!nativePersona()||nativePersona().role==='personal_owner'?homeSelector(hv):'')}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
 }
 // Players see their own team only: what's next, the next two weeks, notices and where help is needed.
 function playerHome() {
@@ -7223,6 +7344,12 @@ const actions = {
     state.qaContext=target.contextId;state.personaTeamId=target.id;
     state.rolePreviewSection='Home';state.personaSeason=PERSONA_CURRENT_SEASON;render();
   },
+  'native-persona-load': () => {
+    if(!DEV_SANDBOX)return;
+    if(M.teamsOf(ws).some(t=>(t.players||[]).length||(t.matches||[]).length||(t.sessions||[]).length))return;
+    if(!store.get('tm-native-sample-preseed'))store.set('tm-native-sample-preseed',JSON.stringify(ws));
+    seedNativePersonaData();syncNativePersonaTeam();render();
+  },
   'persona-fixture-save': () => {
     if(!DEV_SANDBOX||state.qaPersona!=='p12'||!qaEnabled())return;
     const current=personaSession(state.qaProfile,state.qaContext,state.personaTeamId);
@@ -7275,6 +7402,7 @@ const actions = {
     state.qaSandbox=null;
     state.qaGovernance=null;
     state.qaSafetyReplacement='';
+    if(DEV_SANDBOX)syncNativePersonaTeam();
     render();
     $(DEV_SANDBOX?'#home-profile-button':'#desktop-profile-button')?.focus();
   },
@@ -7283,7 +7411,7 @@ const actions = {
     if(DEV_SANDBOX){
       state.qaPersona='p12';state.qaProfile='qa-01';state.qaContext='';
       state.personaTeamId='';state.personaSeason=PERSONA_CURRENT_SEASON;state.rolePreviewSection='Home';
-      state.desktopProfileOpen=false;state.desktopProfileActive=true;render();return;
+      state.desktopProfileOpen=false;state.desktopProfileActive=true;syncNativePersonaTeam();render();return;
     }
     state.desktopProfileActive=false;
     state.desktopProfileOpen=false;
@@ -8500,10 +8628,25 @@ const actions = {
   })
 };
 
+document.addEventListener('submit', e => {
+  const session=nativePersona();
+  if(session&&!['personal_owner','team_coach'].includes(session.role)){
+    e.preventDefault();e.stopImmediatePropagation();
+    toast('Editing is not enabled for this test profile');
+  }
+},true);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
-  // QA screen is read-only even for forged clicks aimed at existing coach actions.
-  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','qa-role-section','persona-team','persona-action','persona-fixture-save'].includes(el.dataset.act)) { e.preventDefault();return; }
+  // The legacy QA screen remains isolated outside the public sandbox.
+  if (state.qaPersona && !DEV_SANDBOX && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','qa-role-section','persona-team','persona-action','persona-fixture-save'].includes(el.dataset.act)) { e.preventDefault();return; }
+  if(DEV_SANDBOX&&state.qaPersona==='p12'){
+    if(el.dataset.act==='tab'&&!nativeRoleAllows(el.dataset.tab)){e.preventDefault();return;}
+    if(el.dataset.act==='nav'){
+      const group=NAV.find(g=>g.id===el.dataset.g);
+      if(!group||!viewsOf(group).length){e.preventDefault();return;}
+    }
+    if(!nativePersonaAllowedAction(el.dataset.act,el)){e.preventDefault();toast('Not available to this profile');return;}
+  }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
@@ -8558,6 +8701,19 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
+  if(DEV_SANDBOX&&state.qaPersona==='p12'&&k==='native-persona-context'){
+    const session=personaSession(state.qaProfile,e.target.value);
+    if(session?.contextId===e.target.value){
+      state.qaContext=session.contextId;state.personaTeamId='';
+      syncNativePersonaTeam();render();
+    }return;
+  }
+  if(DEV_SANDBOX&&state.qaPersona==='p12'&&k==='native-persona-team'){
+    const session=nativePersona();
+    const picked=personaRoleTeams(session?.profileId,session?.role).find(t=>t.id===e.target.value);
+    if(picked){state.qaContext=picked.contextId;state.personaTeamId=picked.id;syncNativePersonaTeam();render();}
+    return;
+  }
   if (k === 'qa-persona') {
     const role=e.target.value;
     const profileId=role.startsWith('p12:')?role.slice(4):'';
@@ -8576,7 +8732,7 @@ document.addEventListener('change', e => {
     if (!$('#sheet').hidden) closeSheet();
     render();return;
   }
-  if (state.qaPersona) {
+  if (state.qaPersona && !DEV_SANDBOX) {
     if (k==='p12-safety-replacement' && state.qaPersona==='p12' && qaEnabled()) {
       const c=makeP12FixtureStaffingScenario(p12QaView(state.qaProfile,state.qaContext)?.selected?.group?.id);
       const allowed=c?.participants.some(x=>x.personId===e.target.value&&/Sports trainer \((?:blue|orange)\)/i.test(x.role));
@@ -8714,7 +8870,7 @@ document.addEventListener('change', e => {
 document.addEventListener('submit', async e => {
   const form = e.target, kind = form.dataset.form; if (!kind) return;
   e.preventDefault();
-  if (state.qaPersona) return; // synthetic preview cannot write to the coach workspace
+  if (state.qaPersona && !DEV_SANDBOX) return; // legacy QA cannot modify the coach workspace
   if (readOnlyView() && !/^(season|comp|club|settings|people-link|guardian-review|guardian-correct)/.test(kind)) { toast(pastMsg()); return; }
   const f = new FormData(form);
   const str = k => String(f.get(k) ?? '').trim();
@@ -9595,12 +9751,14 @@ function startTrial() {
     if (raw && raw.schema !== M.SCHEMA) store.set(key, JSON.stringify(ws));   // keep the upgraded copy
     S.role = 'coach'; S.trial = true; S.coachLock = null;
     if(DEV_SANDBOX){
+      if(!raw)seedNativePersonaData();
       state.desktopProfileActive=true;state.qaPersona='p12';
       state.qaProfile='qa-01';state.qaContext='';state.personaTeamId='';
       state.rolePreviewSection='Home';state.personaSeason=PERSONA_CURRENT_SEASON;
       state.personaRecords=upgradePersonaRecords(readJson('tm-persona-actions-v2')||readJson('tm-persona-actions-v1')||{});
       // Never delete the PR144 v1 record. Its content remains readable if needed.
     }
+    if(DEV_SANDBOX)syncNativePersonaTeam();
     render();
   });
 }

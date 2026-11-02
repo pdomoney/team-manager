@@ -1,66 +1,63 @@
-# Public development experience: no login, Home profile selector, isolated test records.
+# Public development must use the ORIGINAL app shell with a compact profile switcher.
 import sys
 from harness import *
 from playwright.sync_api import sync_playwright
-
-build()
-srv,url=serve()
-c=Check();errors=[]
+build();srv,url=serve();c=Check();errors=[]
 with sync_playwright() as p:
     browser=p.chromium.launch()
     for width in (390,1280):
         ctx,pg,_=page(browser,url+'?sandbox=1#home',width=width,height=844,errors=errors)
         pg.wait_for_selector('#home-profile-button')
         c.ok(pg.locator('#view input[type=password]').count()==0,
-             f'[{width}] development landing page has no password form')
-        c.ok(pg.locator('#desktop-profile-control').is_hidden(),
-             f'[{width}] profile selection is on Home, not the header')
-        c.ok(pg.locator('#home-profile-button').is_visible(),
-             f'[{width}] Home displays Switch profile')
+             f'[{width}] sandbox uses no passwords')
+        c.ok(pg.locator('#tabs .nav-group').count()==5 and
+             not pg.evaluate("document.body.classList.contains('persona-mode')"),
+             f'[{width}] restores original five-section Team Manager navigation')
+        c.ok(pg.locator('#view .home-cols').count()==1 and
+             pg.locator('#view [data-role-workspace]').count()==0,
+             f'[{width}] native Home, not detached fictional persona app')
+        c.ok(pg.evaluate('window.__team.M.teamsOf(window.__team.ws).length')==18,
+             f'[{width}] fictional 18-team dataset appears in native workspace')
         pg.evaluate("""() => {
-          localStorage.setItem('tm-auth',JSON.stringify({role:'coach',key:'not-a-real-key'}));
-          localStorage.setItem('tm-test-data','DO_NOT_OVERWRITE_OLD_TEST_DATA');
+          localStorage.setItem('tm-auth',JSON.stringify({role:'coach',key:'old-secret'}));
+          localStorage.setItem('tm-test-data','DO_NOT_CHANGE');
         }""")
-        pg.reload()
-        pg.wait_for_selector('#home-profile-button')
         original=pg.evaluate('JSON.stringify(window.__team.ws)')
-        c.ok(pg.locator('input[type=password]').count()==0,
-             f'[{width}] old saved credentials do not trigger password sign-in')
-        c.ok(pg.evaluate("localStorage.getItem('tm-test-data')")=='DO_NOT_OVERWRITE_OLD_TEST_DATA',
-             f'[{width}] legacy test records are not replaced')
         pg.click('#home-profile-button')
-        panel=pg.locator('#home-profile-panel')
-        c.ok(panel.is_visible() and panel.locator('[data-act=desktop-profile-pick]').count()==20,
-             f'[{width}] Home button offers all 20 fictional people')
-        pg.keyboard.press('Escape')
-        c.ok(panel.is_hidden(),f'[{width}] Escape closes Home selector')
-        pg.click('#home-profile-button')
+        c.ok(pg.locator('#home-profile-panel [data-profile]').count()==20,
+             f'[{width}] compact Home profile picker has 20 people')
         pg.click('#home-profile-panel [data-profile=qa-15]')
-        pg.wait_for_selector('#view [data-role-workspace=player]')
-        c.ok(pg.locator('#home-profile-button').is_visible() and
-             pg.locator('#view input[type=password]').count()==0,
-             f'[{width}] Player opens personal Home with Switch profile, no password')
-        c.ok('Example Comets U14' in pg.locator('#view').inner_text() and
-             pg.locator('#tabs [data-section="Match staff"]').count()==0,
-             f'[{width}] Junior Player sees assigned team, not Manager controls')
+        pg.wait_for_selector('#home-profile-button')
+        c.ok(pg.evaluate("window.__team.state.preview") and
+             pg.evaluate("window.__team.data.id")=='qacometsjuniors' and
+             pg.locator('#view [data-role-workspace]').count()==0,
+             f'[{width}] Player uses original Player screen for exact team')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
-        pg.wait_for_selector('#view [data-role-workspace=team_manager]')
-        c.ok(pg.locator('#tabs [data-section="Match staff"]').count()==1,
-             f'[{width}] Manager changes navigation and team role')
+        c.ok(not pg.evaluate("window.__team.state.preview") and
+             pg.locator('#tabs [data-g=tactics]').count()==0 and
+             pg.evaluate("window.__team.data.id")=='qacometsmixed',
+             f'[{width}] Manager uses native shell with restricted navigation')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
-        pg.wait_for_selector('#view [data-role-workspace=team_coach]')
-        c.ok(pg.locator('#tabs [data-section=Training]').count()==1 and
-             pg.locator('#tabs [data-section="Match staff"]').count()==0,
-             f'[{width}] Coach changes to own training navigation')
-        pg.click('#view [data-act=desktop-profile-exit]')
-        c.ok(pg.locator('#home-profile-button').is_visible() and
-             pg.locator('#view [data-qa-profile=qa-01]').count()==1 and
+        c.ok(pg.locator('#tabs [data-g=tactics]').count()==1 and
+             pg.locator('#view select[data-change=native-persona-team]').count()==1,
+             f'[{width}] Coach has native Tactics and assigned-team selection')
+        pg.locator('#view select[data-change=native-persona-team]').select_option('qa-stars-open')
+        c.ok(pg.evaluate("window.__team.data.id")=='qastarsopen',
+             f'[{width}] cross-club Coach team selection changes native team data')
+        pg.click('#home-profile-button')
+        pg.click('#home-profile-panel [data-profile=qa-01]')
+        c.ok(pg.locator('#tabs .nav-group').count()==5 and
+             pg.locator('#view .home-cols').count()==1 and
              pg.evaluate('JSON.stringify(window.__team.ws)')==original,
-             f'[{width}] Back to Owner Home restores unchanged sandbox workspace')
-        c.ok(pg.evaluate("localStorage.getItem('tm-auth')") is not None,
-             f'[{width}] legacy encrypted authentication record is untouched')
+             f'[{width}] Owner returns to original app without altering saved records')
+        c.ok(pg.evaluate("localStorage.getItem('tm-test-data')")=='DO_NOT_CHANGE',
+             f'[{width}] existing local user data remains untouched')
+        pg.reload();pg.wait_for_selector('#home-profile-button')
+        c.ok(pg.locator('input[type=password]').count()==0 and
+             pg.locator('#tabs .nav-group').count()==5,
+             f'[{width}] refresh retains original password-free UX')
         ctx.close()
     result=c.done(errors);browser.close()
 srv.shutdown();sys.exit(0 if result else 1)

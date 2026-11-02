@@ -1975,3 +1975,22 @@ body.persona-mode .top{background:var(--turf)}
 .persona-fixture-fields input{width:100%;min-height:44px}
 .persona-fixture-editor .btn{min-height:44px}
 @media(max-width:650px){.persona-fixture-fields{grid-template-columns:1fr}}
+
+/* Recover original Home and normal five-section app shell. The profile picker
+   is a small context control, never a new application layout. */
+.home-profile-switch{padding:10px 12px;margin:0 0 12px;border-radius:9px}
+.home-profile-head{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.home-profile-identity{margin:0;min-width:0;font-size:14px}
+.home-profile-identity strong{font-weight:600}
+.home-profile-head #home-profile-button{flex:none;min-height:38px;padding:8px 12px}
+.home-profile-context{display:flex;gap:10px;flex-wrap:wrap;margin-top:9px}
+.home-profile-context .field-l{flex:1 1 220px;min-width:0;margin:0}
+.home-profile-context select{min-height:42px;width:100%}
+.home-profile-panel{max-height:55dvh;padding:10px;position:relative}
+@media(max-width:599px){
+ .home-profile-switch{padding:9px 10px}
+ .home-profile-head{display:flex;flex-direction:row;align-items:center}
+ .home-profile-head #home-profile-button{flex:0 0 auto}
+ .home-profile-identity{flex:1 1 130px}
+ .home-profile-panel .desktop-profile-options{grid-template-columns:1fr}
+}
