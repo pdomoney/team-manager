@@ -15,7 +15,7 @@ with sync_playwright() as p:
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
         manager=pg.evaluate("({team:window.__team.data.id,ids:window.__team.data.players.map(p=>p.id)})")
-        c.ok(manager['team']=='qa-comets-mixed' and len(manager['ids'])>=15,
+        c.ok(manager['team']=='qacometsmixed' and len(manager['ids'])>=15,
              f'[{width}] Manager views native Comets team players')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-05]')
