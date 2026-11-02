@@ -764,6 +764,7 @@ function renderDesktopProfileControl() {
 }
 function renderQaSelector() {
   const host = $('#qa-persona-control'); if (!host) return;
+  if(DEV_SANDBOX){host.hidden=true;host.innerHTML='';return;}
   host.hidden = !qaEnabled();
   if (host.hidden) { host.innerHTML = ''; return; }
   const p12=state.qaPersona==='p12' ? p12QaView(state.qaProfile,state.qaContext) : null;
@@ -8470,7 +8471,7 @@ const actions = {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   // QA screen is read-only even for forged clicks aimed at existing coach actions.
-  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','qa-role-section'].includes(el.dataset.act)) { e.preventDefault();return; }
+  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','qa-role-section','persona-team','persona-action'].includes(el.dataset.act)) { e.preventDefault();return; }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
