@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {personaSession,personaRoster,personaFixtures,personaSeasons,personaAction,personaCurrentState} from '../site/persona-runtime.js';
+import {personaSession,personaRoster,personaFixtures,personaSeasons,personaAction,personaCurrentState,upgradePersonaRecords} from '../site/persona-runtime.js';
 test('club administrator is scoped to selected club and can switch team within club',()=>{
  const a=personaSession('qa-05','grant:club_admin:club:qa-comets');
  assert.equal(a.allowedTeams.length,6);
@@ -78,4 +78,50 @@ test('guardian sees only linked fictional children teams, not every club roster'
  const helper=personaSession('qa-17');
  assert.deepEqual(helper.allowedTeams.map(t=>t.id),['qa-comets-mixed']);
  assert.equal(helper.capabilities.length,0);
+});
+
+test('manager and club admin see the same team roster and staffing records',()=>{
+  const manager=personaSession('qa-09','grant:team_manager:team:qa-comets-mixed');
+  const admin=personaSession('qa-05','grant:club_admin:club:qa-comets','qa-comets-mixed');
+  const player=personaRoster(manager).players[0];
+  const volunteer=personaRoster(manager).volunteers[0];
+  const one=personaAction(manager,{}, {capability:'attendance',teamId:manager.team.id,
+    personId:player.id,value:'yes'});
+  const two=personaAction(manager,one.records,{capability:'staff',teamId:manager.team.id,
+    personId:volunteer.id,value:'trainer'});
+  assert.equal(personaCurrentState(admin,two.records).attendance[player.id],'yes');
+  assert.equal(personaCurrentState(admin,two.records).staff[volunteer.id],'trainer');
+  assert.ok(Object.hasOwn(two.records,'team:qa-comets-mixed'));
+  assert.equal(personaAction(admin,two.records,{capability:'staff',teamId:admin.team.id,
+    personId:volunteer.id,value:'helper'}).error,'This role cannot perform that action');
+});
+
+test('player availability is per person while team records are shared',()=>{
+ const a=personaSession('qa-14','membership:player:team:qa-comets-mixed');
+ const b=personaSession('qa-18','membership:player:team:qa-comets-mixed');
+ const changed=personaAction(a,{}, {capability:'own-availability',teamId:a.team.id,value:'yes'});
+ assert.equal(personaCurrentState(a,changed.records).availability,'yes');
+ assert.equal(personaCurrentState(b,changed.records).availability,'pending');
+ const changedAgain=personaAction(b,changed.records,{capability:'own-availability',teamId:b.team.id,value:'no'});
+ assert.equal(personaCurrentState(a,changedAgain.records).availability,'yes');
+ assert.equal(personaCurrentState(b,changedAgain.records).availability,'no');
+ assert.equal(Object.keys(changedAgain.records).filter(k=>k.startsWith('team:')).length,1);
+});
+
+test('PR144 role-scoped data upgrades reversibly into shared team records',()=>{
+ const oldKey='qa-09|grant:team_manager:team:qa-comets-mixed|qa-comets-mixed';
+ const old={'selected':{'qa-comets-mixed-player-1':true},staff:{},attendance:{},training:[],
+   availability:'pending'};
+ const source={[oldKey]:old};
+ const updated=upgradePersonaRecords(source);
+ assert.deepEqual(updated[oldKey],old,'do not remove old raw state');
+ assert.equal(updated['team:qa-comets-mixed'].selected['qa-comets-mixed-player-1'],true);
+ assert.deepEqual(upgradePersonaRecords(updated),updated,'idempotent migration');
+ assert.deepEqual(source,{[oldKey]:old},'migration must not mutate source');
+ const malicious=upgradePersonaRecords({
+  'qa-19|inactive:team_coach:team:qa-rangers-16|qa-rangers-16':old,
+  'qa-09|grant:team_manager:team:qa-rangers-16|qa-stars-women':old
+ });
+ assert.equal(Object.keys(malicious).filter(k=>k.startsWith('team:')).length,0,
+   'inactive or wrong-team contexts cannot be imported into shared records');
 });
