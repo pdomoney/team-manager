@@ -43,6 +43,7 @@ import {desktopProfileAvailable,desktopProfileChoices,resolveDesktopProfile} fro
 import {developmentSandbox} from './development-sandbox.js';
 import {personWorkspace} from './person-role-workspace.js';
 import {personaSession,personaRoleTeams,personaRoster,personaFixtures,personaSeasons,personaAction,personaCurrentState,upgradePersonaRecords} from './persona-runtime.js';
+import {PERSONA_SEASONS,PERSONA_CURRENT_SEASON} from './persona-fixtures.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
 import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
 import {p12SampleTeamSummary,makeP12SampleRoster} from './p12-qa-club-teams.js';
@@ -343,7 +344,7 @@ const state = {
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
   qaPersona: null, qaScope: '', qaJourney: '', qaProfile: '', qaContext: '', qaSandbox: null, qaGovernance: null, qaSafetyReplacement: '', // Ephemeral QA-only fictional layout and guided tests, never saved
-  personaTeamId: '', personaRecords: {},
+  personaTeamId: '', personaSeason: PERSONA_CURRENT_SEASON, personaRecords: {},
   desktopProfileActive: false, desktopProfileOpen: false, // Session-only QA; never saved or published
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
@@ -789,7 +790,8 @@ function renderPersonaExperience(p) {
   state.rolePreviewSection=section;
   const portfolio=personaRoleTeams(session.profileId,session.role);
   const roster=personaRoster(session);
-  const fixtures=personaFixtures(session);
+  const season=PERSONA_SEASONS.includes(state.personaSeason)?state.personaSeason:PERSONA_CURRENT_SEASON;
+  const fixtures=personaFixtures(session,state.personaRecords,season);
   const seasons=personaSeasons(session);
   const record=personaCurrentState(session,state.personaRecords);
   const count=roster?.players.length||0;
@@ -811,8 +813,18 @@ function renderPersonaExperience(p) {
     (can('attendance')?action('attendance',x.id,'yes')+'Available</button>'+action('attendance',x.id,'no')+'Unavailable</button>':'')+
     '</div></li>';
   }).join('')||'';
-  const fixtureRows=fixtures.map(x=>'<li class="persona-list-row"><div><strong>'+esc(x.team)+'</strong><span class="muted small">'+esc(x.title)+' · '+esc(x.date)+' · '+esc(x.sport)+'</span></div>'+
+  const fixtureRows=fixtures.map(x=>'<li class="persona-list-row" data-fixture-team="'+esc(x.teamId)+'"><div><strong>'+esc(x.team)+' · '+esc(x.opponent)+'</strong><span class="muted small">'+esc(x.date)+' · '+esc(x.venue)+' · '+esc(x.sport)+' · '+esc(x.status)+'</span></div>'+
     '<button type="button" class="btn sm" data-act="persona-team" data-team="'+esc(x.teamId)+'">Open team</button></li>').join('');
+  const selectedFixture=fixtures.find(x=>x.teamId===session.team?.id);
+  const editableFixture=can('fixture-manage')&&season===PERSONA_CURRENT_SEASON&&selectedFixture;
+  const fixtureEditor=editableFixture?
+    '<section class="persona-fixture-editor" data-team="'+esc(selectedFixture.teamId)+'" aria-label="Edit selected team fixture">'+
+    '<h3>Edit '+esc(selectedFixture.team)+' fixture</h3><p class="muted small">Changes are shared with other fictional profiles assigned to this team.</p>'+
+    '<div class="persona-fixture-fields">'+
+    '<label class="field-l"><span>Date</span><input type="date" data-fixture-field="date" value="'+esc(selectedFixture.date)+'" min="2026-01-01" max="2026-12-31"></label>'+
+    '<label class="field-l"><span>Opponent</span><input type="text" data-fixture-field="opponent" maxlength="80" value="'+esc(selectedFixture.opponent)+'"></label>'+
+    '<label class="field-l"><span>Venue</span><input type="text" data-fixture-field="venue" maxlength="120" value="'+esc(selectedFixture.venue)+'"></label>'+
+    '</div><button type="button" class="btn primary" data-act="persona-fixture-save">Save fictional fixture</button></section>':'';
   const avail=can('own-availability')?
     '<div class="persona-availability"><h3>My match availability</h3><p>Response: <strong>'+esc(record.availability)+'</strong></p>'+
     '<div class="btn-row">'+['yes','maybe','no'].map(v=>action('own-availability','',v)+(v==='yes'?'Available':v==='no'?'Unavailable':'Maybe')+'</button>').join('')+'</div></div>':'';
@@ -832,7 +844,8 @@ function renderPersonaExperience(p) {
     body='<h2>'+esc(session.team?.name||'My team')+' squad</h2><p class="muted small">'+count+' fictional players · selection and availability are scoped to this team.</p>'+
       (roster?'<ul class="persona-list">'+personRows+'</ul>':'<p>No team is assigned to this role.</p>');
   }else if(['Fixtures','Matches','Match centre'].includes(section)){
-    body='<h2>Fixtures and matches</h2>'+(fixtures.length?'<ul class="persona-list">'+fixtureRows+'</ul>':'<p>No assigned fixtures.</p>')+avail;
+    body='<h2>Fixtures and matches · '+season+'</h2>'+(fixtures.length?'<ul class="persona-list">'+fixtureRows+'</ul>':'<p>No assigned fixtures.</p>')+
+      (season===PERSONA_CURRENT_SEASON?avail:'<p class="muted small">Historical fixtures are read-only.</p>')+fixtureEditor;
   }else if(section==='Availability'){
     body='<h2>Availability</h2>'+avail+
       (can('attendance')?'<h3>Team responses</h3><ul class="persona-list">'+personRows+'</ul>':'');
@@ -855,6 +868,9 @@ function renderPersonaExperience(p) {
   }
   const contextOptions=session.contexts.map(c=>
     '<option value="'+esc(c.id)+'"'+(c.id===session.contextId?' selected':'')+'>'+esc(c.label)+' · '+esc(c.groupLabel)+' ('+esc(c.status)+')</option>').join('');
+  const seasonPicker=['Fixtures','Matches','Match centre','Seasons'].includes(section)?
+    '<label class="field-l persona-season-select"><span>Season</span><select data-change="persona-season" aria-label="Select season">'+
+    PERSONA_SEASONS.map(y=>'<option value="'+y+'"'+(y===season?' selected':'')+'>'+y+(y===PERSONA_CURRENT_SEASON?' · current':' · historical')+'</option>').join('')+'</select></label>':'';
   const teamOptions=portfolio.length>1?
     '<label class="field-l persona-team-select"><span>Team in this role</span><select data-change="persona-team" aria-label="Choose assigned team">'+
       portfolio.map(t=>'<option value="'+esc(t.id)+'"'+(t.id===selectedTeam?' selected':'')+'>'+esc(t.clubName+' · '+t.name+' · '+t.sport)+'</option>').join('')+'</select></label>':'';
@@ -869,7 +885,7 @@ function renderPersonaExperience(p) {
   nav.innerHTML=session.sections.map(x=>'<div class="nav-group'+(x===section?' on':'')+'"><button class="nav-main" data-act="qa-role-section" data-section="'+esc(x)+'" '+(x===section?'aria-current="page"':'')+'>'+esc(x)+'</button></div>').join('');
   $('#view').innerHTML='<main class="persona-app" data-qa-profile="'+esc(session.profileId)+'" data-role-workspace="'+esc(session.role)+'" data-persona-screen="'+esc(section)+'">'+
     (section==='Home'?renderHomeProfilePicker():'')+
-    '<div class="persona-context"><label class="field-l"><span>Acting role and group</span><select data-change="p12-context" aria-label="Choose assigned role and organisation">'+contextOptions+'</select></label>'+teamOptions+'</div>'+
+    '<div class="persona-context"><label class="field-l"><span>Acting role and group</span><select data-change="p12-context" aria-label="Choose assigned role and organisation">'+contextOptions+'</select></label>'+teamOptions+seasonPicker+'</div>'+
     '<section class="persona-content">'+body+'</section></main>';
   document.title=session.label+' · '+session.profileLabel+' · Team Manager';
 }
@@ -7205,7 +7221,23 @@ const actions = {
     const target=personaRoleTeams(state.qaProfile,current.role).find(t=>t.id===el.dataset.team);
     if(!target)return;
     state.qaContext=target.contextId;state.personaTeamId=target.id;
-    state.rolePreviewSection='Home';render();
+    state.rolePreviewSection='Home';state.personaSeason=PERSONA_CURRENT_SEASON;render();
+  },
+  'persona-fixture-save': () => {
+    if(!DEV_SANDBOX||state.qaPersona!=='p12'||!qaEnabled())return;
+    const current=personaSession(state.qaProfile,state.qaContext,state.personaTeamId);
+    const editor=$('#view .persona-fixture-editor');
+    if(!editor||editor.dataset.team!==current.team?.id||state.personaSeason!==PERSONA_CURRENT_SEASON)return;
+    const field=name=>editor.querySelector('[data-fixture-field="'+name+'"]')?.value||'';
+    const result=personaAction(current,state.personaRecords,{
+      capability:'fixture-manage',teamId:current.team.id,season:state.personaSeason,
+      fixture:{date:field('date'),opponent:field('opponent'),venue:field('venue')}
+    });
+    if(result.error){toast(result.error);return;}
+    state.personaRecords=result.records;
+    store.set('tm-persona-actions-v2',JSON.stringify(result.records));
+    render();
+    toast('Fictional fixture saved');
   },
   'persona-action': el => {
     if(!DEV_SANDBOX||state.qaPersona!=='p12'||!qaEnabled())return;
@@ -7235,7 +7267,7 @@ const actions = {
     state.desktopProfileOpen=false;
     state.qaPersona='p12';
     state.qaProfile=choice.profileId;
-    state.rolePreviewSection='Home';
+    state.rolePreviewSection='Home';state.personaSeason=PERSONA_CURRENT_SEASON;
     state.personaTeamId='';
     state.qaContext='';
     state.qaScope='';
@@ -7250,7 +7282,7 @@ const actions = {
     if(!state.desktopProfileActive)return;
     if(DEV_SANDBOX){
       state.qaPersona='p12';state.qaProfile='qa-01';state.qaContext='';
-      state.personaTeamId='';state.rolePreviewSection='Home';
+      state.personaTeamId='';state.personaSeason=PERSONA_CURRENT_SEASON;state.rolePreviewSection='Home';
       state.desktopProfileOpen=false;state.desktopProfileActive=true;render();return;
     }
     state.desktopProfileActive=false;
@@ -8471,7 +8503,7 @@ const actions = {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   // QA screen is read-only even for forged clicks aimed at existing coach actions.
-  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','qa-role-section','persona-team','persona-action'].includes(el.dataset.act)) { e.preventDefault();return; }
+  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','qa-role-section','persona-team','persona-action','persona-fixture-save'].includes(el.dataset.act)) { e.preventDefault();return; }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
@@ -8552,6 +8584,8 @@ document.addEventListener('change', e => {
     } else if (k === 'p12-context' && state.qaPersona==='p12' && qaEnabled()) {
       const next=p12QaView(state.qaProfile,e.target.value);
       if (next?.selected?.id===e.target.value) {state.rolePreviewSection=DEV_SANDBOX?'Home':'';state.personaTeamId='';state.qaContext=e.target.value;state.qaSandbox=null;state.qaSafetyReplacement='';render();}
+    } else if (k === 'persona-season' && DEV_SANDBOX && state.qaPersona==='p12'){
+      const y=Number(e.target.value);if(PERSONA_SEASONS.includes(y)){state.personaSeason=y;render();}
     } else if (k === 'persona-team' && DEV_SANDBOX && state.qaPersona==='p12'){
       actions['persona-team']({dataset:{team:e.target.value}});
     } else if (k === 'qa-scope' && state.qaPersona!=='p12' && qaEnabled()) {
@@ -9563,7 +9597,7 @@ function startTrial() {
     if(DEV_SANDBOX){
       state.desktopProfileActive=true;state.qaPersona='p12';
       state.qaProfile='qa-01';state.qaContext='';state.personaTeamId='';
-      state.rolePreviewSection='Home';
+      state.rolePreviewSection='Home';state.personaSeason=PERSONA_CURRENT_SEASON;
       state.personaRecords=upgradePersonaRecords(readJson('tm-persona-actions-v2')||readJson('tm-persona-actions-v1')||{});
       // Never delete the PR144 v1 record. Its content remains readable if needed.
     }
