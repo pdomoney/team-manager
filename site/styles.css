@@ -1967,3 +1967,11 @@ body.persona-mode .top{background:var(--turf)}
   .persona-row-actions{width:100%}
   .persona-row-actions .btn{flex:1}
 }
+
+/* Role-scoped fictional fixture editing and historical season review. */
+.persona-fixture-editor{margin-top:18px;border:1px solid var(--line);background:var(--chalk);border-radius:12px;padding:15px}
+.persona-fixture-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:13px}
+.persona-fixture-fields .field-l{min-width:0}
+.persona-fixture-fields input{width:100%;min-height:44px}
+.persona-fixture-editor .btn{min-height:44px}
+@media(max-width:650px){.persona-fixture-fields{grid-template-columns:1fr}}
