@@ -19,13 +19,13 @@ with sync_playwright() as p:
         pg.locator('#view select[data-change=native-persona-team]').select_option('qa-rangers-16')
         match=pg.evaluate("window.__team.data.matches[0].id")
         pg.evaluate(act,['tab',{'tab':'matches'}])
-        c.ok(pg.evaluate('window.__team.data.id')=='qa-rangers-16' and
+        c.ok(pg.evaluate('window.__team.data.id')=='qarangers16' and
              'Example Opposition' in pg.locator('#view').inner_text(),
              f'[{width}] Manager uses original fixtures for assigned Rangers team')
         pg.evaluate(act,['tab',{'tab':'home'}])
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
-        c.ok(pg.evaluate('window.__team.data.id')=='qa-rangers-16' and
+        c.ok(pg.evaluate('window.__team.data.id')=='qarangers16' and
              pg.evaluate('window.__team.data.matches[0].id')==match,
              f'[{width}] Coach sees same underlying team fixture record')
         pg.evaluate(act,['tab',{'tab':'matches'}])
@@ -35,7 +35,7 @@ with sync_playwright() as p:
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-14]')
         pg.evaluate(act,['tab',{'tab':'matches'}])
-        c.ok(pg.evaluate('window.__team.data.id')=='qa-comets-mixed' and
+        c.ok(pg.evaluate('window.__team.data.id')=='qacometsmixed' and
              pg.locator('#view .persona-fixture-editor').count()==0,
              f'[{width}] Player sees normal team fixture view without Manager edit')
         c.ok(not pg.evaluate("document.body.classList.contains('persona-mode')"),
