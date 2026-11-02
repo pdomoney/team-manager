@@ -1,0 +1,57 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {personaSession,personaRoster,personaFixtures,personaSeasons,personaAction,personaCurrentState} from '../site/persona-runtime.js';
+test('club administrator is scoped to selected club and can switch team within club',()=>{
+ const a=personaSession('qa-05','grant:club_admin:club:qa-comets');
+ assert.equal(a.allowedTeams.length,6);
+ assert.equal(a.team.clubId,'qa-comets');
+ const b=personaSession('qa-05','grant:club_admin:club:qa-rangers');
+ assert.equal(b.allowedTeams.length,6);
+ assert.ok(b.allowedTeams.every(t=>t.clubId==='qa-rangers'));
+ assert.equal(b.capabilities.length,0);
+});
+test('coach has own training and roster but no Manager volunteer assignment',()=>{
+ const p=personaSession('qa-07','grant:team_coach:team:qa-rangers-16');
+ assert.deepEqual(p.sections,['Home','Squad','Training','Matches','Plays','Seasons']);
+ assert.equal(p.allowedTeams.length,1);
+ let q=personaAction(p,{}, {capability:'roster',teamId:p.team.id,personId:personaRoster(p).players[0].id});
+ assert.equal(q.error,undefined);
+ assert.equal(personaAction(p,q.records,{capability:'staff',teamId:p.team.id,personId:'x',value:'trainer'}).error,'This role cannot perform that action');
+ assert.equal(personaAction(p,q.records,{capability:'roster',teamId:'qa-stars-women',personId:personaRoster(p).players[0].id}).error,'Action is outside the selected person and team scope');
+});
+test('manager operates different clubs only within assigned exact context',()=>{
+ const a=personaSession('qa-18','grant:team_manager:team:qa-stars-women');
+ assert.equal(a.role,'team_manager');assert.equal(a.team.id,'qa-stars-women');
+ const b=personaSession('qa-18','grant:team_manager:team:qa-comets-u16');
+ assert.equal(b.team.id,'qa-comets-u16');
+ const volunteer=personaRoster(b).volunteers[0];
+ const result=personaAction(b,{}, {capability:'staff',teamId:b.team.id,personId:volunteer.id,value:'trainer'});
+ assert.equal(result.state.staff[volunteer.id],'trainer');
+ assert.equal(personaCurrentState(a,result.records).staff[volunteer.id],undefined);
+ assert.ok(!b.sections.includes('Plays'));
+});
+test('player can respond for own team, never edit another team or its roster',()=>{
+ const p=personaSession('qa-14','membership:player:team:qa-comets-mixed');
+ assert.equal(p.memberships.length,2);assert.deepEqual(new Set(p.memberships.map(t=>t.sport)),new Set(['Oztag','Touch']));
+ assert.equal(personaRoster(p).players[0].name,'Senior Multi-sport Player');
+ const a=personaAction(p,{}, {capability:'own-availability',teamId:p.team.id,value:'yes'});
+ assert.equal(a.state.availability,'yes');
+ const other=personaSession('qa-14','membership:player:team:qa-stars-women');
+ assert.equal(personaCurrentState(other,a.records).availability,'pending');
+ assert.equal(personaAction(p,a.records,{capability:'roster',teamId:p.team.id,personId:personaRoster(p).players[0].id}).error,'This role cannot perform that action');
+ assert.equal(personaSeasons(p).length,6);
+});
+test('inactive grants cannot expose teams or actions',()=>{
+ for(const id of ['qa-19','qa-20']){
+  const p=personaSession(id);assert.equal(p.role,'none');assert.equal(p.allowedTeams.length,0);
+  assert.equal(personaFixtures(p).length,0);
+  assert.match(personaAction(p,{}, {capability:'roster',teamId:'qa-rangers-16'}).error,/No assigned team/);
+ }
+});
+test('owner sees 18 fictional teams and scoped roster data',()=>{
+ const p=personaSession('qa-01');
+ assert.equal(p.allowedTeams.length,18);
+ assert.equal(p.clubs.length,3);
+ assert.equal(personaFixtures(p).length,18);
+ assert.equal(personaRoster(p).players.length,p.team.playerCount);
+});
