@@ -749,21 +749,37 @@ const nativePersona=()=>DEV_SANDBOX&&state.qaPersona==='p12'?
   personaSession(state.qaProfile,state.qaContext,state.personaTeamId):null;
 function nativeRoleAllows(tab){
  const session=nativePersona();if(!session)return true;
+ // Keep the existing More hub in every active native experience, rather than
+ // making its main navigation button land directly on an unrelated sub-page.
+ if(tab==='more')return session.role!=='none';
  const allowed=NATIVE_ROLE_TABS[session.role];
  return allowed===null||!!allowed?.includes(tab);
 }
 function syncNativePersonaTeam(){
  if(!DEV_SANDBOX)return;
  const session=nativePersona();if(!session)return;
- const choices=personaRoleTeams(session.profileId,session.role);
+ // The selected group is authoritative. An individual can have multiple
+ // grants with the same role; don't snap a newly selected context back to the
+ // first team found anywhere in that role's portfolio.
+ const choices=session.allowedTeams;
  const current=choices.find(t=>t.id===state.personaTeamId)||
    choices.find(t=>t.id===session.team?.id)||choices[0];
- if(current){
-   state.qaContext=current.contextId;state.personaTeamId=current.id;
-   if(M.findTeam(ws,nativeTeamId(current.id)))pickTeam(nativeTeamId(current.id));
- }
+ state.qaContext=session.contextId;
+ state.personaTeamId=current?.id||'';
+ if(current&&M.findTeam(ws,nativeTeamId(current.id)))
+   pickTeam(nativeTeamId(current.id));
  state.preview=['player','guardian','helper','staff','none'].includes(session.role);
  state.tab='home';
+}
+// Read-only Home links open a native section. They never dispatch the underlying
+// edit-sheet actions, even when a home card points to one of those actions.
+function nativeReadOnlyHomeTab(d){
+ const target=d.go==='tab'?d.tab:{
+   'match-open':'matches','matchday-open':'matches',
+   'edit-session':'agenda','task-open':'tasks','rsvp-open':'agenda',
+   'comp-open':'comps','rules-review':'rules'
+ }[d.go];
+ return target&&nativeRoleAllows(target)?target:'';
 }
 function nativePersonaAllowedAction(name,el){
  const session=nativePersona();if(!session)return true;
@@ -772,7 +788,14 @@ function nativePersonaAllowedAction(name,el){
    const t=el?.dataset?.team||el?.dataset?.id||'';
    return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>nativeTeamId(x.id)===t);
  }
- // Non-Owner, non-Coach roles are read-only in this restoration slice.
+ if(name==='home-go'&&session.role!=='personal_owner'){
+   const d=el?.dataset||{},teamId=d.team||'';
+   if(!teamId||!personaRoleTeams(session.profileId,session.role).some(t=>nativeTeamId(t.id)===teamId))
+     return false;
+   return session.role==='team_coach'||!!nativeReadOnlyHomeTab(d);
+ }
+ if(['home-days','home-more'].includes(name))return true;
+ // Non-Owner, non-Coach roles remain read-only until a scoped workflow PR.
  if(session.role==='personal_owner'||session.role==='team_coach')return true;
  return false;
 }
@@ -8436,6 +8459,13 @@ const actions = {
   // Open a record from Home: switch to the team it belongs to first, then use the usual action.
   'home-go': coachOnly(el => {
     const d = el.dataset;
+    const session=nativePersona();
+    if(session&&!['personal_owner','team_coach'].includes(session.role)){
+      const target=nativeReadOnlyHomeTab(d);
+      if(!target||!nativePersonaAllowedAction('home-go',el))return;
+      if(d.team!==data.id)switchTeam(d.team);
+      goTo(target);return;
+    }
     if (d.team && d.team !== data.id) {
       if (!M.findTeam(ws, d.team) || M.findTeam(ws, d.team).archived) { toast('That team is no longer active'); render(); return; }
       switchTeam(d.team);

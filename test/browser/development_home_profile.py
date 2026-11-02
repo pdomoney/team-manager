@@ -38,6 +38,20 @@ with sync_playwright() as p:
              pg.locator('#tabs [data-g=tactics]').count()==0 and
              pg.evaluate("window.__team.data.id")=='qacometsmixed',
              f'[{width}] Manager uses native shell with restricted navigation')
+        # Native Home links remain usable as read-only navigation for a Manager.
+        pg.locator('#view [data-act=home-days][data-v="30"]').click()
+        c.ok(pg.locator('#view [data-act=home-days][data-v="30"]').get_attribute('aria-pressed')=='true',
+             f'[{width}] Manager can change Home day range without editing records')
+        manager_record=pg.locator('#view [data-act=home-go][data-go=match-open]').first
+        c.ok(manager_record.count()==1 and manager_record.is_enabled(),
+             f'[{width}] Manager native Home match navigation stays available')
+        manager_record.click()
+        c.ok(pg.evaluate('window.__team.state.tab')=='matches' and pg.locator('#sheet:not([hidden])').count()==0,
+             f'[{width}] Manager Home match opens native Matches, not the edit sheet')
+        pg.locator('#tabs [data-g=more]').click()
+        c.ok(pg.evaluate('window.__team.state.tab')=='more',
+             f'[{width}] Manager More hub remains the original More screen')
+        pg.locator('#tabs [data-g=home]').click()
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
         c.ok(pg.locator('#tabs [data-g=tactics]').count()==1 and
@@ -46,6 +60,18 @@ with sync_playwright() as p:
         pg.locator('#view select[data-change=native-persona-team]').select_option('qa-stars-open')
         c.ok(pg.evaluate("window.__team.data.id")=='qastarsopen',
              f'[{width}] cross-club Coach team selection changes native team data')
+        pg.click('#home-profile-button')
+        pg.click('#home-profile-panel [data-profile=qa-18]')
+        pg.locator('#view select[data-change=native-persona-context]').select_option(
+            'grant:team_coach:team:qa-rangers-u12')
+        c.ok(pg.evaluate("window.__team.data.id")=='qarangersu12' and
+             pg.evaluate("window.__team.state.qaContext")=='grant:team_coach:team:qa-rangers-u12',
+             f'[{width}] multi-role user keeps explicitly selected Coach group')
+        pg.locator('#view select[data-change=native-persona-context]').select_option(
+            'grant:team_manager:team:qa-comets-u16')
+        c.ok(pg.evaluate("window.__team.data.id")=='qacometsu16' and
+             pg.evaluate("window.__team.state.qaContext")=='grant:team_manager:team:qa-comets-u16',
+             f'[{width}] multi-role user switches to exact Manager group without role snapback')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-01]')
         c.ok(pg.locator('#tabs .nav-group').count()==5 and
