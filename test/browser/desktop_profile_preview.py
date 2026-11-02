@@ -117,6 +117,16 @@ with sync_playwright() as p:
              pg.locator('#view [data-qa-profile=qa-07]').count()==1 and
              pg.evaluate('JSON.stringify(window.__team.ws)')==original,
              f'[{width}] resizing to mobile retains selected fictional profile and unchanged workspace')
+        pg.click('#desktop-profile-exit')
+        pg.evaluate('window.__team.S.role=null')
+        pg.evaluate(act,['lock-mode',{'mode':'player'}])
+        c.ok(control.is_hidden() and
+             pg.locator('#view input[name=password]').is_visible(),
+             f'[{width}] signed-out player login hides Coach-only fictional profile switcher')
+        pg.evaluate(act,['desktop-profile-menu',{}])
+        c.ok(control.is_hidden() and
+             pg.locator('#desktop-profile-panel').is_hidden(),
+             f'[{width}] synthetic profile picker cannot open while signed out')
         ctx.close()
     result=c.done(errors)
     browser.close()
