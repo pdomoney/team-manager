@@ -42,6 +42,7 @@ import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
 import {desktopProfileAvailable,desktopProfileChoices,resolveDesktopProfile} from './desktop-profile-preview.js';
 import {developmentSandbox} from './development-sandbox.js';
 import {personWorkspace} from './person-role-workspace.js';
+import {personaSession,personaRoleTeams,personaRoster,personaFixtures,personaSeasons,personaAction,personaCurrentState} from './persona-runtime.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
 import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
 import {p12SampleTeamSummary,makeP12SampleRoster} from './p12-qa-club-teams.js';
@@ -342,6 +343,7 @@ const state = {
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
   qaPersona: null, qaScope: '', qaJourney: '', qaProfile: '', qaContext: '', qaSandbox: null, qaGovernance: null, qaSafetyReplacement: '', // Ephemeral QA-only fictional layout and guided tests, never saved
+  personaTeamId: '', personaRecords: {},
   desktopProfileActive: false, desktopProfileOpen: false, // Session-only QA; never saved or published
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
@@ -762,6 +764,7 @@ function renderDesktopProfileControl() {
 }
 function renderQaSelector() {
   const host = $('#qa-persona-control'); if (!host) return;
+  if(DEV_SANDBOX){host.hidden=true;host.innerHTML='';return;}
   host.hidden = !qaEnabled();
   if (host.hidden) { host.innerHTML = ''; return; }
   const p12=state.qaPersona==='p12' ? p12QaView(state.qaProfile,state.qaContext) : null;
@@ -774,6 +777,103 @@ function renderQaSelector() {
     P12_QA_PROFILES.map(p => '<option value="p12:' + esc(p.id) + '"' + (state.qaPersona==='p12' && state.qaProfile===p.id ? ' selected' : '') + '>' + esc(p.id.toUpperCase()+' · '+p.label) + '</option>').join('') + '</optgroup>' +
     '</select>' + (currentScope ? '<span class="qa-header-scope" title="Simulated context">' + esc(currentScope) + '</span>' : '');
 }
+
+/* Real development persona shell: app navigation and working synthetic
+   actions derive from the selected person/group/team, not a QA report. */
+function renderPersonaExperience(p) {
+  const session=personaSession(p.profileId,state.qaContext,state.personaTeamId);
+  if(!session)return;
+  state.qaContext=session.contextId;
+  state.personaTeamId=session.team?.id||'';
+  const section=session.sections.includes(state.rolePreviewSection)?state.rolePreviewSection:'Home';
+  state.rolePreviewSection=section;
+  const portfolio=personaRoleTeams(session.profileId,session.role);
+  const roster=personaRoster(session);
+  const fixtures=personaFixtures(session);
+  const seasons=personaSeasons(session);
+  const record=personaCurrentState(session,state.personaRecords);
+  const count=roster?.players.length||0;
+  const can=cap=>session.capabilities.includes(cap);
+  const selectedTeam=session.team?.id||'';
+  const action=(cap,personId='',value='')=>'<button type="button" class="btn sm" data-act="persona-action" data-capability="'+esc(cap)+'" data-person="'+esc(personId)+'" data-value="'+esc(value)+'">';
+
+  const teamCard=t=>'<button type="button" class="persona-team-card'+(t.id===selectedTeam?' selected':'')+'" data-act="persona-team" data-team="'+esc(t.id)+'" aria-current="'+(t.id===selectedTeam?'true':'false')+'">'+
+    '<span class="persona-team-name">'+esc(t.name)+'</span><span class="muted small">'+esc(t.clubName)+' · '+esc(t.sport)+' · Example 2026</span></button>';
+  const teamGrid=items=>items.length?
+    '<div class="persona-team-grid">'+items.map(teamCard).join('')+'</div>':
+    '<p class="muted">No assigned teams in this role.</p>';
+  const personRows=roster?.players.map(x=>{
+    const selected=Object.hasOwn(record.selected,x.id)?record.selected[x.id]:x.selected;
+    const attendance=record.attendance[x.id]||x.rsvp;
+    return '<li class="persona-list-row"><div><strong>'+esc(x.name)+'</strong><span class="muted small"> #'+x.jersey+' · '+esc(x.preferredPositions.join(', '))+' · '+esc(attendance)+'</span></div>'+
+    '<div class="persona-row-actions">'+
+    (can('roster')?action('roster',x.id)+(selected?'Remove from lineup':'Add to lineup')+'</button>':'')+
+    (can('attendance')?action('attendance',x.id,'yes')+'Available</button>'+action('attendance',x.id,'no')+'Unavailable</button>':'')+
+    '</div></li>';
+  }).join('')||'';
+  const fixtureRows=fixtures.map(x=>'<li class="persona-list-row"><div><strong>'+esc(x.team)+'</strong><span class="muted small">'+esc(x.title)+' · '+esc(x.date)+' · '+esc(x.sport)+'</span></div>'+
+    '<button type="button" class="btn sm" data-act="persona-team" data-team="'+esc(x.teamId)+'">Open team</button></li>').join('');
+  const avail=can('own-availability')?
+    '<div class="persona-availability"><h3>My match availability</h3><p>Response: <strong>'+esc(record.availability)+'</strong></p>'+
+    '<div class="btn-row">'+['yes','maybe','no'].map(v=>action('own-availability','',v)+(v==='yes'?'Available':v==='no'?'Unavailable':'Maybe')+'</button>').join('')+'</div></div>':'';
+  const volunteerRows=roster?.volunteers.map(v=>
+    '<li class="persona-list-row"><div><strong>'+esc(v.name)+'</strong><span class="muted small">'+esc(v.role)+(record.staff[v.id]?' · proposed '+esc(record.staff[v.id]):' · not assigned')+'</span></div>'+
+    (can('staff')?'<div class="persona-row-actions">'+action('staff',v.id,'trainer')+'Propose Trainer</button>'+action('staff',v.id,'helper')+'Propose Helper</button></div>':'')+'</li>').join('')||'';
+  const suiteItems=session.role==='player'?session.memberships.map(t=>({...t,clubName:personaRoleTeams(session.profileId,'player').find(x=>x.id===t.id)?.clubName||''})):portfolio;
+  let body='';
+  if(section==='Home'||section==='Dashboard'){
+    body='<h2>'+esc(session.label)+' home</h2>'+
+      '<div class="persona-metrics"><div><strong>'+suiteItems.length+'</strong><span>Assigned teams</span></div><div><strong>'+new Set(suiteItems.map(t=>t.sport)).size+'</strong><span>Sports</span></div><div><strong>'+fixtures.length+'</strong><span>Example fixtures</span></div></div>'+
+      '<h3>My teams</h3>'+teamGrid(suiteItems)+
+      (session.team?'<h3>Coming up for '+esc(session.team.name)+'</h3><p class="muted">Example match · 14 November 2026 · '+esc(session.team.sport)+'</p>':'')+avail;
+  }else if(['My teams','Teams','Clubs'].includes(section)){
+    body='<h2>'+esc(section)+'</h2>'+teamGrid(suiteItems);
+  }else if(['Squad','People'].includes(section)){
+    body='<h2>'+esc(session.team?.name||'My team')+' squad</h2><p class="muted small">'+count+' fictional players · selection and availability are scoped to this team.</p>'+
+      (roster?'<ul class="persona-list">'+personRows+'</ul>':'<p>No team is assigned to this role.</p>');
+  }else if(['Fixtures','Matches','Match centre'].includes(section)){
+    body='<h2>Fixtures and matches</h2>'+(fixtures.length?'<ul class="persona-list">'+fixtureRows+'</ul>':'<p>No assigned fixtures.</p>')+avail;
+  }else if(section==='Availability'){
+    body='<h2>Availability</h2>'+avail+
+      (can('attendance')?'<h3>Team responses</h3><ul class="persona-list">'+personRows+'</ul>':'');
+  }else if(section==='Training'){
+    body='<h2>Training · '+esc(session.team?.name||'')+'</h2><p>Example session: team skills and match preparation</p>'+
+      (can('training')?'<div class="btn-row">'+['Ball skills','Defensive line','Attack shape'].map(x=>action('training','',x)+'Add '+esc(x)+' plan</button>').join('')+'</div>':'')+
+      '<h3>Session plans</h3><ul>'+record.training.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
+  }else if(section==='Match staff'||section==='Volunteers'||section==='Volunteer duties'){
+    body='<h2>'+esc(section)+'</h2>'+
+      (roster?'<ul class="persona-list">'+volunteerRows+'</ul>':
+      '<p class="muted">Select a team to review its fictional volunteer roster.</p>')+
+      '<p class="hint">Duty changes are proposals only. Registration, qualification and cover are not verified.</p>';
+  }else if(section==='Seasons'){
+    body='<h2>Season history</h2><ul class="persona-list">'+seasons.map(x=>
+      '<li class="persona-list-row"><strong>'+x.year+' · '+esc(x.teamName)+'</strong><span class="muted small">'+esc(x.sport)+' · '+esc(x.status)+'</span></li>').join('')+'</ul>';
+  }else if(section==='Plays'){
+    body='<h2>Plays and tactics · '+esc(session.team?.name||'')+'</h2><p class="muted">Example game concepts for '+esc(session.team?.sport||'this sport')+': defensive shape, transitions and set plays. Actual editing is a later acceptance stage.</p>';
+  }else{
+    body='<h2>'+esc(section)+'</h2>'+teamGrid(suiteItems);
+  }
+  const contextOptions=session.contexts.map(c=>
+    '<option value="'+esc(c.id)+'"'+(c.id===session.contextId?' selected':'')+'>'+esc(c.label)+' · '+esc(c.groupLabel)+' ('+esc(c.status)+')</option>').join('');
+  const teamOptions=portfolio.length>1?
+    '<label class="field-l persona-team-select"><span>Team in this role</span><select data-change="persona-team" aria-label="Choose assigned team">'+
+      portfolio.map(t=>'<option value="'+esc(t.id)+'"'+(t.id===selectedTeam?' selected':'')+'>'+esc(t.clubName+' · '+t.name+' · '+t.sport)+'</option>').join('')+'</select></label>':'';
+  $('#team-title').classList.remove('with-season');
+  $('#team-title').textContent=session.profileLabel+' · '+session.label;
+  $('#team-crest').hidden=true;$('#days-chip').hidden=true;$('#bell-btn').hidden=true;$('#menu-btn').hidden=true;
+  $('#status').hidden=false;$('#status').className='status info';
+  $('#status').textContent='DEVELOPMENT · Fictional records only · No production permissions';
+  document.body.classList.remove('game');document.body.classList.add('persona-mode');
+  const nav=$('#tabs');nav.hidden=false;
+  nav.style.gridTemplateColumns='repeat('+session.sections.length+',minmax(90px,1fr))';
+  nav.innerHTML=session.sections.map(x=>'<div class="nav-group'+(x===section?' on':'')+'"><button class="nav-main" data-act="qa-role-section" data-section="'+esc(x)+'" '+(x===section?'aria-current="page"':'')+'>'+esc(x)+'</button></div>').join('');
+  $('#view').innerHTML='<main class="persona-app" data-qa-profile="'+esc(session.profileId)+'" data-role-workspace="'+esc(session.role)+'" data-persona-screen="'+esc(section)+'">'+
+    (section==='Home'?renderHomeProfilePicker():'')+
+    '<div class="persona-context"><label class="field-l"><span>Acting role and group</span><select data-change="p12-context" aria-label="Choose assigned role and organisation">'+contextOptions+'</select></label>'+teamOptions+'</div>'+
+    '<section class="persona-content">'+body+'</section></main>';
+  document.title=session.label+' · '+session.profileLabel+' · Team Manager';
+}
+
 // Desktop fictional persona workspace. All content comes from fixed QA fixtures.
 function renderDesktopRoleWorkspace(p) {
   const w=personWorkspace(p.profileId,state.qaContext);
@@ -825,6 +925,7 @@ function renderP12QaScreen() {
   const p=p12QaView(state.qaProfile,state.qaContext);
   if(!qaEnabled() || !p) { state.qaPersona=null;state.qaProfile='';state.qaContext='';return render(); }
   state.qaContext=p.selected?.id||'';
+  if(DEV_SANDBOX&&state.desktopProfileActive)return renderPersonaExperience(p);
   if(state.desktopProfileActive)return renderDesktopRoleWorkspace(p);
   if (!state.qaSandbox || state.qaSandbox.profileId!==p.profileId || state.qaSandbox.contextId!==state.qaContext) {
     state.qaSandbox=makeP12WorkflowSandbox(p);
@@ -1040,6 +1141,7 @@ function renderQaScreen() {
 function render() {
   animStop();
   if (!S.role) return renderLock();
+  if(!state.qaPersona)document.body.classList.remove('persona-mode');
   // The desktop menu must stay open while the user chooses a fictional profile.
   // qaEnabled() is false before the Test Library loads; closing the menu here
   // made View as profile look inert by resetting its state on every render.
@@ -7091,7 +7193,32 @@ function extendTestLibrary(day) {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
-  'qa-role-section': el => { if(state.qaPersona==='p12'&&qaEnabled()){ const x=personWorkspace(state.qaProfile,state.qaContext); if(x?.sections.includes(el.dataset.section)){state.rolePreviewSection=el.dataset.section;render();} } },
+  'qa-role-section': el => {
+    if(state.qaPersona!=='p12'||!qaEnabled())return;
+    const x=DEV_SANDBOX?personaSession(state.qaProfile,state.qaContext,state.personaTeamId):
+      personWorkspace(state.qaProfile,state.qaContext);
+    if(x?.sections.includes(el.dataset.section)){state.rolePreviewSection=el.dataset.section;render();}
+  },
+  'persona-team': el => {
+    if(!DEV_SANDBOX||state.qaPersona!=='p12'||!qaEnabled())return;
+    const current=personaSession(state.qaProfile,state.qaContext,state.personaTeamId);
+    const target=personaRoleTeams(state.qaProfile,current.role).find(t=>t.id===el.dataset.team);
+    if(!target)return;
+    state.qaContext=target.contextId;state.personaTeamId=target.id;
+    state.rolePreviewSection='Home';render();
+  },
+  'persona-action': el => {
+    if(!DEV_SANDBOX||state.qaPersona!=='p12'||!qaEnabled())return;
+    const current=personaSession(state.qaProfile,state.qaContext,state.personaTeamId);
+    const result=personaAction(current,state.personaRecords,{
+      capability:el.dataset.capability,teamId:current.team?.id,
+      personId:el.dataset.person,value:el.dataset.value
+    });
+    if(result.error){toast(result.error);return;}
+    state.personaRecords=result.records;
+    store.set('tm-persona-actions-v1',JSON.stringify(result.records));
+    render();
+  },
   'desktop-profile-menu': () => {
     if(!desktopPreviewAllowed())return;
     state.desktopProfileOpen=!state.desktopProfileOpen;
@@ -7108,7 +7235,8 @@ const actions = {
     state.desktopProfileOpen=false;
     state.qaPersona='p12';
     state.qaProfile=choice.profileId;
-    state.rolePreviewSection='';
+    state.rolePreviewSection='Home';
+    state.personaTeamId='';
     state.qaContext='';
     state.qaScope='';
     state.qaJourney='';
@@ -7120,6 +7248,11 @@ const actions = {
   },
   'desktop-profile-exit': () => {
     if(!state.desktopProfileActive)return;
+    if(DEV_SANDBOX){
+      state.qaPersona='p12';state.qaProfile='qa-01';state.qaContext='';
+      state.personaTeamId='';state.rolePreviewSection='Home';
+      state.desktopProfileOpen=false;state.desktopProfileActive=true;render();return;
+    }
     state.desktopProfileActive=false;
     state.desktopProfileOpen=false;
     state.qaPersona=null;state.qaScope='';state.qaJourney='';
@@ -8338,7 +8471,7 @@ const actions = {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   // QA screen is read-only even for forged clicks aimed at existing coach actions.
-  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','qa-role-section'].includes(el.dataset.act)) { e.preventDefault();return; }
+  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','qa-role-section','persona-team','persona-action'].includes(el.dataset.act)) { e.preventDefault();return; }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
@@ -8418,7 +8551,9 @@ document.addEventListener('change', e => {
       if(e.target.value===''||allowed){state.qaSafetyReplacement=e.target.value;render();}
     } else if (k === 'p12-context' && state.qaPersona==='p12' && qaEnabled()) {
       const next=p12QaView(state.qaProfile,e.target.value);
-      if (next?.selected?.id===e.target.value) {state.rolePreviewSection='';state.qaContext=e.target.value;state.qaSandbox=null;state.qaSafetyReplacement='';render();}
+      if (next?.selected?.id===e.target.value) {state.rolePreviewSection=DEV_SANDBOX?'Home':'';state.personaTeamId='';state.qaContext=e.target.value;state.qaSandbox=null;state.qaSafetyReplacement='';render();}
+    } else if (k === 'persona-team' && DEV_SANDBOX && state.qaPersona==='p12'){
+      actions['persona-team']({dataset:{team:e.target.value}});
     } else if (k === 'qa-scope' && state.qaPersona!=='p12' && qaEnabled()) {
       const next=qaPreview(state.qaPersona,e.target.value);
       if (next && next.scope===e.target.value) {state.qaScope=next.scope;state.qaJourney='';render();}
@@ -9425,6 +9560,12 @@ function startTrial() {
   loadWs(raw, null).then(() => {
     if (raw && raw.schema !== M.SCHEMA) store.set(key, JSON.stringify(ws));   // keep the upgraded copy
     S.role = 'coach'; S.trial = true; S.coachLock = null;
+    if(DEV_SANDBOX){
+      state.desktopProfileActive=true;state.qaPersona='p12';
+      state.qaProfile='qa-01';state.qaContext='';state.personaTeamId='';
+      state.rolePreviewSection='Home';
+      state.personaRecords=readJson('tm-persona-actions-v1')||{};
+    }
     render();
   });
 }
