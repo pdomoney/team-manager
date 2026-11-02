@@ -125,3 +125,13 @@ test('PR144 role-scoped data upgrades reversibly into shared team records',()=>{
  assert.equal(Object.keys(malicious).filter(k=>k.startsWith('team:')).length,0,
    'inactive or wrong-team contexts cannot be imported into shared records');
 });
+
+test('Coach lineup toggle uses existing fixture selection on first click',()=>{
+ const coach=personaSession('qa-07','grant:team_coach:team:qa-rangers-16');
+ const first=personaRoster(coach).players[0];
+ assert.equal(first.selected,true);
+ const a=personaAction(coach,{}, {capability:'roster',teamId:coach.team.id,personId:first.id});
+ assert.equal(a.state.selected[first.id],false);
+ const b=personaAction(coach,a.records,{capability:'roster',teamId:coach.team.id,personId:first.id});
+ assert.equal(b.state.selected[first.id],true);
+});
