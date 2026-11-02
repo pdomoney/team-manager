@@ -1140,6 +1140,7 @@ function renderQaScreen() {
 function render() {
   animStop();
   if (!S.role) return renderLock();
+  if(!state.qaPersona)document.body.classList.remove('persona-mode');
   // The desktop menu must stay open while the user chooses a fictional profile.
   // qaEnabled() is false before the Test Library loads; closing the menu here
   // made View as profile look inert by resetting its state on every render.
@@ -7191,7 +7192,32 @@ function extendTestLibrary(day) {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
-  'qa-role-section': el => { if(state.qaPersona==='p12'&&qaEnabled()){ const x=personWorkspace(state.qaProfile,state.qaContext); if(x?.sections.includes(el.dataset.section)){state.rolePreviewSection=el.dataset.section;render();} } },
+  'qa-role-section': el => {
+    if(state.qaPersona!=='p12'||!qaEnabled())return;
+    const x=DEV_SANDBOX?personaSession(state.qaProfile,state.qaContext,state.personaTeamId):
+      personWorkspace(state.qaProfile,state.qaContext);
+    if(x?.sections.includes(el.dataset.section)){state.rolePreviewSection=el.dataset.section;render();}
+  },
+  'persona-team': el => {
+    if(!DEV_SANDBOX||state.qaPersona!=='p12'||!qaEnabled())return;
+    const current=personaSession(state.qaProfile,state.qaContext,state.personaTeamId);
+    const target=personaRoleTeams(state.qaProfile,current.role).find(t=>t.id===el.dataset.team);
+    if(!target)return;
+    state.qaContext=target.contextId;state.personaTeamId=target.id;
+    state.rolePreviewSection='Home';render();
+  },
+  'persona-action': el => {
+    if(!DEV_SANDBOX||state.qaPersona!=='p12'||!qaEnabled())return;
+    const current=personaSession(state.qaProfile,state.qaContext,state.personaTeamId);
+    const result=personaAction(current,state.personaRecords,{
+      capability:el.dataset.capability,teamId:current.team?.id,
+      personId:el.dataset.person,value:el.dataset.value
+    });
+    if(result.error){toast(result.error);return;}
+    state.personaRecords=result.records;
+    store.set('tm-persona-actions-v1',JSON.stringify(result.records));
+    render();
+  },
   'desktop-profile-menu': () => {
     if(!desktopPreviewAllowed())return;
     state.desktopProfileOpen=!state.desktopProfileOpen;
@@ -7208,7 +7234,8 @@ const actions = {
     state.desktopProfileOpen=false;
     state.qaPersona='p12';
     state.qaProfile=choice.profileId;
-    state.rolePreviewSection='';
+    state.rolePreviewSection='Home';
+    state.personaTeamId='';
     state.qaContext='';
     state.qaScope='';
     state.qaJourney='';
@@ -7220,6 +7247,11 @@ const actions = {
   },
   'desktop-profile-exit': () => {
     if(!state.desktopProfileActive)return;
+    if(DEV_SANDBOX){
+      state.qaPersona='p12';state.qaProfile='qa-01';state.qaContext='';
+      state.personaTeamId='';state.rolePreviewSection='Home';
+      state.desktopProfileOpen=false;state.desktopProfileActive=true;render();return;
+    }
     state.desktopProfileActive=false;
     state.desktopProfileOpen=false;
     state.qaPersona=null;state.qaScope='';state.qaJourney='';
@@ -8518,7 +8550,9 @@ document.addEventListener('change', e => {
       if(e.target.value===''||allowed){state.qaSafetyReplacement=e.target.value;render();}
     } else if (k === 'p12-context' && state.qaPersona==='p12' && qaEnabled()) {
       const next=p12QaView(state.qaProfile,e.target.value);
-      if (next?.selected?.id===e.target.value) {state.rolePreviewSection='';state.qaContext=e.target.value;state.qaSandbox=null;state.qaSafetyReplacement='';render();}
+      if (next?.selected?.id===e.target.value) {state.rolePreviewSection=DEV_SANDBOX?'Home':'';state.personaTeamId='';state.qaContext=e.target.value;state.qaSandbox=null;state.qaSafetyReplacement='';render();}
+    } else if (k === 'persona-team' && DEV_SANDBOX && state.qaPersona==='p12'){
+      actions['persona-team']({dataset:{team:e.target.value}});
     } else if (k === 'qa-scope' && state.qaPersona!=='p12' && qaEnabled()) {
       const next=qaPreview(state.qaPersona,e.target.value);
       if (next && next.scope===e.target.value) {state.qaScope=next.scope;state.qaJourney='';render();}
@@ -9525,6 +9559,12 @@ function startTrial() {
   loadWs(raw, null).then(() => {
     if (raw && raw.schema !== M.SCHEMA) store.set(key, JSON.stringify(ws));   // keep the upgraded copy
     S.role = 'coach'; S.trial = true; S.coachLock = null;
+    if(DEV_SANDBOX){
+      state.desktopProfileActive=true;state.qaPersona='p12';
+      state.qaProfile='qa-01';state.qaContext='';state.personaTeamId='';
+      state.rolePreviewSection='Home';
+      state.personaRecords=readJson('tm-persona-actions-v1')||{};
+    }
     render();
   });
 }
