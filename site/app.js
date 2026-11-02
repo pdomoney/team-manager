@@ -8475,7 +8475,9 @@ const actions = {
     state.correcting = { team: data.id, season: s.id }; render(); toast(`Correcting ${s.name}`);
   }),
   'season-fix-done': coachOnly(() => { state.correcting = null; render(); toast('Corrections saved'); }),
-  'home-scope': coachOnly(el => {
+  'home-scope': el => {
+    // The original club/team picker is view navigation for Player previews too.
+    if(!isCoach()&&!nativePersona())return;
     const kind=el.dataset.kind,id=el.dataset.id||'',session=nativePersona();
     if(session&&session.role!=='personal_owner'){
       const allowed=personaRoleTeams(session.profileId,session.role);
@@ -8506,7 +8508,7 @@ const actions = {
       if(first){switchTeam(first.id);return;}
     }
     render();
-  }),
+  },
   'home-days': el => { store.set('tm-home-days', el.dataset.v); render(); },
   'home-more': () => { state.homeAllUp = !state.homeAllUp; render(); },
   // Open a record from Home: switch to the team it belongs to first, then use the usual action.
