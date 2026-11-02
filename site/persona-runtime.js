@@ -2,6 +2,7 @@
 // to the selected person's specific P12 role/membership, never a real account.
 import {p12QaView,P12_QA_PROFILES} from './p12-qa-profiles.js';
 import {P12_SAMPLE_CLUBS,P12_SAMPLE_TEAMS,makeP12SampleRoster} from './p12-qa-club-teams.js';
+import {personaFixture,validatePersonaFixture,PERSONA_CURRENT_SEASON,PERSONA_SEASONS} from './persona-fixtures.js';
 
 const NAV={
  personal_owner:['Home','Clubs','Teams','People','Seasons'],
@@ -28,7 +29,7 @@ const LABEL={
 };
 const CAP={
  team_coach:['roster','attendance','training'],
- team_manager:['roster','attendance','staff'],
+ team_manager:['roster','attendance','staff','fixture-manage'],
  team_assistant:[],
  player:['own-availability'],
  guardian:['own-availability']
@@ -94,13 +95,10 @@ export function personaRoster(session){
   name:session.profileLabel,profileMember:true};
  return roster;
 }
-export function personaFixtures(session){
- if(!session)return [];
- return session.allowedTeams.map(t=>({
-  id:'example-fixture-'+t.id,teamId:t.id,team:t.name,clubId:t.clubId,
-  title:'Example upcoming match',date:'2026-11-14',sport:t.sport,
-  status:'scheduled',season:t.season
- }));
+export function personaFixtures(session,records={},season=PERSONA_CURRENT_SEASON){
+ if(!session||!PERSONA_SEASONS.includes(season))return [];
+ const upgraded=upgradePersonaRecords(records);
+ return session.allowedTeams.map(t=>personaFixture(t,upgraded[teamKey(t.id)]||{},season));
 }
 export function personaSeasons(session){
  if(!session)return [];
@@ -114,7 +112,7 @@ export function personaSeasons(session){
 // Team-level workflow records must be shared by every fictional person
 // assigned to that team. Historical PR144 data used a person/context/team key;
 // the migration is additive, never deletes the original records.
-const blankRecord=()=>({selected:{},attendance:{},staff:{},training:[],availabilityByPerson:{}});
+const blankRecord=()=>({selected:{},attendance:{},staff:{},training:[],availabilityByPerson:{},fixtures:{}});
 const teamKey=teamId=>'team:'+teamId;
 export function upgradePersonaRecords(records={}){
  if(!records||typeof records!=='object'||Array.isArray(records))return {};
@@ -172,6 +170,10 @@ export function personaAction(session,records={},action={}){
   if(!roster.volunteers.some(v=>v.id===action.personId))return fail('Volunteer not in this team');
   if(!has(['trainer','helper'],action.value))return fail('Unrecognised proposed duty');
   current.staff[action.personId]=action.value; // proposal only, no accreditation
+ }else if(action.capability==='fixture-manage'){
+  const checked=validatePersonaFixture(action.fixture,action.season??PERSONA_CURRENT_SEASON);
+  if(checked.error)return fail(checked.error);
+  current.fixtures={...(current.fixtures||{}),[String(PERSONA_CURRENT_SEASON)]:checked.fixture};
  }else if(action.capability==='training'){
   if(typeof action.value!=='string'||action.value.trim().length<3||action.value.length>160)
    return fail('Training title must be 3–160 characters');
