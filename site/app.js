@@ -721,15 +721,29 @@ function qaEnabled() {
     !!ws?.testLibrary && Number(ws.testLibrary.version)>=3) ||
     (state.desktopProfileActive && desktopPreviewAllowed());
 }
+function renderHomeProfilePicker() {
+  if(!DEV_SANDBOX || !desktopPreviewAllowed())return '';
+  const selected=state.qaPersona==='p12' ? P12_QA_PROFILES.find(p=>p.id===state.qaProfile) : null;
+  const choices=state.desktopProfileOpen ? desktopProfileChoices().map(group=>
+    '<section aria-label="'+esc(group.label)+'"><h3>'+esc(group.label)+'</h3><div class="desktop-profile-options">'+
+    group.profiles.map(p=>'<button type="button" data-act="desktop-profile-pick" data-profile="'+esc(p.id)+'" aria-pressed="'+(p.id===state.qaProfile?'true':'false')+'">'+esc(p.label)+'</button>').join('')+
+    '</div></section>').join('') : '';
+  return '<section class="home-profile-switch" aria-label="Fictional profile switcher">'+
+    '<div class="home-profile-head"><div><h2>'+(selected?esc(selected.label)+' · Home':'Development home')+'</h2>'+
+    '<p class="muted small">'+(selected?'Viewing this fictional person’s assigned role and teams.':'Choose a fictional person to test their screens and workflows.')+'</p></div>'+
+    '<div class="home-profile-actions"><button id="home-profile-button" type="button" class="btn primary" data-act="desktop-profile-menu" aria-expanded="'+!!state.desktopProfileOpen+'" aria-controls="home-profile-panel">Switch profile</button>'+
+    (selected?'<button type="button" class="btn" data-act="desktop-profile-exit">Back to Home</button>':'')+'</div></div>'+
+    '<div id="home-profile-panel" class="home-profile-panel" '+(state.desktopProfileOpen?'':'hidden')+'><p class="muted small">Fictional test profiles · no password required · no production data</p>'+choices+'</div></section>';
+}
 function renderDesktopProfileControl() {
   const host=$('#desktop-profile-control'),button=$('#desktop-profile-button');
   const panel=$('#desktop-profile-panel'),exit=$('#desktop-profile-exit');
   if (!host||!button||!panel||!exit)return;
   const allowed=desktopPreviewAllowed();
-  document.body.classList.toggle('profile-switch-available',allowed);
+  document.body.classList.toggle('profile-switch-available',allowed&&!DEV_SANDBOX);
   const inPreview=allowed&&state.desktopProfileActive&&state.qaPersona==='p12';
   document.body.classList.toggle('desktop-profile-active',inPreview);
-  host.hidden=!allowed;
+  host.hidden=!allowed||DEV_SANDBOX;
   if(!allowed){state.desktopProfileOpen=false;panel.hidden=true;panel.innerHTML='';return;}
   button.textContent=inPreview?'Change profile':'View as profile';
   button.setAttribute('aria-label',inPreview?'Change fictional test profile':'View app as a fictional test profile');
@@ -794,7 +808,7 @@ function renderDesktopRoleWorkspace(p) {
   $('#team-title').textContent=w.roleLabel+' · '+w.profileLabel;
   $('#status').hidden=false;$('#status').className='status info';
   $('#status').textContent='FICTIONAL PREVIEW · No real data, authentication, permissions or publishing';
-  $('#view').innerHTML='<section class="qa-preview qa-person-workspace" data-qa-profile="'+esc(p.profileId)+'" data-role-workspace="'+esc(activeRole)+'">'+
+  $('#view').innerHTML='<section class="qa-preview qa-person-workspace" data-qa-profile="'+esc(p.profileId)+'" data-role-workspace="'+esc(activeRole)+'">'+renderHomeProfilePicker()+
     '<div class="sec-h"><h2>'+esc(w.roleLabel)+' workspace</h2><span class="pill">FICTIONAL</span></div>'+
     '<label class="field-l"><span>Person, role and exact assigned group</span><select data-change="p12-context" aria-label="Select assigned role and team">'+scopeOptions+'</select></label>'+
     '<p class="hint">'+esc(w.profileLabel)+' · '+w.allTeamCount+' teams across '+esc(w.sports.join(', ')||'no sports')+'. Context restrictions apply independently to each team.</p>'+
@@ -1404,7 +1418,7 @@ function viewHome() {
   const live = M.liveComps(ws, hv.teams, new Date()).map(lc => liveCard(lc, true)).join('');
   const left = (one && !M.activeLens(data).players.length ? startSquad() : '') + homeSpotlight(hv) + live + homeUpcoming(hv);
   const right = homeActionList(hv) + (hv.insight ? homeInsight(hv) : '') + (one ? homeNotices(3) : '');
-  return `${homeSelector(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
+  return `${renderHomeProfilePicker()}${homeSelector(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
 }
 // Players see their own team only: what's next, the next two weeks, notices and where help is needed.
 function playerHome() {
@@ -7081,8 +7095,8 @@ const actions = {
     if(!desktopPreviewAllowed())return;
     state.desktopProfileOpen=!state.desktopProfileOpen;
     render();
-    if(state.desktopProfileOpen)$('#desktop-profile-panel button[data-act="desktop-profile-pick"]')?.focus();
-    else $('#desktop-profile-button')?.focus();
+    if(state.desktopProfileOpen)$(DEV_SANDBOX?'#home-profile-panel button[data-act="desktop-profile-pick"]':'#desktop-profile-panel button[data-act="desktop-profile-pick"]')?.focus();
+    else $(DEV_SANDBOX?'#home-profile-button':'#desktop-profile-button')?.focus();
   },
   'desktop-profile-pick': el => {
     if(!desktopPreviewAllowed()||!state.desktopProfileOpen)return;
@@ -7101,7 +7115,7 @@ const actions = {
     state.qaGovernance=null;
     state.qaSafetyReplacement='';
     render();
-    $('#desktop-profile-button')?.focus();
+    $(DEV_SANDBOX?'#home-profile-button':'#desktop-profile-button')?.focus();
   },
   'desktop-profile-exit': () => {
     if(!state.desktopProfileActive)return;
@@ -7111,7 +7125,7 @@ const actions = {
     state.qaProfile='';state.qaContext='';state.qaSandbox=null;
     state.qaGovernance=null;state.qaSafetyReplacement='';
     render();
-    $('#desktop-profile-button')?.focus();
+    $(DEV_SANDBOX?'#home-profile-button':'#desktop-profile-button')?.focus();
   },
   'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;state.qaSafetyReplacement='';state.desktopProfileActive=false;state.desktopProfileOpen=false;render(); },
   'qa-p12-reset': () => { if(qaEnabled()&&state.qaPersona==='p12'){state.qaContext='';state.qaSandbox=null;render();} },
@@ -8336,7 +8350,7 @@ window.matchMedia('(min-width: 900px)').addEventListener('change', () => {
 });
 document.addEventListener('keydown', e => {
   if(e.key==='Escape'&&state.desktopProfileOpen){
-    e.preventDefault();state.desktopProfileOpen=false;render();$('#desktop-profile-button')?.focus();return;
+    e.preventDefault();state.desktopProfileOpen=false;render();$(DEV_SANDBOX?'#home-profile-button':'#desktop-profile-button')?.focus();return;
   }
   if (e.key === 'Escape' && !$('#sheet').hidden) { requestCloseSheet(); return; }
   if (state.sheet !== 'play-editor' || !state.ped || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
