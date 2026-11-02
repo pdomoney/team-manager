@@ -16,7 +16,14 @@ with sync_playwright() as p:
              pg.locator('#view .persona-fixture-editor').count()==0,
              f'[{width}] Manager sees original Matches page not synthetic replacement')
         pg.evaluate(act,['tab',{'tab':'home'}])
-        pg.locator('#view select[data-change=native-persona-team]').select_option('qa-rangers-16')
+        # The accepted native Home selector replaces the removed QA team dropdown.
+        c.ok(pg.locator('#view select[data-change=native-persona-team]').count()==0,
+             f'[{width}] separate Assigned team dropdown stays removed')
+        c.ok(pg.locator('#view .scope-club[data-id=qa-rangers]').count()==1,
+             f'[{width}] Manager can reach the Rangers club only through native navigation')
+        pg.locator('#view .scope-club[data-id=qa-rangers]').click()
+        c.ok(pg.evaluate("window.__team.state.qaContext")=='grant:team_manager:team:qa-rangers-16',
+             f'[{width}] selecting Rangers updates the exact Manager grant')
         match=pg.evaluate("window.__team.data.matches[0].id")
         pg.evaluate(act,['tab',{'tab':'matches'}])
         c.ok(pg.evaluate('window.__team.data.id')=='qarangers16' and
