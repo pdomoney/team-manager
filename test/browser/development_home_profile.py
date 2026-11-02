@@ -41,7 +41,7 @@ with sync_playwright() as p:
              pg.locator('#view input[type=password]').count()==0,
              f'[{width}] Player opens personal Home with Switch profile, no password')
         c.ok('Example Comets U14' in pg.locator('#view').inner_text() and
-             pg.locator('#view [data-section="Match-day staff"]').count()==0,
+             pg.locator('#tabs [data-section="Match day staff"]').count()==0,
              f'[{width}] Junior Player sees assigned team, not Manager controls')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
@@ -51,14 +51,14 @@ with sync_playwright() as p:
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
         pg.wait_for_selector('#view [data-role-workspace=team_coach]')
-        c.ok(pg.locator('#view [data-section=Training]').count()==1 and
+        c.ok(pg.locator('#tabs [data-section=Training]').count()==1 and
              pg.locator('#view [data-section="Match-day staff"]').count()==0,
              f'[{width}] Coach changes to own training navigation')
         pg.click('#view [data-act=desktop-profile-exit]')
         c.ok(pg.locator('#home-profile-button').is_visible() and
-             pg.locator('#view [data-qa-profile]').count()==0 and
+             pg.locator('#view [data-qa-profile=qa-01]').count()==1 and
              pg.evaluate('JSON.stringify(window.__team.ws)')==original,
-             f'[{width}] Back to Home restores unchanged sandbox workspace')
+             f'[{width}] Back to Owner Home restores unchanged sandbox workspace')
         c.ok(pg.evaluate("localStorage.getItem('tm-auth')") is not None,
              f'[{width}] legacy encrypted authentication record is untouched')
         ctx.close()
