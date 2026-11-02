@@ -766,7 +766,7 @@ function syncNativePersonaTeam(){
 }
 function nativePersonaAllowedAction(name,el){
  const session=nativePersona();if(!session)return true;
- if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav'].includes(name))return true;
+ if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load'].includes(name))return true;
  if(name==='home-team'||name==='team-pick'){
    const t=el?.dataset?.team||el?.dataset?.id||'';
    return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>x.id===t);
@@ -777,6 +777,8 @@ function nativePersonaAllowedAction(name,el){
 }
 function seedNativePersonaData(){
  if(!DEV_SANDBOX||!ws)return;
+ if(M.findTeam(ws,P12_SAMPLE_TEAMS[0].id))return;
+ if(M.teamsOf(ws).some(t=>(t.players||[]).length||(t.matches||[]).length||(t.sessions||[]).length))return;
  // This runs only when no sandbox data was saved. Existing local and encrypted
  // team files, previous fictional actions and backups are never overwritten.
  const source=normalizeWs(null);
@@ -820,11 +822,14 @@ function renderHomeProfilePicker() {
   const teamPicker=teams.length>1?
     '<label class="field-l"><span>Assigned team</span><select data-change="native-persona-team" aria-label="Choose assigned team">'+
     teams.map(t=>'<option value="'+esc(t.id)+'"'+(t.id===state.personaTeamId?' selected':'')+'>'+esc(t.clubName+' · '+t.name)+'</option>').join('')+'</select></label>':'';
+  const canSeed=!M.findTeam(ws,P12_SAMPLE_TEAMS[0].id)&&
+    M.teamsOf(ws).every(t=>!(t.players||[]).length&&!(t.matches||[]).length&&!(t.sessions||[]).length);
+  const sampleButton=canSeed?'<button class="btn" type="button" data-act="native-persona-load">Load fictional sample teams</button>':'';
   return '<section class="home-profile-switch" aria-label="Fictional profile switcher">'+
     '<div class="home-profile-head"><div><h2>'+(selected?esc(selected.label)+' · Home':'Development home')+'</h2>'+
     '<p class="muted small">'+(selected?'Viewing this fictional person’s assigned role and teams.':'Choose a fictional person to test their screens and workflows.')+'</p></div>'+
     '<div class="home-profile-actions"><button id="home-profile-button" type="button" class="btn primary" data-act="desktop-profile-menu" aria-expanded="'+!!state.desktopProfileOpen+'" aria-controls="home-profile-panel">Switch profile</button>'+
-    (selected&&selected.id!=='qa-01'?'<button type="button" class="btn" data-act="desktop-profile-exit">Owner profile</button>':'')+'</div></div>'+scope+teamPicker+
+    (selected&&selected.id!=='qa-01'?'<button type="button" class="btn" data-act="desktop-profile-exit">Owner profile</button>':'')+sampleButton+'</div></div>'+scope+teamPicker+
     '<div id="home-profile-panel" class="home-profile-panel" '+(state.desktopProfileOpen?'':'hidden')+'><p class="muted small">Fictional test profiles · no password required · no production data</p>'+choices+'</div></section>';
 }
 function renderDesktopProfileControl() {
@@ -1626,7 +1631,7 @@ function viewHome() {
   const live = M.liveComps(ws, hv.teams, new Date()).map(lc => liveCard(lc, true)).join('');
   const left = (one && !M.activeLens(data).players.length ? startSquad() : '') + homeSpotlight(hv) + live + homeUpcoming(hv);
   const right = homeActionList(hv) + (hv.insight ? homeInsight(hv) : '') + (one ? homeNotices(3) : '');
-  return `${renderHomeProfilePicker()}${homeSelector(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
+  return `${renderHomeProfilePicker()}${(!nativePersona()||nativePersona().role==='personal_owner'?homeSelector(hv):'')}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
 }
 // Players see their own team only: what's next, the next two weeks, notices and where help is needed.
 function playerHome() {
@@ -7312,6 +7317,12 @@ const actions = {
     state.qaContext=target.contextId;state.personaTeamId=target.id;
     state.rolePreviewSection='Home';state.personaSeason=PERSONA_CURRENT_SEASON;render();
   },
+  'native-persona-load': () => {
+    if(!DEV_SANDBOX)return;
+    if(M.teamsOf(ws).some(t=>(t.players||[]).length||(t.matches||[]).length||(t.sessions||[]).length))return;
+    if(!store.get('tm-native-sample-preseed'))store.set('tm-native-sample-preseed',JSON.stringify(ws));
+    seedNativePersonaData();syncNativePersonaTeam();render();
+  },
   'persona-fixture-save': () => {
     if(!DEV_SANDBOX||state.qaPersona!=='p12'||!qaEnabled())return;
     const current=personaSession(state.qaProfile,state.qaContext,state.personaTeamId);
@@ -8590,6 +8601,13 @@ const actions = {
   })
 };
 
+document.addEventListener('submit', e => {
+  const session=nativePersona();
+  if(session&&!['personal_owner','team_coach'].includes(session.role)){
+    e.preventDefault();e.stopImmediatePropagation();
+    toast('Editing is not enabled for this test profile');
+  }
+},true);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   // The legacy QA screen remains isolated outside the public sandbox.
@@ -8656,6 +8674,19 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
+  if(DEV_SANDBOX&&state.qaPersona==='p12'&&k==='native-persona-context'){
+    const session=personaSession(state.qaProfile,e.target.value);
+    if(session?.contextId===e.target.value){
+      state.qaContext=session.contextId;state.personaTeamId='';
+      syncNativePersonaTeam();render();
+    }return;
+  }
+  if(DEV_SANDBOX&&state.qaPersona==='p12'&&k==='native-persona-team'){
+    const session=nativePersona();
+    const picked=personaRoleTeams(session?.profileId,session?.role).find(t=>t.id===e.target.value);
+    if(picked){state.qaContext=picked.contextId;state.personaTeamId=picked.id;syncNativePersonaTeam();render();}
+    return;
+  }
   if (k === 'qa-persona') {
     const role=e.target.value;
     const profileId=role.startsWith('p12:')?role.slice(4):'';
