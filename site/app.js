@@ -40,6 +40,7 @@ import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
 import { qaAcceptanceBoard, qaAcceptanceText } from './p11-qa-acceptance.js';
 import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
 import {desktopProfileAvailable,desktopProfileChoices,resolveDesktopProfile} from './desktop-profile-preview.js';
+import {developmentSandbox} from './development-sandbox.js';
 import {personWorkspace} from './person-role-workspace.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
 import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
@@ -77,7 +78,7 @@ import { localPeopleNamespace, localPeopleReviewView, acceptLocalPeopleLink, und
 import { prepareStaffSourceIds } from './staff-source-ids.js';
 import { REPORTED_RELATIONSHIPS, recordGuardianReview, amendGuardianReview } from './guardian-reviews.js';
 
-const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
+const KEYS = { sandbox:'tm-persona-sandbox-v1', auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
 
 // Eight on field, symmetrical: from the centre out to each touch line, Middle, Rover, Link, Wing.
 const SLOT_DEFS = [
@@ -143,6 +144,7 @@ const sessionStore = {
 
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
+const DEV_SANDBOX=developmentSandbox({hostname:location.hostname,pathname:location.pathname,search:location.search});
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => M.uid();   // random, except while the test library is built (model.js)
 const pad = n => String(n).padStart(2, '0');
@@ -303,9 +305,10 @@ let data = null;      // coach: the team on screen (inside ws)
 let teamData = null;  // player: the team view
 // Show a team (this device remembers which). Archived teams are only shown when asked for directly.
 function pickTeam(id) {
-  const want = M.findTeam(ws, id || store.get(KEYS.team));
+  const rememberedTeamKey=DEV_SANDBOX?'tm-persona-sandbox-team':KEYS.team;
+  const want = M.findTeam(ws, id || store.get(rememberedTeamKey));
   data = want && (!want.archived || id) ? want : M.activeTeams(ws)[0] || ws;
-  store.set(KEYS.team, data.id);
+  store.set(rememberedTeamKey, data.id);
   return data;
 }
 // Load a coach copy. An older single-team copy is kept as it was (encrypted when live) before it is
@@ -539,7 +542,7 @@ function save() {
   M.syncEvents(ws);
   data.updatedAt = ws.updatedAt = new Date().toISOString();
   if (S.trial) {
-    const stored = store.set(KEYS.trial, JSON.stringify(ws));
+    const stored = store.set(DEV_SANDBOX?KEYS.sandbox:KEYS.trial, JSON.stringify(ws));
     S.storageFull = !stored;
     if (stored) S.storageWarned = false;
     else if (!S.storageWarned) { S.storageWarned = true; toast('Not saved on this phone: storage is full. Export a backup now.'); }
@@ -585,7 +588,7 @@ async function remoteMovedOn(g, head) {
 }
 
 async function publish(auto = false, force = false) {
-  if (S.role !== 'coach') return;
+  if (DEV_SANDBOX || S.role !== 'coach') return;
   if (S.trial) { if (!auto) openGoLive(); return; }
   if (!ghReady()) { if (!auto) openGithubSheet(); return; }
   if (S.publishing) { S.again = true; return; }
@@ -719,15 +722,29 @@ function qaEnabled() {
     !!ws?.testLibrary && Number(ws.testLibrary.version)>=3) ||
     (state.desktopProfileActive && desktopPreviewAllowed());
 }
+function renderHomeProfilePicker() {
+  if(!DEV_SANDBOX || !desktopPreviewAllowed())return '';
+  const selected=state.qaPersona==='p12' ? P12_QA_PROFILES.find(p=>p.id===state.qaProfile) : null;
+  const choices=state.desktopProfileOpen ? desktopProfileChoices().map(group=>
+    '<section aria-label="'+esc(group.label)+'"><h3>'+esc(group.label)+'</h3><div class="desktop-profile-options">'+
+    group.profiles.map(p=>'<button type="button" data-act="desktop-profile-pick" data-profile="'+esc(p.id)+'" aria-pressed="'+(p.id===state.qaProfile?'true':'false')+'">'+esc(p.label)+'</button>').join('')+
+    '</div></section>').join('') : '';
+  return '<section class="home-profile-switch" aria-label="Fictional profile switcher">'+
+    '<div class="home-profile-head"><div><h2>'+(selected?esc(selected.label)+' · Home':'Development home')+'</h2>'+
+    '<p class="muted small">'+(selected?'Viewing this fictional person’s assigned role and teams.':'Choose a fictional person to test their screens and workflows.')+'</p></div>'+
+    '<div class="home-profile-actions"><button id="home-profile-button" type="button" class="btn primary" data-act="desktop-profile-menu" aria-expanded="'+!!state.desktopProfileOpen+'" aria-controls="home-profile-panel">Switch profile</button>'+
+    (selected?'<button type="button" class="btn" data-act="desktop-profile-exit">Back to Home</button>':'')+'</div></div>'+
+    '<div id="home-profile-panel" class="home-profile-panel" '+(state.desktopProfileOpen?'':'hidden')+'><p class="muted small">Fictional test profiles · no password required · no production data</p>'+choices+'</div></section>';
+}
 function renderDesktopProfileControl() {
   const host=$('#desktop-profile-control'),button=$('#desktop-profile-button');
   const panel=$('#desktop-profile-panel'),exit=$('#desktop-profile-exit');
   if (!host||!button||!panel||!exit)return;
   const allowed=desktopPreviewAllowed();
-  document.body.classList.toggle('profile-switch-available',allowed);
+  document.body.classList.toggle('profile-switch-available',allowed&&!DEV_SANDBOX);
   const inPreview=allowed&&state.desktopProfileActive&&state.qaPersona==='p12';
   document.body.classList.toggle('desktop-profile-active',inPreview);
-  host.hidden=!allowed;
+  host.hidden=!allowed||DEV_SANDBOX;
   if(!allowed){state.desktopProfileOpen=false;panel.hidden=true;panel.innerHTML='';return;}
   button.textContent=inPreview?'Change profile':'View as profile';
   button.setAttribute('aria-label',inPreview?'Change fictional test profile':'View app as a fictional test profile');
@@ -792,7 +809,7 @@ function renderDesktopRoleWorkspace(p) {
   $('#team-title').textContent=w.roleLabel+' · '+w.profileLabel;
   $('#status').hidden=false;$('#status').className='status info';
   $('#status').textContent='FICTIONAL PREVIEW · No real data, authentication, permissions or publishing';
-  $('#view').innerHTML='<section class="qa-preview qa-person-workspace" data-qa-profile="'+esc(p.profileId)+'" data-role-workspace="'+esc(activeRole)+'">'+
+  $('#view').innerHTML='<section class="qa-preview qa-person-workspace" data-qa-profile="'+esc(p.profileId)+'" data-role-workspace="'+esc(activeRole)+'">'+renderHomeProfilePicker()+
     '<div class="sec-h"><h2>'+esc(w.roleLabel)+' workspace</h2><span class="pill">FICTIONAL</span></div>'+
     '<label class="field-l"><span>Person, role and exact assigned group</span><select data-change="p12-context" aria-label="Select assigned role and team">'+scopeOptions+'</select></label>'+
     '<p class="hint">'+esc(w.profileLabel)+' · '+w.allTeamCount+' teams across '+esc(w.sports.join(', ')||'no sports')+'. Context restrictions apply independently to each team.</p>'+
@@ -1154,7 +1171,7 @@ function renderStatus() {
     text = 'This phone’s storage is full. The latest changes are not saved locally; keep this page open and export an encrypted backup now.';
     btn = `<button data-act="export">Export backup</button>`;
   }
-  else if (S.trial) { cls = 'warn'; text = ws && ws.testLibrary ? `Test library (${fmtDay(ws.testLibrary.day)}). Saved on this phone only.` : 'Test mode. Saved on this phone only; nothing is shared.'; btn = `<button data-act="go-live">Go live</button>`; }
+  else if (S.trial) { cls = 'warn'; text = DEV_SANDBOX ? 'Development workspace · saved on this device only. Fictional profiles available on Home.' : (ws && ws.testLibrary ? `Test library (${fmtDay(ws.testLibrary.day)}). Saved on this phone only.` : 'Test mode. Saved on this phone only; nothing is shared.'); btn = DEV_SANDBOX ? '' : `<button data-act="go-live">Go live</button>`; }
   else if (!online() && S.dirty) { cls = 'warn'; text = 'Offline. Changes are saved on this phone and will publish when you’re back online.'; }
   else if (!online()) { cls = 'warn'; text = 'Offline. Everything here is saved on this phone.'; }
   else if (!ghReady()) { cls = 'warn'; text = 'Saved on this phone only.'; btn = `<button data-act="github">Connect GitHub to publish</button>`; }
@@ -1402,7 +1419,7 @@ function viewHome() {
   const live = M.liveComps(ws, hv.teams, new Date()).map(lc => liveCard(lc, true)).join('');
   const left = (one && !M.activeLens(data).players.length ? startSquad() : '') + homeSpotlight(hv) + live + homeUpcoming(hv);
   const right = homeActionList(hv) + (hv.insight ? homeInsight(hv) : '') + (one ? homeNotices(3) : '');
-  return `${homeSelector(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
+  return `${renderHomeProfilePicker()}${homeSelector(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
 }
 // Players see their own team only: what's next, the next two weeks, notices and where help is needed.
 function playerHome() {
@@ -6591,12 +6608,12 @@ function testLibrarySection() {
     ${lib ? `<p class="note">This copy is the test library from ${esc(fmtLong(lib.day))} (version ${esc(lib.version)}).</p>` : ''}
     ${can ? `<button class="btn primary block" data-act="test-library">${lib ? 'Load a fresh test library' : 'Load the test library'}</button>`
       : '<p class="note">This copy has real players, so the test library can’t replace it.</p>'}
-    <h3 class="form-sec">Testing on more than one device</h3>
+    ${DEV_SANDBOX ? '<p class="hint">Development data stays on this device. To use the same fictional records on another device, use a test-data export and import. No passwords or publishing are required.</p>' : `<h3 class="form-sec">Testing on more than one device</h3>
     <ul class="todo">
       <li><b>Same starting point:</b> load the test library on each device on the same day; the data check codes match.</li>
       <li><b>Changes shared between devices:</b> load it on one device and go live (Settings › Publishing). Sign in on the others with the coach password; they get the same copy, and changes made on any of them publish to the rest. Nothing reaches players until you send an invite link.</li>
       <li><b>Without going live:</b> Settings › Backup › Export on one device, Import on the other.</li>
-    </ul>
+    </ul>`}
     <p class="hint">Loading a fresh library replaces everything in this copy${S.trial ? '' : ' (passwords stay the same)'}. Its dates follow the day it’s loaded.</p>`;
 }
 function phoneSettings() {
@@ -6606,6 +6623,7 @@ function phoneSettings() {
   <p class="hint">Choose what to clear: the squad, training, matches, tasks, helpers, lineups, notices or the message log. Team settings${S.trial ? '' : ', plays and passwords'} stay.</p>`;
 }
 function trialSettings() {
+  if(DEV_SANDBOX)return `<h3 class="form-sec">Development workspace</h3><p class="muted small">No passwords or production publishing in this environment. Use Switch profile on Home. Fictional testing changes stay on this device.</p>`;
   return `<h3 class="form-sec">Going live</h3>
   <p class="muted small" style="margin-bottom:10px">You're in test mode: everything is saved on this phone only and nobody else can see it. When you're ready to share the app with players, go live. You'll choose a coach password and a team password, and connect GitHub so the app can publish.</p>
   <button class="btn primary block" data-act="go-live">Go live</button>
@@ -7078,8 +7096,8 @@ const actions = {
     if(!desktopPreviewAllowed())return;
     state.desktopProfileOpen=!state.desktopProfileOpen;
     render();
-    if(state.desktopProfileOpen)$('#desktop-profile-panel button[data-act="desktop-profile-pick"]')?.focus();
-    else $('#desktop-profile-button')?.focus();
+    if(state.desktopProfileOpen)$(DEV_SANDBOX?'#home-profile-panel button[data-act="desktop-profile-pick"]':'#desktop-profile-panel button[data-act="desktop-profile-pick"]')?.focus();
+    else $(DEV_SANDBOX?'#home-profile-button':'#desktop-profile-button')?.focus();
   },
   'desktop-profile-pick': el => {
     if(!desktopPreviewAllowed()||!state.desktopProfileOpen)return;
@@ -7098,7 +7116,7 @@ const actions = {
     state.qaGovernance=null;
     state.qaSafetyReplacement='';
     render();
-    $('#desktop-profile-button')?.focus();
+    $(DEV_SANDBOX?'#home-profile-button':'#desktop-profile-button')?.focus();
   },
   'desktop-profile-exit': () => {
     if(!state.desktopProfileActive)return;
@@ -7108,7 +7126,7 @@ const actions = {
     state.qaProfile='';state.qaContext='';state.qaSandbox=null;
     state.qaGovernance=null;state.qaSafetyReplacement='';
     render();
-    $('#desktop-profile-button')?.focus();
+    $(DEV_SANDBOX?'#home-profile-button':'#desktop-profile-button')?.focus();
   },
   'qa-exit': () => { state.qaPersona=null;state.qaScope='';state.qaJourney='';state.qaProfile='';state.qaContext='';state.qaSandbox=null;state.qaGovernance=null;state.qaSafetyReplacement='';state.desktopProfileActive=false;state.desktopProfileOpen=false;render(); },
   'qa-p12-reset': () => { if(qaEnabled()&&state.qaPersona==='p12'){state.qaContext='';state.qaSandbox=null;render();} },
@@ -7977,9 +7995,9 @@ const actions = {
   'preview-on': coachOnly(() => { state.preview = true; state.moveMode = false; closeSheet(); render(); window.scrollTo(0, 0); }),
   'preview-off': () => { state.preview = false; render(); },
 
-  'go-live': coachOnly(() => openGoLive()),
-  'github': () => S.trial ? openGoLive() : openGithubSheet(),
-  'publish': () => publish(false),
+  'go-live': coachOnly(() => {if(DEV_SANDBOX){toast('Production setup is not enabled in this development environment.');return;}openGoLive();}),
+  'github': () => {if(DEV_SANDBOX){toast('GitHub publishing is disabled in the development environment.');return;}S.trial ? openGoLive() : openGithubSheet();},
+  'publish': () => {if(DEV_SANDBOX)return;publish(false);},
   'force-publish': () => { closeSheet(); publish(false, true); },
   'conflict': () => openConflictSheet(),
   'load-latest': () => {
@@ -8333,7 +8351,7 @@ window.matchMedia('(min-width: 900px)').addEventListener('change', () => {
 });
 document.addEventListener('keydown', e => {
   if(e.key==='Escape'&&state.desktopProfileOpen){
-    e.preventDefault();state.desktopProfileOpen=false;render();$('#desktop-profile-button')?.focus();return;
+    e.preventDefault();state.desktopProfileOpen=false;render();$(DEV_SANDBOX?'#home-profile-button':'#desktop-profile-button')?.focus();return;
   }
   if (e.key === 'Escape' && !$('#sheet').hidden) { requestCloseSheet(); return; }
   if (state.sheet !== 'play-editor' || !state.ped || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
@@ -8618,6 +8636,7 @@ document.addEventListener('submit', async e => {
     return;
   }
   if (kind === 'go-live' && S.trial) {
+    if(DEV_SANDBOX)return;
     const c1 = raw('coach'), c2 = raw('coach2'), t1 = raw('team'), t2 = raw('team2');
     const problem = passwordProblem(c1, c2, t1, t2), msg = $('#go-live-msg');
     if (problem) { msg.textContent = problem; msg.hidden = false; return; }
@@ -9368,6 +9387,9 @@ function readJoinLink() {
 }
 
 async function boot() {
+  // Development deployment is password-free and never opens remote encrypted records.
+  // Existing coach/team auth, old drafts and published files are left untouched.
+  if(DEV_SANDBOX)return startTrial();
   const join = readJoinLink();
   const hashTab = location.hash.slice(1);
   if (VIEW_IDS.includes(hashTab)) state.tab = hashTab;
@@ -9398,9 +9420,10 @@ async function boot() {
 
 // Nothing published yet: open straight into the coach view with no passwords.
 function startTrial() {
-  const raw = readJson(KEYS.trial);
+  const key=DEV_SANDBOX?KEYS.sandbox:KEYS.trial;
+  const raw = readJson(key);
   loadWs(raw, null).then(() => {
-    if (raw && raw.schema !== M.SCHEMA) store.set(KEYS.trial, JSON.stringify(ws));   // keep the upgraded copy
+    if (raw && raw.schema !== M.SCHEMA) store.set(key, JSON.stringify(ws));   // keep the upgraded copy
     S.role = 'coach'; S.trial = true; S.coachLock = null;
     render();
   });
