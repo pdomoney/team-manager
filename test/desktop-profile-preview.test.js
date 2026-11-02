@@ -5,12 +5,14 @@ import {
 } from '../site/desktop-profile-preview.js';
 import {P12_QA_PROFILES} from '../site/p12-qa-profiles.js';
 
-test('desktop profile picker available only in coach workspace at desktop width',()=>{
+test('fictional profile picker requires Coach workspace on phone tablet and desktop',()=>{
   assert.equal(desktopProfileAvailable({role:'coach',width:1280}),true);
-  assert.equal(desktopProfileAvailable({role:'coach',width:900}),true);
-  for(const width of [0,390,820,899,-1,NaN])
+  for(const width of [320,390,820,899,900])
+    assert.equal(desktopProfileAvailable({role:'coach',width}),true);
+  for(const width of [0,280,319,-1,NaN])
     assert.equal(desktopProfileAvailable({role:'coach',width}),false);
-  assert.equal(desktopProfileAvailable({role:'coach',playerPreview:true,width:1280}),false);
+  for(const width of [390,1280])
+    assert.equal(desktopProfileAvailable({role:'coach',playerPreview:true,width}),false);
   for(const role of ['player','helper','guardian','owner',null,''])
     assert.equal(desktopProfileAvailable({role,width:1280}),false);
 });
