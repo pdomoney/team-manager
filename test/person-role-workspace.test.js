@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {personWorkspace} from '../site/person-role-workspace.js';
 test('coach sees own teams and coach navigation, not manager tools',()=>{
- const p=personWorkspace('qa-07');assert.equal(p.role,'team_coach');assert.deepEqual(p.sections,['Dashboard','Squad','Training','Matches','Plays','Seasons']);assert.equal(p.teams.length,1);assert.equal(p.allTeamCount,2);
+ const p=personWorkspace('qa-07');assert.equal(p.role,'team_coach');assert.deepEqual(p.sections,['Dashboard','Squad','Training','Matches','Plays','Seasons']);assert.equal(p.teams.length,1);assert.equal(p.allTeamCount,3);
 });
 test('manager works across clubs but only in exact selected team',()=>{
  const p=personWorkspace('qa-09');assert.equal(p.role,'team_manager');assert.equal(p.allTeamCount,3);assert.equal(p.teams.length,1);
