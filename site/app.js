@@ -744,6 +744,7 @@ const NATIVE_ROLE_TABS={
  staff:['home','agenda','matches','notices'],
  none:['home']
 };
+const nativeTeamId=id=>String(id||'').replace(/-/g,'');
 const nativePersona=()=>DEV_SANDBOX&&state.qaPersona==='p12'?
   personaSession(state.qaProfile,state.qaContext,state.personaTeamId):null;
 function nativeRoleAllows(tab){
@@ -759,7 +760,7 @@ function syncNativePersonaTeam(){
    choices.find(t=>t.id===session.team?.id)||choices[0];
  if(current){
    state.qaContext=current.contextId;state.personaTeamId=current.id;
-   if(M.findTeam(ws,current.id))pickTeam(current.id);
+   if(M.findTeam(ws,nativeTeamId(current.id)))pickTeam(nativeTeamId(current.id));
  }
  state.preview=['player','guardian','helper','staff','none'].includes(session.role);
  state.tab='home';
@@ -769,7 +770,7 @@ function nativePersonaAllowedAction(name,el){
  if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load'].includes(name))return true;
  if(name==='home-team'||name==='team-pick'){
    const t=el?.dataset?.team||el?.dataset?.id||'';
-   return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>x.id===t);
+   return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>nativeTeamId(x.id)===t);
  }
  // Non-Owner, non-Coach roles are read-only in this restoration slice.
  if(session.role==='personal_owner'||session.role==='team_coach')return true;
@@ -777,7 +778,7 @@ function nativePersonaAllowedAction(name,el){
 }
 function seedNativePersonaData(){
  if(!DEV_SANDBOX||!ws)return;
- if(M.findTeam(ws,P12_SAMPLE_TEAMS[0].id))return;
+ if(M.findTeam(ws,nativeTeamId(P12_SAMPLE_TEAMS[0].id)))return;
  if(M.teamsOf(ws).some(t=>(t.players||[]).length||(t.matches||[]).length||(t.sessions||[]).length))return;
  // This runs only when no sandbox data was saved. Existing local and encrypted
  // team files, previous fictional actions and backups are never overwritten.
@@ -788,7 +789,7 @@ function seedNativePersonaData(){
  }));
  const make=t=>{
    const roster=makeP12SampleRoster(t.id),base=defaultData();
-   base.id=t.id;
+   base.id=nativeTeamId(t.id);
    Object.assign(base.team,{name:t.name,clubId:t.clubId,sport:t.sport,
      division:t.ageGroup,ageGroup:t.ageGroup,category:t.category,
      event:'Example competition',season:'Example 2026 season'});
@@ -822,7 +823,7 @@ function renderHomeProfilePicker() {
   const teamPicker=portfolio.length>1?
     '<label class="field-l"><span>Assigned team</span><select data-change="native-persona-team" aria-label="Choose assigned team">'+
     portfolio.map(t=>'<option value="'+esc(t.id)+'"'+(t.id===state.personaTeamId?' selected':'')+'>'+esc(t.clubName+' · '+t.name)+'</option>').join('')+'</select></label>':'';
-  const canSeed=!M.findTeam(ws,P12_SAMPLE_TEAMS[0].id)&&
+  const canSeed=!M.findTeam(ws,nativeTeamId(P12_SAMPLE_TEAMS[0].id))&&
     M.teamsOf(ws).every(t=>!(t.players||[]).length&&!(t.matches||[]).length&&!(t.sessions||[]).length);
   return '<section class="home-profile-switch" aria-label="Development profile switcher">'+
     '<div class="home-profile-head"><p class="home-profile-identity"><strong>'+esc(selected?.label||'Owner')+'</strong><span class="muted small"> · '+esc(session?.label||'Owner')+' · Fictional test profile</span></p>'+
@@ -1633,7 +1634,7 @@ function viewHome() {
   if (!isCoach()) return renderHomeProfilePicker()+playerHome();
   // Non-Owner profiles see only assigned teams in the original Home dashboard.
   const assigned=who&&who.role!=='personal_owner'?
-    personaRoleTeams(who.profileId,who.role).map(t=>M.findTeam(ws,t.id)).filter(Boolean):null;
+    personaRoleTeams(who.profileId,who.role).map(t=>M.findTeam(ws,nativeTeamId(t.id))).filter(Boolean):null;
   const homeWs=assigned?.length?{
     ...ws,...data,id:data.id,team:data.team,players:data.players,sessions:data.sessions,
     matches:data.matches,tasks:data.tasks,
