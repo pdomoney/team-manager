@@ -118,6 +118,14 @@ with sync_playwright() as p:
              pg.evaluate('JSON.stringify(window.__team.ws)')==original,
              f'[{width}] resizing to mobile retains selected fictional profile and unchanged workspace')
         pg.click('#desktop-profile-exit')
+        pg.evaluate(act,['tab',{'tab':'field'}])
+        c.ok(pg.evaluate("document.body.classList.contains('game')") and
+             pg.locator('#desktop-profile-control').is_hidden() and
+             pg.evaluate("document.querySelector('.top').offsetHeight")<=56,
+             f'[{width}] slim game screen hides mobile profile control without growing header')
+        pg.evaluate(act,['tab',{'tab':'home'}])
+        c.ok(control.is_visible(),
+             f'[{width}] returning to Home restores the fictional profile control')
         pg.evaluate('window.__team.S.role=null')
         pg.evaluate(act,['lock-mode',{'mode':'player'}])
         c.ok(control.is_hidden() and
