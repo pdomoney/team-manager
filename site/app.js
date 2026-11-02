@@ -40,6 +40,7 @@ import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
 import { qaAcceptanceBoard, qaAcceptanceText } from './p11-qa-acceptance.js';
 import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
 import {desktopProfileAvailable,desktopProfileChoices,resolveDesktopProfile} from './desktop-profile-preview.js';
+import {developmentSandbox} from './development-sandbox.js';
 import {personWorkspace} from './person-role-workspace.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
 import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
@@ -77,7 +78,7 @@ import { localPeopleNamespace, localPeopleReviewView, acceptLocalPeopleLink, und
 import { prepareStaffSourceIds } from './staff-source-ids.js';
 import { REPORTED_RELATIONSHIPS, recordGuardianReview, amendGuardianReview } from './guardian-reviews.js';
 
-const KEYS = { auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
+const KEYS = { sandbox:'tm-persona-sandbox-v1', auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
 
 // Eight on field, symmetrical: from the centre out to each touch line, Middle, Rover, Link, Wing.
 const SLOT_DEFS = [
@@ -143,6 +144,7 @@ const sessionStore = {
 
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
+const DEV_SANDBOX=developmentSandbox({hostname:location.hostname,pathname:location.pathname,search:location.search});
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => M.uid();   // random, except while the test library is built (model.js)
 const pad = n => String(n).padStart(2, '0');
@@ -539,7 +541,7 @@ function save() {
   M.syncEvents(ws);
   data.updatedAt = ws.updatedAt = new Date().toISOString();
   if (S.trial) {
-    const stored = store.set(KEYS.trial, JSON.stringify(ws));
+    const stored = store.set(DEV_SANDBOX?KEYS.sandbox:KEYS.trial, JSON.stringify(ws));
     S.storageFull = !stored;
     if (stored) S.storageWarned = false;
     else if (!S.storageWarned) { S.storageWarned = true; toast('Not saved on this phone: storage is full. Export a backup now.'); }
@@ -585,7 +587,7 @@ async function remoteMovedOn(g, head) {
 }
 
 async function publish(auto = false, force = false) {
-  if (S.role !== 'coach') return;
+  if (DEV_SANDBOX || S.role !== 'coach') return;
   if (S.trial) { if (!auto) openGoLive(); return; }
   if (!ghReady()) { if (!auto) openGithubSheet(); return; }
   if (S.publishing) { S.again = true; return; }
@@ -1154,7 +1156,7 @@ function renderStatus() {
     text = 'This phone’s storage is full. The latest changes are not saved locally; keep this page open and export an encrypted backup now.';
     btn = `<button data-act="export">Export backup</button>`;
   }
-  else if (S.trial) { cls = 'warn'; text = ws && ws.testLibrary ? `Test library (${fmtDay(ws.testLibrary.day)}). Saved on this phone only.` : 'Test mode. Saved on this phone only; nothing is shared.'; btn = `<button data-act="go-live">Go live</button>`; }
+  else if (S.trial) { cls = 'warn'; text = DEV_SANDBOX ? 'Development workspace · saved on this device only. Fictional profiles available on Home.' : (ws && ws.testLibrary ? `Test library (${fmtDay(ws.testLibrary.day)}). Saved on this phone only.` : 'Test mode. Saved on this phone only; nothing is shared.'); btn = DEV_SANDBOX ? '' : `<button data-act="go-live">Go live</button>`; }
   else if (!online() && S.dirty) { cls = 'warn'; text = 'Offline. Changes are saved on this phone and will publish when you’re back online.'; }
   else if (!online()) { cls = 'warn'; text = 'Offline. Everything here is saved on this phone.'; }
   else if (!ghReady()) { cls = 'warn'; text = 'Saved on this phone only.'; btn = `<button data-act="github">Connect GitHub to publish</button>`; }
@@ -6606,6 +6608,7 @@ function phoneSettings() {
   <p class="hint">Choose what to clear: the squad, training, matches, tasks, helpers, lineups, notices or the message log. Team settings${S.trial ? '' : ', plays and passwords'} stay.</p>`;
 }
 function trialSettings() {
+  if(DEV_SANDBOX)return `<h3 class="form-sec">Development workspace</h3><p class="muted small">No passwords or production publishing in this environment. Use Switch profile on Home. Fictional testing changes stay on this device.</p>`;
   return `<h3 class="form-sec">Going live</h3>
   <p class="muted small" style="margin-bottom:10px">You're in test mode: everything is saved on this phone only and nobody else can see it. When you're ready to share the app with players, go live. You'll choose a coach password and a team password, and connect GitHub so the app can publish.</p>
   <button class="btn primary block" data-act="go-live">Go live</button>
@@ -7977,9 +7980,9 @@ const actions = {
   'preview-on': coachOnly(() => { state.preview = true; state.moveMode = false; closeSheet(); render(); window.scrollTo(0, 0); }),
   'preview-off': () => { state.preview = false; render(); },
 
-  'go-live': coachOnly(() => openGoLive()),
-  'github': () => S.trial ? openGoLive() : openGithubSheet(),
-  'publish': () => publish(false),
+  'go-live': coachOnly(() => {if(DEV_SANDBOX){toast('Production setup is not enabled in this development environment.');return;}openGoLive();}),
+  'github': () => {if(DEV_SANDBOX){toast('GitHub publishing is disabled in the development environment.');return;}S.trial ? openGoLive() : openGithubSheet();},
+  'publish': () => {if(DEV_SANDBOX)return;publish(false);},
   'force-publish': () => { closeSheet(); publish(false, true); },
   'conflict': () => openConflictSheet(),
   'load-latest': () => {
@@ -8618,6 +8621,7 @@ document.addEventListener('submit', async e => {
     return;
   }
   if (kind === 'go-live' && S.trial) {
+    if(DEV_SANDBOX)return;
     const c1 = raw('coach'), c2 = raw('coach2'), t1 = raw('team'), t2 = raw('team2');
     const problem = passwordProblem(c1, c2, t1, t2), msg = $('#go-live-msg');
     if (problem) { msg.textContent = problem; msg.hidden = false; return; }
@@ -9368,6 +9372,9 @@ function readJoinLink() {
 }
 
 async function boot() {
+  // Development deployment is password-free and never opens remote encrypted records.
+  // Existing coach/team auth, old drafts and published files are left untouched.
+  if(DEV_SANDBOX)return startTrial();
   const join = readJoinLink();
   const hashTab = location.hash.slice(1);
   if (VIEW_IDS.includes(hashTab)) state.tab = hashTab;
@@ -9398,9 +9405,10 @@ async function boot() {
 
 // Nothing published yet: open straight into the coach view with no passwords.
 function startTrial() {
-  const raw = readJson(KEYS.trial);
+  const key=DEV_SANDBOX?KEYS.sandbox:KEYS.trial;
+  const raw = readJson(key);
   loadWs(raw, null).then(() => {
-    if (raw && raw.schema !== M.SCHEMA) store.set(KEYS.trial, JSON.stringify(ws));   // keep the upgraded copy
+    if (raw && raw.schema !== M.SCHEMA) store.set(key, JSON.stringify(ws));   // keep the upgraded copy
     S.role = 'coach'; S.trial = true; S.coachLock = null;
     render();
   });
