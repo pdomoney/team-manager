@@ -55,3 +55,15 @@ test('owner sees 18 fictional teams and scoped roster data',()=>{
  assert.equal(personaFixtures(p).length,18);
  assert.equal(personaRoster(p).players.length,p.team.playerCount);
 });
+
+test('one Coach switches assigned teams across clubs with actions isolated per context',()=>{
+ const a=personaSession('qa-07','grant:team_coach:team:qa-rangers-16');
+ const b=personaSession('qa-07','grant:team_coach:team:qa-stars-open');
+ assert.equal(a.team.clubId,'qa-rangers');assert.equal(b.team.clubId,'qa-stars');
+ assert.equal(a.role,'team_coach');assert.equal(b.role,'team_coach');
+ const change=personaAction(a,{}, {capability:'training',teamId:a.team.id,value:'Defense drill'});
+ assert.equal(change.state.training.length,1);
+ assert.equal(personaCurrentState(b,change.records).training.length,0);
+ assert.equal(personaAction(b,change.records,{capability:'training',teamId:a.team.id,value:'Wrong club'}).error,
+   'Action is outside the selected person and team scope');
+});
