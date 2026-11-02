@@ -17,13 +17,13 @@ with sync_playwright() as p:
              f'[{width}] profile selection is on Home, not the header')
         c.ok(pg.locator('#home-profile-button').is_visible(),
              f'[{width}] Home displays Switch profile')
-        original=pg.evaluate('JSON.stringify(window.__team.ws)')
         pg.evaluate("""() => {
           localStorage.setItem('tm-auth',JSON.stringify({role:'coach',key:'not-a-real-key'}));
           localStorage.setItem('tm-test-data','DO_NOT_OVERWRITE_OLD_TEST_DATA');
         }""")
         pg.reload()
         pg.wait_for_selector('#home-profile-button')
+        original=pg.evaluate('JSON.stringify(window.__team.ws)')
         c.ok(pg.locator('input[type=password]').count()==0,
              f'[{width}] old saved credentials do not trigger password sign-in')
         c.ok(pg.evaluate("localStorage.getItem('tm-test-data')")=='DO_NOT_OVERWRITE_OLD_TEST_DATA',
