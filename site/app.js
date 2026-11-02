@@ -766,6 +766,7 @@ function renderP12QaScreen() {
   const workflow=inspectP12Workflow(p,state.qaSandbox);
   const sampleTeams=p12SampleTeamSummary(p);
   const roleWorkspace=personWorkspace(p.profileId,state.qaContext);
+  const roleSection=roleWorkspace.sections.includes(state.rolePreviewSection)?state.rolePreviewSection:roleWorkspace.sections[0];
   const fixtureCase=workflow?makeP12FixtureStaffingScenario(workflow.teamId):null;
   const selectedDuty=workflow?.proposals?.[0]||null;
   const actingCase=fixtureCase&&selectedDuty?assessP12FixtureActingDuty(fixtureCase,{
@@ -906,7 +907,9 @@ function renderP12QaScreen() {
     '<section class="qa-role-workspace" aria-label="Role workspace preview" data-role-workspace="'+esc(roleWorkspace.role)+'">'+
     '<div class="sec-h"><h2>'+esc(roleWorkspace.roleLabel)+' workspace</h2><span class="pill">FICTIONAL</span></div>'+
     '<p class="hint">Assigned to '+roleWorkspace.allTeamCount+' team(s) across '+esc(roleWorkspace.sports.join(', ')||'no sport')+'.</p>'+
-    '<nav class="qa-role-navigation" aria-label="Preview role sections">'+roleWorkspace.sections.map(s=>'<span class="qa-role-nav-item">'+esc(s)+'</span>').join('')+'</nav>'+
+    '<nav class="qa-role-navigation" aria-label="Preview role sections">'+roleWorkspace.sections.map(s=>'<button type="button" class="qa-role-nav-item" data-act="qa-role-section" data-section="'+esc(s)+'" aria-current="'+(s===roleSection?'page':'false')+'">'+esc(s)+'</button>').join('')+'</nav>'+
+    '<h3>'+esc(roleSection)+'</h3>'+
+    '<p class="hint">'+esc(roleSection==='Squad'?'Review the selected team roster and player availability.':roleSection==='Training'?'Review training activity for your assigned team.':roleSection==='Plays'?'Review plays for this team.':roleSection==='Match-day staff'?'Review staff and volunteer roles for this fixture.':roleSection==='My teams'?'Review all your sporting team memberships, including other sports.':roleSection==='Seasons'?'View this person’s historical and current season participation.':roleSection==='Fixtures'||roleSection==='Matches'?'Review assigned matches and fixtures.':'Showing the selected '+roleWorkspace.roleLabel+' section for this role and organisation context.')+'</p>'+
     '<h3>Teams in this selected context</h3>'+
     (roleWorkspace.teams.length?'<div class="qa-role-team-grid">'+roleWorkspace.teams.map(t=>'<article class="qa-role-team"><strong>'+esc(t.name)+'</strong><p class="muted small">'+esc(t.sport)+' · '+esc(t.season)+'</p></article>').join('')+'</div>':'<p class="hint">No team-level assignment in this context.</p>')+
     (!roleWorkspace.access?'<p class="hint">Participation is not an app access grant. No real account privileges are provided.</p>':'')+
@@ -7017,6 +7020,7 @@ function extendTestLibrary(day) {
    ========================================================= */
 const coachOnly = fn => (...a) => { if (isCoach()) return fn(...a); };
 const actions = {
+  'qa-role-section': el => { if(state.qaPersona==='p12'&&qaEnabled()){ const x=personWorkspace(state.qaProfile,state.qaContext); if(x?.sections.includes(el.dataset.section)){state.rolePreviewSection=el.dataset.section;render();} } },
   'desktop-profile-menu': () => {
     if(!desktopPreviewAllowed())return;
     state.desktopProfileOpen=!state.desktopProfileOpen;
@@ -7033,6 +7037,7 @@ const actions = {
     state.desktopProfileOpen=false;
     state.qaPersona='p12';
     state.qaProfile=choice.profileId;
+    state.rolePreviewSection='';
     state.qaContext='';
     state.qaScope='';
     state.qaJourney='';
@@ -8262,7 +8267,7 @@ const actions = {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   // QA screen is read-only even for forged clicks aimed at existing coach actions.
-  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit'].includes(el.dataset.act)) { e.preventDefault();return; }
+  if (state.qaPersona && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','qa-role-section'].includes(el.dataset.act)) { e.preventDefault();return; }
   const fn = actions[el.dataset.act]; if (!fn) return;
   e.preventDefault();
   if (blockedInPast(el.dataset.act)) return;
@@ -8344,7 +8349,7 @@ document.addEventListener('change', e => {
       if(e.target.value===''||allowed){state.qaSafetyReplacement=e.target.value;render();}
     } else if (k === 'p12-context' && state.qaPersona==='p12' && qaEnabled()) {
       const next=p12QaView(state.qaProfile,e.target.value);
-      if (next?.selected?.id===e.target.value) {state.qaContext=e.target.value;state.qaSandbox=null;state.qaSafetyReplacement='';render();}
+      if (next?.selected?.id===e.target.value) {state.rolePreviewSection='';state.qaContext=e.target.value;state.qaSandbox=null;state.qaSafetyReplacement='';render();}
     } else if (k === 'qa-scope' && state.qaPersona!=='p12' && qaEnabled()) {
       const next=qaPreview(state.qaPersona,e.target.value);
       if (next && next.scope===e.target.value) {state.qaScope=next.scope;state.qaJourney='';render();}
