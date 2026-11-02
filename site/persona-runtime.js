@@ -156,7 +156,9 @@ export function personaAction(session,records={},action={}){
  const current=COPY(migrated[key]||blankRecord());
  if(action.capability==='roster'){
   if(!roster.players.some(p=>p.id===action.personId))return fail('Player is not in this squad');
-  current.selected[action.personId]=!current.selected[action.personId];
+  const baseline=roster.players.find(p=>p.id===action.personId)?.selected===true;
+  const previous=Object.hasOwn(current.selected,action.personId)?current.selected[action.personId]:baseline;
+  current.selected[action.personId]=!previous;
  }else if(action.capability==='attendance'){
   if(!roster.players.some(p=>p.id===action.personId)||!has(['yes','no','pending'],action.value))
    return fail('Invalid squad member or availability value');
