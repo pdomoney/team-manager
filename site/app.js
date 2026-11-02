@@ -6608,12 +6608,12 @@ function testLibrarySection() {
     ${lib ? `<p class="note">This copy is the test library from ${esc(fmtLong(lib.day))} (version ${esc(lib.version)}).</p>` : ''}
     ${can ? `<button class="btn primary block" data-act="test-library">${lib ? 'Load a fresh test library' : 'Load the test library'}</button>`
       : '<p class="note">This copy has real players, so the test library can’t replace it.</p>'}
-    <h3 class="form-sec">Testing on more than one device</h3>
+    ${DEV_SANDBOX ? '<p class="hint">Development data stays on this device. To use the same fictional records on another device, use a test-data export and import. No passwords or publishing are required.</p>' : `<h3 class="form-sec">Testing on more than one device</h3>
     <ul class="todo">
       <li><b>Same starting point:</b> load the test library on each device on the same day; the data check codes match.</li>
       <li><b>Changes shared between devices:</b> load it on one device and go live (Settings › Publishing). Sign in on the others with the coach password; they get the same copy, and changes made on any of them publish to the rest. Nothing reaches players until you send an invite link.</li>
       <li><b>Without going live:</b> Settings › Backup › Export on one device, Import on the other.</li>
-    </ul>
+    </ul>`}
     <p class="hint">Loading a fresh library replaces everything in this copy${S.trial ? '' : ' (passwords stay the same)'}. Its dates follow the day it’s loaded.</p>`;
 }
 function phoneSettings() {
