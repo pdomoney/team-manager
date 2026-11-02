@@ -61,10 +61,13 @@ p{margin:0}
 .desktop-profile-options button[aria-pressed="true"]{border-color:var(--turf);background:var(--ok-soft)}
 .desktop-profile-disclaimer{font-size:12px;line-height:1.4;padding-bottom:10px;border-bottom:1px solid var(--line)}
 .desktop-profile-active .qa-persona-control{display:none}
+/* Keep game/field screens compact. Role selection remains available on
+   ordinary Coach screens; it must not push the field below the fold. */
+body.game .desktop-profile-control{display:none!important}
 @media(max-width:599px){
-  body.profile-switch-available .top-row{flex-wrap:wrap;row-gap:6px}
-  body.profile-switch-available #team-title{flex-basis:100%;font-size:18px}
-  body.profile-switch-available .desktop-profile-control{order:5;width:100%;justify-content:flex-start}
+  body.profile-switch-available:not(.game) .top-row{flex-wrap:wrap;row-gap:6px}
+  body.profile-switch-available:not(.game) #team-title{flex-basis:100%;font-size:18px}
+  body.profile-switch-available:not(.game) .desktop-profile-control{order:5;width:100%;justify-content:flex-start}
   .desktop-profile-button,.desktop-profile-exit{min-height:44px}
   .desktop-profile-panel{left:0;right:auto;width:min(100%,calc(100vw - 32px));max-height:min(65dvh,550px)}
 }
