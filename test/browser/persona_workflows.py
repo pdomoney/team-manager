@@ -34,6 +34,21 @@ with sync_playwright() as p:
         pg.locator('#view [data-capability=training]').first.click()
         check.ok('Ball skills' in pg.locator('#view .persona-content ul').inner_text(),
                  f'[{width}] Coach training plan action changes displayed data')
+        # The screenshot case: one Club Admin serving two clubs sees all twelve
+        # assigned teams and can change exact club scope.
+        pg.click('#tabs [data-section=Home]')
+        pg.click('#home-profile-button')
+        pg.click('#home-profile-panel [data-profile=qa-05]')
+        check.ok(pg.locator('#view .persona-team-card').count()==12,
+                 f'[{width}] Large Club Admin Home shows both clubs and twelve teams')
+        pg.locator('#view [data-act=persona-team][data-team=qa-comets-mixed]').click()
+        check.ok(pg.locator('#view select[data-change=p12-context]').input_value()=='grant:club_admin:club:qa-comets',
+                 f'[{width}] Club Admin team choice switches exact club group')
+        pg.click('#tabs [data-section=People]')
+        check.ok(pg.locator('#view [data-capability=roster]').count()==0 and
+                 pg.locator('#view .persona-list-row').count()>=14,
+                 f'[{width}] Club Admin sees scoped people but not Coach-only lineup action')
+
         # Manager assigned across different clubs through active role/group changes.
         pg.click('#tabs [data-section=Home]')
         pg.click('#home-profile-button')
