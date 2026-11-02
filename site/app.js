@@ -755,11 +755,58 @@ function renderQaSelector() {
     P12_QA_PROFILES.map(p => '<option value="p12:' + esc(p.id) + '"' + (state.qaPersona==='p12' && state.qaProfile===p.id ? ' selected' : '') + '>' + esc(p.id.toUpperCase()+' · '+p.label) + '</option>').join('') + '</optgroup>' +
     '</select>' + (currentScope ? '<span class="qa-header-scope" title="Simulated context">' + esc(currentScope) + '</span>' : '');
 }
+// Desktop fictional persona workspace. All content comes from fixed QA fixtures.
+function renderDesktopRoleWorkspace(p) {
+  const w=personWorkspace(p.profileId,state.qaContext);
+  const section=w.sections.includes(state.rolePreviewSection)?state.rolePreviewSection:w.sections[0];
+  const scopeOptions=p.contexts.map(c=>'<option value="'+esc(c.id)+'"'+(c.id===state.qaContext?' selected':'')+'>'+esc(c.label+' · '+c.groupLabel+' ('+c.status+')')+'</option>').join('');
+  const currentTeams=w.teams;
+  const roster=currentTeams.length===1?makeP12SampleRoster(currentTeams[0].id):null;
+  const teamRows=currentTeams.map(t=>'<article class="qa-role-team"><strong>'+esc(t.name)+'</strong><p class="muted small">'+esc(t.sport)+' · '+esc(t.season)+'</p></article>').join('');
+  const fixtureRows=currentTeams.map(t=>'<li>'+esc(t.name)+' · '+esc(t.sport)+' · '+esc(t.season)+' <span class="muted small">(fictional fixture, no live schedule)</span></li>').join('');
+  const activeRole=w.role;
+  const showRoster=roster && ['Squad','Availability','My teams','People'].includes(section);
+  const sectionBody=section==='Dashboard'||section==='Overview'||section==='My teams'?
+    '<h3>My assigned teams</h3>'+(teamRows?'<div class="qa-role-team-grid">'+teamRows+'</div>':'<p>No team assigned in this role context.</p>'):
+    ['Matches','Fixtures','Match centre'].includes(section)?
+    '<h3>Fixtures for my teams</h3><ul>'+fixtureRows+'</ul>':
+    section==='Seasons'?
+    '<h3>Season participation</h3><ul>'+currentTeams.map(t=>'<li>'+esc(t.season)+' · '+esc(t.name)+' · '+esc(t.sport)+'</li>').join('')+'</ul>':
+    section==='Match-day staff'&&roster?
+    '<h3>Match-day team</h3><ul>'+roster.staff.map(x=>'<li>'+esc(x.name+' · '+x.role)+'</li>').join('')+roster.volunteers.map(x=>'<li>'+esc(x.name+' · '+x.role)+'</li>').join('')+'</ul>':
+    section==='Training'?
+    '<h3>Team training</h3><p class="hint">Training plans are restricted to the selected coaching team. No fictional sessions are scheduled.</p>':
+    section==='Plays'?
+    '<h3>Team plays</h3><p class="hint">Only the selected coaching team is in scope. No fictional plays are stored.</p>':
+    section==='Messages'?
+    '<h3>Team communications</h3><p class="hint">Messages are not sent in fictional preview mode.</p>':
+    section==='Governance'?
+    '<h3>Administration</h3><p class="hint">Organisation grants are not changed in a fictional preview.</p>':
+    '<h3>'+esc(section)+'</h3><p class="hint">This section is restricted to the selected fictional role and group.</p>';
+  const rosterBody=showRoster?'<h3>Selected team squad</h3><ul>'+roster.players.map(x=>'<li>'+esc(x.name)+' · #'+x.jersey+' · '+esc(x.preferredPositions.join(', '))+'</li>').join('')+'</ul>':'';
+  document.body.classList.remove('game');
+  $('#tabs').hidden=true;$('#team-crest').hidden=true;$('#days-chip').hidden=true;
+  $('#bell-btn').hidden=true;$('#menu-btn').hidden=true;
+  $('#team-title').textContent=w.roleLabel+' · '+w.profileLabel;
+  $('#status').hidden=false;$('#status').className='status info';
+  $('#status').textContent='FICTIONAL PREVIEW · No real data, authentication, permissions or publishing';
+  $('#view').innerHTML='<section class="qa-preview qa-person-workspace" data-qa-profile="'+esc(p.profileId)+'" data-role-workspace="'+esc(activeRole)+'">'+
+    '<div class="sec-h"><h2>'+esc(w.roleLabel)+' workspace</h2><span class="pill">FICTIONAL</span></div>'+
+    '<label class="field-l"><span>Person, role and exact assigned group</span><select data-change="p12-context" aria-label="Select assigned role and team">'+scopeOptions+'</select></label>'+
+    '<p class="hint">'+esc(w.profileLabel)+' · '+w.allTeamCount+' teams across '+esc(w.sports.join(', ')||'no sports')+'. Context restrictions apply independently to each team.</p>'+
+    '<nav class="qa-role-navigation" aria-label="Role workspace navigation">'+w.sections.map(x=>'<button class="qa-role-nav-item" type="button" data-act="qa-role-section" data-section="'+esc(x)+'" aria-current="'+(section===x?'page':'false')+'">'+esc(x)+'</button>').join('')+'</nav>'+
+    '<section class="qa-role-workspace" aria-label="'+esc(section)+'">'+sectionBody+rosterBody+
+    (!w.access?'<p class="hint">Sporting membership is not an administrative permission. This is a read-only participation view.</p>':'')+
+    '</section></section>';
+  document.title=w.roleLabel+' · '+w.profileLabel+' · Team Manager';
+}
+
 // P12C uses only fixed fictional profile and group data, never ws or real identities.
 function renderP12QaScreen() {
   const p=p12QaView(state.qaProfile,state.qaContext);
   if(!qaEnabled() || !p) { state.qaPersona=null;state.qaProfile='';state.qaContext='';return render(); }
   state.qaContext=p.selected?.id||'';
+  if(state.desktopProfileActive)return renderDesktopRoleWorkspace(p);
   if (!state.qaSandbox || state.qaSandbox.profileId!==p.profileId || state.qaSandbox.contextId!==state.qaContext) {
     state.qaSandbox=makeP12WorkflowSandbox(p);
   }

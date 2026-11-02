@@ -38,9 +38,10 @@ with sync_playwright() as p:
         pg.click('#desktop-profile-button')
         pg.click('#desktop-profile-panel [data-profile=qa-01]')
         pg.wait_for_selector('#view [data-qa-profile=qa-01]')
-        c.ok('Platform Owner' in pg.locator('#view').inner_text() and
-             'FICTIONAL READ-ONLY VIEW' in pg.locator('#view').inner_text(),
-             f'[{width}] owner profile opens explicit fictional preview')
+        c.ok(pg.locator('#view [data-role-workspace=personal_owner]').count()==1 and
+             'Owner workspace' in pg.locator('#view').inner_text() and
+             pg.locator('#view .qa-tiles').count()==0,
+             f'[{width}] owner opens role workspace instead of P12 QA report')
         c.ok(pg.locator('#desktop-profile-exit').is_visible() and
              pg.locator('#qa-persona-control').is_hidden(),
              f'[{width}] desktop mode shows exit without duplicate header picker')
@@ -54,21 +55,30 @@ with sync_playwright() as p:
         pg.wait_for_selector('#view [data-qa-profile=qa-18]')
         context=pg.locator('#view select[data-change=p12-context]')
         context.select_option('grant:team_manager:team:qa-stars-women')
-        board=pg.locator('#view .qa-p12-workflow')
-        c.ok(board.get_attribute('data-qa-workflow')=='qa-stars-women',
-             f'[{width}] multi-club Manager gets only exact Stars fixture test')
-        board.locator('[data-kind=propose-role-change][data-staff=qa-stars-women-staff-3][data-duty=trainer]').click()
-        c.ok('Unverified duty proposals: 1' in board.inner_text(),
-             f'[{width}] fictional role behaves like Manager without production assignment')
+        c.ok(pg.locator('#view [data-role-workspace=team_manager]').count()==1 and
+             'Example Stars Women' in pg.locator('#view').inner_text() and
+             pg.locator('#view .qa-tiles').count()==0,
+             f'[{width}] Manager sees only selected Stars team, not QA role matrix')
+        pg.click('#view [data-act=qa-role-section][data-section="Match-day staff"]')
+        c.ok('Match-day team' in pg.locator('#view').inner_text(),
+             f'[{width}] Manager role navigation changes content')
         context=pg.locator('#view select[data-change=p12-context]')
         context.select_option('membership:player:team:qa-comets-mixed')
-        c.ok(pg.locator('#view .qa-p12-workflow').count()==0 and
-             'No app capabilities' in pg.locator('#view .qa-tiles section').nth(1).inner_text(),
-             f'[{width}] Player membership never inherits Manager actions')
+        c.ok(pg.locator('#view [data-role-workspace=player]').count()==1 and
+             'Example Comets Mixed' in pg.locator('#view').inner_text() and
+             pg.locator('#view .qa-role-team').count()==0 and
+             pg.locator('#view [data-section="Match-day staff"]').count()==0,
+             f'[{width}] Player role changes UI and cannot inherit Manager teams')
+        pg.click('#desktop-profile-button')
+        pg.click('#desktop-profile-panel [data-profile=qa-14]')
+        c.ok(pg.locator('#view [data-role-workspace=player]').count()==1 and
+             'Oztag, Touch' in pg.locator('#view').inner_text(),
+             f'[{width}] multi-sport Player can see their participation summary')
         pg.click('#desktop-profile-button')
         pg.click('#desktop-profile-panel [data-profile=qa-19]')
-        c.ok('No app capabilities' in pg.locator('#view .qa-tiles section').nth(1).inner_text(),
-             f'[{width}] revoked Coach preview cannot gain edit rights')
+        c.ok(pg.locator('#view [data-role-workspace=none]').count()==1 and
+             pg.locator('#view [data-section="Squad"]').count()==0,
+             f'[{width}] revoked Coach is denied coaching navigation')
 
         pg.evaluate(act,['task-new',{}])
         c.ok(pg.locator('#sheet').is_hidden(),
