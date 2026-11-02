@@ -305,9 +305,10 @@ let data = null;      // coach: the team on screen (inside ws)
 let teamData = null;  // player: the team view
 // Show a team (this device remembers which). Archived teams are only shown when asked for directly.
 function pickTeam(id) {
-  const want = M.findTeam(ws, id || store.get(KEYS.team));
+  const rememberedTeamKey=DEV_SANDBOX?'tm-persona-sandbox-team':KEYS.team;
+  const want = M.findTeam(ws, id || store.get(rememberedTeamKey));
   data = want && (!want.archived || id) ? want : M.activeTeams(ws)[0] || ws;
-  store.set(KEYS.team, data.id);
+  store.set(rememberedTeamKey, data.id);
   return data;
 }
 // Load a coach copy. An older single-team copy is kept as it was (encrypted when live) before it is
