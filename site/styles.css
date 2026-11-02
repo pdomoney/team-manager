@@ -1913,3 +1913,21 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
 .qa-role-nav-item{cursor:pointer;color:var(--ink);font-family:inherit}
 .qa-role-nav-item[aria-current="page"]{background:var(--pitch);color:#fff;border-color:var(--pitch)}
 .qa-role-nav-item:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+/* Password-free development: profile switch lives on Home, not in the header. */
+.home-profile-switch{position:relative;margin:0 0 16px;padding:16px;border-radius:12px;background:var(--paper);border:1px solid var(--line)}
+.home-profile-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.home-profile-head h2{font-size:20px;margin-bottom:4px}
+.home-profile-actions{display:flex;gap:8px;flex-wrap:wrap}
+.home-profile-actions .btn{min-height:44px}
+.home-profile-panel{position:relative;z-index:2;max-height:55vh;overflow-y:auto;overscroll-behavior:contain;padding:12px;margin-top:12px;border:1px solid var(--line);border-radius:10px;background:var(--chalk)}
+.home-profile-panel section{margin-top:12px}
+.home-profile-panel h3{font-size:14px;margin:0 0 7px}
+.home-profile-panel .desktop-profile-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:6px}
+.home-profile-panel .desktop-profile-options button{min-height:44px}
+@media(max-width:599px){
+ .home-profile-switch{padding:12px}
+ .home-profile-head{align-items:stretch;flex-direction:column}
+ .home-profile-actions .btn{flex:1 1 auto}
+ .home-profile-panel .desktop-profile-options{grid-template-columns:1fr}
+}
