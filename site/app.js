@@ -40,6 +40,7 @@ import { qaJourneys, qaJourney } from './p11-qa-journeys.js';
 import { qaAcceptanceBoard, qaAcceptanceText } from './p11-qa-acceptance.js';
 import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
 import {desktopProfileAvailable,desktopProfileChoices,resolveDesktopProfile} from './desktop-profile-preview.js';
+import {personWorkspace} from './person-role-workspace.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
 import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
 import {p12SampleTeamSummary,makeP12SampleRoster} from './p12-qa-club-teams.js';
@@ -764,6 +765,7 @@ function renderP12QaScreen() {
   }
   const workflow=inspectP12Workflow(p,state.qaSandbox);
   const sampleTeams=p12SampleTeamSummary(p);
+  const roleWorkspace=personWorkspace(p.profileId,state.qaContext);
   const fixtureCase=workflow?makeP12FixtureStaffingScenario(workflow.teamId):null;
   const selectedDuty=workflow?.proposals?.[0]||null;
   const actingCase=fixtureCase&&selectedDuty?assessP12FixtureActingDuty(fixtureCase,{
@@ -901,6 +903,14 @@ function renderP12QaScreen() {
     (allowed.length?'<ul class="qa-identity-list">'+allowed.map(cap=>'<li>'+esc(cap)+'</li>').join('')+'</ul>':
       '<p class="muted small">No app capabilities. A sporting membership, temporary duty, pending invitation or revoked role does not create access.</p>')+
     '<p class="hint">All expected capabilities are simulated; actual access requires future verified server-side grants (#55).</p></section></div>'+
+    '<section class="qa-role-workspace" aria-label="Role workspace preview" data-role-workspace="'+esc(roleWorkspace.role)+'">'+
+    '<div class="sec-h"><h2>'+esc(roleWorkspace.roleLabel)+' workspace</h2><span class="pill">FICTIONAL</span></div>'+
+    '<p class="hint">Assigned to '+roleWorkspace.allTeamCount+' team(s) across '+esc(roleWorkspace.sports.join(', ')||'no sport')+'.</p>'+
+    '<nav class="qa-role-navigation" aria-label="Preview role sections">'+roleWorkspace.sections.map(s=>'<span class="qa-role-nav-item">'+esc(s)+'</span>').join('')+'</nav>'+
+    '<h3>Teams in this selected context</h3>'+
+    (roleWorkspace.teams.length?'<div class="qa-role-team-grid">'+roleWorkspace.teams.map(t=>'<article class="qa-role-team"><strong>'+esc(t.name)+'</strong><p class="muted small">'+esc(t.sport)+' · '+esc(t.season)+'</p></article>').join('')+'</div>':'<p class="hint">No team-level assignment in this context.</p>')+
+    (!roleWorkspace.access?'<p class="hint">Participation is not an app access grant. No real account privileges are provided.</p>':'')+
+    '</section>'+
     (p.note?'<p class="note">'+esc(p.note)+'</p>':'')+
     clubOverviewHtml+
     workflowHtml+
