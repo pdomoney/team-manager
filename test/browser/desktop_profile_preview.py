@@ -14,14 +14,8 @@ with sync_playwright() as p:
         pg.wait_for_selector('#view [data-act=test-library]')
         original=pg.evaluate('JSON.stringify(window.__team.ws)')
         control=pg.locator('#desktop-profile-control')
-        if width<900:
-            c.ok(control.is_hidden(),f'[{width}] no desktop switch button on phone/tablet')
-            c.ok(pg.locator('#qa-persona-control').is_hidden(),
-                 f'[{width}] no unrestricted trial profile preview before test library')
-            ctx.close();continue
-
         c.ok(control.is_visible() and pg.locator('#desktop-profile-button').is_visible(),
-             f'[{width}] coach workspace displays desktop View as profile control')
+             f'[{width}] Coach workspace shows profile control on phone and desktop')
         c.ok(pg.locator('#qa-persona-control').is_hidden(),
              f'[{width}] existing trial picker remains hidden until test library')
         pg.click('#desktop-profile-button')
@@ -66,7 +60,7 @@ with sync_playwright() as p:
         context.select_option('membership:player:team:qa-comets-mixed')
         c.ok(pg.locator('#view [data-role-workspace=player]').count()==1 and
              'Example Comets Mixed' in pg.locator('#view').inner_text() and
-             pg.locator('#view .qa-role-team').count()==0 and
+             'Example Stars Women' not in pg.locator('#view .qa-role-workspace').inner_text() and
              pg.locator('#view [data-section="Match-day staff"]').count()==0,
              f'[{width}] Player role changes UI and cannot inherit Manager teams')
         pg.click('#desktop-profile-button')
@@ -119,10 +113,10 @@ with sync_playwright() as p:
         c.ok(pg.locator('#view [data-qa-profile=qa-07]').count()==1,
              f'[{width}] desktop QA can preview Coach without loading test-library data')
         pg.set_viewport_size({'width':390,'height':860})
-        c.ok(pg.locator('#desktop-profile-control').is_hidden() and
-             pg.locator('#view [data-qa-profile]').count()==0 and
+        c.ok(pg.locator('#desktop-profile-control').is_visible() and
+             pg.locator('#view [data-qa-profile=qa-07]').count()==1 and
              pg.evaluate('JSON.stringify(window.__team.ws)')==original,
-             f'[{width}] shrinking viewport exits desktop-only trial and preserves workspace')
+             f'[{width}] resizing to mobile retains selected fictional profile and unchanged workspace')
         ctx.close()
     result=c.done(errors)
     browser.close()
