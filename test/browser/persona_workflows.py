@@ -11,7 +11,7 @@ with sync_playwright() as p:
         pg.wait_for_selector('#home-profile-button')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
-        c.ok(pg.evaluate("window.__team.data.id")=='qa-rangers-16' and
+        c.ok(pg.evaluate("window.__team.data.id")=='qarangers16' and
              pg.locator('#tabs [data-g=tactics]').count()==1,
              f'[{width}] Coach uses original Team Manager assigned team')
         pg.evaluate(act,['tab',{'tab':'squad'}])
@@ -20,7 +20,7 @@ with sync_playwright() as p:
              f'[{width}] native Squad screen has fictional players, not replacement page')
         pg.evaluate(act,['tab',{'tab':'home'}])
         pg.locator('#view select[data-change=native-persona-team]').select_option('qa-stars-open')
-        c.ok(pg.evaluate("window.__team.data.id")=='qa-stars-open',
+        c.ok(pg.evaluate("window.__team.data.id")=='qastarsopen',
              f'[{width}] same Coach accesses assigned team at different club')
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
