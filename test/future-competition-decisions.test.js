@@ -61,13 +61,20 @@ test('D08: final official result requires independent confirmation + delegated p
    fixtureId:'f1',competitionId:'NSW-Cup',operation:'publish',at};
  assert.equal(reviewResultOperation(base).allowed,false);
  assert.equal(reviewResultOperation({...base,confirmation:{
-   fixtureId:'f1',officialId:'competition-1',auditId:'confirmation-1'},
+   fixtureId:'f1',officialId:'competition-1',status:'verified',evidenceRef:'signed-score',
+     auditId:'confirmation-1'},
    delegation:auth('competition-1','result:publish')}).allowed,false);
  assert.equal(reviewResultOperation({...base,confirmation:{
-   fixtureId:'f1',officialId:'referee-1',auditId:'confirmation-1'},
+   fixtureId:'f1',officialId:'referee-1',status:'proposed',evidenceRef:'signed-score',
+     auditId:'confirmation-1'},
+   delegation:auth('competition-1','result:publish')}).allowed,false);
+ assert.equal(reviewResultOperation({...base,confirmation:{
+   fixtureId:'f1',officialId:'referee-1',status:'verified',evidenceRef:'signed-score',
+     auditId:'confirmation-1'},
    delegation:auth('competition-1','result:publish')}).allowed,true);
  assert.equal(reviewResultOperation({...base,confirmation:{
-   fixtureId:'f1',officialId:'referee-1',auditId:'confirmation-1'},
+   fixtureId:'f1',officialId:'referee-1',status:'verified',evidenceRef:'signed-score',
+     auditId:'confirmation-1'},
    delegation:auth('manager-1','result:publish')}).allowed,false);
  assert.equal(reviewResultOperation({actorId:'referee-1',fixtureId:'f1',operation:'confirm',
    appointment:{...appointment,actorId:'referee-1',duty:'match_official'},at}).allowed,true);
