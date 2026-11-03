@@ -6,11 +6,12 @@ import {reviewEmergencyContact,reviewCrossSportSafetyAlert}
 const at='2026-11-03T10:00:00Z';
 const contact=()=>({
  actorRole:'team_manager',actorGroup:{type:'team',id:'Rangers-U16'},
- subjectTeamId:'Rangers-U16',subjectClubId:'Rangers',
+ subjectPersonId:'junior-1',subjectTeamId:'Rangers-U16',subjectClubId:'Rangers',
  assignment:{status:'approved',role:'team_manager',
    group:{type:'team',id:'Rangers-U16'},approvedBy:'club-admin',
    expiresAt:'2026-12-01T00:00:00Z',childSafetyScreening:'current'},
- consent:{status:'active',subjectTeamId:'Rangers-U16',emergencyContact:true,
+ consent:{status:'active',subjectPersonId:'junior-1',subjectTeamId:'Rangers-U16',
+   recordedBy:'guardian-1',evidenceRef:'guardian-consent-record',emergencyContact:true,
    expiresAt:'2026-12-01T00:00:00Z'},
  purpose:'active-emergency',subjectUnder18:true,at
 });
@@ -26,6 +27,8 @@ test('D01: only assigned club/team staff get minimum next-of-kin projection',()=
    {purpose:'marketing'},
    {actorGroup:{type:'team',id:'Other-U16'}},
    {consent:{...request.consent,emergencyContact:false}},
+   {consent:{...request.consent,subjectPersonId:'different-child'}},
+   {consent:{...request.consent,evidenceRef:''}},
    {consent:{...request.consent,expiresAt:'2026-11-01T00:00:00Z'}},
    {assignment:{...request.assignment,status:'proposed'}},
    {assignment:{...request.assignment,childSafetyScreening:'missing'}},
