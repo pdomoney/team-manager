@@ -7969,6 +7969,35 @@ const actions = {
   }),
   'md-send-lineup': coachOnly(el => { const m = matchById(el.dataset.id); if (m) sendWa(matchLineupText(m), { ref: 'match:' + m.id }); }),
   'result-share': coachOnly(el => { const m = matchById(el.dataset.id); if (m && (M.matchOutcome(m) || m.status !== 'scheduled')) sendWa(oneResultText(m), { ref: 'result:' + m.id }); }),
+  'manager-availability-open': el => {
+    const m=matchById(el.dataset.id),scope=nativeManagerAvailabilityScope(m),session=nativePersona();
+    if(!scope?.players.length||!session)return;
+    state.managerAvailability={teamId:data.id,matchId:m.id,contextId:session.contextId,
+      seasonId:scope.seasonId,playerIds:scope.players.map(p=>p.id).sort()};
+    openSheet('Record match replies',managerAvailabilityBody(m,scope),'manager-availability');
+  },
+  'manager-availability-reply': el => {
+    const pin=state.managerAvailability,m=matchById(el.dataset.id),session=nativePersona();
+    const scope=nativeManagerAvailabilityScope(m),panel=el.closest('#sheet .manager-availability');
+    const values=['yes','maybe','no'];
+    const currentIds=scope?.players.map(p=>p.id).sort();
+    const sameRoster=currentIds&&pin?.playerIds.length===currentIds.length&&
+      pin.playerIds.every((id,i)=>id===currentIds[i]);
+    if(state.sheet!=='manager-availability'||!panel||!pin||!scope||
+       !sameRoster||!session||pin.teamId!==data.id||
+       pin.matchId!==m?.id||pin.contextId!==session.contextId||
+       pin.seasonId!==scope.seasonId||panel.dataset.teamId!==data.id||
+       panel.dataset.matchId!==m.id||panel.dataset.seasonId!==scope.seasonId||
+       el.closest('.roll-row')?.dataset.playerId!==el.dataset.pid||
+       !pin.playerIds.includes(el.dataset.pid)||!values.includes(el.dataset.v)){
+      toast('Fixture, roster or Manager assignment changed. Reopen replies.');return;
+    }
+    const value=M.rsvpOf(m,el.dataset.pid)===el.dataset.v?'':el.dataset.v;
+    M.setRsvp(m,el.dataset.pid,value,new Date().toISOString(),
+      'fictional-team-manager-preview',session.profileId);
+    save();
+    $('#sheet .panel-body').innerHTML=managerAvailabilityBody(m,scope);
+  },
   'manager-fixture-open': el => {
     const m=matchById(el.dataset.id);
     if(!nativeManagerFixtureAccess(m))return;
