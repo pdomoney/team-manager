@@ -41,7 +41,7 @@ with sync_playwright() as p:
              'registration' in pg.locator('#sheet').inner_text().lower(),
              f'[{width}] placement form is narrow and does not expose protected or financial fields')
         # Cancel leaves the shared team unchanged.
-        pg.locator('#sheet [data-act=close-sheet]').first.click()
+        pg.locator('#sheet .panel-head [data-act=close-sheet]').click()
         c.ok(pg.evaluate('window.__team.state.teamPlacementPending') is None and
              pg.evaluate('window.__team.data.teamPlacementEvents.length')==0,
              f'[{width}] cancel has no data effect')
