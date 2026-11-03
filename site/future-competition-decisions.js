@@ -72,6 +72,7 @@ export function reviewResultOperation({
  }
  if(operation==='publish'){
    if(!txt(competitionId)||!confirmation||confirmation.fixtureId!==fixtureId||
+      confirmation.status!=='verified'||!txt(confirmation.evidenceRef)||
       !txt(confirmation.officialId)||confirmation.officialId===actorId||
       !txt(confirmation.auditId))
      return deny('independent-confirmation-required');
