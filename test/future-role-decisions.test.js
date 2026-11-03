@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import {reviewActiveRoleCapability,reviewSportDuty,reviewTeamParticipation}
  from '../site/future-role-decisions.js';
 const at='2026-11-03T10:00:00Z';
-const coach={id:'g1',accountId:'a1',role:'team_coach',
+const coach={id:'g1',kind:'role-grant',accountId:'a1',role:'team_coach',
  group:{type:'team',id:'Rangers-U16'},status:'active',
  approvedBy:'other-admin',expiresAt:'2026-12-01T00:00:00Z'};
-const manager={id:'g2',accountId:'a1',role:'team_manager',
+const manager={id:'g2',kind:'role-grant',accountId:'a1',role:'team_manager',
  group:{type:'team',id:'Comets-U12'},status:'active',
  approvedBy:'other-admin',expiresAt:'2026-12-01T00:00:00Z'};
 const ask=(activeGrantId,capability,targetScope,grants=[coach,manager])=>
@@ -30,7 +30,7 @@ test('D20/D24: membership or fixture appointment cannot impersonate a role grant
  for(const extra of [
    {id:'membership',accountId:'a1',kind:'membership',role:'team_coach',group:target,status:'active',approvedBy:'x'},
    {id:'duty',accountId:'a1',kind:'fixture-duty',role:'team_coach',group:target,status:'proposed',approvedBy:'x'},
-   {id:'expired',...coach,expiresAt:'2026-11-01T00:00:00Z'}
+   {...coach,id:'expired',expiresAt:'2026-11-01T00:00:00Z'}
  ]){
    const res=ask(extra.id,'team:manage',target,[extra]);
    assert.equal(res.allowed,false);
