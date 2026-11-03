@@ -1284,6 +1284,17 @@ section.focus>*{position:relative}
 .m-venue{display:block;margin-top:1px}
 .sess.match.cancelled .m-opp{text-decoration:line-through;color:var(--muted)}
 .m-card .md-go{align-self:center;flex:none}
+/* Two role-scoped actions belong on their own row, not squeezed beside
+   the large match time and opponent on a narrow phone. */
+.m-card.has-manager-actions{flex-wrap:wrap}
+.m-card.has-manager-actions .manager-match-actions{
+  flex:0 0 100%;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap
+}
+.m-card.has-manager-actions .manager-match-actions .btn{min-height:40px}
+@media(max-width:650px){
+  .m-card.has-manager-actions .manager-match-actions{justify-content:stretch}
+  .m-card.has-manager-actions .manager-match-actions .btn{flex:1 1 112px;min-width:0}
+}
 .next-up .list{border-color:#B9C3BB;box-shadow:0 2px 10px rgba(0,0,0,.05)}
 
 /* Match sheet: where the match is up to */
