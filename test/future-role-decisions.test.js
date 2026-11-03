@@ -47,7 +47,7 @@ test('D01/D11: protected data stays outside synthetic generic role grants',()=>{
 });
 test('D03: sporting role accreditation is exact sport + verified policy + not expired',()=>{
  const input={personId:'p1',role:'trainer',sport:'Rugby league',fixtureId:'f1',at,
-   requirement:{sourceVerified:true,sport:'Rugby league',qualification:'Sports trainer'},
+   requirement:{sourceVerified:true,sport:'Rugby league',duty:'trainer',qualification:'Sports trainer'},
    credential:{personId:'p1',sport:'Rugby league',qualification:'Sports trainer',
      status:'verified',verifiedBy:'official',evidenceRef:'registry-ref',
      expiresAt:'2026-12-01T00:00:00Z'}};
@@ -57,6 +57,7 @@ test('D03: sporting role accreditation is exact sport + verified policy + not ex
  for(const bad of [
    {credential:{...input.credential,sport:'Rugby union'}},
    {requirement:{...input.requirement,sourceVerified:false}},
+   {requirement:{...input.requirement,duty:'first_aider'}},
    {credential:{...input.credential,expiresAt:'2026-11-02T00:00:00Z'}},
    {credential:{...input.credential,status:'self-reported'}}
  ])assert.equal(reviewSportDuty({...input,...bad}).allowed,false);
