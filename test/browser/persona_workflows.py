@@ -19,7 +19,13 @@ with sync_playwright() as p:
              pg.locator('#view .persona-list').count()==0,
              f'[{width}] native Squad screen has fictional players, not replacement page')
         pg.evaluate(act,['tab',{'tab':'home'}])
-        pg.locator('#view select[data-change=native-persona-team]').select_option('qa-stars-open')
+        # Navigate from the existing Home club selector, not the deleted
+        # development-only Assigned team dropdown.
+        c.ok(pg.locator('#view select[data-change=native-persona-team]').count()==0,
+             f'[{width}] no duplicate profile-specific team selector')
+        pg.locator('#view .scope-club[data-id=qa-stars]').click()
+        c.ok(pg.evaluate("window.__team.state.qaContext")=='grant:team_coach:team:qa-stars-open',
+             f'[{width}] native Stars club navigation keeps the exact Coach grant')
         c.ok(pg.evaluate("window.__team.data.id")=='qastarsopen',
              f'[{width}] same Coach accesses assigned team at different club')
         pg.click('#home-profile-button')
