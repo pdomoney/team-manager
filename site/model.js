@@ -932,9 +932,16 @@ export function rsvpOf(rec, pid) {
   const v = typeof e === 'string' ? e : e && e.v;
   return RSVP[v] ? v : '';
 }
-export function setRsvp(rec, pid, v, at = new Date().toISOString()) {
+export function setRsvp(rec, pid, v, at = new Date().toISOString(), via = 'coach', actorProfileId = '') {
+  // Coach is the existing default. Distinguish fictional Manager QA records
+  // without treating a preview role as a production-authenticated identity.
+  if(!['coach','fictional-team-manager-preview'].includes(via))
+    throw new TypeError('Unsupported RSVP recording source');
+  if(via==='fictional-team-manager-preview' && !/^qa-\d{2}$/.test(actorProfileId))
+    throw new TypeError('Fictional Manager RSVP requires a QA profile');
   rec.rsvp = { ...obj(rec.rsvp) };
-  if (RSVP[v]) rec.rsvp[pid] = { v, at, via: 'coach' }; else delete rec.rsvp[pid];
+  if (RSVP[v]) rec.rsvp[pid] = { v, at, via, ...(via==='fictional-team-manager-preview'?{actorProfileId}:{}) };
+  else delete rec.rsvp[pid];
 }
 export function rsvpCounts(rec, players) {
   const c = { yes: 0, no: 0, maybe: 0, none: 0 };

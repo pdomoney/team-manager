@@ -339,7 +339,7 @@ const state = {
   folded: {},
   system: null, sysFlip: false,
   playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
-  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, managerFixturePending: null, peopleSearch: '',
+  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, managerFixturePending: null, managerAvailability: null, peopleSearch: '',
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
@@ -797,6 +797,28 @@ function nativeManagerFixtureAccess(m){
  const active=M.activeSeason(data);
  return !m.seasonId||!!active&&m.seasonId===active.id;
 }
+// Fictional Manager availability uses the active fixture's *recorded* season.
+// Never substitute a different club, team or historical squad for a missing
+// season, and never use this preview rule as production authorisation.
+function nativeManagerAvailabilityScope(m){
+ const session=nativePersona();
+ if(!nativeManagerFixtureAccess(m)||!session?.capabilities.includes('attendance')||
+    !m.date||m.date<todayISO())return null;
+ const boundary=matchReplyRosterScope(data,m,M.clubOf(ws,data));
+ if(boundary.mode==='blocked')return null;
+ const season=M.activeSeason(data),allSeasons=M.seasonsOf(data);
+ let players=[];
+ if(boundary.mode==='fixture-season'){
+   if(!season||boundary.seasonId!==season.id)return null;
+   const eligible=new Set(boundary.playerIds);
+   players=M.seasonLens(data,boundary.seasonId).players.filter(p=>eligible.has(p.id));
+ }else if(boundary.mode==='legacy-oztag'){
+   if((m.seasonId&&m.seasonId!==season?.id)||
+      (!season&&allSeasons.length))return null;
+   players=M.activeLens(data).players;
+ }else return null;
+ return {players,seasonId:boundary.seasonId||season?.id||'',mode:boundary.mode};
+}
 function nativePersonaAllowedAction(name,el){
  const session=nativePersona();if(!session)return true;
  if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load','home-scope','close-sheet'].includes(name))return true;
@@ -806,6 +828,14 @@ function nativePersonaAllowedAction(name,el){
    return state.sheet==='manager-fixture-review' &&
      !!state.managerFixturePending &&
      nativeManagerFixtureAccess(matchById(state.managerFixturePending.id));
+ if(name==='manager-availability-open')
+   return !!nativeManagerAvailabilityScope(matchById(el?.dataset?.id));
+ if(name==='manager-availability-reply'){
+   const pinned=state.managerAvailability;
+   return state.sheet==='manager-availability'&&!!pinned&&
+     pinned.matchId===el?.dataset?.id&&
+     !!nativeManagerAvailabilityScope(matchById(pinned.matchId));
+ }
  if(name==='home-team'||name==='team-pick'){
    const t=el?.dataset?.team||el?.dataset?.id||'';
    return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>nativeTeamId(x.id)===t);
@@ -4949,11 +4979,22 @@ function matchRow(m) {
     <span class="ag-meta">${matchPills(m)}</span>`;
   const when = `<span class="m-when"><span class="m-day">${esc(d.toLocaleDateString('en-AU', { weekday: 'short' }))} ${d.getDate()} ${esc(d.toLocaleDateString('en-AU', { month: 'short' }))}</span>${bigTime(m.start)}</span>`;
   const cls = `sess match m-card ${m.status === 'cancelled' || m.status === 'postponed' ? 'cancelled' : ''} ${m.date === todayISO() ? 'today' : ''}`;
-  const day = isCoach() && matchDayDue(m) ? `<button class="btn primary sm md-go" data-act="matchday-open" data-id="${m.id}">${icon('field', 18)}Match day</button>` : '';
+  const session=nativePersona();
+  const canOpenDetails=!session||['personal_owner','team_coach'].includes(session.role);
+  const day=isCoach()&&canOpenDetails&&matchDayDue(m)
+    ? `<button class="btn primary sm md-go" data-act="matchday-open" data-id="${m.id}">${icon('field', 18)}Match day</button>`:'';
   if (isCoach()) {
     const managerEdit=nativeManagerFixtureAccess(m)
       ? `<button type="button" class="btn sm" data-act="manager-fixture-open" data-id="${esc(m.id)}" aria-label="Edit fixture for ${esc(m.opponent||'TBC')}">Edit fixture</button>`:'';
-    return `<div class="${cls}">${when}<button class="sess-main" data-act="match-open" data-id="${m.id}">${info}</button>${managerEdit}${day}</div>`;
+    const managerScope=nativeManagerAvailabilityScope(m);
+    const managerReply=managerScope?.players.length
+      ? `<button type="button" class="btn sm" data-act="manager-availability-open" data-id="${esc(m.id)}" aria-label="Record replies for ${esc(m.opponent||'TBC')}">Record replies</button>`:'';
+    const managerControls=managerEdit||managerReply?
+      `<div class="manager-match-actions">${managerEdit}${managerReply}</div>`:'';
+    const main=canOpenDetails?
+      `<button class="sess-main" data-act="match-open" data-id="${m.id}">${info}</button>`:
+      `<div class="sess-main">${info}</div>`;
+    return `<div class="${cls}${managerControls?' has-manager-actions':''}">${when}${main}${managerControls}${day}</div>`;
   }
   return `<div class="${cls}">${when}<div class="sess-main">${info}${replyBtns('match', m)}</div></div>`;
 }
@@ -4978,6 +5019,24 @@ function viewMatches() {
         ${days.map(d => `<h3 class="ag-date">${esc(fmtLong(d.date))}${coach ? ` <button class="link-btn inline" data-act="day-share" data-date="${d.date}">Send this day</button>` : ''}</h3><div class="list grid sess-grid ${cardClass('matches')}">${d.matches.map(matchRow).join('')}</div>`).join('')}</section>` : '')
     + `<section class="sec"><div class="sec-h"><h2>${days.length ? 'Other matches' : 'Coming up'}</h2></div>${up.length ? `<div class="list grid sess-grid ${cardClass('matches')}">${up.map(matchRow).join('')}</div>` : '<p class="muted small">Nothing else coming up.</p>'}</section>`
     + (past.length ? `<section class="sec"><div class="sec-h"><h2>Played</h2>${coach ? `<button class="btn sm" data-act="results-share">${icon('chat', 18)}Send results</button>` : ''}</div><div class="list grid sess-grid ${cardClass('matches')}">${past.map(matchRow).join('')}</div></section>` : '');
+}
+// A separate, minimal availability sheet shares the existing RSVP record with
+// the Coach, without displaying phone numbers, health details or staff records.
+function managerAvailabilityBody(m,scope){
+ const players=scope.players.slice().sort((a,b)=>a.name.localeCompare(b.name));
+ return `<section class="manager-availability" data-team-id="${esc(data.id)}" data-match-id="${esc(m.id)}" data-season-id="${esc(scope.seasonId)}">
+   <p class="hint">Fictional Team Manager · ${esc(fmtLong(m.date))}${m.start?' · '+esc(fmtTime(m.start)):''} · vs ${esc(m.opponent||'TBC')}</p>
+   <p>Record what players have told the team. This is not attendance, eligibility or medical clearance. Replies are saved locally as soon as you select them.</p>
+   <div class="roll-sum" id="manager-rsvp-sum">${rsvpPills(m,players)}</div>
+   <div class="list">${players.map(p=>`<div class="roll-row" data-player-id="${esc(p.id)}">
+     <span class="grow"><span class="name">${esc(p.name)}</span></span>
+     <span class="roll-btns" role="group" aria-label="${esc(p.name)}’s reply">
+       ${['yes','maybe','no'].map(v=>`<button type="button" class="rb r-${v}" data-act="manager-availability-reply" data-id="${esc(m.id)}" data-pid="${esc(p.id)}" data-v="${v}" aria-pressed="${M.rsvpOf(m,p.id)===v}">${RSVP_SHORT[v]}</button>`).join('')}
+     </span>
+   </div>`).join('')}</div>
+   <p class="hint">Tap the selected reply again to clear it. The Coach sees updates on the same fixture; no messages are sent automatically.</p>
+   <button type="button" class="btn primary block" data-act="close-sheet">Done</button>
+ </section>`;
 }
 // A Manager edits only schedule fields on an assigned, existing fixture.
 // Reusing the Coach form would expose unrelated controls and Coach-only notes.
@@ -7129,6 +7188,7 @@ function closeSheet() {
   // Dismissing either confirmation sheet revokes the pending fixture amendment.
   state.fixturePending = null;
   state.managerFixturePending = null;
+  state.managerAvailability = null;
   state.pendingRulesEvidence=null;
   if (state.pending?.fixtureRevision) state.pending = null;
   stopPlayerCrop();
@@ -7917,6 +7977,35 @@ const actions = {
   }),
   'md-send-lineup': coachOnly(el => { const m = matchById(el.dataset.id); if (m) sendWa(matchLineupText(m), { ref: 'match:' + m.id }); }),
   'result-share': coachOnly(el => { const m = matchById(el.dataset.id); if (m && (M.matchOutcome(m) || m.status !== 'scheduled')) sendWa(oneResultText(m), { ref: 'result:' + m.id }); }),
+  'manager-availability-open': el => {
+    const m=matchById(el.dataset.id),scope=nativeManagerAvailabilityScope(m),session=nativePersona();
+    if(!scope?.players.length||!session)return;
+    state.managerAvailability={teamId:data.id,matchId:m.id,contextId:session.contextId,
+      seasonId:scope.seasonId,playerIds:scope.players.map(p=>p.id).sort()};
+    openSheet('Record match replies',managerAvailabilityBody(m,scope),'manager-availability');
+  },
+  'manager-availability-reply': el => {
+    const pin=state.managerAvailability,m=matchById(el.dataset.id),session=nativePersona();
+    const scope=nativeManagerAvailabilityScope(m),panel=el.closest('#sheet .manager-availability');
+    const values=['yes','maybe','no'];
+    const currentIds=scope?.players.map(p=>p.id).sort();
+    const sameRoster=currentIds&&pin?.playerIds.length===currentIds.length&&
+      pin.playerIds.every((id,i)=>id===currentIds[i]);
+    if(state.sheet!=='manager-availability'||!panel||!pin||!scope||
+       !sameRoster||!session||pin.teamId!==data.id||
+       pin.matchId!==m?.id||pin.contextId!==session.contextId||
+       pin.seasonId!==scope.seasonId||panel.dataset.teamId!==data.id||
+       panel.dataset.matchId!==m.id||panel.dataset.seasonId!==scope.seasonId||
+       el.closest('.roll-row')?.dataset.playerId!==el.dataset.pid||
+       !pin.playerIds.includes(el.dataset.pid)||!values.includes(el.dataset.v)){
+      toast('Fixture, roster or Manager assignment changed. Reopen replies.');return;
+    }
+    const value=M.rsvpOf(m,el.dataset.pid)===el.dataset.v?'':el.dataset.v;
+    M.setRsvp(m,el.dataset.pid,value,new Date().toISOString(),
+      'fictional-team-manager-preview',session.profileId);
+    save();
+    $('#sheet .panel-body').innerHTML=managerAvailabilityBody(m,scope);
+  },
   'manager-fixture-open': el => {
     const m=matchById(el.dataset.id);
     if(!nativeManagerFixtureAccess(m))return;
