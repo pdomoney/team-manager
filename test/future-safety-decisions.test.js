@@ -8,10 +8,11 @@ const contact=()=>({
  actorRole:'team_manager',actorGroup:{type:'team',id:'Rangers-U16'},
  subjectTeamId:'Rangers-U16',subjectClubId:'Rangers',
  assignment:{status:'approved',role:'team_manager',
-   group:{type:'team',id:'Rangers-U16'},approvedBy:'club-admin'},
+   group:{type:'team',id:'Rangers-U16'},approvedBy:'club-admin',
+   expiresAt:'2026-12-01T00:00:00Z',childSafetyScreening:'current'},
  consent:{status:'active',subjectTeamId:'Rangers-U16',emergencyContact:true,
    expiresAt:'2026-12-01T00:00:00Z'},
- purpose:'active-emergency',at
+ purpose:'active-emergency',subjectUnder18:true,at
 });
 test('D01: only assigned club/team staff get minimum next-of-kin projection',()=>{
  const request=contact(),source=structuredClone(request);
@@ -26,12 +27,18 @@ test('D01: only assigned club/team staff get minimum next-of-kin projection',()=
    {actorGroup:{type:'team',id:'Other-U16'}},
    {consent:{...request.consent,emergencyContact:false}},
    {consent:{...request.consent,expiresAt:'2026-11-01T00:00:00Z'}},
-   {assignment:{...request.assignment,status:'proposed'}}
+   {assignment:{...request.assignment,status:'proposed'}},
+   {assignment:{...request.assignment,childSafetyScreening:'missing'}},
+   {assignment:{...request.assignment,expiresAt:'2026-10-01T00:00:00Z'}}
  ])assert.equal(reviewEmergencyContact({...request,...bad}).allowed,false);
 });
 const share=()=>({
  subjectPersonId:'child-1',recipientRole:'team_manager',
  recipientGroup:{type:'team',id:'Rugby-Union-U16'},
+ recipientAssignment:{status:'approved',role:'team_manager',
+   group:{type:'team',id:'Rugby-Union-U16'},
+   approvedBy:'club-admin',childSafetyScreening:'current',
+   expiresAt:'2026-12-01T00:00:00Z'},
  verifiedPersonLink:{status:'verified',personId:'child-1'},
  consent:{status:'active',personId:'child-1',purpose:'cross-sport-safety-alert',
    recipients:[{type:'team',id:'Rugby-Union-U16'}],
@@ -55,6 +62,8 @@ test('D09/D10: no cross-club sharing without exact recipient + verified person a
  const request=share();
  for(const bad of [
    {recipientGroup:{type:'team',id:'Other-Team'}},
+   {recipientAssignment:{...request.recipientAssignment,status:'revoked'}},
+   {recipientAssignment:{...request.recipientAssignment,childSafetyScreening:'expired'}},
    {recipientRole:'player'},
    {verifiedPersonLink:{status:'proposed',personId:'child-1'}},
    {consent:{...request.consent,recipients:[{type:'club',id:'Different-Club'}]}},
