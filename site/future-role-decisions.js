@@ -29,7 +29,7 @@ export function reviewActiveRoleCapability({
  const matches=grants.filter(g=>g?.id===activeGrantId);
  if(matches.length!==1)return denied('no-unique-active-context');
  const g=matches[0],role=P12_ACCESS_ROLES[g.role];
- if(!role||g.accountId!==accountId||g.status!=='active'||!text(g.approvedBy)||
+ if(!role||g.kind!=='role-grant'||g.accountId!==accountId||g.status!=='active'||!text(g.approvedBy)||
     !same(g.group,targetScope)||role.scope!==targetScope.type)
    return denied('grant-not-active-or-out-of-scope');
  const begin=g.validFrom==null?null:iso(g.validFrom);
