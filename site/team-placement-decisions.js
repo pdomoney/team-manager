@@ -25,7 +25,7 @@ export function teamPlacementStatus(team,playerId){
 // approve team placement. A separate Club/Registrar workflow verifies the
 // governing registration and fee status; D17 grace-period policy stays open.
 export function recordTeamPlacement(team,{
- playerId,role,actorProfileId,contextId,contextStatus,contextKind,
+ playerId,role,actorProfileId,contextId,contextGroupId,contextStatus,contextKind,
  scopeTeamId,action,reason,expectedRevision,at
 }={}){
  const fail=error=>({error});
@@ -35,8 +35,8 @@ export function recordTeamPlacement(team,{
  if(!roles.includes(role)||!/^qa-\d{2}$/.test(actorProfileId)||
     contextKind!=='access'||contextStatus!=='active'||
     scopeTeamId!==team.id||
-    contextId!==`grant:${role}:team:${team.id.replace(/^qa/,'qa-').replace(/^qa-([a-z])/, 'qa-$1')}` &&
-    contextId!==`grant:${role}:team:${team.id}`)
+    !clean(contextGroupId)||contextGroupId.replace(/[^a-z0-9]/gi,'').toLowerCase()!==team.id||
+    contextId!==`grant:${role}:team:${contextGroupId}`)
    return fail('No active exact-team Coach or Manager role');
  if(!Object.hasOwn(states,action))return fail('Unknown placement action');
  if(!iso(at))return fail('Valid action timestamp required');
