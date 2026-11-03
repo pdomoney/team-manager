@@ -54,7 +54,7 @@ with sync_playwright() as p:
 
         # A fabricated button outside the pinned reply sheet cannot change a player.
         pg.evaluate(act,['manager-availability-reply',{'id':match_id,'pid':player_id,'v':'no'}])
-        c.ok(pg.evaluate("window.__team.M.rsvpOf(window.__team.data.matches[0],arguments[0])",player_id)=='yes',
+        c.ok(pg.evaluate("(pid)=>window.__team.M.rsvpOf(window.__team.data.matches[0],pid)",player_id)=='yes',
              f'[{width}] forged RSVP button outside pinned sheet is rejected')
         # An invalid player identifier must never become an RSVP entry.
         pg.evaluate(act,['manager-availability-reply',{'id':match_id,'pid':'unassigned-outsider','v':'yes'}])
@@ -63,19 +63,19 @@ with sync_playwright() as p:
 
         yes=pg.locator(f'#sheet .roll-row[data-player-id="{player_id}"] [data-v=yes]')
         yes.click()
-        c.ok(pg.evaluate("window.__team.M.rsvpOf(window.__team.data.matches[0],arguments[0])",player_id)=='',
+        c.ok(pg.evaluate("(pid)=>window.__team.M.rsvpOf(window.__team.data.matches[0],pid)",player_id)=='',
              f'[{width}] tapping selected answer clears exactly that reply')
         pg.locator(f'#sheet .roll-row[data-player-id="{player_id}"] [data-v=maybe]').click()
         pg.locator('#sheet [data-act=close-sheet]').last.click()
         c.ok(pg.evaluate('window.__team.state.managerAvailability') is None and
-             pg.evaluate("window.__team.M.rsvpOf(window.__team.data.matches[0],arguments[0])",player_id)=='maybe',
+             pg.evaluate("(pid)=>window.__team.M.rsvpOf(window.__team.data.matches[0],pid)",player_id)=='maybe',
              f'[{width}] Manager sheet closes and preserves shared RSVP')
 
         pg.evaluate(act,['tab',{'tab':'home'}])
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
         c.ok(pg.evaluate("window.__team.data.id")=='qarangers16' and
-             pg.evaluate("window.__team.M.rsvpOf(window.__team.data.matches[0],arguments[0])",player_id)=='maybe',
+             pg.evaluate("(pid)=>window.__team.M.rsvpOf(window.__team.data.matches[0],pid)",player_id)=='maybe',
              f'[{width}] Coach sees exactly the Manager-recorded RSVP on same team')
         pg.evaluate(act,['tab',{'tab':'matches'}])
         c.ok(pg.locator('#view [data-act=manager-availability-open]').count()==0 and
