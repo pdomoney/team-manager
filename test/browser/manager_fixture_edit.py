@@ -66,11 +66,15 @@ with sync_playwright() as p:
             result:JSON.stringify(m.result),rsvp:JSON.stringify(m.rsvp),
             lineupId:m.lineupId,seasonId:m.seasonId,coachNotes:m.coachNotes,
             revisions:(m.fixtureRevisions||[]).length,
-            reason:(m.fixtureRevisions||[]).at(-1)?.reason};
+            reason:(m.fixtureRevisions||[]).at(-1)?.reason,
+            source:(m.fixtureRevisions||[]).at(-1)?.source,
+            actor:(m.fixtureRevisions||[]).at(-1)?.actorProfileId};
         }""",match_id)
         c.ok(after['start']=='11:15' and after['venue']=='Example Alternate Ground' and
              after['revisions']==before['revisions']+1 and
-             after['reason']=='Organiser moved the kickoff',
+             after['reason']=='Organiser moved the kickoff' and
+             after['source']=='fictional-team-manager-preview' and
+             after['actor']=='qa-09',
              f'[{width}] Manager confirmation saves scheduled values and revision reason')
         c.ok(all(after[k]==before[k] for k in
                  ['status','opponent','result','rsvp','lineupId','seasonId','coachNotes']),
