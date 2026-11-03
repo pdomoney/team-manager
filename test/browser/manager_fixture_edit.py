@@ -76,6 +76,8 @@ with sync_playwright() as p:
                  ['status','opponent','result','rsvp','lineupId','seasonId','coachNotes']),
              f'[{width}] fixture-only edit preserves result, roster links and Coach data')
 
+        # The tester control lives on Home, not inside the native Matches page.
+        pg.evaluate(act,['tab',{'tab':'home'}])
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
         c.ok(pg.evaluate('window.__team.data.id')=='qarangers16' and
@@ -94,7 +96,11 @@ with sync_playwright() as p:
              pg.evaluate("document.querySelector('#sheet').hidden"),
              f'[{width}] Player cannot see Manager fixture controls')
 
-        pg.reload();pg.wait_for_selector('#home-profile-button')
+        # A refresh retains the currently selected native section in the URL.
+        # Return to Home for the development profile control after reloading.
+        pg.reload()
+        pg.evaluate(act,['tab',{'tab':'home'}])
+        pg.wait_for_selector('#home-profile-button')
         saved=pg.evaluate("""() => window.__team.M.teamsOf(window.__team.ws)
           .find(t=>t.id==='qarangers16')?.matches[0]?.start""")
         c.ok(saved=='11:15' and
