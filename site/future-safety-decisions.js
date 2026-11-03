@@ -16,10 +16,11 @@ const safetyRoles=['association_admin','club_admin','team_manager','team_coach',
 // information. A recorded emergency purpose and verified club/team assignment
 // are required before even a minimal contact projection is considered.
 export function reviewEmergencyContact({
- actorRole,actorGroup,subjectTeamId,subjectClubId,assignment,
+ actorRole,actorGroup,subjectPersonId,subjectTeamId,subjectClubId,assignment,
  consent,purpose,subjectUnder18=false,at='2026-11-03T00:00:00Z'
 }={}){
- if(!valid(at)||!word(subjectTeamId)||!word(subjectClubId))return deny('invalid-request');
+ if(!valid(at)||!word(subjectPersonId)||!word(subjectTeamId)||!word(subjectClubId))
+   return deny('invalid-request');
  if(!contactRoles.includes(actorRole))return deny('not-an-emergency-contact-role');
  if(purpose!=='active-emergency')return deny('emergency-purpose-required');
  if(assignment?.status!=='approved'||!word(assignment.approvedBy)||
@@ -31,8 +32,10 @@ export function reviewEmergencyContact({
  const groupOK=actorGroup?.type==='team'&&actorGroup.id===subjectTeamId||
    actorGroup?.type==='club'&&actorGroup.id===subjectClubId;
  if(!groupOK)return deny('subject-outside-assigned-scope');
- if(consent?.status!=='active'||consent.subjectTeamId!==subjectTeamId||
-    !consent.emergencyContact||!valid(consent.expiresAt)||at>=consent.expiresAt)
+ if(consent?.status!=='active'||consent.subjectPersonId!==subjectPersonId||
+    consent.subjectTeamId!==subjectTeamId||!word(consent.recordedBy)||
+    !word(consent.evidenceRef)||!consent.emergencyContact||
+    !valid(consent.expiresAt)||at>=consent.expiresAt)
    return deny('specific-contact-permission-required');
  return allow('minimum-emergency-next-of-kin',['name','emergencyPhone']);
 }
