@@ -26,6 +26,7 @@ export function reviewActiveRoleCapability({
    return denied('invalid-request');
  if(P12_PROTECTED_CLASSES.includes(resourceClass))
    return denied('protected-content-requires-separate-policy');
+ if(!Array.isArray(grants))return denied('invalid-grant-list');
  const matches=grants.filter(g=>g?.id===activeGrantId);
  if(matches.length!==1)return denied('no-unique-active-context');
  const g=matches[0],role=P12_ACCESS_ROLES[g.role];
@@ -75,7 +76,7 @@ export function reviewTeamParticipation({
 }={}){
  const nominated=!!text(teamId)&&!!text(clubId)&&
    nomination?.teamId===teamId&&
-   ['team_coach','team_manager'].includes(nomination?.role)&&text(nomination?.by);
+   ['team_coach','team_manager'].includes(nomination?.role)&&!!text(nomination?.by);
  const teamAccepted=nominated&&teamApproval?.teamId===teamId&&
    ['team_coach','team_manager'].includes(teamApproval?.role)&&
    !!text(teamApproval?.by)&&!!text(teamApproval?.auditId);
