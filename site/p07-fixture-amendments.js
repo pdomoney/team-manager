@@ -1,4 +1,5 @@
-// P07C — explicit, local-coach fixture amendment plan + append-only coach-only audit.
+// P07C — explicit fixture amendment plan with append-only private revision history.
+// The local Coach remains the default origin; fictional Manager previews are labelled.
 // This is NOT organiser-verified fixture data and does not alter linked tasks itself.
 const safe = v => typeof v === 'string' ? v.trim() : '';
 const validDay = v => {
@@ -48,9 +49,16 @@ export function commitFixtureRevision(match,proposed,approval) {
   const at=safe(approval.at);
   if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(at)||Number.isNaN(Date.parse(at)))
     return {error:'Missing amendment timestamp'};
+  const source=safe(approval.source)||'local-coach-workspace';
+  if(!['local-coach-workspace','fictional-team-manager-preview'].includes(source))
+    return {error:'Unknown local fixture revision source'};
+  const actorProfileId=safe(approval.actorProfileId);
+  if(source==='fictional-team-manager-preview'&&!/^qa-\d{2}$/.test(actorProfileId))
+    return {error:'Fictional Manager revision requires a QA profile identifier'};
   const prior=Array.isArray(match.fixtureRevisions)?match.fixtureRevisions:[];
   const entry=Object.freeze({
-    id:`rev-${at}-${prior.length+1}`,at,source:'local-coach-workspace',
+    id:`rev-${at}-${prior.length+1}`,at,source,
+    ...(source==='fictional-team-manager-preview'?{actorProfileId}:{}),
     reason,before:plan.before,after:plan.after,taskDisposition:disposition
   });
   // Unrelated historic fields (result, lineups, crew, RSVPs, seasonId, entryId) stay intact.
