@@ -18,6 +18,12 @@ with sync_playwright() as p:
         c.ok(pg.evaluate("window.__team.data.id")=='qarangers16' and
              pg.locator('#view [data-act=manager-availability-open]').count()>0,
              f'[{width}] Manager can record replies on assigned scheduled fixture')
+        card=pg.locator(f'#view .m-card.has-manager-actions:has([data-act=manager-availability-open][data-id="{match_id}"])').first
+        main_box=card.locator('.sess-main').bounding_box()
+        action_box=card.locator('.manager-match-actions').bounding_box()
+        c.ok(main_box and action_box and action_box['y']>=main_box['y']+main_box['height']-3
+             and action_box['x']>=0 and action_box['x']+action_box['width']<=width+2,
+             f'[{width}] Manager action buttons sit below match details without horizontal overflow')
         c.ok(pg.locator('#view [data-act=rsvp-open]').count()==0 and
              pg.locator('#view [data-act=match-new]').is_disabled(),
              f'[{width}] Manager has no normal Coach RSVP or match-creation actions')
