@@ -4979,6 +4979,37 @@ function viewMatches() {
     + `<section class="sec"><div class="sec-h"><h2>${days.length ? 'Other matches' : 'Coming up'}</h2></div>${up.length ? `<div class="list grid sess-grid ${cardClass('matches')}">${up.map(matchRow).join('')}</div>` : '<p class="muted small">Nothing else coming up.</p>'}</section>`
     + (past.length ? `<section class="sec"><div class="sec-h"><h2>Played</h2>${coach ? `<button class="btn sm" data-act="results-share">${icon('chat', 18)}Send results</button>` : ''}</div><div class="list grid sess-grid ${cardClass('matches')}">${past.map(matchRow).join('')}</div></section>` : '');
 }
+// A Manager edits only schedule fields on an assigned, existing fixture.
+// Reusing the Coach form would expose unrelated controls and Coach-only notes.
+function managerFixtureForm(m){
+  return `<form data-form="manager-fixture" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(m.id)}">
+    <p class="hint">Fictional Team Manager preview. This updates the same fixture record used by the Coach. No notifications are sent.</p>
+    <p><strong>Opponent:</strong> ${esc(m.opponent||'TBC')} · ${esc(M.MATCH_STATUS[m.status]||m.status)}</p>
+    <div class="two">
+      <label class="field-l"><span>Date</span><input type="date" name="date" required value="${esc(m.date)}"></label>
+      <label class="field-l"><span>Start</span><input type="time" name="start" value="${esc(m.start||'')}"></label>
+    </div>
+    <div class="two">
+      <label class="field-l"><span>Venue</span><input type="text" name="venue" maxlength="160" value="${esc(m.venue||'')}"></label>
+      <label class="field-l"><span>Field</span><input type="text" name="field" maxlength="80" value="${esc(m.field||'')}"></label>
+    </div>
+    <label class="field-l"><span>Reason for change</span><input type="text" name="reason" minlength="3" maxlength="200" required placeholder="e.g. Organiser advised a later start"></label>
+    <p class="hint">Review is required before saving. Linked match tasks must be changed through the Coach workflow. Existing RSVPs, lineups, staffing, results and private Coach notes remain unchanged.</p>
+    <button class="btn primary block" type="submit">Review fixture change</button>
+  </form>`;
+}
+function managerFixtureReview(p){
+ const row=k=>p.before[k]===p.after[k]?'':`<li><strong>${esc({date:'Date',start:'Start',venue:'Venue',field:'Field'}[k])}:</strong> ${esc(p.before[k]||'Not set')} → ${esc(p.after[k]||'Not set')}</li>`;
+ return `<section class="fixture-revision-review" aria-label="Manager fixture change review">
+   <p class="hint">Reviewing a fictional Manager amendment. This does not verify the competition organiser's schedule.</p>
+   <ul class="diff-list">${['date','start','venue','field'].map(row).filter(Boolean).join('')}</ul>
+   <p><strong>Reason:</strong> ${esc(p.reason)}</p>
+   <p class="hint">Results, status, lineup, roster, staff and private Coach details are unchanged. Notify participants separately.</p>
+   <div class="btn-row"><button class="btn primary" type="button" data-act="manager-fixture-confirm">Confirm fixture change</button>
+   <button class="btn" type="button" data-act="close-sheet">Cancel without saving</button></div>
+ </section>`;
+}
 // Fixture changes are coach-recorded, explicitly reviewed, and saved only after confirmation.
 function fixtureRevisionReview(p) {
   const before=p.before,after=p.after;
@@ -7886,6 +7917,39 @@ const actions = {
   }),
   'md-send-lineup': coachOnly(el => { const m = matchById(el.dataset.id); if (m) sendWa(matchLineupText(m), { ref: 'match:' + m.id }); }),
   'result-share': coachOnly(el => { const m = matchById(el.dataset.id); if (m && (M.matchOutcome(m) || m.status !== 'scheduled')) sendWa(oneResultText(m), { ref: 'result:' + m.id }); }),
+  'manager-fixture-open': el => {
+    const m=matchById(el.dataset.id);
+    if(!nativeManagerFixtureAccess(m))return;
+    const session=nativePersona();
+    state.managerFixturePending={id:m.id,teamId:data.id,contextId:session.contextId,
+      before:fixtureSnapshot(m),revisionCount:arr(m.fixtureRevisions).length};
+    openSheet('Edit fixture schedule',managerFixtureForm(m),'manager-fixture-edit');
+  },
+  'manager-fixture-confirm': () => {
+    const p=state.managerFixturePending,session=nativePersona();
+    if(state.sheet!=='manager-fixture-review'||!p||
+       !nativeManagerFixtureAccess(matchById(p.id))||
+       p.teamId!==data.id||p.contextId!==session?.contextId){
+      toast('Fixture or Manager assignment changed. Reopen before saving.');return;
+    }
+    const m=matchById(p.id),plan=planFixtureRevision(m,p.after);
+    if(plan.error||!plan.changed||
+       arr(m.fixtureRevisions).length!==p.revisionCount||
+       Object.keys(p.before).some(k=>p.before[k]!==plan.before[k])){
+      toast('Fixture changed after review. Reopen before saving.');return;
+    }
+    if(M.linkedTasks(data,'match',m.id).length){
+      toast('Linked match tasks require the Coach change workflow. No changes saved.');return;
+    }
+    const result=commitFixtureRevision(m,p.after,{
+      confirmed:true,reason:p.reason,expectedBefore:p.before,
+      at:new Date().toISOString(),taskDisposition:'none'
+    });
+    if(result.error){toast(result.error);return;}
+    state.managerFixturePending=null;
+    save();closeSheet();render();
+    toast('Manager fixture change saved. Notify the team separately.');
+  },
   'fixture-revision-confirm': coachOnly(() => {
     if(state.sheet!=='fixture-revision')return;
     const p=state.fixturePending;state.fixturePending=null;
