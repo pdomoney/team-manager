@@ -4979,14 +4979,22 @@ function matchRow(m) {
     <span class="ag-meta">${matchPills(m)}</span>`;
   const when = `<span class="m-when"><span class="m-day">${esc(d.toLocaleDateString('en-AU', { weekday: 'short' }))} ${d.getDate()} ${esc(d.toLocaleDateString('en-AU', { month: 'short' }))}</span>${bigTime(m.start)}</span>`;
   const cls = `sess match m-card ${m.status === 'cancelled' || m.status === 'postponed' ? 'cancelled' : ''} ${m.date === todayISO() ? 'today' : ''}`;
-  const day = isCoach() && matchDayDue(m) ? `<button class="btn primary sm md-go" data-act="matchday-open" data-id="${m.id}">${icon('field', 18)}Match day</button>` : '';
+  const session=nativePersona();
+  const canOpenDetails=!session||['personal_owner','team_coach'].includes(session.role);
+  const day=isCoach()&&canOpenDetails&&matchDayDue(m)
+    ? `<button class="btn primary sm md-go" data-act="matchday-open" data-id="${m.id}">${icon('field', 18)}Match day</button>`:'';
   if (isCoach()) {
     const managerEdit=nativeManagerFixtureAccess(m)
       ? `<button type="button" class="btn sm" data-act="manager-fixture-open" data-id="${esc(m.id)}" aria-label="Edit fixture for ${esc(m.opponent||'TBC')}">Edit fixture</button>`:'';
     const managerScope=nativeManagerAvailabilityScope(m);
     const managerReply=managerScope?.players.length
       ? `<button type="button" class="btn sm" data-act="manager-availability-open" data-id="${esc(m.id)}" aria-label="Record replies for ${esc(m.opponent||'TBC')}">Record replies</button>`:'';
-    return `<div class="${cls}">${when}<button class="sess-main" data-act="match-open" data-id="${m.id}">${info}</button>${managerEdit}${managerReply}${day}</div>`;
+    const managerControls=managerEdit||managerReply?
+      `<div class="manager-match-actions">${managerEdit}${managerReply}</div>`:'';
+    const main=canOpenDetails?
+      `<button class="sess-main" data-act="match-open" data-id="${m.id}">${info}</button>`:
+      `<div class="sess-main">${info}</div>`;
+    return `<div class="${cls}${managerControls?' has-manager-actions':''}">${when}${main}${managerControls}${day}</div>`;
   }
   return `<div class="${cls}">${when}<div class="sess-main">${info}${replyBtns('match', m)}</div></div>`;
 }
