@@ -339,7 +339,7 @@ const state = {
   folded: {},
   system: null, sysFlip: false,
   playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
-  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, peopleSearch: '',
+  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, managerFixturePending: null, peopleSearch: '',
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
@@ -783,9 +783,29 @@ function nativeReadOnlyHomeTab(d){
  }[d.go];
  return target&&nativeRoleAllows(target)?target:'';
 }
+// Fictional role permission, never a production authorisation grant.
+function nativeManagerFixtureAccess(m){
+ const s=nativePersona();
+ if(!DEV_SANDBOX||!S.trial||S.role!=='coach'||state.preview||
+    s?.role!=='team_manager'||s.context?.kind!=='access'||
+    s.context?.status!=='active'||s.context?.group?.type!=='team'||
+    nativeTeamId(s.context.group.id)!==data.id||
+    nativeTeamId(s.team?.id)!==data.id||
+    !s.capabilities.includes('fixture-manage')||
+    data.archived||readOnlyView()||
+    !m||!data.matches.includes(m)||m.status!=='scheduled')return false;
+ const active=M.activeSeason(data);
+ return !m.seasonId||!!active&&m.seasonId===active.id;
+}
 function nativePersonaAllowedAction(name,el){
  const session=nativePersona();if(!session)return true;
- if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load','home-scope'].includes(name))return true;
+ if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load','home-scope','close-sheet'].includes(name))return true;
+ if(name==='manager-fixture-open')
+   return nativeManagerFixtureAccess(matchById(el?.dataset?.id));
+ if(name==='manager-fixture-confirm')
+   return state.sheet==='manager-fixture-review' &&
+     !!state.managerFixturePending &&
+     nativeManagerFixtureAccess(matchById(state.managerFixturePending.id));
  if(name==='home-team'||name==='team-pick'){
    const t=el?.dataset?.team||el?.dataset?.id||'';
    return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>nativeTeamId(x.id)===t);
@@ -4930,7 +4950,11 @@ function matchRow(m) {
   const when = `<span class="m-when"><span class="m-day">${esc(d.toLocaleDateString('en-AU', { weekday: 'short' }))} ${d.getDate()} ${esc(d.toLocaleDateString('en-AU', { month: 'short' }))}</span>${bigTime(m.start)}</span>`;
   const cls = `sess match m-card ${m.status === 'cancelled' || m.status === 'postponed' ? 'cancelled' : ''} ${m.date === todayISO() ? 'today' : ''}`;
   const day = isCoach() && matchDayDue(m) ? `<button class="btn primary sm md-go" data-act="matchday-open" data-id="${m.id}">${icon('field', 18)}Match day</button>` : '';
-  if (isCoach()) return `<div class="${cls}">${when}<button class="sess-main" data-act="match-open" data-id="${m.id}">${info}</button>${day}</div>`;
+  if (isCoach()) {
+    const managerEdit=nativeManagerFixtureAccess(m)
+      ? `<button type="button" class="btn sm" data-act="manager-fixture-open" data-id="${esc(m.id)}" aria-label="Edit fixture for ${esc(m.opponent||'TBC')}">Edit fixture</button>`:'';
+    return `<div class="${cls}">${when}<button class="sess-main" data-act="match-open" data-id="${m.id}">${info}</button>${managerEdit}${day}</div>`;
+  }
   return `<div class="${cls}">${when}<div class="sess-main">${info}${replyBtns('match', m)}</div></div>`;
 }
 function viewMatches() {
@@ -4954,6 +4978,37 @@ function viewMatches() {
         ${days.map(d => `<h3 class="ag-date">${esc(fmtLong(d.date))}${coach ? ` <button class="link-btn inline" data-act="day-share" data-date="${d.date}">Send this day</button>` : ''}</h3><div class="list grid sess-grid ${cardClass('matches')}">${d.matches.map(matchRow).join('')}</div>`).join('')}</section>` : '')
     + `<section class="sec"><div class="sec-h"><h2>${days.length ? 'Other matches' : 'Coming up'}</h2></div>${up.length ? `<div class="list grid sess-grid ${cardClass('matches')}">${up.map(matchRow).join('')}</div>` : '<p class="muted small">Nothing else coming up.</p>'}</section>`
     + (past.length ? `<section class="sec"><div class="sec-h"><h2>Played</h2>${coach ? `<button class="btn sm" data-act="results-share">${icon('chat', 18)}Send results</button>` : ''}</div><div class="list grid sess-grid ${cardClass('matches')}">${past.map(matchRow).join('')}</div></section>` : '');
+}
+// A Manager edits only schedule fields on an assigned, existing fixture.
+// Reusing the Coach form would expose unrelated controls and Coach-only notes.
+function managerFixtureForm(m){
+  return `<form data-form="manager-fixture" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(m.id)}">
+    <p class="hint">Fictional Team Manager preview. This updates the same fixture record used by the Coach. No notifications are sent.</p>
+    <p><strong>Opponent:</strong> ${esc(m.opponent||'TBC')} · ${esc(M.MATCH_STATUS[m.status]||m.status)}</p>
+    <div class="two">
+      <label class="field-l"><span>Date</span><input type="date" name="date" required value="${esc(m.date)}"></label>
+      <label class="field-l"><span>Start</span><input type="time" name="start" value="${esc(m.start||'')}"></label>
+    </div>
+    <div class="two">
+      <label class="field-l"><span>Venue</span><input type="text" name="venue" maxlength="160" value="${esc(m.venue||'')}"></label>
+      <label class="field-l"><span>Field</span><input type="text" name="field" maxlength="80" value="${esc(m.field||'')}"></label>
+    </div>
+    <label class="field-l"><span>Reason for change</span><input type="text" name="reason" minlength="3" maxlength="200" required placeholder="e.g. Organiser advised a later start"></label>
+    <p class="hint">Review is required before saving. Linked match tasks must be changed through the Coach workflow. Existing RSVPs, lineups, staffing, results and private Coach notes remain unchanged.</p>
+    <button class="btn primary block" type="submit">Review fixture change</button>
+  </form>`;
+}
+function managerFixtureReview(p){
+ const row=k=>p.before[k]===p.after[k]?'':`<li><strong>${esc({date:'Date',start:'Start',venue:'Venue',field:'Field'}[k])}:</strong> ${esc(p.before[k]||'Not set')} → ${esc(p.after[k]||'Not set')}</li>`;
+ return `<section class="fixture-revision-review" aria-label="Manager fixture change review">
+   <p class="hint">Reviewing a fictional Manager amendment. This does not verify the competition organiser's schedule.</p>
+   <ul class="diff-list">${['date','start','venue','field'].map(row).filter(Boolean).join('')}</ul>
+   <p><strong>Reason:</strong> ${esc(p.reason)}</p>
+   <p class="hint">Results, status, lineup, roster, staff and private Coach details are unchanged. Notify participants separately.</p>
+   <div class="btn-row"><button class="btn primary" type="button" data-act="manager-fixture-confirm">Confirm fixture change</button>
+   <button class="btn" type="button" data-act="close-sheet">Cancel without saving</button></div>
+ </section>`;
 }
 // Fixture changes are coach-recorded, explicitly reviewed, and saved only after confirmation.
 function fixtureRevisionReview(p) {
@@ -7073,6 +7128,7 @@ function requestCloseSheet() {
 function closeSheet() {
   // Dismissing either confirmation sheet revokes the pending fixture amendment.
   state.fixturePending = null;
+  state.managerFixturePending = null;
   state.pendingRulesEvidence=null;
   if (state.pending?.fixtureRevision) state.pending = null;
   stopPlayerCrop();
@@ -7861,6 +7917,40 @@ const actions = {
   }),
   'md-send-lineup': coachOnly(el => { const m = matchById(el.dataset.id); if (m) sendWa(matchLineupText(m), { ref: 'match:' + m.id }); }),
   'result-share': coachOnly(el => { const m = matchById(el.dataset.id); if (m && (M.matchOutcome(m) || m.status !== 'scheduled')) sendWa(oneResultText(m), { ref: 'result:' + m.id }); }),
+  'manager-fixture-open': el => {
+    const m=matchById(el.dataset.id);
+    if(!nativeManagerFixtureAccess(m))return;
+    const session=nativePersona();
+    state.managerFixturePending={id:m.id,teamId:data.id,contextId:session.contextId,
+      before:fixtureSnapshot(m),revisionCount:arr(m.fixtureRevisions).length};
+    openSheet('Edit fixture schedule',managerFixtureForm(m),'manager-fixture-edit');
+  },
+  'manager-fixture-confirm': () => {
+    const p=state.managerFixturePending,session=nativePersona();
+    if(state.sheet!=='manager-fixture-review'||!p||
+       !nativeManagerFixtureAccess(matchById(p.id))||
+       p.teamId!==data.id||p.contextId!==session?.contextId){
+      toast('Fixture or Manager assignment changed. Reopen before saving.');return;
+    }
+    const m=matchById(p.id),plan=planFixtureRevision(m,p.after);
+    if(plan.error||!plan.changed||
+       arr(m.fixtureRevisions).length!==p.revisionCount||
+       Object.keys(p.before).some(k=>p.before[k]!==plan.before[k])){
+      toast('Fixture changed after review. Reopen before saving.');return;
+    }
+    if(M.linkedTasks(data,'match',m.id).length){
+      toast('Linked match tasks require the Coach change workflow. No changes saved.');return;
+    }
+    const result=commitFixtureRevision(m,p.after,{
+      confirmed:true,reason:p.reason,expectedBefore:p.before,
+      at:new Date().toISOString(),taskDisposition:'none',
+      source:'fictional-team-manager-preview',actorProfileId:session.profileId
+    });
+    if(result.error){toast(result.error);return;}
+    state.managerFixturePending=null;
+    save();closeSheet();render();
+    toast('Manager fixture change saved. Notify the team separately.');
+  },
   'fixture-revision-confirm': coachOnly(() => {
     if(state.sheet!=='fixture-revision')return;
     const p=state.fixturePending;state.fixturePending=null;
@@ -8716,8 +8806,17 @@ const actions = {
 document.addEventListener('submit', e => {
   const session=nativePersona();
   if(session&&!['personal_owner','team_coach'].includes(session.role)){
-    e.preventDefault();e.stopImmediatePropagation();
-    toast('Editing is not enabled for this test profile');
+    const form=e.target;
+    const scopedManagerForm=session.role==='team_manager'&&
+      form?.dataset?.form==='manager-fixture'&&
+      state.sheet==='manager-fixture-edit'&&
+      $('#sheet').contains(form)&&
+      !!state.managerFixturePending&&
+      nativeManagerFixtureAccess(matchById(state.managerFixturePending.id));
+    if(!scopedManagerForm){
+      e.preventDefault();e.stopImmediatePropagation();
+      toast('Editing is not enabled for this test profile');
+    }
   }
 },true);
 document.addEventListener('click', e => {
@@ -8960,6 +9059,33 @@ document.addEventListener('submit', async e => {
   const f = new FormData(form);
   const str = k => String(f.get(k) ?? '').trim();
   const raw = k => String(f.get(k) ?? '');
+
+  if(kind==='manager-fixture'){
+    const p=state.managerFixturePending,session=nativePersona();
+    const m=p&&matchById(p.id);
+    if(!p||state.sheet!=='manager-fixture-edit'||
+       !nativeManagerFixtureAccess(m)||p.teamId!==data.id||
+       p.contextId!==session?.contextId||str('id')!==p.id){
+      toast('Manager fixture scope changed. No changes saved.');return;
+    }
+    const fields={date:str('date'),start:str('start'),venue:str('venue'),field:str('field'),status:m.status};
+    const plan=planFixtureRevision(m,fields),reason=str('reason');
+    if(plan.error){toast(plan.error);return;}
+    if(reason.length<3||reason.length>200){
+      fieldError(form,'reason','Record a reason of 3 to 200 characters');return;
+    }
+    if(!plan.changed){toast('No fixture schedule changes to review');return;}
+    if(arr(m.fixtureRevisions).length!==p.revisionCount||
+       Object.keys(p.before).some(k=>p.before[k]!==plan.before[k])){
+      toast('Fixture changed while editing. Reopen before saving.');return;
+    }
+    if(M.linkedTasks(data,'match',m.id).length){
+      toast('This match has linked tasks. Ask a Coach to amend its schedule.');return;
+    }
+    state.managerFixturePending={...p,after:plan.after,reason};
+    openSheet('Review Manager fixture change',managerFixtureReview(state.managerFixturePending),'manager-fixture-review');
+    return;
+  }
 
   if(kind==='guardian-review'){
     if(!isCoach())return;
