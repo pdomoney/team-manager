@@ -54,7 +54,8 @@ export function reviewSportDuty({
  if(!text(personId)||!text(role)||!text(sport)||!text(fixtureId)||now===null)
    return denied('invalid-duty');
  if(!requirement?.sourceVerified||!text(requirement.qualification)||
-    requirement.sport!==sport)return denied('competition-duty-policy-not-verified');
+    requirement.sport!==sport||requirement.duty!==role)
+   return denied('competition-duty-policy-not-verified');
  if(!credential||credential.personId!==personId||credential.sport!==sport||
     credential.qualification!==requirement.qualification||credential.status!=='verified'||
     !text(credential.verifiedBy)||!text(credential.evidenceRef))
