@@ -75,8 +75,8 @@ test('D04: team acceptance is not financial or official participation eligibilit
  const ok=reviewTeamParticipation(p);
  assert.equal(ok.teamAccepted,true);
  assert.equal(ok.fullyRegistered,true);
- assert.equal(ok.clearedToPlay,false);
- assert.equal(ok.eligibility,'unverified-pending-D17-policy');
+ assert.equal(ok.clearedToPlay,null);
+ assert.equal(ok.eligibility,'not-evaluated-pending-D17-competition-rules');
  for(const changed of [
    {financial:{status:'outstanding'}},
    {registration:{status:'self-declared'}},
@@ -86,7 +86,7 @@ test('D04: team acceptance is not financial or official participation eligibilit
    assert.equal(r.teamAccepted,true);
    assert.equal(r.fullyRegistered,false);
    assert.equal(r.matchDaySelectionMayBeProposed,true);
-   assert.equal(r.clearedToPlay,false);
+   assert.equal(r.clearedToPlay,null);
  }
 });
 test('D04: independently audited one-team exception, never bypass payment verification',()=>{
