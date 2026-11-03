@@ -7240,6 +7240,7 @@ function closeSheet() {
   state.fixturePending = null;
   state.managerFixturePending = null;
   state.managerAvailability = null;
+  state.teamPlacementPending = null;
   state.pendingRulesEvidence=null;
   if (state.pending?.fixtureRevision) state.pending = null;
   stopPlayerCrop();
@@ -7787,6 +7788,19 @@ const actions = {
     openSheet('Add to another team', playerLinkOutForm(p), 'player-link');
   }),
   'bulk-add': coachOnly(() => openSheet('Paste a list', bulkForm())),
+  'team-placement-open': el => {
+    const p=playerById(el.dataset.id),session=nativePersona();
+    if(!nativeTeamPlacementAccess(p)||!session)return;
+    const status=teamPlacementStatus(data,p.id);
+    const action=status.state==='not-nominated'||status.state==='withdrawn'?'nominate':
+      status.state==='nominated'?'approve':'withdraw';
+    if(action!==el.dataset.next)return;
+    state.teamPlacementPending={teamId:data.id,playerId:p.id,
+      actorProfileId:session.profileId,role:session.role,
+      contextId:session.contextId,contextGroupId:session.context.group.id,
+      revision:status.revision,action};
+    openSheet('Team placement decision',teamPlacementForm(p,action),'team-placement');
+  },
   'edit-player': coachOnly(el => { const p = playerById(el.dataset.id); if (p) openSheet(p.name, playerForm(p), 'player'); }),
   'delete-player': coachOnly(el => {
     const p = playerById(el.dataset.id), s = V.viewSeason; if (!p) return;
@@ -8953,7 +8967,13 @@ document.addEventListener('submit', e => {
       $('#sheet').contains(form)&&
       !!state.managerFixturePending&&
       nativeManagerFixtureAccess(matchById(state.managerFixturePending.id));
-    if(!scopedManagerForm){
+    const scopedPlacementForm=session.role==='team_manager'&&
+      form?.dataset?.form==='team-placement'&&
+      state.sheet==='team-placement'&&$('#sheet').contains(form)&&
+      !!state.teamPlacementPending&&
+      state.teamPlacementPending.actorProfileId===session.profileId&&
+      nativeTeamPlacementAccess(playerById(state.teamPlacementPending.playerId));
+    if(!scopedManagerForm&&!scopedPlacementForm){
       e.preventDefault();e.stopImmediatePropagation();
       toast('Editing is not enabled for this test profile');
     }
@@ -9199,6 +9219,35 @@ document.addEventListener('submit', async e => {
   const f = new FormData(form);
   const str = k => String(f.get(k) ?? '').trim();
   const raw = k => String(f.get(k) ?? '');
+
+  if(kind==='team-placement'){
+    const pending=state.teamPlacementPending,session=nativePersona();
+    const p=pending&&playerById(pending.playerId);
+    if(state.sheet!=='team-placement'||!pending||!session||
+       !nativeTeamPlacementAccess(p)||pending.teamId!==data.id||
+       pending.actorProfileId!==session.profileId||pending.role!==session.role||
+       pending.contextId!==session.contextId||
+       pending.contextGroupId!==session.context.group?.id||
+       str('id')!==pending.playerId||str('action')!==pending.action){
+      toast('Role, team or player changed. Reopen placement to review.');return;
+    }
+    const result=recordTeamPlacement(data,{
+      playerId:pending.playerId,role:session.role,
+      actorProfileId:session.profileId,
+      contextId:session.contextId,
+      contextGroupId:session.context.group.id,
+      contextStatus:session.context.status,contextKind:session.context.kind,
+      scopeTeamId:data.id,action:pending.action,reason:str('reason'),
+      expectedRevision:pending.revision,at:new Date().toISOString()
+    });
+    if(result.error){toast(result.error);return;}
+    data.teamPlacementEvents=result.events;
+    save();closeSheet();render();
+    toast(pending.action==='approve'?
+      'Team placement approved. Registration and competition eligibility still require verification.':
+      'Team placement decision recorded (registration not verified).');
+    return;
+  }
 
   if(kind==='manager-fixture'){
     const p=state.managerFixturePending,session=nativePersona();
