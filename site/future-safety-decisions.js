@@ -9,7 +9,7 @@ const deny=reason=>Object.freeze({allowed:false,reason,fields:Object.freeze([]),
  productionAuthorised:false});
 const allow=(kind,fields)=>Object.freeze({allowed:true,kind,fields:Object.freeze([...fields]),
  productionAuthorised:false});
-const contactRoles=['club_admin','team_manager','team_coach','trainer'];
+const contactRoles=['team_admin','club_admin','team_manager','team_coach','trainer'];
 const safetyRoles=['association_admin','club_admin','team_manager','team_coach','trainer'];
 
 // Contact channel preferences are not a right to disclose next-of-kin
@@ -17,14 +17,17 @@ const safetyRoles=['association_admin','club_admin','team_manager','team_coach',
 // are required before even a minimal contact projection is considered.
 export function reviewEmergencyContact({
  actorRole,actorGroup,subjectTeamId,subjectClubId,assignment,
- consent,purpose,at='2026-11-03T00:00:00Z'
+ consent,purpose,subjectUnder18=false,at='2026-11-03T00:00:00Z'
 }={}){
  if(!valid(at)||!word(subjectTeamId)||!word(subjectClubId))return deny('invalid-request');
  if(!contactRoles.includes(actorRole))return deny('not-an-emergency-contact-role');
  if(purpose!=='active-emergency')return deny('emergency-purpose-required');
  if(assignment?.status!=='approved'||!word(assignment.approvedBy)||
     assignment.role!==actorRole||assignment.group?.id!==actorGroup?.id||
-    assignment.group?.type!==actorGroup?.type)return deny('approved-assignment-required');
+    assignment.group?.type!==actorGroup?.type||
+    !valid(assignment.expiresAt)||at>=assignment.expiresAt||
+    (subjectUnder18&&assignment.childSafetyScreening!=='current'))
+   return deny('approved-assignment-required');
  const groupOK=actorGroup?.type==='team'&&actorGroup.id===subjectTeamId||
    actorGroup?.type==='club'&&actorGroup.id===subjectClubId;
  if(!groupOK)return deny('subject-outside-assigned-scope');
@@ -40,7 +43,7 @@ export function reviewEmergencyContact({
 // club/association administrators or Managers. A conditional actionable alert
 // never becomes medical clearance, and no automatic cross-club browsing occurs.
 export function reviewCrossSportSafetyAlert({
- subjectPersonId,recipientRole,recipientGroup,verifiedPersonLink,
+ subjectPersonId,recipientRole,recipientGroup,recipientAssignment,verifiedPersonLink,
  consent,guardianLink,subjectUnder18=false,
  purpose,at='2026-11-03T00:00:00Z'
 }={}){
@@ -48,6 +51,14 @@ export function reviewCrossSportSafetyAlert({
    return deny('invalid-request');
  if(!safetyRoles.includes(recipientRole))return deny('not-an-authorised-safety-role');
  if(purpose!=='participant-safety')return deny('safety-purpose-required');
+ if(recipientAssignment?.status!=='approved'||
+    recipientAssignment.role!==recipientRole||
+    recipientAssignment.group?.type!==recipientGroup.type||
+    recipientAssignment.group?.id!==recipientGroup.id||
+    !word(recipientAssignment.approvedBy)||
+    !valid(recipientAssignment.expiresAt)||at>=recipientAssignment.expiresAt||
+    (subjectUnder18&&recipientAssignment.childSafetyScreening!=='current'))
+   return deny('approved-recipient-assignment-required');
  if(verifiedPersonLink?.status!=='verified'||
     verifiedPersonLink.personId!==subjectPersonId)
    return deny('person-link-not-verified');
