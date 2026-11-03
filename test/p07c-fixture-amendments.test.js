@@ -81,3 +81,27 @@ test('P07C coach-only reasons/history do not leak into team player export',()=>{
  assert.equal(published.includes('rsvp'),false);
  assert.equal(JSON.stringify(m).includes('PRIVATE medical'),true);
 });
+
+test('P07C distinguishes fictional Manager actor from Coach and fails closed on unknown sources',()=>{
+ const m=sample(),snapshot=fixtureSnapshot(m);
+ const options={...option,expectedBefore:snapshot,source:'fictional-team-manager-preview',actorProfileId:'qa-09'};
+ assert.match(commitFixtureRevision(m,{start:'10:30'},
+   {...options,actorProfileId:'someone-real'}).error,/QA profile/);
+ assert.match(commitFixtureRevision(m,{start:'10:30'},
+   {...options,source:'untrusted-external'}).error,/source/);
+ assert.equal(m.fixtureRevisions,undefined);
+ const result=commitFixtureRevision(m,{start:'10:30'},options);
+ assert.equal(result.error,undefined);
+ assert.equal(result.entry.source,'fictional-team-manager-preview');
+ assert.equal(result.entry.actorProfileId,'qa-09');
+ assert.equal(result.entry.taskDisposition,'move');
+ const coach=sample();
+ const old=commitFixtureRevision(coach,{start:'10:00'},
+   {...option,expectedBefore:fixtureSnapshot(coach)});
+ assert.equal(old.entry.source,'local-coach-workspace');
+ assert.equal(Object.hasOwn(old.entry,'actorProfileId'),false);
+ const team={team:{name:'U12',sport:'Oztag'},players:[],sessions:[],matches:[m],tasks:[],notices:[],lineups:[]};
+ const playerExport=JSON.stringify(teamView(team));
+ assert.equal(playerExport.includes('fictional-team-manager-preview'),false);
+ assert.equal(playerExport.includes('qa-09'),false);
+});
