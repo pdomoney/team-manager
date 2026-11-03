@@ -98,7 +98,7 @@ export function reviewTeamParticipation({
    matchDaySelectionMayBeProposed:teamAccepted,
    // Whether a provisional participant may ACTUALLY play is an authority- and
    // sport-specific open question (D17), not a Coach/Manager override.
-   clearedToPlay:false,eligibility:'unverified-pending-D17-policy',
+   clearedToPlay:null,eligibility:'not-evaluated-pending-D17-competition-rules',
    productionAuthorised:false
  });
 }
