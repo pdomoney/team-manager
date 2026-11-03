@@ -85,9 +85,13 @@ with sync_playwright() as p:
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
         c.ok(pg.evaluate('window.__team.data.id')=='qarangers16' and
-             pg.evaluate('window.__team.data.matches[0].start')=='11:15' and
-             pg.locator('#view [data-act=manager-fixture-open]').count()==0,
-             f'[{width}] Coach sees Manager change in shared team, not Manager-only controls')
+             pg.evaluate('window.__team.data.matches[0].start')=='11:15',
+             f'[{width}] Coach sees Manager change in the same native team fixture')
+        pg.evaluate(act,['tab',{'tab':'matches'}])
+        c.ok(pg.locator('#view [data-act=manager-fixture-open]').count()==0 and
+             pg.locator('#view [data-act=match-new]').count()==1,
+             f'[{width}] Coach retains normal Matches controls without Manager preview action')
+        pg.evaluate(act,['tab',{'tab':'home'}])
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-19]')
         c.ok(pg.locator('#view [data-act=manager-fixture-open]').count()==0 and
