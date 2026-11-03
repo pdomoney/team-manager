@@ -7943,7 +7943,8 @@ const actions = {
     }
     const result=commitFixtureRevision(m,p.after,{
       confirmed:true,reason:p.reason,expectedBefore:p.before,
-      at:new Date().toISOString(),taskDisposition:'none'
+      at:new Date().toISOString(),taskDisposition:'none',
+      source:'fictional-team-manager-preview',actorProfileId:session.profileId
     });
     if(result.error){toast(result.error);return;}
     state.managerFixturePending=null;
