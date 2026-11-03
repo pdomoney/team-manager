@@ -13,6 +13,7 @@ const contact=()=>({
  consent:{status:'active',subjectPersonId:'junior-1',subjectTeamId:'Rangers-U16',
    recordedBy:'guardian-1',evidenceRef:'guardian-consent-record',emergencyContact:true,
    expiresAt:'2026-12-01T00:00:00Z'},
+ guardianLink:{status:'verified',childPersonId:'junior-1',guardianPersonId:'guardian-1'},
  purpose:'active-emergency',subjectUnder18:true,at
 });
 test('D01: only assigned club/team staff get minimum next-of-kin projection',()=>{
@@ -29,6 +30,8 @@ test('D01: only assigned club/team staff get minimum next-of-kin projection',()=
    {consent:{...request.consent,emergencyContact:false}},
    {consent:{...request.consent,subjectPersonId:'different-child'}},
    {consent:{...request.consent,evidenceRef:''}},
+   {guardianLink:{...request.guardianLink,status:'reported'}},
+   {guardianLink:{...request.guardianLink,childPersonId:'another-child'}},
    {consent:{...request.consent,expiresAt:'2026-11-01T00:00:00Z'}},
    {assignment:{...request.assignment,status:'proposed'}},
    {assignment:{...request.assignment,childSafetyScreening:'missing'}},
