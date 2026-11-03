@@ -8805,8 +8805,17 @@ const actions = {
 document.addEventListener('submit', e => {
   const session=nativePersona();
   if(session&&!['personal_owner','team_coach'].includes(session.role)){
-    e.preventDefault();e.stopImmediatePropagation();
-    toast('Editing is not enabled for this test profile');
+    const form=e.target;
+    const scopedManagerForm=session.role==='team_manager'&&
+      form?.dataset?.form==='manager-fixture'&&
+      state.sheet==='manager-fixture-edit'&&
+      $('#sheet').contains(form)&&
+      !!state.managerFixturePending&&
+      nativeManagerFixtureAccess(matchById(state.managerFixturePending.id));
+    if(!scopedManagerForm){
+      e.preventDefault();e.stopImmediatePropagation();
+      toast('Editing is not enabled for this test profile');
+    }
   }
 },true);
 document.addEventListener('click', e => {
@@ -9049,6 +9058,33 @@ document.addEventListener('submit', async e => {
   const f = new FormData(form);
   const str = k => String(f.get(k) ?? '').trim();
   const raw = k => String(f.get(k) ?? '');
+
+  if(kind==='manager-fixture'){
+    const p=state.managerFixturePending,session=nativePersona();
+    const m=p&&matchById(p.id);
+    if(!p||state.sheet!=='manager-fixture-edit'||
+       !nativeManagerFixtureAccess(m)||p.teamId!==data.id||
+       p.contextId!==session?.contextId||str('id')!==p.id){
+      toast('Manager fixture scope changed. No changes saved.');return;
+    }
+    const fields={date:str('date'),start:str('start'),venue:str('venue'),field:str('field'),status:m.status};
+    const plan=planFixtureRevision(m,fields),reason=str('reason');
+    if(plan.error){toast(plan.error);return;}
+    if(reason.length<3||reason.length>200){
+      fieldError(form,'reason','Record a reason of 3 to 200 characters');return;
+    }
+    if(!plan.changed){toast('No fixture schedule changes to review');return;}
+    if(arr(m.fixtureRevisions).length!==p.revisionCount||
+       Object.keys(p.before).some(k=>p.before[k]!==plan.before[k])){
+      toast('Fixture changed while editing. Reopen before saving.');return;
+    }
+    if(M.linkedTasks(data,'match',m.id).length){
+      toast('This match has linked tasks. Ask a Coach to amend its schedule.');return;
+    }
+    state.managerFixturePending={...p,after:plan.after,reason};
+    openSheet('Review Manager fixture change',managerFixtureReview(state.managerFixturePending),'manager-fixture-review');
+    return;
+  }
 
   if(kind==='guardian-review'){
     if(!isCoach())return;
