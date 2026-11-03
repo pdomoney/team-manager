@@ -1805,7 +1805,7 @@ function teamPlacementActionButton(p){
    s.context?.kind==='access'&&s.context?.status==='active'&&
    s.context?.group?.type==='club'&&s.context.group.id===data.team.clubId;
  if(!canReview)return '';
- return `<span class="placement-preview"><span class="muted small" title="Team decision only. Official registration, finance and competition eligibility have not been verified">Team: ${current}</span>${canAct?`<button type="button" class="btn sm placement-btn" data-act="team-placement-open" data-id="${esc(p.id)}" data-next="${action}">${label}</button>`:''}</span>`;
+ return `<span class="placement-preview"><span class="muted small" title="Team decision only. Official registration, finance and competition eligibility have not been verified">Team: ${current}</span>${canAct?`<button type="button" class="btn sm placement-btn" data-act="team-placement-open" data-id="${esc(p.id)}" data-next="${action}" aria-label="${label} for ${esc(p.name)}">${label}</button>`:''}</span>`;
 }
 function teamPlacementForm(p,action){
  const label={nominate:'Nominate for team',approve:'Approve team placement',withdraw:'Withdraw team placement'}[action];
@@ -1824,6 +1824,8 @@ function viewSquad() {
   const P = V.players;
   const active=nativePersona();
   const fullEdit=isCoach()&&(!active||['personal_owner','team_coach'].includes(active.role));
+  const teamDecisionHint=active&&['team_coach','team_manager','club_admin'].includes(active.role)
+    ? '<p class="hint">Team nomination and approval are separate from club registration, fees, competition eligibility and medical clearance. No official verification has been performed here.</p>':'';
   if (!P.length) return fullEdit
     ? `<section class="empty"><h3>No players yet</h3><p>Add players one by one, or paste a whole list from a spreadsheet or the team chat.</p>
       <div class="btn-row"><button class="btn primary" data-act="add-player">${icon('plus')}Add a player</button><button class="btn" data-act="player-import">${icon('team', 18)}From another team</button><button class="btn" data-act="bulk-add">Paste a list</button></div></section>`
@@ -1832,6 +1834,7 @@ function viewSquad() {
   if (!isCoach() && state.squadFilter === 'out') state.squadFilter = 'all';
   const chip = (k, l) => `<button class="chip" data-act="squad-filter" data-f="${k}" aria-pressed="${state.squadFilter === k}">${l} (${cnt[k]})</button>`;
   return `<div class="sec-h"><h2>Squad</h2>${fullEdit ? `<button class="btn primary sm" data-act="squad-add" aria-haspopup="dialog">${icon('plus', 18)}Add</button>` : ''}</div>
+    ${teamDecisionHint}
     <input type="text" placeholder="Search players" aria-label="Search players" data-input="squad-search" value="${esc(state.squadSearch)}" style="margin-bottom:10px">
     <div class="chips">${chip('all', 'All')}${chip('F', 'Female')}${chip('M', 'Male')}${fullEdit ? chip('out', 'Injured / unavailable') : ''}</div>
     <div id="squad-list">${squadList()}</div>
