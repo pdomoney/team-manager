@@ -58,6 +58,7 @@ import { draftMatchRulesEvidence, RULES_EVIDENCE_FIELDS } from './match-rules-ev
 import { matchRosterReadiness } from './matchday-roster-readiness.js';
 import { rosterRecordReview } from './matchday-roster-review.js';
 import { matchReplyRosterScope } from './matchday-season-rsvp.js';
+import { teamPlacementStatus,recordTeamPlacement } from './team-placement-decisions.js';
 import { matchArrivalGate } from './matchday-arrival-gate.js';
 import { matchPreparationSummary } from './matchday-preparation.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
@@ -201,7 +202,7 @@ function defaultData() {
       clubId: '', division: '', category: 'mixed', ageGroup: '', season: '', colours: '', staff: [], rules: '', bylaws: [],
       field: { ...FIELD_DEFAULTS }, tasksContact: { name: '', phone: '' }
     },
-    players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [], plays: starterPlays(), playerSets: [], systems: {}, tasks: [], helpers: [], matches: [],
+    players: [], sessions: [], lineups: [makeLineup('Starting 8')], messages: [], notices: [], plays: starterPlays(), playerSets: [], systems: {}, tasks: [], helpers: [], matches: [], teamPlacementEvents: [],
     teamPass: '', teamSalt: '', updatedAt: null
   };
 }
@@ -339,7 +340,7 @@ const state = {
   folded: {},
   system: null, sysFlip: false,
   playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
-  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, managerFixturePending: null, managerAvailability: null, peopleSearch: '',
+  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, managerFixturePending: null, managerAvailability: null, teamPlacementPending: null, peopleSearch: '',
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
@@ -819,9 +820,24 @@ function nativeManagerAvailabilityScope(m){
  }else return null;
  return {players,seasonId:boundary.seasonId||season?.id||'',mode:boundary.mode};
 }
+// D04: fictional Coach/Manager can accept team placement in their current
+// assigned team only. This does not assign registration or competition rights.
+function nativeTeamPlacementAccess(p){
+ const s=nativePersona();
+ return !!(DEV_SANDBOX&&S.trial&&S.role==='coach'&&!state.preview&&
+   s&&['team_coach','team_manager'].includes(s.role)&&
+   s.context?.kind==='access'&&s.context?.status==='active'&&
+   s.context?.role===s.role&&s.context?.group?.type==='team'&&
+   nativeTeamId(s.context.group.id)===data.id&&
+   nativeTeamId(s.team?.id)===data.id&&
+   !data.archived&&!readOnlyView()&&p&&data.players.includes(p)&&
+   M.activeLens(data).players.some(x=>x.id===p.id));
+}
 function nativePersonaAllowedAction(name,el){
  const session=nativePersona();if(!session)return true;
  if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load','home-scope','close-sheet'].includes(name))return true;
+ if(name==='team-placement-open')
+   return nativeTeamPlacementAccess(playerById(el?.dataset?.id));
  if(name==='manager-fixture-open')
    return nativeManagerFixtureAccess(matchById(el?.dataset?.id));
  if(name==='manager-fixture-confirm')
@@ -1775,20 +1791,51 @@ function calBlock(date) {
   return `<div class="cal" aria-hidden="true"><span class="dow">${d.toLocaleDateString('en-AU', { weekday: 'short' })}</span><span class="d">${d.getDate()}</span><span class="mo">${d.toLocaleDateString('en-AU', { month: 'short' })}</span></div>`;
 }
 /* ---------- Squad ---------- */
+function teamPlacementActionButton(p){
+ const s=nativePersona(),status=teamPlacementStatus(data,p.id);
+ const canAct=nativeTeamPlacementAccess(p);
+ const action=status.state==='not-nominated'||status.state==='withdrawn'?'nominate':
+   status.state==='nominated'?'approve':'withdraw';
+ const label={nominate:'Nominate',approve:'Approve team',withdraw:'Withdraw'}[action];
+ const current={ 'not-nominated':'Not nominated',nominated:'Nominated',
+   'team-approved':'Team approved',withdrawn:'Withdrawn'}[status.state]||'Not nominated';
+ // Club administration may review top-level placement but does not inherit
+ // registration verification or financial evidence rights.
+ const canReview=canAct||s?.role==='club_admin'&&
+   s.context?.kind==='access'&&s.context?.status==='active'&&
+   s.context?.group?.type==='club'&&s.context.group.id===data.team.clubId;
+ if(!canReview)return '';
+ return `<span class="placement-preview"><span class="muted small" title="Team decision only. Official registration, finance and competition eligibility have not been verified">Team: ${current}</span>${canAct?`<button type="button" class="btn sm placement-btn" data-act="team-placement-open" data-id="${esc(p.id)}" data-next="${action}">${label}</button>`:''}</span>`;
+}
+function teamPlacementForm(p,action){
+ const label={nominate:'Nominate for team',approve:'Approve team placement',withdraw:'Withdraw team placement'}[action];
+ const state=teamPlacementStatus(data,p.id);
+ return `<form data-form="team-placement" autocomplete="off">
+   <input type="hidden" name="id" value="${esc(p.id)}">
+   <input type="hidden" name="action" value="${esc(action)}">
+   <p><strong>${esc(p.name)}</strong> · ${esc(data.team.name)}</p>
+   <p class="hint">Fictional team-level decision by the current Coach or Manager. It does not verify club registration, payments, competition eligibility or medical clearance.</p>
+   <p class="hint">Current stage: ${esc(state.state)}. A recorded reason and role/group attribution will be retained with this team.</p>
+   <label class="field-l"><span>Reason for decision</span><textarea name="reason" rows="3" minlength="3" maxlength="200" required placeholder="e.g. Selected for this season's squad"></textarea></label>
+   <button type="submit" class="btn primary block">${label}</button>
+ </form>`;
+}
 function viewSquad() {
   const P = V.players;
-  if (!P.length) return isCoach()
+  const active=nativePersona();
+  const fullEdit=isCoach()&&(!active||['personal_owner','team_coach'].includes(active.role));
+  if (!P.length) return fullEdit
     ? `<section class="empty"><h3>No players yet</h3><p>Add players one by one, or paste a whole list from a spreadsheet or the team chat.</p>
       <div class="btn-row"><button class="btn primary" data-act="add-player">${icon('plus')}Add a player</button><button class="btn" data-act="player-import">${icon('team', 18)}From another team</button><button class="btn" data-act="bulk-add">Paste a list</button></div></section>`
     : `<p class="muted">The squad hasn't been announced yet.</p>`;
   const cnt = { all: P.length, F: P.filter(p => p.gender === 'F').length, M: P.filter(p => p.gender === 'M').length, out: P.filter(p => p.status && p.status !== 'available').length };
   if (!isCoach() && state.squadFilter === 'out') state.squadFilter = 'all';
   const chip = (k, l) => `<button class="chip" data-act="squad-filter" data-f="${k}" aria-pressed="${state.squadFilter === k}">${l} (${cnt[k]})</button>`;
-  return `<div class="sec-h"><h2>Squad</h2>${isCoach() ? `<button class="btn primary sm" data-act="squad-add" aria-haspopup="dialog">${icon('plus', 18)}Add</button>` : ''}</div>
+  return `<div class="sec-h"><h2>Squad</h2>${fullEdit ? `<button class="btn primary sm" data-act="squad-add" aria-haspopup="dialog">${icon('plus', 18)}Add</button>` : ''}</div>
     <input type="text" placeholder="Search players" aria-label="Search players" data-input="squad-search" value="${esc(state.squadSearch)}" style="margin-bottom:10px">
-    <div class="chips">${chip('all', 'All')}${chip('F', 'Female')}${chip('M', 'Male')}${isCoach() ? chip('out', 'Injured / unavailable') : ''}</div>
+    <div class="chips">${chip('all', 'All')}${chip('F', 'Female')}${chip('M', 'Male')}${fullEdit ? chip('out', 'Injured / unavailable') : ''}</div>
     <div id="squad-list">${squadList()}</div>
-    ${isCoach() ? '<p class="hint">Percentages are training attendance from roll calls. Tap a player to edit. Players only see names, numbers and positions.</p>' : ''}`;
+    ${fullEdit ? '<p class="hint">Percentages are training attendance from roll calls. Tap a player to edit. Players only see names, numbers and positions.</p>' : ''}`;
 }
 function squadList() {
   const q = state.squadSearch.trim().toLowerCase();
@@ -1801,14 +1848,18 @@ function squadList() {
   });
   if (!list.length) return `<p class="muted" style="padding:12px 0">No players match.</p>`;
   return `<div class="list grid">${list.map(p => {
+    const session=nativePersona();
+    const fullEdit=isCoach()&&(!session||['personal_owner','team_coach'].includes(session.role));
+    const placement=teamPlacementActionButton(p);
     const main = `${playerPic(p)}
       <span class="grow"><span class="name" style="display:block">${esc(p.name)} ${gBadge(p)}${statusPill(p)}</span><span class="sub" style="display:block">${esc(p.positions.join(', ') || 'No positions set')}</span></span>`;
-    if (!isCoach()) return `<div class="row"><div class="row-main">${main}</div></div>`;
-    const st = playerStats(p.id);
-    return `<div class="row">
+    if(!fullEdit)return `<div class="row placement-row"><div class="row-main">${main}</div>${placement}</div>`;
+    const st=playerStats(p.id);
+    return `<div class="row placement-row">
       <button class="row-main" data-act="edit-player" data-id="${p.id}">${main}
         <span class="pct">${st.pct === null ? '<small>–</small>' : st.pct + '<small>%</small>'}</span>
       </button>
+      ${placement}
       ${p.phone ? `<button class="icon-btn" style="color:var(--wa)" data-act="wa-player" data-id="${p.id}" aria-label="WhatsApp ${esc(p.name)}">${icon('chat', 22)}</button>` : `<span style="width:44px"></span>`}
     </div>`;
   }).join('')}</div>`;
