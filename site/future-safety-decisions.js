@@ -17,7 +17,7 @@ const safetyRoles=['association_admin','club_admin','team_manager','team_coach',
 // are required before even a minimal contact projection is considered.
 export function reviewEmergencyContact({
  actorRole,actorGroup,subjectPersonId,subjectTeamId,subjectClubId,assignment,
- consent,purpose,subjectUnder18=false,at='2026-11-03T00:00:00Z'
+ consent,guardianLink,purpose,subjectUnder18=false,at='2026-11-03T00:00:00Z'
 }={}){
  if(!valid(at)||!word(subjectPersonId)||!word(subjectTeamId)||!word(subjectClubId))
    return deny('invalid-request');
@@ -37,6 +37,10 @@ export function reviewEmergencyContact({
     !word(consent.evidenceRef)||!consent.emergencyContact||
     !valid(consent.expiresAt)||at>=consent.expiresAt)
    return deny('specific-contact-permission-required');
+ if(subjectUnder18&&(guardianLink?.status!=='verified'||
+    guardianLink.childPersonId!==subjectPersonId||
+    guardianLink.guardianPersonId!==consent.recordedBy))
+   return deny('verified-guardian-consent-required');
  return allow('minimum-emergency-next-of-kin',['name','emergencyPhone']);
 }
 
