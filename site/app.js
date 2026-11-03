@@ -339,7 +339,7 @@ const state = {
   folded: {},
   system: null, sysFlip: false,
   playId: null, playSide: 'right', playMode: null, studyIndex: 0, studyRole: 'all', ped: null,
-  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, peopleSearch: '',
+  taskFilter: 'up', taskPick: null, crewClubId: '', agendaClubId: '', fixturePending: null, managerFixturePending: null, peopleSearch: '',
   cardViews: readJson('tm-card-views') || {},
   preview: false, lockMode: 'player', lockMsg: '', noTeam: false, remember: true, busy: false,
   orgPreview: null,
@@ -783,9 +783,29 @@ function nativeReadOnlyHomeTab(d){
  }[d.go];
  return target&&nativeRoleAllows(target)?target:'';
 }
+// Fictional role permission, never a production authorisation grant.
+function nativeManagerFixtureAccess(m){
+ const s=nativePersona();
+ if(!DEV_SANDBOX||!S.trial||S.role!=='coach'||state.preview||
+    s?.role!=='team_manager'||s.context?.kind!=='access'||
+    s.context?.status!=='active'||s.context?.group?.type!=='team'||
+    nativeTeamId(s.context.group.id)!==data.id||
+    nativeTeamId(s.team?.id)!==data.id||
+    !s.capabilities.includes('fixture-manage')||
+    data.archived||readOnlyView()||
+    !m||!data.matches.includes(m)||m.status!=='scheduled')return false;
+ const active=M.activeSeason(data);
+ return !m.seasonId||!!active&&m.seasonId===active.id;
+}
 function nativePersonaAllowedAction(name,el){
  const session=nativePersona();if(!session)return true;
- if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load','home-scope'].includes(name))return true;
+ if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load','home-scope','close-sheet'].includes(name))return true;
+ if(name==='manager-fixture-open')
+   return nativeManagerFixtureAccess(matchById(el?.dataset?.id));
+ if(name==='manager-fixture-confirm')
+   return state.sheet==='manager-fixture-review' &&
+     !!state.managerFixturePending &&
+     nativeManagerFixtureAccess(matchById(state.managerFixturePending.id));
  if(name==='home-team'||name==='team-pick'){
    const t=el?.dataset?.team||el?.dataset?.id||'';
    return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>nativeTeamId(x.id)===t);
@@ -4930,7 +4950,11 @@ function matchRow(m) {
   const when = `<span class="m-when"><span class="m-day">${esc(d.toLocaleDateString('en-AU', { weekday: 'short' }))} ${d.getDate()} ${esc(d.toLocaleDateString('en-AU', { month: 'short' }))}</span>${bigTime(m.start)}</span>`;
   const cls = `sess match m-card ${m.status === 'cancelled' || m.status === 'postponed' ? 'cancelled' : ''} ${m.date === todayISO() ? 'today' : ''}`;
   const day = isCoach() && matchDayDue(m) ? `<button class="btn primary sm md-go" data-act="matchday-open" data-id="${m.id}">${icon('field', 18)}Match day</button>` : '';
-  if (isCoach()) return `<div class="${cls}">${when}<button class="sess-main" data-act="match-open" data-id="${m.id}">${info}</button>${day}</div>`;
+  if (isCoach()) {
+    const managerEdit=nativeManagerFixtureAccess(m)
+      ? `<button type="button" class="btn sm" data-act="manager-fixture-open" data-id="${esc(m.id)}" aria-label="Edit fixture for ${esc(m.opponent||'TBC')}">Edit fixture</button>`:'';
+    return `<div class="${cls}">${when}<button class="sess-main" data-act="match-open" data-id="${m.id}">${info}</button>${managerEdit}${day}</div>`;
+  }
   return `<div class="${cls}">${when}<div class="sess-main">${info}${replyBtns('match', m)}</div></div>`;
 }
 function viewMatches() {
@@ -7073,6 +7097,7 @@ function requestCloseSheet() {
 function closeSheet() {
   // Dismissing either confirmation sheet revokes the pending fixture amendment.
   state.fixturePending = null;
+  state.managerFixturePending = null;
   state.pendingRulesEvidence=null;
   if (state.pending?.fixtureRevision) state.pending = null;
   stopPlayerCrop();
