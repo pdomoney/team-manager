@@ -216,6 +216,17 @@ main{max-width:720px;margin:0 auto;padding:16px}
 .roll-sum{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .roll-row{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 12px;border-top:1px solid var(--line)}
 .roll-row:first-child{border-top:0}
+/* D04 team-placement decisions sit inside the native Squad list, not in a
+   separate persona page. Narrow screens place actions below the player row. */
+.placement-row{flex-wrap:wrap}
+.placement-preview{display:flex;align-items:center;justify-content:flex-end;
+  gap:8px;flex-wrap:wrap;margin-left:auto}
+.placement-preview .placement-btn{flex:none;min-height:40px}
+@media(max-width:650px){
+  .placement-row .placement-preview{flex:0 0 100%;justify-content:space-between;
+    padding:4px 2px 2px;min-width:0}
+  .placement-row .placement-preview .placement-btn{flex:none}
+}
 .roll-row .name{white-space:normal;line-height:1.25}
 .roll-btns{display:flex;gap:4px;flex:none}
 .rb{appearance:none;border:1px solid var(--line);background:var(--paper);border-radius:8px;min-width:44px;height:42px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);padding:0 5px}
