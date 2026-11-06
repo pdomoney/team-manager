@@ -56,6 +56,29 @@ test('refuses an encrypted-looking file with extra plain fields', () => {
   assert.equal(isEncryptedFile(JSON.stringify({ format: 'team-manager', role: 'team', salt: 'a', iv: 'b', data: 'c', players: ['Mia'] })), false);
 });
 
+
+test('rejects malformed or truncated encrypted envelopes before publishing', async () => {
+  const lock = await makeLock('a long coach password', newSalt(), 1000);
+  const valid = await seal({ players: [{ name: 'Fictional player' }] }, lock, 'team');
+  assert.equal(isEncryptedFile(JSON.stringify(valid), 'team'), true, 'a real sealed payload remains accepted');
+  for (const [label, change] of [
+    ['empty salt', { salt: '' }],
+    ['short salt', { salt: Buffer.alloc(15).toString('base64') }],
+    ['empty IV', { iv: '' }],
+    ['short IV', { iv: Buffer.alloc(11).toString('base64') }],
+    ['malformed IV', { iv: 'not*base64' }],
+    ['empty ciphertext', { data: '' }],
+    ['short ciphertext', { data: Buffer.alloc(15).toString('base64') }],
+    ['malformed ciphertext', { data: 'not*base64' }]
+  ]) {
+    const dataDir = tmp(), outDir = path.join(tmp(), 'dist');
+    const invalid = JSON.stringify({ ...valid, ...change });
+    assert.equal(isEncryptedFile(invalid, 'team'), false, label);
+    fs.writeFileSync(path.join(dataDir, 'team.enc.json'), invalid);
+    assert.throws(() => build({ dataDir, outDir, log: quiet }), /not an encrypted team file/, label);
+  }
+});
+
 test('builds an empty site before the team is set up', () => {
   const outDir = path.join(tmp(), 'dist');
   assert.deepEqual(build({ dataDir: path.join(tmp(), 'missing'), outDir, log: quiet }), []);
