@@ -4426,7 +4426,7 @@ function viewCrew() {
   const selectedId = teamScoped ? (club?.id || '') : intakeClubId();
   const directoryClub = arr(ws.clubs).find(c => c.id === selectedId);
   const clubPool = selectedId ? localClubDirectory(arr(ws.matchOfficials),selectedId,M.activeTeams(ws)) : crewPool();
-  const pool = teamScoped ? teamCrewDirectory(clubPool, data) : clubPool;
+  const pool = teamScoped ? teamCrewDirectory(arr(ws.matchOfficials), data) : clubPool;
   const context = crewPolicyContext({team:{...data.team,sport}});
   const selectedPolicyEntry = rules.competitionId ? M.teamEntries(ws,data.id,(M.activeSeason(data)||{}).id)
     .find(({comp})=>comp.id===rules.competitionId) : null;
