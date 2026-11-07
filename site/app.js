@@ -3408,8 +3408,13 @@ function goStudyStep(index) {
   const active = document.querySelector('#play-fig .study-step-number[aria-current="step"]');
   if(active){
     const rail = active.parentElement;
-    if(rail)rail.scrollLeft = Math.max(0,active.offsetLeft - rail.offsetLeft -
-      (rail.clientWidth - active.clientWidth) / 2);
+    if(rail){
+      // offsetLeft can be relative to a different offsetParent on mobile
+      // Safari. Measure both rectangles in viewport coordinates instead.
+      const selected=active.getBoundingClientRect(), container=rail.getBoundingClientRect();
+      rail.scrollLeft += (selected.left + selected.width / 2) -
+        (container.left + container.width / 2);
+    }
     active.focus({preventScroll:true});
   }
 }
