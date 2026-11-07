@@ -2140,3 +2140,67 @@ body.persona-mode .top{background:var(--turf)}
 @media(prefers-reduced-motion:reduce){
   .study-step-list{scroll-behavior:auto}
 }
+
+
+/* E1: play editor adapts to its own available panel width, including browser
+   zoom/text enlargement. Other dialogs and the on-field SVG geometry are unchanged. */
+.panel.wide:has(form.ped){
+  width:min(1500px,96vw);
+  max-width:calc(100vw - 16px);
+  max-height:calc(100dvh - 16px);
+  container:play-editor / inline-size;
+}
+.panel.wide:has(form.ped) .panel-body{
+  min-width:0;
+  width:100%;
+  overscroll-behavior-y:contain;
+}
+.panel.wide:has(form.ped) form.ped,
+.panel.wide:has(form.ped) .ped-teach,
+.panel.wide:has(form.ped) .teach-layout,
+.panel.wide:has(form.ped) .teach-list,
+.panel.wide:has(form.ped) .teach-preview,
+.panel.wide:has(form.ped) .ped-diagram,
+.panel.wide:has(form.ped) .ped-main,
+.panel.wide:has(form.ped) .ped-panel{min-width:0;max-width:100%}
+.panel.wide:has(form.ped) .ped-teach input,
+.panel.wide:has(form.ped) .ped-teach select,
+.panel.wide:has(form.ped) .ped-teach textarea,
+.panel.wide:has(form.ped) .ped-words input{max-width:100%}
+.panel.wide:has(form.ped) .teach-action-head{flex-wrap:wrap}
+.panel.wide:has(form.ped) .teach-action-head .btn-row{flex-wrap:wrap}
+.panel.wide:has(form.ped) .teach-preview .play-card,
+.panel.wide:has(form.ped) .ped-card,
+.panel.wide:has(form.ped) .teach-preview .pf,
+.panel.wide:has(form.ped) .ped-card .pf{
+  width:100%;max-width:100%;height:auto;max-height:none;
+}
+.panel.wide:has(form.ped) .teach-preview .study-cue{overflow-wrap:anywhere}
+.panel.wide:has(form.ped) .ped-save{max-width:100%}
+@container play-editor (max-width: 979px){
+  .teach-layout{display:grid;grid-template-columns:minmax(0,1fr)}
+  .teach-preview{position:static;top:auto}
+  .ped-diagram{display:flex;flex-direction:column;gap:12px;align-items:stretch}
+  .ped-diagram > .ped-phases,
+  .ped-diagram > .ped-tools,
+  .ped-diagram > .ped-meta,
+  .ped-diagram > .ped-main,
+  .ped-diagram > .ped-panel{grid-area:auto;width:100%;min-width:0}
+  .ped-diagram .ped-panel{position:static;top:auto;margin-top:0}
+  .ped-diagram .ped-tools{grid-template-columns:repeat(auto-fit,minmax(80px,1fr))}
+  .ped-workspaces{flex-wrap:wrap}
+  .ped-workspaces button{white-space:normal;min-width:0}
+}
+@container play-editor (max-width: 490px){
+  .teach-action{padding:10px}
+  .teach-action .two,
+  .ped > .two{display:grid;grid-template-columns:minmax(0,1fr)}
+  .ped-workspaces button{font-size:13px}
+  .ped-diagram .ped-tools{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){
+  .panel.wide:has(form.ped){
+    left:0;right:0;bottom:0;width:100%;max-width:100%;max-height:calc(100dvh - env(safe-area-inset-top));
+    border-radius:16px 16px 0 0;
+  }
+}
