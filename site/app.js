@@ -6796,6 +6796,11 @@ function viewPeople() {
       <span class="sub" style="display:block">${esc(c.teamId)} · ${c.missing?'Player record missing':'Helper-to-player reference only'} · Not a verified guardian</span>
     </div></div>`).join('');
   return `<div class="sec-h"><h2>People</h2><span class="sub">Coach-only · ${page.sourceCount} source records · ${page.reviewedCount} local reviews</span></div>
+    <section class="card" aria-labelledby="people-sources-title">
+      <div class="sec-h"><h3 id="people-sources-title">Existing records</h3></div>
+      <label class="field-l"><span>Find a person, role or club</span><input type="search" data-input="people-search" value="${esc(state.peopleSearch)}" placeholder="Search this coach workspace"></label>
+      <div id="people-source-list" class="list">${list||'<p class="hint">No person records yet.</p>'}</div>
+    </section>
     <p class="hint">One person may be recorded as a player, coach, official or volunteer in several teams. Names alone never join records. This page cannot create logins, grant access or verify a parent's legal authority.</p>
     <section class="card" aria-labelledby="people-staff-prepare-title">
       <h3 id="people-staff-prepare-title">Prepare club and team staff records</h3>
@@ -6815,11 +6820,6 @@ function viewPeople() {
         <button class="btn primary" type="submit">Review and record link</button>
       </form>
       <p class="hint">Staff without stable record IDs remain view-only until prepared using the action above.</p>
-    </section>
-    <section class="card" aria-labelledby="people-sources-title">
-      <div class="sec-h"><h3 id="people-sources-title">Existing records</h3></div>
-      <label class="field-l"><span>Find a person, role or club</span><input type="search" data-input="people-search" value="${esc(state.peopleSearch)}" placeholder="Search this coach workspace"></label>
-      <div id="people-source-list" class="list">${list||'<p class="hint">No person records yet.</p>'}</div>
     </section>
     <section class="card" aria-labelledby="people-ledger-title"><h3 id="people-ledger-title">Reviewed links · ${page.reviews.length}</h3>
       <p class="hint">These are historical coach acknowledgements, not a shared login or verified personal identity. Reversal keeps a record for backup and merge conflicts.</p>

@@ -20,6 +20,15 @@ with sync_playwright() as p:
     pg.click('[data-act=tab][data-tab=people]')
     pg.wait_for_timeout(100)
     c.ok(pg.locator('h2', has_text='People').count() >= 1, 'People screen opens from More')
+    # Action-first mobile layout: search and actual records precede
+    # administrative preparation/linking, without removing those workflows.
+    sections=pg.locator('#view section.card[aria-labelledby]').evaluate_all(
+        '(items) => items.map(el => el.getAttribute("aria-labelledby"))')
+    c.ok(sections[:3]==['people-sources-title','people-staff-prepare-title','people-review-title'],
+         'People shows searchable records before staff preparation and record linking')
+    c.ok(pg.locator('[data-input=people-search]').evaluate(
+        'el => el.getBoundingClientRect().top >= 0 && el.getBoundingClientRect().top < innerHeight'),
+         'People search is visible within the initial 390px phone viewport')
     c.ok(pg.locator('form[data-form=people-link]').count() == 1, 'person manual review form available')
     c.ok(pg.locator('#people-source-list .helper-card').count() >= 2, 'person contexts listed')
     text = pg.inner_text('#view')
