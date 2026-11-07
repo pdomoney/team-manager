@@ -30,6 +30,7 @@ import { sportCapabilities } from './p08-sport-capabilities.js';
 import { playTeachingCompatibility } from './p08-play-compatibility.js';
 import { libraryCopyReview, libraryOrigin } from './p08-library-provenance.js';
 import { teachingPhase, teachingSteps, addTeachingStep, removeTeachingStep, moveTeachingStep, seedTeachingFromLegacy, removeMovementLinks } from './play-teaching.js';
+import {canonicalStarterPlayName} from './starter-play-titles.js';
 import { CREW_ROLES, REQUIREMENT_ROLES, crewProfile, crewRoleAllowed, crewRequirementAllowed, crewRolesForSport, normCrewPerson, normCrewRules, crewPolicyContext, policyFitsContext, canCrewServe, matchCrewCheck, crewScheduleClashes } from './match-crew.js';
 import { memberOfClub, inTeamPool, localClubDirectory, clubTeamChoices, withClubAssociation, validateManualVolunteer, validEmail, invitationMessage } from './volunteer-intake.js';
 import { inputField, selectField, radioChoices } from './form-controls.js';
@@ -3002,7 +3003,7 @@ function starterPlays() {
     players: { ...formation(46), RR: runs[0][0], RL: runs[1][0], RW: runs[2][0] },
     notes: { RM: { text: 'Plays the ball', side: 'l' }, LM: { text: 'Dummy half', side: 'b' } }, moves: hands(runs) });
   return [
-    base('quickie-out', 3, 'Quickie Out', 'Ruck', 'Tags 1–3, when their marker or the first defender beside the ruck is slow off the line.',
+    base('quickie-out', 3, 'Step Out', 'Ruck', 'Tags 1–3, when their marker or the first defender beside the ruck is slow off the line.',
       'LM steps out left to draw in the marker and their A defender, then passes back to RM, who runs into the space.',
       'RM is tagged, plays the ball fast and bounces out to the right.\nLM, at dummy half, picks up and steps out to the left, drawing in the marker and their left A defender.\nLM passes back to RM.\nRM runs into the space the marker has left, between the marker and the next defender on the right.',
       { ...ruck, focus: ['LM', 'RM'], labels: [rmCatches],
@@ -3015,9 +3016,9 @@ function starterPlays() {
           { t: 'pass', key: true, pts: [[22.4, 47.2], catchAt] },
           { t: 'run', key: true, pts: [catchAt, [28.9, 37.6]] }
         ] }),
-    base('quickie-in', 3, 'Quickie In', 'Ruck', 'After a Quickie Out has worked, when the defence starts sliding with RM.',
-      'RM bounces out the same way as the Quickie Out, then cuts back inside, behind the marker.',
-      'RM plays the ball and bounces out to the right, as in the Quickie Out.\nLM, at dummy half, passes back to RM.\nRM cuts back inside, behind the marker, into the gap on the other side.',
+    base('quickie-in', 3, 'Step In', 'Ruck', 'After a Step Out has worked, when the defence starts sliding with RM.',
+      'RM bounces out the same way as the Step Out, then cuts back inside, behind the marker.',
+      'RM plays the ball and bounces out to the right, as in the Step Out.\nLM, at dummy half, passes back to RM.\nRM cuts back inside, behind the marker, into the gap on the other side.',
       { ...ruck, focus: ['RM'], notes: { ...ruckNotes, marker: { text: 'Marker', side: 'r' } }, labels: [rmCatches],
         moves: [bounce, { t: 'pass', key: true, pts: [lm, catchAt] },
           { t: 'run', key: true, curve: true, pts: [catchAt, [27.4, 45.6], [25.2, 44.5], [22.6, 42.4], [21.6, 37.6]] }] }),
@@ -3126,7 +3127,7 @@ function upgradePlays(d, coach = true) {
       plays.splice(i + 1, 0, f);
     });
   }
-  d.plays = plays;
+  d.plays = plays.map(canonicalStarterPlayName);
   if (coach) d.playsRev = STARTER_SET;
   return d;
 }
