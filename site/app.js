@@ -8761,7 +8761,7 @@ const actions = {
   'study-prev': () => goStudyStep(state.studyIndex - 1),
   'study-next': () => goStudyStep(state.studyIndex + 1),
   'study-pick': el => {
-    if(!/^\\d+$/.test(el.dataset.i || ''))return;
+    if(!/^\d+$/.test(el.dataset.i || ''))return;
     goStudyStep(Number(el.dataset.i));
   },
   'play-phase': el => { const p = playById(state.playId); if (!p) return; animStop(); animShowPhase(p, Number(el.dataset.i)); anim.planFor = null; },
