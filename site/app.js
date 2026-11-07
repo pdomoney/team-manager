@@ -1405,11 +1405,13 @@ function render() {
   else chip.hidden = true;
 
   const v = $('#view'), g = navOf(state.tab);
+  const previousHomeScroll = state.tab==='home' ? captureHomeScopeScroll(v) : null;
   state.lastView[g.id] = state.tab;
   document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
   v.innerHTML = subNav(g) + (['home', 'people'].includes(state.tab) ? '' : seasonBanner()) + VIEWS[state.tab]();
   if (state.tab === 'field' || state.tab === 'matchday') bindField();
   fitSubnav();
+  if(state.tab==='home')restoreHomeScopeScroll(v,previousHomeScroll);
   foldLongPage();
   applyNativeProfilePermissions();
   renderAsk();
@@ -1449,6 +1451,36 @@ function foldLongPage() {
   // The jump bar goes under the page's own title and filters, just above the sections.
   const before = host.querySelector(':scope > .cols') || secs[0];
   if (links.length > 3 && before) before.insertAdjacentHTML('beforebegin', `<nav class="jump" aria-label="Jump to a section">${links.map(([id, t]) => `<button type="button" data-act="jump" data-to="${id}">${esc(t)}</button>`).join('')}</nav>`);
+}
+// Home has two *independently scrollable* horizontal selectors. Rebuilding the
+// view used to reset both to the left edge on iPhone, hiding the selected chip.
+// Restore manual scroll for the same selection; on a new selection, reveal the
+// chosen club/team without scrolling the whole page or changing the team.
+function homeScopeTarget(row) {
+  return row.querySelector('[aria-pressed="true"]') ||
+    row.querySelector('.scope-team.editing') ||
+    row.querySelector('.scope-club[data-open]');
+}
+function homeScopeKey(target) {
+  return target ? (target.dataset.kind||'')+':'+(target.dataset.id||'') : '';
+}
+function captureHomeScopeScroll(host) {
+  return [...host.querySelectorAll('nav.scope .scope-row')].map(row=>({
+    key:homeScopeKey(homeScopeTarget(row)),left:row.scrollLeft
+  }));
+}
+function restoreHomeScopeScroll(host,previous) {
+  [...host.querySelectorAll('nav.scope .scope-row')].forEach((row,i)=>{
+    const chosen=homeScopeTarget(row),key=homeScopeKey(chosen);
+    if(!chosen)return;
+    if(previous?.[i]?.key===key){
+      row.scrollLeft=previous[i].left;
+      return;
+    }
+    const wanted=chosen.offsetLeft-row.offsetLeft-
+      (row.clientWidth-chosen.offsetWidth)/2;
+    row.scrollLeft=Math.max(0,Math.min(row.scrollWidth-row.clientWidth,wanted));
+  });
 }
 // A sub-tab row wider than the screen fades at the edge until it's scrolled to the end, and keeps the
 // current tab in view.
