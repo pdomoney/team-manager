@@ -64,6 +64,7 @@ import { matchPreparationSummary } from './matchday-preparation.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
 import { fixtureReadinessIndex } from './p06-readiness.js';
 import { clubCrewActions } from './p06-actions.js';
+import { isHomeTeamCrewScope, teamCrewDirectory, teamCrewReadiness } from './crew-team-scope.js';
 import { volunteerRemovalCheck } from './p06-volunteer-lifecycle.js';
 import { localWorkspaceCalendar } from './p07-calendar.js';
 import { planFixtureRevision, commitFixtureRevision, fixtureSnapshot } from './p07-fixture-amendments.js';
@@ -119,13 +120,13 @@ const FOCUS_IDEAS = ['Defence line speed', 'Attack shape', 'Ball skills', 'Fitne
 const NAV = [
   { id: 'home', label: 'Home', icon: '<path d="M3.5 11 12 4l8.5 7v9h-5.5v-6h-6v6H3.5z"/>', views: [['home', 'Home']] },
   { id: 'schedule', label: 'Schedule', icon: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
-    views: [['agenda', 'Upcoming'], ['training', 'Training'], ['matches', 'Matches'], ['attendance', 'Attendance', true], ['matchday', 'Match day', true, 'hidden']] },
+    views: [['agenda', 'Upcoming'], ['training', 'Training'], ['matches', 'Matches'], ['matchday', 'Match day', true, 'hidden']] },
   { id: 'team', label: 'Team', icon: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.5c2.5.1 4.2 1.8 5 5"/>',
     views: [['squad', 'Squad'], ['tasks', 'Tasks'], ['helpers', 'Helpers', true], ['crew', 'Match staff', true]] },
   { id: 'tactics', label: 'Tactics', icon: '<rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14M5 5.5h14M5 18.5h14"/>',
     views: [['field', 'Lineup'], ['plays', 'Plays'], ['rules', 'Rules'], ['library', 'Library', true]] },
   { id: 'more', label: 'More', icon: '<path d="M4 6.5h16M4 12h16M4 17.5h16"/>',
-    views: [['more', 'More'], ['people', 'People', true], ['club', 'Club'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['teams', 'Clubs and teams', true], ['comps', 'Competitions', true], ['notices', 'Notices'], ['tally', 'Volunteer tally', true]] }
+    views: [['more', 'More'], ['people', 'People', true], ['club', 'Club'], ['messages', 'Messages', true], ['reports', 'Reports', true], ['attendance', 'Attendance', true, 'hidden'], ['teams', 'Clubs and teams', true], ['comps', 'Competitions', true], ['notices', 'Notices'], ['tally', 'Volunteer tally', true]] }
 ];
 const VIEW_IDS = NAV.flatMap(g => g.views.map(v => v[0]));
 
@@ -2171,13 +2172,15 @@ function rollSummary(s) {
 }
 function viewAttendance() {
   const rs = rollSessions();
-  if (!rs.length) return `<div class="empty"><h3>No roll calls yet</h3><p>Open a training session and tap the clipboard to mark who's there.</p><button class="btn" data-act="train-view" data-v="schedule">Go to schedule</button></div>`;
+  const title = `<div class="sec-h"><h2>Player attendance</h2><button class="btn sm" data-act="tab" data-tab="reports">Back to Reports</button></div>
+    <p class="hint">Detailed roll-call history for the selected team and season. Record or correct attendance in Schedule → Training.</p>`;
+  if (!rs.length) return title + `<div class="empty"><h3>No roll calls yet</h3><p>Open a training session and tap the clipboard to mark who's there.</p><button class="btn" data-act="train-view" data-v="schedule">Go to schedule</button></div>`;
   const rows = V.players.map(p => ({ p, st: playerStats(p.id) }))
     .sort((a, b) => (b.st.pct ?? -1) - (a.st.pct ?? -1) || a.p.name.localeCompare(b.p.name));
   const withData = rows.filter(r => r.st.total);
   const avg = withData.length ? Math.round(withData.reduce((t, r) => t + r.st.pct, 0) / withData.length) : 0;
   const last = rs.slice(-10);
-  return `<div class="stats" style="grid-template-columns:repeat(2,1fr);margin-bottom:18px">
+  return title + `<div class="stats" style="grid-template-columns:repeat(2,1fr);margin-bottom:18px">
       <div class="stat"><b>${rs.length}</b><span>Roll calls taken</span></div>
       <div class="stat"><b>${avg}%</b><span>Average attendance</span></div></div>
     <div class="sec-h"><h2>By player</h2></div>
@@ -4416,19 +4419,27 @@ function badgeLegend(sport) {
 }
 function viewCrew() {
   const club = M.clubOf(ws, data), rules = crewPolicy(), sport = M.teamSport(data.team, club), profile = crewProfile(sport);
-  const selectedId = intakeClubId();
+  // Home's explicit team choice is the default scope for this screen, not
+  // merely the header label. Club/all scopes keep the original admin view.
+  const homeScope = nativePersona()?.role !== 'personal_owner' ? state.nativeHomeScope : homePref();
+  const teamScoped = isHomeTeamCrewScope(homeScope, data);
+  const selectedId = teamScoped ? (club?.id || '') : intakeClubId();
   const directoryClub = arr(ws.clubs).find(c => c.id === selectedId);
-  const pool = selectedId ? localClubDirectory(arr(ws.matchOfficials),selectedId,M.activeTeams(ws)) : crewPool();
+  const clubPool = selectedId ? localClubDirectory(arr(ws.matchOfficials),selectedId,M.activeTeams(ws)) : crewPool();
+  const pool = teamScoped ? teamCrewDirectory(clubPool, data) : clubPool;
   const context = crewPolicyContext({team:{...data.team,sport}});
   const selectedPolicyEntry = rules.competitionId ? M.teamEntries(ws,data.id,(M.activeSeason(data)||{}).id)
     .find(({comp})=>comp.id===rules.competitionId) : null;
   const contextValid = policyFitsContext(rules,{team:{...data.team,sport}},selectedPolicyEntry);
   const policyScope = selectedPolicyEntry?.comp?.name || 'Friendly / unlinked matches';
-  const readiness = selectedId ? fixtureReadinessIndex(ws, selectedId) : null;
-  const readinessActions = selectedId ? clubCrewActions(ws, selectedId) : [];
-  const appointments = reviewVolunteerAppointments(arr(ws.matchOfficials), arr(ws.volunteerAppointments), {type:'club',id:selectedId});
+  const clubReadiness = selectedId ? fixtureReadinessIndex(ws, selectedId) : null;
+  const clubActions = selectedId ? clubCrewActions(ws, selectedId) : [];
+  const scopedReadiness = teamScoped && clubReadiness ? teamCrewReadiness(clubReadiness, clubActions, data.id) : null;
+  const readiness = scopedReadiness?.readiness || clubReadiness;
+  const readinessActions = scopedReadiness?.actions || clubActions;
+  const appointments = teamScoped ? [] : reviewVolunteerAppointments(arr(ws.matchOfficials), arr(ws.volunteerAppointments), {type:'club',id:selectedId});
   const overviewSports = [...new Set(M.activeTeams(ws).filter(t=>!!M.clubOf(ws,t)).map(t=>M.teamSport(t.team,M.clubOf(ws,t))))].sort();
-  const workspaceOverview = arr(ws.clubs).length>1 ? workspaceCrewOverview(ws,{sport:state.crewOverviewSport || ''}) : null;
+  const workspaceOverview = !teamScoped && arr(ws.clubs).length>1 ? workspaceCrewOverview(ws,{sport:state.crewOverviewSport || ''}) : null;
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><div class="btn-row">${cardToggle('crew')}<button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div></div>
@@ -4441,9 +4452,9 @@ function viewCrew() {
         <small>${esc(sport)} · ${esc(profile.provider)}. Select another team here without opening a second window.</small>
       </label>
     </div>
-    <p class="crew-intro">The club directory lists people. Staffing requirements belong to the selected team, sport and competition.</p>
-    ${readiness ? `<section class="sec crew-readiness-summary"><h3>Club fixture readiness (coach-recorded)</h3>
-      <p class="hint">For the selected club: ${readiness.totals.fixtures} fixtures · ${readiness.totals.covered} covered · ${readiness.totals.attention} need attention · ${readiness.totals.unverified} without verified requirements.</p>
+    <p class="crew-intro">${teamScoped ? 'Showing staff explicitly linked to this team or recorded on its matches. Club-only volunteers are available in the club view.' : 'The club directory lists people. Staffing requirements belong to the selected team, sport and competition.'}</p>
+    ${readiness ? `<section class="sec crew-readiness-summary" data-scope="${teamScoped?'team':'club'}"><h3>${teamScoped?'Team':'Club'} fixture readiness (coach-recorded)</h3>
+      <p class="hint">For the selected ${teamScoped?'team':'club'}: ${readiness.totals.fixtures} fixtures · ${readiness.totals.covered} covered · ${readiness.totals.attention} need attention · ${readiness.totals.unverified} without verified requirements.</p>
       <p class="hint">Based on manual club records only. Review match requirements and registration evidence before relying on these counts.</p>
       ${readinessActions.length ? `<h4>Actions to review (${readinessActions.length})</h4><ul class="crew-req">${readinessActions.slice(0,12).map(x=>`<li>${esc(x.date || 'Date not set')} · ${esc(x.sport)} · ${esc(x.action)}</li>`).join('')}</ul>${readinessActions.length>12?`<p class="hint">Showing the first 12 of ${readinessActions.length} actions.</p>`:''}` : '<p class="hint">No outstanding actions identified from recorded fixtures.</p>'}</section>` : ''}
     ${workspaceOverview ? `<section class="sec crew-workspace-overview" aria-label="Workspace club staffing overview">
@@ -4459,21 +4470,21 @@ function viewCrew() {
         : '<p class="hint">No recorded fixtures match this sport in the current workspace.</p>'}
       <p class="hint">Counts are based only on coach records, not verified with governing bodies. No private volunteer information is included.</p>
     </section>` : ''}
-    <nav class="crew-page-nav" aria-label="Match staff sections"><button class="btn sm" data-act="crew-jump" data-to="crew-directory-section">Club volunteers</button><button class="btn sm" data-act="crew-jump" data-to="crew-rules-section">Team requirements</button></nav>
+    <nav class="crew-page-nav" aria-label="Match staff sections"><button class="btn sm" data-act="crew-jump" data-to="crew-directory-section">${teamScoped?'Team volunteers':'Club volunteers'}</button><button class="btn sm" data-act="crew-jump" data-to="crew-rules-section">Team requirements</button></nav>
     <details class="info-note crew-help"><summary>${icon('info', 18)}How these records work</summary><div>
       <p class="hint">A person can appear in more than one club and help several teams: open their profile and tick the teams. Club membership, registration and accreditation are reviewed separately for each sport. These records stay in the encrypted coach copy, not a global member directory.</p>
       <p class="hint">Club directory records are entered by the coach, not verified by a governing body. Club-wide membership never automatically grants a match-day role. Do not store WWCC numbers, identity documents or registration passwords.</p>
       <p class="hint">Requirements can differ between competitions, age groups and categories. Record only the current official competition rules.</p></div></details>
     <section class="sec crew-section crew-directory-panel" id="crew-directory-section">
-      <div class="sec-h"><h3>Club volunteers</h3><span class="crew-section-count">Directory and profiles</span></div>
-      <p class="crew-section-help">Choose a club to view its people. This does not change the team whose matches you are managing.</p>
-    <form class="crew-directory-picker" data-form="crew-directory">
+      <div class="sec-h"><h3>${teamScoped?'Team volunteers':'Club volunteers'}</h3><span class="crew-section-count">Directory and profiles</span></div>
+      <p class="crew-section-help">${teamScoped ? 'Only recorded team assignments and match-day appointments are shown. To review club-only volunteers or appointments, select the club on Home.' : 'Choose a club to view its people. This does not change the team whose matches you are managing.'}</p>
+    ${teamScoped?'':`<form class="crew-directory-picker" data-form="crew-directory">
       <label class="field-l"><span>Volunteer directory for club</span><select name="clubId">
       <option value="" ${!selectedId?'selected':''}>Current team without a club</option>
       ${arr(ws.clubs).map(c=>'<option value="'+esc(c.id)+'" '+(c.id===selectedId?'selected':'')+'>'+esc(c.name)+'</option>').join('')}</select></label>
       <button class="btn sm" type="submit">View directory</button>
-    </form>
-    <div class="crew-directory-results"><h3>${esc(directoryClub?.name || 'Current team')} volunteer directory (${pool.length})</h3>
+    </form>`}
+    <div class="crew-directory-results"><h3>${esc(teamScoped ? M.teamName(data) : (directoryClub?.name || 'Current team'))} volunteer directory (${pool.length})</h3>
       ${pool.length ? `<div class="list grid ${cardClass('crew')} crew-directory-list">${pool.map(p => `<button class="row crew-person" data-act="crew-basic" data-id="${esc(p.id)}">
         <span class="crew-avatar">${M.validPhoto(p.photo) ? `<img src="${p.photo}" alt="">` : esc(initials(p)||'?')}</span><span class="grow"><span class="name">${esc(p.name)}</span>${(() => {
           const inPool = inTeamPool(p, data), bs = crewBadges(p, sport, todayISO()), shown = inPool ? bs : bs.slice(0, 1), h = helps(p);
@@ -4481,11 +4492,11 @@ function viewCrew() {
         <span class="sub" style="display:block">${p.active ? 'Available for selection' : 'Inactive'} · ${esc(badgeSummary(shown))}</span>`; })()}</span>
         <span class="edit-hint">${icon('edit', 16)}Edit</span>
       </button>`).join('')}</div>`
-        : '<div class="empty"><p>No volunteers are recorded for this club. Add someone manually, link an existing workspace record or prepare an email invitation.</p></div>'}
+        : `<div class="empty"><p>${teamScoped ? 'No volunteers have a recorded assignment to this team. The club directory may contain other available people.' : 'No volunteers are recorded for this club. Add someone manually, link an existing workspace record or prepare an email invitation.'}</p></div>`}
       ${pool.length ? badgeLegend(sport) : ''}
     </div>
     </section>
-    <section class="sec crew-section crew-appointment-panel" id="crew-appointment-section">
+    ${teamScoped?'':`<section class="sec crew-section crew-appointment-panel" id="crew-appointment-section">
       <div class="sec-h"><h3>Club appointments</h3><button class="btn sm" data-act="crew-appointment-new" ${!selectedId || !pool.length ? 'disabled' : ''}>Record appointment</button></div>
       <p class="crew-section-help">Manual club role records are separate from sport accreditation, match-day assignments and app permissions. No invitation is sent by this screen.</p>
       ${appointments.length ? `<ul class="crew-req">${appointments.map(a=>`<li>
@@ -4493,7 +4504,7 @@ function viewCrew() {
         · ${esc(a.role || 'Role not recorded')} · ${esc(APPOINTMENT_STATUS_LABELS[a.status] || 'Status requires review')}
         ${a.issues.length ? `<span class="sub"> · ${esc(a.issues.join('; '))}</span>` : ''}
       </li>`).join('')}</ul>` : '<p class="hint">No club appointments recorded. This does not mean no volunteers are registered.</p>'}
-    </section>
+    </section>`}
     <section class="sec crew-section crew-rules-panel" id="crew-rules-section"><div class="sec-h"><h3>Game-day requirements</h3><button class="btn sm" data-act="crew-policy-open">${rules.source ? 'Configure' : 'Set up'}</button></div>
       <p class="crew-section-help">Requirements apply to the selected team, not the volunteer directory.</p>
       <p class="sub" style="white-space:normal">${esc(sport)} · ${esc(M.TEAM_CATEGORIES[context.category] || 'Category unrecorded')} · ${esc(context.ageGroup || 'Age group unrecorded')} · ${esc(context.division || 'Division unrecorded')}</p>
@@ -4911,6 +4922,7 @@ function viewReports() {
   const notHelped = everyone().filter(w => !loadBusy(loadOf(load, w))).length;
   const posRows = Object.entries(pos.use).sort((a, b) => SLOT_IDS.indexOf(a[0]) - SLOT_IDS.indexOf(b[0]));
   return `<div class="long-page"><div class="sec-h"><h2>Reports</h2><button class="btn sm" data-act="report-share">${icon('copy', 18)}Copy summary</button></div>
+    <div class="btn-row" style="margin-bottom:12px"><button class="btn sm" data-act="tab" data-tab="attendance">Player attendance details</button></div>
     <div class="chips" role="group" aria-label="Period">${ranges.map(([k, l]) => `<button class="chip" data-act="report-range" data-v="${k}" aria-pressed="${(state.reportRange || 'season') === k}">${esc(l)}</button>`).join('')}</div>
     <p class="hint" style="margin:-4px 0 14px">${esc(r.label)}${r.from ? `: ${esc(fmtDay(r.from))} to ${esc(fmtDay(r.to))}` : ''}. Worked out from what was recorded. “Not recorded” means there’s nothing to go on, which isn’t the same as zero.</p>
     <div class="cols"><div class="col">
