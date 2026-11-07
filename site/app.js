@@ -43,6 +43,7 @@ import {desktopProfileAvailable,desktopProfileChoices,resolveDesktopProfile} fro
 import {developmentSandbox} from './development-sandbox.js';
 import {personWorkspace} from './person-role-workspace.js';
 import {personaSession,personaRoleTeams,personaRoster,personaFixtures,personaSeasons,personaAction,personaCurrentState,upgradePersonaRecords} from './persona-runtime.js';
+import {titansDemoSession,titansDemoRoleTeams,titansDemoProfileLabel} from './titans-demo-personas.js';
 import {PERSONA_SEASONS,PERSONA_CURRENT_SEASON} from './persona-fixtures.js';
 import { makeP12WorkflowSandbox, inspectP12Workflow, applyP12WorkflowAction } from './p12-qa-workflows.js';
 import { createP12GovernanceScenario, inspectP12Governance, applyP12GovernanceAction } from './p12-qa-governance.js';
@@ -748,8 +749,18 @@ const NATIVE_ROLE_TABS={
  none:['home']
 };
 const nativeTeamId=id=>String(id||'').replace(/-/g,'');
+// P12 QA fixture identities and the replaceable eight-team test library have
+// different team IDs. In that specific library, project ONLY explicitly
+// recorded fictional Titans staff appointments; never infer role access from
+// a club name, banner or unrelated P12 membership.
+const nativeSessionFor=(profileId,contextId='',teamId='')=>{
+  const base=personaSession(profileId,contextId,teamId);
+  return titansDemoSession(ws,base,contextId,teamId)||base;
+};
 const nativePersona=()=>DEV_SANDBOX&&state.qaPersona==='p12'?
-  personaSession(state.qaProfile,state.qaContext,state.personaTeamId):null;
+  nativeSessionFor(state.qaProfile,state.qaContext,state.personaTeamId):null;
+const nativeScopedTeams=(profileId,role)=>
+  titansDemoRoleTeams(ws,profileId,role)??personaRoleTeams(profileId,role);
 function nativeRoleAllows(tab){
  const session=nativePersona();if(!session)return true;
  // Keep the existing More hub in every active native experience, rather than
@@ -858,11 +869,11 @@ function nativePersonaAllowedAction(name,el){
    // The test Owner's P12 examples are NOT the teams in the loaded library.
    // They must not block navigation within this already-open coach workspace.
    if(session.role==='personal_owner')return M.activeTeams(ws).some(x=>x.id===t);
-   return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>nativeTeamId(x.id)===t);
+   return !!t&&nativeScopedTeams(session.profileId,session.role).some(x=>nativeTeamId(x.id)===t);
  }
  if(name==='home-go'&&session.role!=='personal_owner'){
    const d=el?.dataset||{},teamId=d.team||'';
-   if(!teamId||!personaRoleTeams(session.profileId,session.role).some(t=>nativeTeamId(t.id)===teamId))
+   if(!teamId||!nativeScopedTeams(session.profileId,session.role).some(t=>nativeTeamId(t.id)===teamId))
      return false;
    return session.role==='team_coach'||!!nativeReadOnlyHomeTab(d);
  }
@@ -921,7 +932,7 @@ function renderHomeProfilePicker() {
   const session=nativePersona();
   const groups=state.desktopProfileOpen?desktopProfileChoices().map(group=>
     '<section aria-label="'+esc(group.label)+'"><h3>'+esc(group.label)+'</h3><div class="desktop-profile-options">'+
-    group.profiles.map(p=>'<button type="button" data-act="desktop-profile-pick" data-profile="'+esc(p.id)+'" aria-pressed="'+(p.id===state.qaProfile?'true':'false')+'">'+esc(p.label)+'</button>').join('')+'</div></section>').join(''):'';
+    group.profiles.map(p=>'<button type="button" data-act="desktop-profile-pick" data-profile="'+esc(p.id)+'" aria-pressed="'+(p.id===state.qaProfile?'true':'false')+'">'+esc(titansDemoProfileLabel(ws,p.id)||p.label)+'</button>').join('')+'</div></section>').join(''):'';
   const scope=session?.contexts?.length>1?
     '<label class="field-l"><span>Role and group</span><select data-change="native-persona-context" aria-label="Choose role and group">'+
     session.contexts.map(c=>'<option value="'+esc(c.id)+'"'+(c.id===state.qaContext?' selected':'')+'>'+esc(c.label+' · '+c.groupLabel)+'</option>').join('')+'</select></label>':'';
@@ -930,7 +941,7 @@ function renderHomeProfilePicker() {
   const canSeed=!M.findTeam(ws,nativeTeamId(P12_SAMPLE_TEAMS[0].id))&&
     M.teamsOf(ws).every(t=>!(t.players||[]).length&&!(t.matches||[]).length&&!(t.sessions||[]).length);
   return '<section class="home-profile-switch" aria-label="Development profile switcher">'+
-    '<div class="home-profile-head"><p class="home-profile-identity"><strong>'+esc(selected?.label||'Owner')+'</strong><span class="muted small"> · '+esc(session?.label||'Owner')+' · Fictional test profile</span></p>'+
+    '<div class="home-profile-head"><p class="home-profile-identity"><strong>'+esc(session?.demoPerson||selected?.label||'Owner')+'</strong><span class="muted small"> · '+esc(session?.label||'Owner')+' · Fictional test profile</span></p>'+
     '<button id="home-profile-button" type="button" class="btn primary" data-act="desktop-profile-menu" aria-expanded="'+!!state.desktopProfileOpen+'" aria-controls="home-profile-panel">Switch profile</button></div>'+
     (scope?'<div class="home-profile-context">'+scope+'</div>':'')+
     (canSeed?'<button class="btn sm" type="button" data-act="native-persona-load">Load fictional sample teams</button>':'')+
@@ -1746,7 +1757,7 @@ function liveCard(lc, coach) {
 // This is a local preview filter, not a production permission boundary.
 function nativeHomeWorkspace(session) {
   if(!session||session.role==='personal_owner')return ws;
-  const allowed=personaRoleTeams(session.profileId,session.role)
+  const allowed=nativeScopedTeams(session.profileId,session.role)
     .map(t=>M.findTeam(ws,nativeTeamId(t.id))).filter(t=>t&&!t.archived);
   if(!allowed.length)return null;
   const current=allowed.find(t=>t.id===data.id)||allowed[0];
@@ -6149,7 +6160,7 @@ function switchTeam(id,{keepHomeScope=false,selectHomeTeam=false}={}) {
   const session=nativePersona();
   if(session && session.role!=='personal_owner'){
     // Preserve D02 exact group/role grants for every non-Owner QA persona.
-    const assigned=personaRoleTeams(session.profileId,session.role)
+    const assigned=nativeScopedTeams(session.profileId,session.role)
       .find(p=>nativeTeamId(p.id)===id);
     if(!assigned){toast('That team is not assigned to this test role');return false;}
     state.qaContext=assigned.contextId;
@@ -7394,7 +7405,10 @@ function loadTestLibrary() {
     t.teamPass = k && k.teamPass ? k.teamPass : newTeamPass(); t.teamSalt = k && k.teamSalt ? k.teamSalt : toB64(newSalt());
   });
   state.crewClubId = ''; state.lineupId = null; state.matchDayId = null; state.msgDraft = null; state.viewSeason = {}; state.correcting = null;
-  pickTeam(ws.id); restoreOwnerHomeTeam(); save(); closeSheet(); goTo('home');
+  pickTeam(ws.id);
+  if(DEV_SANDBOX && titansDemoRoleTeams(ws,state.qaProfile,nativePersona()?.role)!==null)
+    syncNativePersonaTeam();
+  restoreOwnerHomeTeam();save();closeSheet();goTo('home');
   toast(`Test library loaded. Data check ${dataCheck(ws)}`);
 }
 function extendTestLibrary(day) {
@@ -8957,7 +8971,7 @@ const actions = {
     // Match staff directory override when the user deliberately changes it.
     state.crewClubId = '';
     if(session&&session.role!=='personal_owner'){
-      const allowed=personaRoleTeams(session.profileId,session.role);
+      const allowed=nativeScopedTeams(session.profileId,session.role);
       if(!allowed.length)return;
       if(kind==='all'){
         // No other club's records are brought into this scoped portfolio.
@@ -9287,7 +9301,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
   if(DEV_SANDBOX&&state.qaPersona==='p12'&&k==='native-persona-context'){
-    const session=personaSession(state.qaProfile,e.target.value);
+    const session=nativeSessionFor(state.qaProfile,e.target.value);
     if(session?.contextId===e.target.value){
       state.qaContext=session.contextId;state.personaTeamId='';
       syncNativePersonaTeam();render();
@@ -9295,7 +9309,7 @@ document.addEventListener('change', e => {
   }
   if(DEV_SANDBOX&&state.qaPersona==='p12'&&k==='native-persona-team'){
     const session=nativePersona();
-    const picked=personaRoleTeams(session?.profileId,session?.role).find(t=>t.id===e.target.value);
+    const picked=nativeScopedTeams(session?.profileId,session?.role).find(t=>t.id===e.target.value);
     if(picked){state.qaContext=picked.contextId;state.personaTeamId=picked.id;syncNativePersonaTeam();render();}
     return;
   }
