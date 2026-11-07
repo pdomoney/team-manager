@@ -2034,3 +2034,109 @@ body.persona-mode .top{background:var(--turf)}
  .home-profile-identity{flex:1 1 130px}
  .home-profile-panel .desktop-profile-options{grid-template-columns:1fr}
 }
+
+
+/* Tactics board: a presentation-only skin for existing play viewers.
+   SVG positions, authoring/editor canvases, play data and thumbnails stay intact. */
+.play-presentation{
+  --board-ink:#F4F6F6;--board-muted:#BBC7CD;--board-gold:#F1C775;
+  --board-panel:#28323B;
+  background:radial-gradient(ellipse at 92% 0%,rgba(241,199,117,.07),transparent 42%),#191E25;
+  color:var(--board-ink);border:1px solid #937944;border-radius:16px;
+  padding:clamp(12px,2vw,22px);
+  box-shadow:0 8px 24px rgba(16,23,32,.16);
+  min-width:0;overflow:hidden;
+}
+.play-presentation.play-study{background:radial-gradient(ellipse at 92% 0%,rgba(241,199,117,.07),transparent 42%),#191E25}
+.play-board-header{padding:0 3px 14px}
+.play-board-kicker{color:var(--board-gold);font-size:12px;font-weight:700;
+  line-height:1.4;letter-spacing:.16em;text-transform:uppercase;margin:0 0 8px}
+.play-board-title{font:700 clamp(25px,4vw,36px)/1.13 var(--font-d);
+  letter-spacing:-.025em;color:var(--board-ink);margin:0}
+.play-board-subtitle{color:var(--board-muted);font-size:15px;line-height:1.5;margin:8px 0 0}
+.play-board-field{background:var(--board-panel);border:1px solid #4B5B66;
+  border-radius:13px;overflow:hidden;padding:7px;min-width:0}
+.play-presentation .pf{
+  --pf-turf:#28323B;--pf-edge:#C0CFD6;--pf-key:#F1C775;
+  max-width:none;
+}
+.play-presentation .pf .pf-ingoal{fill:#24303A}
+.play-presentation .pf .pf-line{stroke:#D5E0E2}
+.play-presentation .pf .pf-chan{stroke:#44535F}
+.play-presentation .pf .pf-zone{stroke:#647887}
+.play-presentation .pf .pf-q,.play-presentation .pf.study .pf-q{fill:#D1DADF}
+.play-presentation .pf .pf-note,.play-presentation .pf .pf-lbl{
+  fill:#EAF0F3;stroke:var(--pf-turf)}
+.play-presentation .pf .df,.play-presentation .pf.study .df{
+  fill:#1D2730;stroke:#D8E0E5;stroke-width:2}
+.play-presentation .pf .pl{fill:#EFF3F3;stroke:#BFCAD0;stroke-width:1.75}
+.play-presentation .pf .pl.focus{fill:#F1C775;stroke:#F1C775}
+.play-presentation .pf .pl.ghost{fill:var(--pf-turf);stroke:#B9C5CD}
+.play-presentation .pf .plt{fill:#1A2731}
+.play-presentation .pf .idle + .plt,.play-presentation .pf .ghost + .plt{fill:#D5DEE3}
+.play-presentation .pf.study .plg.study-target .pl{fill:#F1C775;stroke:#F1C775}
+.play-presentation .pf.study .plg.study-target .plt{fill:#1A2731}
+.play-presentation .pf.study .plg.study-soft{opacity:.56}
+.play-presentation .pf .tg{stroke:#1A2731}
+.play-presentation .pf.study .mv.study-emphasis{stroke:var(--pf-key);stroke-width:3.4}
+.play-presentation .phase-title{color:var(--board-muted)}
+.play-presentation .phase-bar{margin-bottom:12px}
+.play-presentation .phase-bar button{
+  color:var(--board-ink);background:#29333D;border-color:#596872}
+.play-presentation .phase-bar button[aria-pressed=true]{
+  color:#17212B;background:var(--board-gold);border-color:var(--board-gold)}
+.study-step-rail{display:flex;align-items:center;gap:12px;
+  padding:15px 2px 10px;min-width:0}
+.study-step-label{flex:none;font-size:12px;letter-spacing:.13em;
+  text-transform:uppercase;font-weight:700;color:var(--board-gold)}
+.study-step-list{display:flex;gap:9px;align-items:center;flex:1;min-width:0;
+  overflow-x:auto;scrollbar-width:thin;scroll-snap-type:x proximity;
+  overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;padding:2px 1px 8px}
+.study-step-number{appearance:none;flex:0 0 44px;height:44px;
+  display:grid;place-items:center;border:1px solid #B89A60;border-radius:50%;
+  background:#252E38;color:#F1C775;font:700 15px/1 var(--font-d);
+  cursor:pointer;scroll-snap-align:center}
+.study-step-number[aria-current=step]{color:#18222B;background:#F1C775;border-color:#F1C775;
+  box-shadow:0 0 0 3px rgba(241,199,117,.15)}
+.study-step-number:hover:not([aria-current=step]){background:#34434F}
+.study-step-number:focus-visible{outline:3px solid #FFFFFF;outline-offset:3px}
+.play-presentation .study-cue{background:transparent;min-height:0;border-top:1px solid #47535C;
+  border-radius:0;padding:15px 3px 4px;margin:0 0 10px}
+.play-presentation .study-progress{color:var(--board-muted);margin:0 0 10px}
+.play-presentation .study-progress strong{color:var(--board-gold);background:#2B3540;
+  border:1px solid #6D6755}
+.play-presentation .study-progress span{color:var(--board-muted)}
+.play-presentation .study-cue h3{font:700 clamp(22px,3.4vw,28px)/1.2 var(--font-d);
+  letter-spacing:-.02em;text-transform:uppercase;color:var(--board-gold);margin:0 0 5px}
+.play-presentation .study-cue p{font-size:16px;line-height:1.5;color:var(--board-ink)}
+.play-presentation .study-cue .study-path-note{font-size:13px;line-height:1.45;
+  color:var(--board-muted);font-weight:400;margin-top:11px}
+.play-presentation .study-controls{margin:12px 0}
+.play-presentation .study-controls .btn,
+.play-presentation .anim-bar .btn{background:#2B3742;border-color:#71818D;color:#F4F6F6;min-height:44px}
+.play-presentation .study-controls .btn.primary,
+.play-presentation .anim-bar .btn.primary{background:#F1C775;border-color:#F1C775;color:#19232B}
+.play-presentation .study-controls .btn:focus-visible,
+.play-presentation .anim-bar .btn:focus-visible,
+.play-presentation .phase-bar button:focus-visible{outline:3px solid #F1C775;outline-offset:2px}
+.play-presentation .study-controls .btn[disabled]{opacity:.45}
+.play-board-notation{border-top:1px solid #47535C;padding:11px 2px 0}
+.play-presentation .play-legend,.play-presentation .cast-key{color:#D7E0E4}
+.play-presentation .cast-key b{color:#F1C775}
+.play-presentation .anim-timeline label{color:var(--board-muted)}
+.play-presentation .anim-timeline output{color:var(--board-ink)}
+.play-presentation .anim-timeline input[type=range]{accent-color:#F1C775}
+@media(max-width:600px){
+  .play-presentation,.play-presentation.play-study{padding:12px 10px 14px;margin:0}
+  .play-board-header{padding-bottom:12px}
+  .play-board-field{padding:4px}
+  .study-step-rail{gap:8px}
+  .study-step-list{gap:7px}
+  .study-step-number{flex-basis:44px}
+  .play-presentation .study-cue{padding-top:13px}
+  .play-presentation .study-controls{gap:8px}
+  .play-presentation .study-controls .btn{min-width:0;flex:1}
+}
+@media(prefers-reduced-motion:reduce){
+  .study-step-list{scroll-behavior:auto}
+}
