@@ -40,12 +40,13 @@ test('legacy Safari P12 copy adds missing real clubs and teams without overwriti
   assert.equal(new Set([target.id,...target.teams.map(t=>t.id)]).size,6);
 });
 test('an older four-club workspace keeps its own team and library when QA teams are supplied separately',()=>{
-  const target=real(),original=JSON.stringify([target.team,target.plays,target.library,target.teams]);
+  const target=real();
   target.clubs.push(club('qa-comets','Example Comets Club'));
   target.teams.push(team('qacometsmixed','qa-comets'));
+  const original=JSON.stringify(target);
   assert.equal(recognisedDemoWorkspace(target),true);
   assert.equal(appendMissingDemoTeams(target,real()).changed,false);
-  assert.equal(JSON.stringify([target.team,target.plays,target.library,target.teams.slice(0,3)]),original);
+  assert.equal(JSON.stringify(target),original);
 });
 test('unrecognised or unversioned local workspaces are not silently converted',()=>{
   const scratch={...qa(),testLibrary:undefined};
