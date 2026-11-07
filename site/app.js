@@ -4505,33 +4505,19 @@ function viewCrew() {
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><div class="btn-row">${cardToggle('crew')}<button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div></div>
-    <div class="crew-context crew-team-context">
-      <label class="field-l crew-team-picker"><span>Staffing requirements for team</span>
+    <div class="crew-context crew-team-context crew-team-context--compact">
+      <label class="field-l crew-team-picker"><span>Team</span>
         <select name="crewTeamId" data-change="crew-team-pick" aria-label="Choose team for match-day staffing">
           ${arr(ws.clubs).filter(c=>selectableCrewTeams.some(t=>t.team.clubId===c.id)).map(c=>`<optgroup label="${esc(c.name)}">${selectableCrewTeams.filter(t=>t.team.clubId===c.id).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}</optgroup>`).join('')}
           ${selectableCrewTeams.filter(t=>!t.team.clubId).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}
         </select>
-        <small>${esc(sport)} · ${esc(profile.provider)}. Select another team here without opening a second window.</small>
+
       </label>
     </div>
-    <p class="crew-intro">${teamScoped ? 'Showing staff explicitly linked to this team or recorded on its matches. Club-only volunteers are available in the club view.' : 'The club directory lists people. Staffing requirements belong to the selected team, sport and competition.'}</p>
-    ${readiness ? `<section class="sec crew-readiness-summary" data-scope="${teamScoped?'team':'club'}"><h3>${teamScoped?'Team':'Club'} fixture readiness (coach-recorded)</h3>
-      <p class="hint">For the selected ${teamScoped?'team':'club'}: ${readiness.totals.fixtures} fixtures · ${readiness.totals.covered} covered · ${readiness.totals.attention} need attention · ${readiness.totals.unverified} without verified requirements.</p>
-      <p class="hint">Based on manual club records only. Review match requirements and registration evidence before relying on these counts.</p>
-      ${readinessActions.length ? `<h4>Actions to review (${readinessActions.length})</h4><ul class="crew-req">${readinessActions.slice(0,12).map(x=>`<li>${esc(x.date || 'Date not set')} · ${esc(x.sport)} · ${esc(x.action)}</li>`).join('')}</ul>${readinessActions.length>12?`<p class="hint">Showing the first 12 of ${readinessActions.length} actions.</p>`:''}` : '<p class="hint">No outstanding actions identified from recorded fixtures.</p>'}</section>` : ''}
-    ${workspaceOverview ? `<section class="sec crew-workspace-overview" aria-label="Workspace club staffing overview">
-      <h3>Clubs in this workspace</h3>
-      <p class="hint">Read-only comparison of clubs already present in this encrypted coach workspace. This is not an association-wide directory or access grant.</p>
-      <label class="field-l"><span>Filter fixture sport</span><select name="crewOverviewSport" data-change="crew-overview-sport">
-        <option value="">All sports</option>
-        ${overviewSports.map(s=>`<option value="${esc(s)}" ${state.crewOverviewSport===s?'selected':''}>${esc(s)}</option>`).join('')}
-      </select></label>
-      <p class="hint">${workspaceOverview.totals.fixtures} fixtures · ${workspaceOverview.totals.covered} covered · ${workspaceOverview.totals.attention} need attention · ${workspaceOverview.totals.unverified} unverified policies</p>
-      ${workspaceOverview.clubs.length ? `<ul class="crew-req">${workspaceOverview.clubs.map(c=>`<li><strong>${esc(c.clubName)}</strong> · ${c.fixtures} fixtures · ${c.covered} covered · ${c.attention} attention · ${c.unverified} unverified
-        <span class="sub"> · ${c.manualAcceptedAppointments} manually accepted appointments · ${c.appointmentsNeedingReview} appointments needing review</span></li>`).join('')}</ul>`
-        : '<p class="hint">No recorded fixtures match this sport in the current workspace.</p>'}
-      <p class="hint">Counts are based only on coach records, not verified with governing bodies. No private volunteer information is included.</p>
-    </section>` : ''}
+    ${readiness ? `<section class="sec crew-readiness-summary" data-scope="${teamScoped?'team':'club'}"><h3>Fixture readiness · ${teamScoped?'Team':'Club'}</h3>
+      <p class="crew-readiness-figures">${readiness.totals.fixtures} fixtures · ${readiness.totals.covered} covered · ${readiness.totals.attention} need attention · ${readiness.totals.unverified} unverified</p>
+      <p class="hint crew-readiness-caution">Coach-recorded figures, not independently verified.</p>
+      ${readinessActions.length ? `<details class="crew-action-details"><summary>Actions to review (${readinessActions.length})</summary><ul class="crew-req">${readinessActions.slice(0,12).map(x=>`<li>${esc(x.date || 'Date not set')} · ${esc(x.sport)} · ${esc(x.action)}</li>`).join('')}</ul>${readinessActions.length>12?`<p class="hint">Showing the first 12 of ${readinessActions.length} actions.</p>`:''}</details>` : '<p class="hint">No outstanding actions identified from recorded fixtures.</p>'}</section>` : ''}
     <nav class="crew-page-nav" aria-label="Match staff sections"><button class="btn sm" data-act="crew-jump" data-to="crew-directory-section">${teamScoped?'Team volunteers':'Club volunteers'}</button><button class="btn sm" data-act="crew-jump" data-to="crew-rules-section">Team requirements</button></nav>
     <details class="info-note crew-help"><summary>${icon('info', 18)}How these records work</summary><div>
       <p class="hint">A person can appear in more than one club and help several teams: open their profile and tick the teams. Club membership, registration and accreditation are reviewed separately for each sport. These records stay in the encrypted coach copy, not a global member directory.</p>
@@ -4558,6 +4544,19 @@ function viewCrew() {
       ${pool.length ? badgeLegend(sport) : ''}
     </div>
     </section>
+    ${workspaceOverview ? `<details class="sec crew-workspace-overview" aria-label="Workspace club staffing overview">\n      <summary>Compare clubs in this workspace</summary>\n      <div class="crew-workspace-detail">
+      <h3>Clubs in this workspace</h3>
+      <p class="hint">Read-only comparison of clubs already present in this encrypted coach workspace. This is not an association-wide directory or access grant.</p>
+      <label class="field-l"><span>Filter fixture sport</span><select name="crewOverviewSport" data-change="crew-overview-sport">
+        <option value="">All sports</option>
+        ${overviewSports.map(s=>`<option value="${esc(s)}" ${state.crewOverviewSport===s?'selected':''}>${esc(s)}</option>`).join('')}
+      </select></label>
+      <p class="hint">${workspaceOverview.totals.fixtures} fixtures · ${workspaceOverview.totals.covered} covered · ${workspaceOverview.totals.attention} need attention · ${workspaceOverview.totals.unverified} unverified policies</p>
+      ${workspaceOverview.clubs.length ? `<ul class="crew-req">${workspaceOverview.clubs.map(c=>`<li><strong>${esc(c.clubName)}</strong> · ${c.fixtures} fixtures · ${c.covered} covered · ${c.attention} attention · ${c.unverified} unverified
+        <span class="sub"> · ${c.manualAcceptedAppointments} manually accepted appointments · ${c.appointmentsNeedingReview} appointments needing review</span></li>`).join('')}</ul>`
+        : '<p class="hint">No recorded fixtures match this sport in the current workspace.</p>'}
+      <p class="hint">Counts are based only on coach records, not verified with governing bodies. No private volunteer information is included.</p>
+      </div>\n    </details>` : ''}
     ${teamScoped?'':`<section class="sec crew-section crew-appointment-panel" id="crew-appointment-section">
       <div class="sec-h"><h3>Club appointments</h3><button class="btn sm" data-act="crew-appointment-new" ${!selectedId || !pool.length ? 'disabled' : ''}>Record appointment</button></div>
       <p class="crew-section-help">Manual club role records are separate from sport accreditation, match-day assignments and app permissions. No invitation is sent by this screen.</p>
