@@ -1569,6 +1569,18 @@ const HOME_LEVEL = { 1: 'Critical', 2: 'Imminent', 3: 'Upcoming', 4: 'Next up' }
 const HOME_OPEN = { match: 'Open match', session: 'Open training', task: 'Open task', tournament: 'See the draw', rules: 'Review the update', result: 'Enter the result', messages: 'Open message log' };
 const HOME_KIND = { match: ['Match', 'k-match'], session: ['Training', 'k-train'], task: ['Help needed', 'k-task'], tournament: ['Tournament', 'k-event'] };
 const homePref = () => readJson('tm-home-scope');
+// Recover a previously saved Home selection when a test-library reload or
+// reopening the sandbox retained a different working team in the header.
+// Do this only at startup/library reload: a Home fixture link may intentionally
+// open another team's record while leaving its overview scope unchanged.
+function restoreOwnerHomeTeam() {
+  if(!DEV_SANDBOX || nativePersona()?.role!=='personal_owner' || !ws)return;
+  const pref=homePref(), active=M.activeTeams(ws);
+  const target=pref?.kind==='team' ? active.find(t=>t.id===pref.id) :
+    pref?.kind==='club' && data?.team?.clubId!==pref.id ?
+      active.find(t=>t.team?.clubId===pref.id) : null;
+  if(target && target!==data)pickTeam(target.id);
+}
 const homeDays = () => [7, 14, 30].includes(Number(store.get('tm-home-days'))) ? Number(store.get('tm-home-days')) : 14;
 // Club colours are words ("red and white"); the first two known colours make the badge, otherwise a
 // colour from the app's own palette, the same one every time for that club.
@@ -4444,14 +4456,17 @@ function viewCrew() {
   const appointments = teamScoped ? [] : reviewVolunteerAppointments(arr(ws.matchOfficials), arr(ws.volunteerAppointments), {type:'club',id:selectedId});
   const overviewSports = [...new Set(M.activeTeams(ws).filter(t=>!!M.clubOf(ws,t)).map(t=>M.teamSport(t.team,M.clubOf(ws,t))))].sort();
   const workspaceOverview = !teamScoped && arr(ws.clubs).length>1 ? workspaceCrewOverview(ws,{sport:state.crewOverviewSport || ''}) : null;
+  // A scoped QA role's picker must not list another club's unrelated teams.
+  const selectableCrewTeams = persona && persona.role!=='personal_owner'
+    ? M.activeTeams(nativeHomeWorkspace(persona)) : M.activeTeams(ws);
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><div class="btn-row">${cardToggle('crew')}<button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div></div>
     <div class="crew-context crew-team-context">
       <label class="field-l crew-team-picker"><span>Staffing requirements for team</span>
         <select name="crewTeamId" data-change="crew-team-pick" aria-label="Choose team for match-day staffing">
-          ${arr(ws.clubs).map(c=>`<optgroup label="${esc(c.name)}">${M.activeTeams(ws).filter(t=>t.team.clubId===c.id).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}</optgroup>`).join('')}
-          ${M.activeTeams(ws).filter(t=>!t.team.clubId).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}
+          ${arr(ws.clubs).filter(c=>selectableCrewTeams.some(t=>t.team.clubId===c.id)).map(c=>`<optgroup label="${esc(c.name)}">${selectableCrewTeams.filter(t=>t.team.clubId===c.id).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}</optgroup>`).join('')}
+          ${selectableCrewTeams.filter(t=>!t.team.clubId).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}
         </select>
         <small>${esc(sport)} · ${esc(profile.provider)}. Select another team here without opening a second window.</small>
       </label>
@@ -7379,7 +7394,7 @@ function loadTestLibrary() {
     t.teamPass = k && k.teamPass ? k.teamPass : newTeamPass(); t.teamSalt = k && k.teamSalt ? k.teamSalt : toB64(newSalt());
   });
   state.crewClubId = ''; state.lineupId = null; state.matchDayId = null; state.msgDraft = null; state.viewSeason = {}; state.correcting = null;
-  pickTeam(ws.id); save(); closeSheet(); goTo('home');
+  pickTeam(ws.id); restoreOwnerHomeTeam(); save(); closeSheet(); goTo('home');
   toast(`Test library loaded. Data check ${dataCheck(ws)}`);
 }
 function extendTestLibrary(day) {
@@ -10388,7 +10403,7 @@ function startTrial() {
       state.personaRecords=upgradePersonaRecords(readJson('tm-persona-actions-v2')||readJson('tm-persona-actions-v1')||{});
       // Never delete the PR144 v1 record. Its content remains readable if needed.
     }
-    if(DEV_SANDBOX)syncNativePersonaTeam();
+    if(DEV_SANDBOX){syncNativePersonaTeam();restoreOwnerHomeTeam();}
     render();
   });
 }
