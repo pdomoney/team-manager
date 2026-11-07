@@ -660,6 +660,94 @@ details.more[open] summary{margin-bottom:8px}
 .pf .ah.key{fill:var(--pf-key)}
 .pf .mv.shift{stroke:#C4513F;stroke-width:1.6}
 .pf .ah.shift{fill:#C4513F}
+/* E2: one visual language for the existing play catalogue and editor. The
+   diagram geometry, IDs, sport compatibility, and input handlers do not change. */
+.plays-grid .play-row .play-thumb,
+.play-row .play-thumb{
+  background:#202A33;border:1px solid #8F7546;border-radius:11px;
+  padding:6px;min-width:0;
+}
+.play-row .play-thumb .pf.thumb{
+  --pf-turf:#28323B;--pf-edge:#CAD7DC;--pf-key:#F1C775;
+  width:100%;max-width:none;background:#28323B;border-radius:7px;
+}
+.play-row .play-thumb .pf.thumb .pf-ingoal{fill:#24303A}
+.play-row .play-thumb .pf.thumb .pf-line{stroke:#A6B5BD}
+.play-row .play-thumb .pf.thumb .df{fill:#202A33;stroke:#D1DFE3}
+.play-row .play-thumb .pf.thumb .pl{fill:#EEF3F4;stroke:#C7D4D8}
+.play-row .play-thumb .pf.thumb .pl.focus{fill:#F1C775;stroke:#F1C775}
+.play-row .play-thumb .pf.thumb .pl.ghost{fill:#28323B;stroke:#D1DFE3}
+.play-row .play-thumb .pf.thumb .mv{stroke:#C8D6DC}
+.play-row .play-thumb .pf.thumb .mv.key{stroke:#F1C775}
+.play-row .play-thumb .pf.thumb .mv.shift{stroke:#E48A73}
+.play-row .play-thumb .pf.thumb .ah{fill:#C8D6DC}
+.play-row .play-thumb .pf.thumb .ah.key{fill:#F1C775}
+.play-row .play-thumb .pf.thumb .ah.shift{fill:#E48A73}
+.play-row:focus-visible .play-thumb{outline:3px solid #A77A25;outline-offset:3px}
+
+/* Guided editor: the teaching cues and SVG preview use the same dark play
+   board as Learn/Watch. Inputs remain high-contrast and coach-editable. */
+.ped .ped-workspaces{display:flex;flex-wrap:wrap;min-width:0}
+.ped .ped-workspaces button{
+  flex:1 1 120px;min-height:44px;white-space:normal;
+}
+.ped .ped-workspaces button[aria-pressed=true]{
+  color:#17212B;background:#F1C775;border-color:#937944;
+}
+.ped .teach-help{
+  background:#26323D;border:1px solid #697A87;color:#F3F6F6;
+}
+.ped .teach-help strong{color:#F1C775}
+.ped .teach-help p{color:#E4ECF0}
+.ped .teach-action{
+  background:#26313C;border:1px solid #556673;color:#EEF2F4;
+}
+.ped .teach-action.selected{
+  border-color:#F1C775;box-shadow:inset 3px 0 #F1C775;
+}
+.ped .teach-action .field-l>span,
+.ped .teach-action-head strong{color:#F5F6F7}
+.ped .teach-action .field-l input,
+.ped .teach-action .field-l textarea,
+.ped .teach-action .field-l select{
+  color:#16201B;background:#FFFFFF;border-color:#AAB9C0;
+}
+.ped .teach-action .btn:not(.danger){background:#34424F;color:#F6F7F8;border-color:#7E909A}
+.ped .teach-action .btn:focus-visible{outline:3px solid #F1C775;outline-offset:2px}
+.ped .teach-preview.play-editor-preview{
+  min-width:0;background:#1B242D;border:1px solid #987A44;color:#F3F6F6;
+  border-radius:14px;overflow:hidden;padding:clamp(10px,2vw,16px);
+}
+.ped .play-editor-preview>.play-h{color:#F1C775;margin-bottom:7px}
+.ped .play-editor-preview>.hint{
+  color:#C8D4DA;line-height:1.5;overflow-wrap:anywhere;
+}
+.ped .play-editor-preview .study-cue{
+  min-height:0;background:#283742;border:1px solid #4B5A65;
+  border-radius:10px;padding:12px 14px;color:#EEF4F5;
+}
+.ped .play-editor-preview .study-cue h3{color:#F1C775}
+.ped .play-editor-preview .study-cue p{color:#EEF4F5}
+.ped .play-editor-preview .play-presentation{
+  border:0;box-shadow:none;background:#1B242D;padding:0;margin:10px 0;
+}
+.ped .play-editor-preview .play-board-field{padding:4px}
+.ped .play-editor-preview .pf.study{max-width:100%;height:auto}
+.ped .ped-main .ped-card.play-presentation{
+  padding:8px;min-width:0;background:#1B242D;
+}
+.ped .ped-main .play-board-field{padding:4px}
+.ped .ped-main .pf.editor{max-width:100%;height:auto}
+.ped .ped-main .pf.editor .ped-frame{stroke:#F1C775}
+.ped .ped-main .pf.editor .ped-h,
+.ped .ped-main .pf.editor .ped-edge{fill:#FFFFFF;stroke:#F1C775}
+.ped .ped-main .pf.editor .ped-ring{stroke:#F1C775}
+.ped .ped-main .pf.editor .ped-add circle{stroke:#F1C775}
+.ped .ped-main .pf.editor .ped-add path{stroke:#F1C775}
+.ped .ped-main .pf.editor .ped-glow{stroke:#F1C775}
+.ped .ped-main .pf.editor .mv.draft{stroke:#FF6E7C}
+.ped .ped-main .pf.editor .draft-pt{fill:#FF6E7C}
+
 /* Play editor */
 .ped-tools{display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
 .ped-types{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;margin-bottom:10px}
