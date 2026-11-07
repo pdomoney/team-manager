@@ -1406,12 +1406,20 @@ function render() {
 
   const v = $('#view'), g = navOf(state.tab);
   const previousHomeScroll = state.tab==='home' ? captureHomeScopeScroll(v) : null;
+  // Keep an opened staffing explanation or comparison open when its own
+  // filter changes; ordinary navigation still starts with a compact page.
+  const crewDisclosureOpen = state.tab==='crew' ?
+    [...v.querySelectorAll('.crew-action-details,.crew-workspace-overview,.crew-help')]
+      .filter(d=>d.open).map(d=>d.classList[0]) : [];
   state.lastView[g.id] = state.tab;
   document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
   v.innerHTML = subNav(g) + (['home', 'people'].includes(state.tab) ? '' : seasonBanner()) + VIEWS[state.tab]();
   if (state.tab === 'field' || state.tab === 'matchday') bindField();
   fitSubnav();
   if(state.tab==='home')restoreHomeScopeScroll(v,previousHomeScroll);
+  if(state.tab==='crew')
+    v.querySelectorAll('.crew-action-details,.crew-workspace-overview,.crew-help')
+      .forEach(el=>{if(crewDisclosureOpen.some(cls=>el.classList.contains(cls)))el.open=true;});
   foldLongPage();
   applyNativeProfilePermissions();
   renderAsk();
