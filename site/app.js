@@ -1409,8 +1409,8 @@ function render() {
   // Keep an opened staffing explanation or comparison open when its own
   // filter changes; ordinary navigation still starts with a compact page.
   const crewDisclosureOpen = state.tab==='crew' ?
-    [...v.querySelectorAll('.crew-action-details,.crew-workspace-overview,.crew-help')]
-      .filter(d=>d.open).map(d=>d.classList[0]) : [];
+    ['crew-action-details','crew-workspace-overview','crew-help']
+      .filter(cls=>v.querySelector('.'+cls)?.open) : [];
   state.lastView[g.id] = state.tab;
   document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
   v.innerHTML = subNav(g) + (['home', 'people'].includes(state.tab) ? '' : seasonBanner()) + VIEWS[state.tab]();
@@ -1418,8 +1418,9 @@ function render() {
   fitSubnav();
   if(state.tab==='home')restoreHomeScopeScroll(v,previousHomeScroll);
   if(state.tab==='crew')
-    v.querySelectorAll('.crew-action-details,.crew-workspace-overview,.crew-help')
-      .forEach(el=>{if(crewDisclosureOpen.some(cls=>el.classList.contains(cls)))el.open=true;});
+    crewDisclosureOpen.forEach(cls=>{
+      const detail=v.querySelector('.'+cls);if(detail)detail.open=true;
+    });
   foldLongPage();
   applyNativeProfilePermissions();
   renderAsk();
