@@ -7,7 +7,14 @@ export const STARTER_PLAY_TITLES = Object.freeze({
 export function canonicalStarterPlayName(play){
   if(!play || play.builtin!==true)return play;
   const entry=STARTER_PLAY_TITLES[play.id];
-  if(!entry)return play;
+  if(!entry){
+    // The untouched Ninja teaching prompt referred to the two plays
+    // collectively by their retired names; retain all user-edited wording.
+    const oldWhen='Only after the Quickies have worked and the marker is chasing RM.';
+    return play.id==='ninja' && !play.edited && play.when===oldWhen
+      ? {...play,when:'Only after Step In and Step Out have worked and the marker is chasing RM.'}
+      : play;
+  }
   const rename=play.name===entry.previous;
   // Non-edited legacy Step In instructions refer to Step Out by its old name.
   // Preserve edited coach text, study cues, drawings and all other fields.
