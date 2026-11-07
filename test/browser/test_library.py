@@ -26,8 +26,8 @@ with sync_playwright() as p:
     W = lambda js: phone.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M, S = window.__team.S; return {js}; }})()')
     c.ok(W('W.testLibrary.version') >= 3 and W('M.teamsOf(W).length') == 8 and W('W.clubs.map(c => c.id).sort()') == ['engadinedragons', 'penrithoztag', 'stgeorge', 'tarenpointtitans'] and W('W.matchOfficials.length') == 18, 'eight teams in four clubs, including four Titans squads and demo personnel')
     # Titans historical demonstration is fictional, not actual club results.
-    titans = W("M.teamsOf(W).filter(t => t.team.clubId === 'tarenpointtitans').map(t => ({ id:t.id, players:t.players.length, staff:t.team.staff.length, helpers:t.helpers.length, seasons:t.seasons.map(s=>({year:s.year,status:s.status})), matches:t.matches.map(m=>({status:m.status,seasonId:m.seasonId,entryId:m.entryId,result:m.result,round:m.round})), tasks:t.tasks.length }))")
-    c.ok(len(titans) == 4 and all(t['players'] >= 16 and t['staff'] == 4 and t['helpers'] == 2
+    titans = W("M.teamsOf(W).filter(t => t.team.clubId === 'tarenpointtitans').map(t => ({ id:t.id, players:t.players.length, activePlayers:M.activeLens(t).players.length, staff:t.team.staff.length, helpers:t.helpers.length, seasons:t.seasons.map(s=>({year:s.year,status:s.status})), matches:t.matches.map(m=>({status:m.status,seasonId:m.seasonId,entryId:m.entryId,result:m.result,round:m.round})), tasks:t.tasks.length }))")
+    c.ok(len(titans) == 4 and all(t['players'] >= 16 and t['activePlayers'] == t['players'] and t['staff'] == 4 and t['helpers'] == 2
         and t['tasks'] >= 2 for t in titans), 'four Titans squads have players, staff, helpers and tasks')
     c.ok(all(len(t['seasons']) == 4 and sum(s['status']=='completed' for s in t['seasons']) == 2
         and any(s['status']=='active' for s in t['seasons']) and any(s['status']=='planned' for s in t['seasons'])
