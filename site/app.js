@@ -3440,11 +3440,11 @@ function viewPlay(p) {
     </div>
     <div class="cols play-cols ${mode === 'learn' ? 'learn-cols' : ''}"><div class="col">
       <figure class="play-card play-presentation ${mode === 'learn' ? 'play-study' : ''}" id="play-fig">
-        <header class="play-board-header">
+        <figcaption class="play-board-header">
           <p class="play-board-kicker">${esc(curSport())} · ${esc(p.category || 'Play')}</p>
           <h3 class="play-board-title">${esc(p.name)}</h3>
           ${playHeadline(p, side) || when ? `<p class="play-board-subtitle">${esc(playHeadline(p, side) || when)}</p>` : ''}
-        </header>
+        </figcaption>
         ${mode === 'learn' ? studyFigure(p, side, cards) : playFigure(p, side, state.playPhase)}
       </figure>
     </div><div class="col">
