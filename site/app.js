@@ -7481,6 +7481,9 @@ function loadTestLibrary() {
   if(DEV_SANDBOX){
     addMissingQaFixtures();
     ws.testLibrary.combinedCatalog=1;
+    // New QA members need the same full normalisation as members loaded
+    // from disk; otherwise the first Safari refresh changes their records.
+    ws=normalizeWs(ws);
   }
   M.teamsOf(ws).forEach(t => {
     const k = keep.get(t.id);
@@ -10512,6 +10515,9 @@ function startTrial() {
         changed=true;
       }
       if(changed){
+        const activeId=data?.id;
+        ws=normalizeWs(ws);
+        pickTeam(activeId);
         const stored=store.set(key,JSON.stringify(ws));
         S.storageFull=!stored;
         if(!stored)S.storageWarned=true;
