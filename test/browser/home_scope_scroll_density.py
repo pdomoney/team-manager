@@ -100,9 +100,11 @@ with sync_playwright() as p:
             checks.ok(top<860,
                       f'[{width}] volunteer directory starts within the first phone screen: top {top}')
         actions.locator('summary').click()
+        action_total=int(actions.locator('summary').inner_text().rsplit('(',1)[1].rstrip(')'))
         checks.ok(actions.get_attribute('open') is not None
-                  and actions.locator('li').count()>0,
-                  f'[{width}] action details are available on request')
+                  and action_total>12
+                  and actions.locator('li').count()==action_total,
+                  f'[{width}] expanding actions reveals all {action_total} recorded items')
         overview.locator('summary').click()
         checks.ok('not an association-wide directory' in overview.inner_text()
                   and 'Taren Point Titans' in overview.inner_text(),
