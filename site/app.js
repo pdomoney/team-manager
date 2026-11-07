@@ -3317,9 +3317,9 @@ function playSVG(play, side, opts = {}) {
   if (opts.anim) s += `<g class="ball" transform="translate(-40 -40)"><ellipse rx="6.5" ry="4.6" transform="rotate(-35)"/><path d="M-3.2 -1.6L3.2 1.6" transform="rotate(-35)"/></g>`;
   return s + '</svg>';
 }
-function playLegend(play, side) {
+function playLegend(play, side, dark = false) {
   const g = playGeom(play, side), kinds = new Set(g.moves.map(m => m.t));
-  const grey = '#8F9A93', blue = '#2F6FD6';
+  const grey = dark ? '#D3DFE3' : '#8F9A93', blue = dark ? '#F1C775' : '#2F6FD6';
   const sw = (dash, colour, arrow = true, w = 1.6) => `<svg width="30" height="10" viewBox="0 0 30 10" aria-hidden="true"><line x1="1" y1="5" x2="${arrow ? 22 : 29}" y2="5" stroke="${colour}" stroke-width="${w}" stroke-linecap="round" ${dash ? `stroke-dasharray="${dash}"` : ''}/>${arrow ? `<path d="M21 1.5L28.5 5L21 8.5z" fill="${colour}"/>` : ''}</svg>`;
   return `<div class="legend play-legend">
     ${kinds.has('run') ? `<span>${sw('', grey)}Run</span>` : ''}
@@ -3396,7 +3396,7 @@ function studyFigure(p, side, cards) {
       <button type="button" class="btn sm" data-act="study-prev" ${state.studyIndex === 0 ? 'disabled' : ''}>← Previous</button>
       <button type="button" class="btn primary sm" data-act="study-next" ${state.studyIndex === cards.length - 1 ? 'disabled' : ''}>Next step →</button>
     </div>
-    <div class="play-board-notation">${playLegend(v, side)}${castKey(v, side)}</div>`;
+    <div class="play-board-notation">${playLegend(v, side, true)}${castKey(v, side)}</div>`;
 }
 function goStudyStep(index) {
   const p = playById(state.playId);
@@ -3479,7 +3479,7 @@ function playFigure(p, side, i) {
     <div class="anim-timeline"><label for="anim-seek">Animation progress</label>
       <input id="anim-seek" data-input="anim-seek" type="range" min="0" max="100" step="1" value="0" aria-label="Seek within this phase">
       <output id="anim-pct" for="anim-seek">0%</output></div>
-    ${playLegend(view, side)}
+    ${playLegend(view, side, true)}
     ${castKey(view, side)}`;
 }
 
