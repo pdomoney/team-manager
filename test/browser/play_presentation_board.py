@@ -26,7 +26,7 @@ with sync_playwright() as p:
                   f'[{width}] existing Coach Watch mode uses styled field and retains animation controls')
         actual_title=fig.locator('.play-board-title').text_content()
         actual_kicker=fig.locator('.play-board-kicker').text_content()
-        checks.ok('Quickie Out' in actual_title,
+        checks.ok('Step Out' in actual_title,
                   f'[{width}] original play title shown; received {actual_title!r}')
         checks.ok('Oztag' in actual_kicker,
                   f'[{width}] sport shown on board; received {actual_kicker!r}')
