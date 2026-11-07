@@ -3023,7 +3023,7 @@ function starterPlays() {
         moves: [bounce, { t: 'pass', key: true, pts: [lm, catchAt] },
           { t: 'run', key: true, curve: true, pts: [catchAt, [27.4, 45.6], [25.2, 44.5], [22.6, 42.4], [21.6, 37.6]] }] }),
     // A decoy (dummy) run goes slightly forward at an angle, never back towards our own try line.
-    base('ninja', 4, 'Ninja', 'Ruck', 'Only after the Quickies have worked and the marker is chasing RM.',
+    base('ninja', 4, 'Ninja', 'Ruck', 'Only after Step In and Step Out have worked and the marker is chasing RM.',
       'RM’s decoy run drags the marker away, so LM shows the pass and runs through the hole it leaves.',
       'RM plays the ball and runs a decoy line out to the right, slightly forward at an angle.\nLM, at dummy half, shows the pass to RM but keeps the ball.\nThe marker chases RM, and LM steps through the hole it leaves.',
       { ...ruck, focus: ['LM'],
