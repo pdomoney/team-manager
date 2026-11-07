@@ -4,7 +4,11 @@
 
 A phone-first coach and player app for multiple clubs, teams, seasons and competitions. Originally developed for Oztag, it now supports configurable sports and sport-specific player positions, with the existing field tactics editor primarily designed for Oztag. Manage squads, training, RSVPs, roll calls, matches, lineups, volunteer tasks, transport, reports, notices and WhatsApp communications across teams.
 
-The app has five sections: **Home** (the command centre below), **Schedule** (upcoming, training, matches, attendance), **Team** (squad, tasks, helpers, tally), **Tactics** (lineup, plays, the shared library) and **More** (messages, reports, teams, notices, settings).
+The app has five sections: **Home** (the command centre below), **Schedule** (upcoming, training and matches, with roll-call entry in Training), **Team** (squad, tasks, helpers and match staff), **Tactics** (lineup, plays and the shared library) and **More** (messages, reports with detailed player attendance, teams, notices and settings).
+
+**Match staff follows Home's scope:** when you choose an individual team on Home, **Team → Match staff** shows that team's recorded volunteers and fixture readiness, without other teams' club-wide staffing actions. Select the club (or **All clubs**) on Home to view the original club directory, club appointments and wider readiness overview. Club-only membership never proves an individual team assignment or accreditation.
+
+**Attendance lives in Reports:** **More → Reports → Player attendance details** shows per-player roll calls, the attendance chart and session history. The old Attendance tab is no longer under Schedule. **Schedule → Training → Roll call** remains the place to take or correct attendance. An existing `#attendance` link still opens the coach-only detailed view.
 
 **Home** is the coach's command centre across every club and team:
 - **Clubs and teams**: a compact row of club badges and team chips, with a dot on a team that needs attention. Show every club, one club or one team; the choice is kept on this device. Picking a team also makes it the team you're editing. With one team there's nothing to pick.
