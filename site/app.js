@@ -1695,7 +1695,7 @@ function startSquad() {
       <h3>Start with your squad</h3>
       <p>Add your players first. Roll call, lineups and messages all build on the squad list.</p>
       <div class="btn-row"><button class="btn primary" data-act="add-player">${icon('plus')}Add a player</button><button class="btn" data-act="bulk-add">Paste a list</button></div>
-      <p class="hint" style="margin-top:14px">Just exploring? <button class="link-btn inline" data-act="sample">Load a sample squad</button>, or <button class="link-btn inline" data-act="test-library">load the test library</button>: five teams in four real clubs, volunteers and a gala day today, the same on every device. Clear it in Settings before you invite players.</p>
+      <p class="hint" style="margin-top:14px">Just exploring? <button class="link-btn inline" data-act="sample">Load a sample squad</button>, or <button class="link-btn inline" data-act="test-library">load the test library</button>: eight fictional teams in four real clubs, including four Titans squads with demo history, volunteers and a gala day today, the same on every device. Clear it in Settings before you invite players.</p>
     </section>`;
 }
 // An active competition on Home: where it's up to, our results so far, today's matches (a tournament
@@ -7067,7 +7067,7 @@ function testLibrarySection() {
   const lib = ws.testLibrary, can = canLoadTestLibrary();
   return `<h3 class="form-sec" style="margin-top:0">Test data</h3>
     <div class="data-check"><span class="sub">Data check</span><b>${esc(dataCheck(ws))}</b><span class="sub">Two devices showing the same code hold the same data.</span></div>
-    <p class="muted small" style="margin:12px 0">The test library uses fictional people and fixtures. It includes Oztag, League Tag and Rugby League teams, completed/current/planned seasons, several leagues and tournaments, past results and upcoming games, a gala day today, and match-day volunteer accreditation scenarios. All competition details and participants are illustrative, not an official draw.</p>
+    <p class="muted small" style="margin:12px 0">The test library uses fictional people and fixtures. It includes four Taren Point Titans demo squads, example 2024–2026 scores, coaches, trainers, volunteers, historical seasons, upcoming games, several leagues and tournaments, a gala day today and match-day accreditation scenarios. No result or roster is an official club record. All competition details and participants are illustrative, not an official draw.</p>
     ${lib ? `<p class="note">This copy is the test library from ${esc(fmtLong(lib.day))} (version ${esc(lib.version)}).</p>` : ''}
     ${can ? `<button class="btn primary block" data-act="test-library">${lib ? 'Load a fresh test library' : 'Load the test library'}</button>`
       : '<p class="note">This copy has real players, so the test library can’t replace it.</p>'}
