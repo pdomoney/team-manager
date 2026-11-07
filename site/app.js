@@ -3317,9 +3317,9 @@ function playSVG(play, side, opts = {}) {
   if (opts.anim) s += `<g class="ball" transform="translate(-40 -40)"><ellipse rx="6.5" ry="4.6" transform="rotate(-35)"/><path d="M-3.2 -1.6L3.2 1.6" transform="rotate(-35)"/></g>`;
   return s + '</svg>';
 }
-function playLegend(play, side) {
+function playLegend(play, side, dark = false) {
   const g = playGeom(play, side), kinds = new Set(g.moves.map(m => m.t));
-  const grey = '#8F9A93', blue = '#2F6FD6';
+  const grey = dark ? '#D3DFE3' : '#8F9A93', blue = dark ? '#F1C775' : '#2F6FD6';
   const sw = (dash, colour, arrow = true, w = 1.6) => `<svg width="30" height="10" viewBox="0 0 30 10" aria-hidden="true"><line x1="1" y1="5" x2="${arrow ? 22 : 29}" y2="5" stroke="${colour}" stroke-width="${w}" stroke-linecap="round" ${dash ? `stroke-dasharray="${dash}"` : ''}/>${arrow ? `<path d="M21 1.5L28.5 5L21 8.5z" fill="${colour}"/>` : ''}</svg>`;
   return `<div class="legend play-legend">
     ${kinds.has('run') ? `<span>${sw('', grey)}Run</span>` : ''}
@@ -3373,16 +3373,50 @@ function studyFigure(p, side, cards) {
   const roles = state.studyRole !== 'all' ? [state.studyRole]
     : item.roles.length ? item.roles.map(r => side !== (p.side || 'right') ? (setPairs(getSet(p.set))[r] || swapSlot(r)) : r)
       : cueRoles(item.text, codes);
-  return `<div class="study-progress"><strong>Step ${state.studyIndex + 1} of ${cards.length}</strong>
-        <span>${phaseCount(p) > 1 ? `Phase ${item.phase + 1} of ${phaseCount(p)}` : 'Learn at your pace'}</span></div>
-    <div class="study-cue" role="status" aria-live="polite"><h3>${esc(item.title)}</h3><p>${esc(item.text)}</p></div>
+  return `<div class="play-board-field">
+      ${playSVG(v, side, { study: true, studyCodes: roles, studyMoves: item.moves })}
+    </div>
+    <nav class="study-step-rail" aria-label="Choose a teaching step">
+      <span class="study-step-label">Steps</span>
+      <div class="study-step-list" role="group" aria-label="Teaching step numbers">
+        ${cards.map((c, i) => `<button type="button" class="study-step-number" data-act="study-pick" data-i="${i}"
+          aria-label="Step ${i + 1} of ${cards.length}: ${esc(c.title)}"
+          aria-pressed="${i === state.studyIndex}"${i === state.studyIndex ? ' aria-current="step"' : ''}>${i + 1}</button>`).join('')}
+      </div>
+    </nav>
+    <div class="study-cue" role="status" aria-live="polite" aria-atomic="true">
+      <div class="study-progress"><strong>Step ${state.studyIndex + 1} of ${cards.length}</strong>
+        <span>${phaseCount(p) > 1 ? `Phase ${item.phase + 1} of ${phaseCount(p)}` : 'Play instruction'}</span></div>
+      <h3>${esc(item.title)}</h3><p>${esc(item.text)}</p>
+      <p class="study-path-note">${item.linked && item.moves.length
+        ? 'Highlighted paths are linked to this instruction by the coach.'
+        : 'The field shows the full play; these steps do not assign movement timing.'}</p>
+    </div>
     <div class="study-controls" role="group" aria-label="Learning steps">
       <button type="button" class="btn sm" data-act="study-prev" ${state.studyIndex === 0 ? 'disabled' : ''}>← Previous</button>
       <button type="button" class="btn primary sm" data-act="study-next" ${state.studyIndex === cards.length - 1 ? 'disabled' : ''}>Next step →</button>
     </div>
-    ${playSVG(v, side, { study: true, studyCodes: roles, studyMoves: item.moves })}
-    ${playLegend(v, side)}
-    ${castKey(v, side)}`;
+    <div class="play-board-notation">${playLegend(v, side, true)}${castKey(v, side)}</div>`;
+}
+function goStudyStep(index) {
+  const p = playById(state.playId);
+  if(!p || !Number.isInteger(index) || index < 0 ||
+     index >= studySequence(p, state.playSide).length)return;
+  animStop(); state.studyIndex = index; render();
+  // Rerendering replaces the pressed control. Restore keyboard focus and
+  // bring the selected numbered step into the horizontal phone viewport.
+  const active = document.querySelector('#play-fig .study-step-number[aria-current="step"]');
+  if(active){
+    const rail = active.parentElement;
+    if(rail){
+      // offsetLeft can be relative to a different offsetParent on mobile
+      // Safari. Measure both rectangles in viewport coordinates instead.
+      const selected=active.getBoundingClientRect(), container=rail.getBoundingClientRect();
+      rail.scrollLeft += (selected.left + selected.width / 2) -
+        (container.left + container.width / 2);
+    }
+    active.focus({preventScroll:true});
+  }
 }
 function viewPlay(p) {
   const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side);
@@ -3410,7 +3444,12 @@ function viewPlay(p) {
       <button data-act="play-side" data-side="right" aria-pressed="${side === 'right'}">Attacking right</button>
     </div>
     <div class="cols play-cols ${mode === 'learn' ? 'learn-cols' : ''}"><div class="col">
-      <figure class="play-card ${mode === 'learn' ? 'play-study' : ''}" id="play-fig">
+      <figure class="play-card play-presentation ${mode === 'learn' ? 'play-study' : ''}" id="play-fig">
+        <figcaption class="play-board-header">
+          <p class="play-board-kicker">${esc(curSport())} · ${esc(p.category || 'Play')}</p>
+          <h3 class="play-board-title">${esc(p.name)}</h3>
+          ${playHeadline(p, side) || when ? `<p class="play-board-subtitle">${esc(playHeadline(p, side) || when)}</p>` : ''}
+        </figcaption>
         ${mode === 'learn' ? studyFigure(p, side, cards) : playFigure(p, side, state.playPhase)}
       </figure>
     </div><div class="col">
@@ -3432,11 +3471,10 @@ function viewPlay(p) {
     </div></div>`;
 }
 function playFigure(p, side, i) {
-  const view = phaseView(p, i), n = phaseCount(p), head = playHeadline(p, side), title = phaseTitle(p, i, side);
-  return `${head ? `<figcaption class="play-headline">${esc(head)}</figcaption>` : ''}
-    ${n > 1 ? `<div class="seg phase-bar" role="group" aria-label="Phase">${Array.from({ length: n }, (_, j) => `<button data-act="play-phase" data-i="${j}" aria-pressed="${j === i}">Phase ${j + 1}</button>`).join('')}</div>` : ''}
+  const view = phaseView(p, i), n = phaseCount(p), title = phaseTitle(p, i, side);
+  return `${n > 1 ? `<div class="seg phase-bar" role="group" aria-label="Phase">${Array.from({ length: n }, (_, j) => `<button data-act="play-phase" data-i="${j}" aria-pressed="${j === i}">Phase ${j + 1}</button>`).join('')}</div>` : ''}
     ${title ? `<p class="phase-title">${esc(title)}</p>` : ''}
-    ${playSVG(view, side, { anim: true })}
+    <div class="play-board-field">${playSVG(view, side, { anim: true })}</div>
     <div class="anim-bar">
       <button type="button" class="btn sm primary" data-act="anim-play">${anim.playing ? 'Pause' : anim.done ? 'Play again' : 'Play'}</button>
       <button type="button" class="btn sm${anim.slow ? ' on' : ''}" data-act="anim-slow" aria-pressed="${!!anim.slow}">Slow</button>
@@ -3446,7 +3484,7 @@ function playFigure(p, side, i) {
     <div class="anim-timeline"><label for="anim-seek">Animation progress</label>
       <input id="anim-seek" data-input="anim-seek" type="range" min="0" max="100" step="1" value="0" aria-label="Seek within this phase">
       <output id="anim-pct" for="anim-seek">0%</output></div>
-    ${playLegend(view, side)}
+    ${playLegend(view, side, true)}
     ${castKey(view, side)}`;
 }
 
@@ -8725,10 +8763,11 @@ const actions = {
     animStop(); state.playMode = el.dataset.mode === 'watch' ? 'watch' : 'learn';
     state.playPhase = 0; state.studyIndex = 0; render();
   },
-  'study-prev': () => { animStop(); state.studyIndex = Math.max(0, state.studyIndex - 1); render(); },
-  'study-next': () => {
-    const p = playById(state.playId); if (!p) return;
-    animStop(); state.studyIndex = Math.min(studySequence(p, state.playSide).length - 1, state.studyIndex + 1); render();
+  'study-prev': () => goStudyStep(state.studyIndex - 1),
+  'study-next': () => goStudyStep(state.studyIndex + 1),
+  'study-pick': el => {
+    if(!/^\d+$/.test(el.dataset.i || ''))return;
+    goStudyStep(Number(el.dataset.i));
   },
   'play-phase': el => { const p = playById(state.playId); if (!p) return; animStop(); animShowPhase(p, Number(el.dataset.i)); anim.planFor = null; },
   'anim-play': () => animStart(),
