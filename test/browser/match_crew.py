@@ -220,9 +220,22 @@ with sync_playwright() as p:
         pg.locator('#sheet form[data-form=crew-intake-start] button[type=submit]').click()
         pg.fill('#sheet form[data-form=crew-manual] input[name=name]', 'New Club Only')
         pg.locator('#sheet form[data-form=crew-manual] button[type=submit]').click()
-        c.ok('New Club Only' in pg.inner_text('#view')
-             and pg.evaluate("window.__team.ws.matchOfficials.find(x=>x.name==='New Club Only').teamIds.length===0"),
-             f'[{width}] club-only manual volunteer is saved without a team or qualification')
+        # A club-only volunteer is saved, but must NOT appear in a team-scoped
+        # directory merely because the club is selected for their record.
+        c.ok(pg.evaluate("""() => {
+                 const p=window.__team.ws.matchOfficials.find(x=>x.name==='New Club Only');
+                 return !!p && p.teamIds.length===0 && p.clubIds.includes('titans-club');
+             }""")
+             and pg.locator('#view .crew-readiness-summary[data-scope=team]').count()==1
+             and 'New Club Only' not in pg.locator('#view .crew-directory-results').inner_text(),
+             f'[{width}] club-only volunteer is saved but excluded from team-only Match staff')
+        # The original club-wide administration view must still make that
+        # volunteer discoverable, without changing the person's assignment.
+        pg.evaluate(act,['home-scope',{'kind':'club','id':'titans-club'}])
+        c.ok(pg.locator('#view .crew-readiness-summary[data-scope=club]').count()==1
+             and 'New Club Only' in pg.locator('#view .crew-directory-results').inner_text(),
+             f'[{width}] club-only volunteer remains visible in selected club directory')
+        pg.evaluate(act,['home-scope',{'kind':'team','id':'league2026'}])
         # Link the ORIGINAL Oztag volunteer to a second club, without duplicating ID.
         before=pg.evaluate("window.__team.ws.matchOfficials.filter(p=>p.name==='Casey Coach').length")
         pg.locator('#view [data-act=crew-new]').click()
