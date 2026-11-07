@@ -8929,6 +8929,9 @@ const actions = {
     // The original club/team picker is view navigation for Player previews too.
     if(!isCoach()&&!nativePersona())return;
     const kind=el.dataset.kind,id=el.dataset.id||'',session=nativePersona();
+    // Home is the authoritative club/team context. Discard a previous
+    // Match staff directory override when the user deliberately changes it.
+    state.crewClubId = '';
     if(session&&session.role!=='personal_owner'){
       const allowed=personaRoleTeams(session.profileId,session.role);
       if(!allowed.length)return;
