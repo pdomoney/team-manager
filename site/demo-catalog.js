@@ -1,3 +1,5 @@
+import {stripWs} from './model.js';
+
 // Add missing, known synthetic fixtures to the SAME local development workspace.
 // Never rebuild an existing club, team, play, library item or user-created record.
 // Published development is password-free; this is not a production data migration.
@@ -36,7 +38,12 @@ export function appendMissingDemoTeams(target,source){
   const ids=new Set(teams(target).map(t=>t.id));
   for(const team of teams(source)){
     if(!team||typeof team.id!=='string'||ids.has(team.id))continue;
-    target.teams.push(team);
+    // The eight-team source's primary team carries workspace-only fields.
+    // Strip those before storing it as an ordinary secondary team, otherwise
+    // its nested clubs/teams/library duplicate an entire workspace.
+    const member=team===source?stripWs(team):team;
+    if(team===source)delete member.testLibrary;
+    target.teams.push(member);
     ids.add(team.id);
     counts.teams++;
   }
