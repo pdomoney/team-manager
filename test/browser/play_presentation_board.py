@@ -24,9 +24,12 @@ with sync_playwright() as p:
                   fig.locator('.play-board-field svg.pf').count()==1 and
                   fig.locator('#anim-seek').count()==1,
                   f'[{width}] existing Coach Watch mode uses styled field and retains animation controls')
-        checks.ok('Quickie Out' in fig.locator('.play-board-title').inner_text() and
-                  'Oztag' in fig.locator('.play-board-kicker').inner_text(),
-                  f'[{width}] board identifies original play and sport without replacing source')
+        actual_title=fig.locator('.play-board-title').inner_text()
+        actual_kicker=fig.locator('.play-board-kicker').inner_text()
+        checks.ok('Quickie Out' in actual_title,
+                  f'[{width}] original play title shown; received {actual_title!r}')
+        checks.ok('Oztag' in actual_kicker,
+                  f'[{width}] sport shown on board; received {actual_kicker!r}')
         dark=fig.evaluate("""el=>{
           const a=getComputedStyle(el),f=getComputedStyle(el.querySelector('.play-board-field'));
           return {background:a.backgroundColor,field:f.backgroundColor,color:a.color};
@@ -104,10 +107,13 @@ with sync_playwright() as p:
           return {visible:b.left>=a.left-2&&b.right<=a.right+2,
             scroll:row.scrollLeft,max:row.scrollWidth-row.clientWidth};
         }""")
-        checks.ok(geom['visible'] and
-                  (width>=1000 or geom['scroll']>0) and
-                  pg.locator('#play-fig .study-cue h3').inner_text()=='Instruction 12',
-                  f'[{width}] later numbered instructions stay visible on phone without losing cue')
+        last_title=pg.locator('#play-fig .study-cue h3').inner_text()
+        checks.ok(geom['visible'],
+                  f'[{width}] late step visible within rail; measured {geom!r}')
+        checks.ok(width>=1000 or geom['scroll']>0,
+                  f'[{width}] mobile rail scrolled to later step; measured {geom!r}')
+        checks.ok(last_title=='Instruction 12',
+                  f'[{width}] last coaching cue matches selected step; got {last_title!r}')
 
         # Player mode is still read-only, and editing remains coach-only.
         pg.evaluate(act,['preview-on',{}])
