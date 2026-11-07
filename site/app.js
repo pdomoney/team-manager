@@ -41,6 +41,7 @@ import { qaAcceptanceBoard, qaAcceptanceText } from './p11-qa-acceptance.js';
 import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
 import {desktopProfileAvailable,desktopProfileChoices,resolveDesktopProfile} from './desktop-profile-preview.js';
 import {developmentSandbox} from './development-sandbox.js';
+import {recognisedDemoWorkspace, appendMissingDemoTeams} from './demo-catalog.js';
 import {personWorkspace} from './person-role-workspace.js';
 import {personaSession,personaRoleTeams,personaRoster,personaFixtures,personaSeasons,personaAction,personaCurrentState,upgradePersonaRecords} from './persona-runtime.js';
 import {titansDemoSession,titansDemoRoleTeams,titansDemoProfileLabel} from './titans-demo-personas.js';
@@ -759,8 +760,13 @@ const nativeSessionFor=(profileId,contextId='',teamId='')=>{
 };
 const nativePersona=()=>DEV_SANDBOX&&state.qaPersona==='p12'?
   nativeSessionFor(state.qaProfile,state.qaContext,state.personaTeamId):null;
-const nativeScopedTeams=(profileId,role)=>
-  titansDemoRoleTeams(ws,profileId,role)??personaRoleTeams(profileId,role);
+const nativeScopedTeams=(profileId,role)=>{
+  const existing=personaRoleTeams(profileId,role);
+  const titans=titansDemoRoleTeams(ws,profileId,role);
+  // Both fixture collections are in the same sandbox. Their role/group
+  // assignments remain distinct: choosing a team chooses its exact context.
+  return titans===null?existing:[...existing,...titans.filter(t=>!existing.some(x=>x.id===t.id))];
+};
 function nativeRoleAllows(tab){
  const session=nativePersona();if(!session)return true;
  // Keep the existing More hub in every active native experience, rather than
@@ -894,38 +900,55 @@ function applyNativeProfilePermissions(){
   });
 }
 function seedNativePersonaData(){
- if(!DEV_SANDBOX||!ws)return;
- if(M.findTeam(ws,nativeTeamId(P12_SAMPLE_TEAMS[0].id)))return;
- if(M.teamsOf(ws).some(t=>(t.players||[]).length||(t.matches||[]).length||(t.sessions||[]).length))return;
- // This runs only when no sandbox data was saved. Existing local and encrypted
- // team files, previous fictional actions and backups are never overwritten.
- const source=normalizeWs(null);
- const clubs=P12_SAMPLE_CLUBS.map(c=>M.normClub({
-   id:c.id,name:c.name,shortName:c.name.replace('Example ',''),
-   sport:c.sport,notes:'Fictional development club'
- }));
- const make=t=>{
-   const roster=makeP12SampleRoster(t.id),base=defaultData();
-   base.id=nativeTeamId(t.id);
-   Object.assign(base.team,{name:t.name,clubId:t.clubId,sport:t.sport,
-     division:t.ageGroup,ageGroup:t.ageGroup,category:t.category,
-     event:'Example competition',season:'Example 2026 season'});
-   base.players=roster.players.map(p=>({id:p.id,name:p.name,gender:'',number:String(p.jersey),
-     positions:p.preferredPositions,status:'available',phone:'',notes:''}));
-   base.staff=roster.staff.map(p=>({role:p.role,name:p.name,phone:'',email:''}));
-   base.helpers=roster.volunteers.map(p=>({id:p.id,name:p.name,role:p.role,phone:''}));
-   base.matches=[{id:'match-'+t.id,date:'2026-11-14',start:'10:00',
-     opponent:'Example Opposition',venue:'Example Sports Ground',
-     status:'scheduled',rsvp:{},result:{},notes:''}];
-   return normalizeTeam(base);
- };
- const primary=make(P12_SAMPLE_TEAMS[0]);
- ws=normalizeWs({...source,...primary,id:primary.id,team:primary.team,
-   clubs,teams:P12_SAMPLE_TEAMS.slice(1).map(make),
-   testLibrary:{version:TEST_LIBRARY_VERSION,day:todayISO()}});
- pickTeam(ws.id);save();
+  if(!DEV_SANDBOX||!ws)return false;
+  const clubs=P12_SAMPLE_CLUBS.map(c=>M.normClub({
+    id:c.id,name:c.name,shortName:c.name.replace('Example ',''),
+    sport:c.sport,notes:'Fictional development club'
+  }));
+  const make=t=>{
+    const roster=makeP12SampleRoster(t.id),base=defaultData();
+    base.id=nativeTeamId(t.id);
+    Object.assign(base.team,{name:t.name,clubId:t.clubId,sport:t.sport,
+      division:t.ageGroup,ageGroup:t.ageGroup,category:t.category,
+      event:'Example competition',season:'Example 2026 season'});
+    base.players=roster.players.map(p=>({id:p.id,name:p.name,gender:'',number:String(p.jersey),
+      positions:p.preferredPositions,status:'available',phone:'',notes:''}));
+    base.staff=roster.staff.map(p=>({role:p.role,name:p.name,phone:'',email:''}));
+    base.helpers=roster.volunteers.map(p=>({id:p.id,name:p.name,role:p.role,phone:''}));
+    base.matches=[{id:'match-'+t.id,date:'2026-11-14',start:'10:00',
+      opponent:'Example Opposition',venue:'Example Sports Ground',
+      status:'scheduled',rsvp:{},result:{},notes:''}];
+    return normalizeTeam(base);
+  };
+  // A brand-new sandbox keeps the previously accepted P12 primary team,
+  // but immediately receives the original four-club fixture as well.
+  const empty=M.teamsOf(ws).length===1 && ws.id==='team1' &&
+    !ws.testLibrary && arr(ws.players).length===0 &&
+    arr(ws.matches).length===0 && arr(ws.sessions).length===0;
+  if(empty){
+    const source=normalizeWs(null),primary=make(P12_SAMPLE_TEAMS[0]);
+    ws=normalizeWs({...source,...primary,id:primary.id,team:primary.team,
+      clubs,teams:P12_SAMPLE_TEAMS.slice(1).map(make),
+      testLibrary:{version:TEST_LIBRARY_VERSION,day:todayISO()}});
+    pickTeam(ws.id);
+    return true;
+  }
+  // Migrate the older four-club Safari copy without replacing edited fixtures,
+  // saved plays, shared library records, profile contexts or any existing team.
+  if(!recognisedDemoWorkspace(ws))return false;
+  let changed=false;
+  const knownClubs=new Set(arr(ws.clubs).map(c=>c.id));
+  for(const club of clubs)if(!knownClubs.has(club.id)){
+    ws.clubs.push(club);knownClubs.add(club.id);changed=true;
+  }
+  const knownTeams=new Set(M.teamsOf(ws).map(t=>t.id));
+  for(const fixture of P12_SAMPLE_TEAMS) {
+    const id=nativeTeamId(fixture.id);
+    if(knownTeams.has(id))continue;
+    ws.teams.push(make(fixture));knownTeams.add(id);changed=true;
+  }
+  return changed;
 }
-
 function renderHomeProfilePicker() {
   if(!DEV_SANDBOX||S.role!=='coach')return '';
   const selected=P12_QA_PROFILES.find(p=>p.id===state.qaProfile);
@@ -7425,22 +7448,40 @@ function sampleInto() {
 // In test mode it replaces this phone's copy. Once live it only replaces a copy that's already the test
 // library, or has no players in any team, and it keeps the passwords.
 const canLoadTestLibrary = () => isCoach() && (S.trial || !!ws.testLibrary || M.teamsOf(ws).every(t => !arr(t.players).length));
+// Build the existing eight-team fixture in isolation. In particular, a Safari
+// refresh must never call the destructive "fresh test library" operation just
+// to add clubs missing from an older fictional workspace.
+function buildTestLibraryWorkspace(day){
+  const since=new Date(Date.now()-2000).toISOString();
+  const previousWs=ws,previousData=data;
+  try {
+    M.withCountedIds('tst',()=>{
+      ws=normalizeWs(null);data=ws;
+      sampleInto();extendTestLibrary(day);
+    });
+    M.withCountedIds('tsu',()=>{
+      M.syncSportPositions(ws);
+      M.teamsOf(ws).forEach(t=>{M.claimRecords(t,'');M.syncJerseys(t,day);});
+      M.syncEvents(ws);
+    });
+    const built=fixStamps(JSON.parse(JSON.stringify(ws)),since,day);
+    built.testLibrary={version:TEST_LIBRARY_VERSION,day};
+    return normalizeWs(built);
+  }finally{
+    ws=previousWs;data=previousData;
+  }
+}
 function loadTestLibrary() {
   if (!canLoadTestLibrary()) { toast('The test library can only replace test data.'); return; }
-  const day = todayISO(), since = new Date(Date.now() - 2000).toISOString();
-  const keep = new Map(M.teamsOf(ws).map(t => [t === ws ? ws.id : t.id, { teamPass: t.teamPass, teamSalt: t.teamSalt }]));
-  M.withCountedIds('tst', () => {
-    ws = normalizeWs(null); data = ws;
-    sampleInto();
-    extendTestLibrary(day);
-  });
-  // Saving fills in seasons, jerseys and positions; then the times stamped while building are fixed.
-  M.withCountedIds('tsu', () => { M.syncSportPositions(ws); M.teamsOf(ws).forEach(t => { M.claimRecords(t, ''); M.syncJerseys(t, day); }); M.syncEvents(ws); });
-  const built = fixStamps(JSON.parse(JSON.stringify(ws)), since, day);
-  built.testLibrary = { version: TEST_LIBRARY_VERSION, day };
-  ws = normalizeWs(built);
+  const day = todayISO();
+  const keep = new Map(M.teamsOf(ws).map(t => [t.id, { teamPass: t.teamPass, teamSalt: t.teamSalt }]));
+  ws=buildTestLibraryWorkspace(day);
+  if(DEV_SANDBOX){
+    seedNativePersonaData();
+    ws.testLibrary.combinedCatalog=1;
+  }
   M.teamsOf(ws).forEach(t => {
-    const k = keep.get(t === ws ? ws.id : t.id);
+    const k = keep.get(t.id);
     if (S.trial) return;
     t.teamPass = k && k.teamPass ? k.teamPass : newTeamPass(); t.teamSalt = k && k.teamSalt ? k.teamSalt : toB64(newSalt());
   });
@@ -10450,7 +10491,29 @@ function startTrial() {
     if (raw && raw.schema !== M.SCHEMA) store.set(key, JSON.stringify(ws));   // keep the upgraded copy
     S.role = 'coach'; S.trial = true; S.coachLock = null;
     if(DEV_SANDBOX){
-      if(!raw)seedNativePersonaData();
+      let changed=false;
+      if(!raw)changed=seedNativePersonaData();
+      // One-time, additive upgrade from either former test collection:
+      // P12 Comets/Rangers/Stars or St George/Penrith/Engadine/Titans.
+      // Never run against an unrecognised local workspace and never run
+      // again if a tester deliberately deletes a fixture after combining.
+      if(recognisedDemoWorkspace(ws)&&ws.testLibrary.combinedCatalog!==1){
+        const hasEight=M.findTeam(ws,'team1')&&
+          M.findTeam(ws,'testtitans')&&M.findTeam(ws,'testleague')&&
+          M.findTeam(ws,'testtitansgirls12')&&M.findTeam(ws,'testtitansmixed10');
+        if(!hasEight){
+          const source=buildTestLibraryWorkspace(ws.testLibrary.day||todayISO());
+          changed=appendMissingDemoTeams(ws,source).changed||changed;
+        }
+        changed=seedNativePersonaData()||changed;
+        ws.testLibrary.combinedCatalog=1;
+        changed=true;
+      }
+      if(changed){
+        const stored=store.set(key,JSON.stringify(ws));
+        S.storageFull=!stored;
+        if(!stored)S.storageWarned=true;
+      }
       state.desktopProfileActive=true;state.qaPersona='p12';
       state.qaProfile='qa-01';state.qaContext='';state.personaTeamId='';
       state.rolePreviewSection='Home';state.personaSeason=PERSONA_CURRENT_SEASON;
@@ -10459,9 +10522,10 @@ function startTrial() {
     }
     if(DEV_SANDBOX){syncNativePersonaTeam();restoreOwnerHomeTeam();}
     render();
+    if(DEV_SANDBOX&&S.storageFull)
+      toast('This Safari workspace could not be saved. Export a backup before refreshing.');
   });
 }
-
 // Exposed for automated tests only.
 window.__team = { get ws() { return ws; }, get data() { return data; }, get teamData() { return teamData; }, S, state, anim, M, planPhase: (p, i, side) => planPhase(playGeom(phaseView(p, i), side || 'right')) };
 
