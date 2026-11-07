@@ -949,6 +949,7 @@ function seedNativePersonaData(){
   }
   return changed;
 }
+const addMissingQaFixtures=()=>M.withCountedIds('tqa',()=>seedNativePersonaData());
 function renderHomeProfilePicker() {
   if(!DEV_SANDBOX||S.role!=='coach')return '';
   const selected=P12_QA_PROFILES.find(p=>p.id===state.qaProfile);
@@ -7478,7 +7479,7 @@ function loadTestLibrary() {
   const keep = new Map(M.teamsOf(ws).map(t => [t.id, { teamPass: t.teamPass, teamSalt: t.teamSalt }]));
   ws=buildTestLibraryWorkspace(day);
   if(DEV_SANDBOX){
-    seedNativePersonaData();
+    addMissingQaFixtures();
     ws.testLibrary.combinedCatalog=1;
   }
   M.teamsOf(ws).forEach(t => {
@@ -7898,7 +7899,7 @@ const actions = {
     if(!DEV_SANDBOX)return;
     if(M.teamsOf(ws).some(t=>(t.players||[]).length||(t.matches||[]).length||(t.sessions||[]).length))return;
     if(!store.get('tm-native-sample-preseed'))store.set('tm-native-sample-preseed',JSON.stringify(ws));
-    seedNativePersonaData();syncNativePersonaTeam();render();
+    if(addMissingQaFixtures())save();syncNativePersonaTeam();render();
   },
   'persona-fixture-save': () => {
     if(!DEV_SANDBOX||state.qaPersona!=='p12'||!qaEnabled())return;
@@ -10493,7 +10494,7 @@ function startTrial() {
     S.role = 'coach'; S.trial = true; S.coachLock = null;
     if(DEV_SANDBOX){
       let changed=false;
-      if(!raw)changed=seedNativePersonaData();
+      if(!raw)changed=addMissingQaFixtures();
       // One-time, additive upgrade from either former test collection:
       // P12 Comets/Rangers/Stars or St George/Penrith/Engadine/Titans.
       // Never run against an unrecognised local workspace and never run
@@ -10506,7 +10507,7 @@ function startTrial() {
           const source=buildTestLibraryWorkspace(ws.testLibrary.day||todayISO());
           changed=appendMissingDemoTeams(ws,source).changed||changed;
         }
-        changed=seedNativePersonaData()||changed;
+        changed=addMissingQaFixtures()||changed;
         ws.testLibrary.combinedCatalog=1;
         changed=true;
       }
