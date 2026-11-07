@@ -10498,9 +10498,9 @@ function startTrial() {
       // Never run against an unrecognised local workspace and never run
       // again if a tester deliberately deletes a fixture after combining.
       if(recognisedDemoWorkspace(ws)&&ws.testLibrary.combinedCatalog!==1){
-        const hasEight=M.findTeam(ws,'team1')&&
-          M.findTeam(ws,'testtitans')&&M.findTeam(ws,'testleague')&&
-          M.findTeam(ws,'testtitansgirls12')&&M.findTeam(ws,'testtitansmixed10');
+        const hasEight=['team1','testwomen','testengadine','testpenrith',
+          'testtitans','testleague','testtitansgirls12','testtitansmixed10']
+          .every(id=>!!M.findTeam(ws,id));
         if(!hasEight){
           const source=buildTestLibraryWorkspace(ws.testLibrary.day||todayISO());
           changed=appendMissingDemoTeams(ws,source).changed||changed;
