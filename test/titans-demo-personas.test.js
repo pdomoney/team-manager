@@ -64,7 +64,7 @@ test('Coach, Assistant, Manager and Trainer keep original P12 contexts and can e
     assert.equal(view.allowedTeams.length,2,id);
     assert.equal(view.context.group.type,'team',id);
     assert.equal(view.context.group.id,expected,id);
-    assert.match(titansDemoProfileLabel(ws,id),/Titans.*\\(demo\\)/,id);
+    assert.match(titansDemoProfileLabel(ws,id),/Titans.*\(demo\)/,id);
     for(const target of view.allowedTeams){
       const switched=titansDemoSession(ws,base,target.contextId);
       assert.equal(switched.team.id,target.id,id);
