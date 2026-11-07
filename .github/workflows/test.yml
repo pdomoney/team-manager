@@ -17,7 +17,9 @@ jobs:
       - run: npm test
 
   browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.55.0 cannot install Chromium on GitHub's Ubuntu 26.04 image.
+    # Pin the existing, supported browser qualification environment.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
