@@ -3831,7 +3831,7 @@ function openPlayEditor(play) {
       </div>
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
       <div class="ped-main">
-        <div class="play-card ped-card"><div id="ped-field"></div></div>
+        <div class="play-card ped-card play-presentation"><div class="play-board-field"><div id="ped-field"></div></div></div>
         <div class="ped-under"><button type="button" class="btn sm" data-act="ped-undo">Undo</button><button type="button" class="btn sm" data-act="ped-whole">Show the whole field</button></div>
       </div>
       <div id="ped-panel" class="ped-panel"></div>
@@ -4063,11 +4063,11 @@ function refreshPedTeaching() {
           ${!cues.length ? '<button type="button" class="btn sm" data-act="teach-seed">Use existing instructions</button>' : ''}
         </div>
       </div>
-      <section class="teach-preview" aria-label="Player learning preview">
+      <section class="teach-preview play-editor-preview" aria-label="Player learning preview">
         <h3 class="play-h">What players will see</h3>
         <p class="hint">Phase ${E.teachPhase + 1} · Action ${cues.length ? E.teachPreview + 1 : 0} of ${cues.length}. Preview uses the exact saved field coordinates.</p>
         <div class="study-cue"><h3>${esc(guide.title)}</h3><p>${esc(guide.text)}</p></div>
-        <div class="play-card">${playSVG(phaseView(E.draft, E.teachPhase), 'right', { study: true, studyCodes: guide.roles || [], studyMoves: guide.moves || [] })}</div>
+        <div class="play-card play-presentation play-study"><div class="play-board-field">${playSVG(phaseView(E.draft, E.teachPhase), 'right', { study: true, studyCodes: guide.roles || [], studyMoves: guide.moves || [] })}</div></div>
         <p class="hint">Switch to Advanced diagram to add or change runs, passes and player positions. Then return here to link the teaching actions.</p>
       </section>
     </div>`;
