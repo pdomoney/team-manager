@@ -34,6 +34,10 @@ test('legacy Safari P12 copy adds missing real clubs and teams without overwriti
   assert.equal(result.matchOfficials,1);
   assert.equal(target.id,'qacometsmixed');
   assert.equal(target.teams.some(t=>t.id==='testtitans'),true);
+  const importedPrimary=target.teams.find(t=>t.id==='team1');
+  assert.ok(importedPrimary);
+  for(const wsKey of ['teams','clubs','library','competitions','testLibrary','matchOfficials'])
+    assert.equal(Object.hasOwn(importedPrimary,wsKey),false,'workspace-only field '+wsKey+' must not be nested in a team');
   assert.equal(JSON.stringify([record,library,target.teams[0]]),before);
   assert.equal(target.plays.some(p=>p.id==='legacy-oztag'),true);
   assert.equal(appendMissingDemoTeams(target,real()).changed,false);
