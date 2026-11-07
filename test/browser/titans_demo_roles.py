@@ -65,8 +65,10 @@ with sync_playwright() as p:
              and 'Billie Sample' in pg.locator('#view .home-profile-identity').inner_text(),
              f'[{width}] assistant coach is assigned to actual demo team')
         pg.evaluate(act,['tab',{'tab':'plays'}])
-        c.ok(pg.evaluate("window.__team.state.tab")!='plays',
-             f'[{width}] Assistant Coach is not granted Head Coach Tactics publishing')
+        c.ok(pg.evaluate("window.__team.state.tab")=='plays'
+             and pg.locator('#view [data-act=play-new]').count()==1
+             and not pg.locator('#view [data-act=play-new]').is_enabled(),
+             f'[{width}] Assistant Coach retains Tactics viewing but not Coach play-edit actions')
 
         pg.evaluate(act,['tab',{'tab':'home'}])
         pg.click('#home-profile-button')
