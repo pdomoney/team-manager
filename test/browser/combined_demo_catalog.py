@@ -58,11 +58,15 @@ with sync_playwright() as p:
             w.library.plays.some(p=>p.id==='private-play-keep' &&
               p.steps==='Do not overwrite');
         }"""),f'[{width}] older saved team play and shared library item survive')
+        stable="async () => (await import('./test-library.js')).stable(window.__team.ws)"
+        after_first=pg.evaluate(stable)
         pg.reload();pg.wait_for_selector('#home-profile-button')
         twice=pg.evaluate(scope)
         c.ok(len(twice['teams'])==26 and len(set(twice['teams']))==26
              and len(twice['clubs'])==7 and 'private-play-keep' in twice['library'],
              f'[{width}] repeated Safari refresh is idempotent and keeps saved plays')
+        c.ok(pg.evaluate(stable)==after_first,
+             f'[{width}] first Safari refresh does not renormalize or mutate any demo records')
 
         # Simulate the other old browser: real-club eight-team test library,
         # including an extra custom library item.
