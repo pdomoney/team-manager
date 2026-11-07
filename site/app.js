@@ -7180,7 +7180,8 @@ function testLibrarySection() {
     <div class="data-check"><span class="sub">Data check</span><b>${esc(dataCheck(ws))}</b><span class="sub">Two devices showing the same code hold the same data.</span></div>
     <p class="muted small" style="margin:12px 0">The test library uses fictional people and fixtures. It includes four Taren Point Titans demo squads, example 2024–2026 scores, coaches, trainers, volunteers, historical seasons, upcoming games, several leagues and tournaments, a gala day today and match-day accreditation scenarios. No result or roster is an official club record. All competition details and participants are illustrative, not an official draw.</p>
     ${lib ? `<p class="note">This copy is the test library from ${esc(fmtLong(lib.day))} (version ${esc(lib.version)}).</p>` : ''}
-    ${can ? `<button class="btn primary block" data-act="test-library">${lib ? 'Load a fresh test library' : 'Load the test library'}</button>`
+    ${DEV_SANDBOX ? '<p class="hint">Combined development catalogue: 7 clubs and 26 fictional teams, including Comets, Rangers, Stars, St George, Penrith, Engadine and Taren Point Titans. Your saved plays and team edits are kept on refresh; there is no need to reset the library to add clubs.</p>' : ''}
+    ${can ? `<button class="btn primary block" data-act="test-library">${DEV_SANDBOX ? 'Reset all fictional test data' : lib ? 'Load a fresh test library' : 'Load the test library'}</button>`
       : '<p class="note">This copy has real players, so the test library can’t replace it.</p>'}
     ${DEV_SANDBOX ? '<p class="hint">Development data stays on this device. To use the same fictional records on another device, use a test-data export and import. No passwords or publishing are required.</p>' : `<h3 class="form-sec">Testing on more than one device</h3>
     <ul class="todo">
