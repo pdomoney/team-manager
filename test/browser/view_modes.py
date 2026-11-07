@@ -19,7 +19,7 @@ with sync_playwright() as p:
         W = lambda js: pg.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M, S = window.__team.state; return {js}; }})()')
         checks.ok(W('M.teamsOf(W).length') == 8 and W('W.competitions.length') >= 7,
                   f'[{width}] eight test teams with multiple competitions')
-        checks.ok(W("M.teamsOf(W).filter(t => t.seasons.length === 3).length") >= 5,
+        checks.ok(W("M.teamsOf(W).filter(t => t.seasons.length >= 3).length") >= 7,
                   f'[{width}] previous, current and planned test seasons remain on their own teams')
         checks.ok(W("M.teamsOf(W).some(t=>M.teamSport(t.team,M.clubOf(W,t))==='Rugby league')") and
                   W("W.competitions.some(c=>c.format==='roundrobin' && c.sport==='League tag')"),
