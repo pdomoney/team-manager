@@ -39,6 +39,16 @@ test('only unchanged legacy Step In words point at the new Step Out name',()=>{
   assert.equal(canonicalStarterPlayName(edited).steps,edited.steps,
     'do not overwrite coach-authored wording');
 });
+test('default Ninja follow-on reference uses new Step play names but preserves coach edits',()=>{
+  const when='Only after the Quickies have worked and the marker is chasing RM.';
+  const normal={...before('ninja','Ninja'),when};
+  const renamed=canonicalStarterPlayName(normal);
+  assert.equal(renamed.when,'Only after Step In and Step Out have worked and the marker is chasing RM.');
+  assert.equal(renamed.id,'ninja');
+  const coach={...normal,edited:true};
+  assert.equal(canonicalStarterPlayName(coach),coach);
+});
+
 test('custom title, copied library and unrelated starter remain untouched',()=>{
   const entries=[
     {...before('quickie-out','Quickie Out'),builtin:false},
