@@ -5,7 +5,7 @@ const rows=value=>Array.isArray(value)?value:[];
 const teams=ws=>ws?.id&&ws?.team?[ws,...rows(ws.teams)]:[];
 
 export function recognisedDemoWorkspace(ws){
-  if(Number(ws?.testLibrary?.version)<3)return false;
+  if(!(Number(ws?.testLibrary?.version)>=3))return false;
   return teams(ws).some(t=>
     (t.id==='qacometsmixed'&&t.team?.clubId==='qa-comets')||
     (t.id==='testtitans'&&t.team?.clubId==='tarenpointtitans'));
@@ -16,7 +16,7 @@ export function recognisedDemoWorkspace(ws){
 export function appendMissingDemoTeams(target,source){
   const counts={clubs:0,teams:0,competitions:0,matchOfficials:0,volunteerAppointments:0};
   if(!recognisedDemoWorkspace(target)||
-     Number(source?.testLibrary?.version)<3||
+     !(Number(source?.testLibrary?.version)>=3)||
      !teams(source).some(t=>t.id==='testtitans'&&t.team?.clubId==='tarenpointtitans'))
     return {...counts,changed:false};
   const append=(key,items)=>{
