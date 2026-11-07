@@ -7471,6 +7471,18 @@ function extendTestLibrary(day) {
       P(n, 'M', String(i + 14), [M.SPORT_POSITIONS['Rugby league'][i % 9]])));
   titans.players.forEach((p,i) => { if (!p.positions.length) p.positions = [M.SPORT_POSITIONS['League tag'][i % 9]]; });
   league.players.forEach((p,i) => { if (!p.positions.length) p.positions = [M.SPORT_POSITIONS['Rugby league'][i % 9]]; });
+  // Existing test teams had season snapshots before this extra demo roster was
+  // added. Explicitly include every current player in the active season so the
+  // Squad screen, jersey records and season switcher show the same population.
+  for (const t of [titans, league]) {
+    const active = M.activeSeason(t);
+    if (!active) continue;
+    active.squad = t.players.map(p => ({
+      playerId: p.id, number: p.number, positions: p.positions.slice(),
+      status: p.status || 'available', reg: ''
+    }));
+    active.staff = t.team.staff.map(person => ({ ...person }));
+  }
 
   const titansGirls = team('testtitansgirls12', 'Titans Under 12 Girls League Tag', 'tarenpointtitans',
     { sport: 'League tag', category: 'girls', division: 'Under 12 Girls', ageGroup: 'U12', trainingVenue: 'Gwawley Park' });
