@@ -4421,7 +4421,8 @@ function viewCrew() {
   const club = M.clubOf(ws, data), rules = crewPolicy(), sport = M.teamSport(data.team, club), profile = crewProfile(sport);
   // Home's explicit team choice is the default scope for this screen, not
   // merely the header label. Club/all scopes keep the original admin view.
-  const homeScope = nativePersona()?.role !== 'personal_owner' ? state.nativeHomeScope : homePref();
+  const persona = nativePersona();
+  const homeScope = persona && persona.role !== 'personal_owner' ? state.nativeHomeScope : homePref();
   const teamScoped = isHomeTeamCrewScope(homeScope, data);
   const selectedId = teamScoped ? (club?.id || '') : intakeClubId();
   const directoryClub = arr(ws.clubs).find(c => c.id === selectedId);
