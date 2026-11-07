@@ -8834,7 +8834,7 @@ const actions = {
   'import-do': coachOnly(el => doImport(el.dataset.m)),
   'teams': coachOnly(() => goTo('teams')),
   'team-switch': coachOnly(() => teamSwitcher()),
-  'team-pick': coachOnly(el => switchTeam(el.dataset.id,{selectHomeTeam:true})),
+  'team-pick': coachOnly(el => switchTeam(el.dataset.id,{selectHomeTeam:nativePersona()?.role==='personal_owner'})),
   'org-preview-open': coachOnly(() => openOrgPreview()),
   'org-preview-mode': coachOnly(el => {
     const next=nextOrgPreviewSelection(state.orgPreview,{kind:'mode',id:el.dataset.mode});
