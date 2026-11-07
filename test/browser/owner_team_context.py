@@ -31,6 +31,15 @@ with sync_playwright() as p:
              and pg.locator('#view .scope-club[data-id=tarenpointtitans][aria-pressed=true]').count()==1
              and pg.locator('#view .scope-team.editing').count()==1,
              f'[{width}] selecting Titans club aligns working team, banner and Home selection')
+        # Reproduce the owner's previously saved mismatch: Titans is selected
+        # on Home but an old browser copy still remembers DragonTag as active.
+        pg.evaluate("""() => localStorage.setItem('tm-persona-sandbox-team','team1')""")
+        pg.reload()
+        pg.wait_for_function("window.__team?.data?.team?.clubId === 'tarenpointtitans'")
+        c.ok(W("D.team.clubId")=='tarenpointtitans'
+             and 'Titans' in pg.locator('#team-title .t-name').inner_text()
+             and pg.locator('#view .scope-club[data-id=tarenpointtitans][aria-pressed=true]').count()==1,
+             f'[{width}] previously stale persisted Home club heals the banner at reload')
         pg.evaluate(act,['tab',{'tab':'crew'}])
         c.ok(pg.locator('#view .crew-readiness-summary[data-scope=club]').count()==1
              and pg.locator('#view .crew-directory-results').count()==1
@@ -106,6 +115,14 @@ with sync_playwright() as p:
         c.ok(restricted.evaluate('window.__team.data.id')=='qastarsopen'
              and restricted.evaluate('window.__team.state.qaContext')=='grant:team_coach:team:qa-stars-open',
              f'[{width}] Coach still switches to explicitly assigned other-club team')
+        restricted.click('#home-profile-button')
+        restricted.click('#home-profile-panel [data-profile=qa-09]')
+        current=restricted.evaluate('window.__team.data.id')
+        restricted.evaluate(act,['team-pick',{'id':'qastarswomen'}])
+        c.ok(current=='qacometsmixed'
+             and restricted.evaluate('window.__team.data.id')==current
+             and restricted.locator('#view .scope-club[data-id=qa-stars]').count()==0,
+             f'[{width}] Manager cannot access an unassigned other-club team')
         other.close()
     ok=c.done(errs)
     browser.close()
