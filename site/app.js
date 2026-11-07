@@ -855,6 +855,9 @@ function nativePersonaAllowedAction(name,el){
  }
  if(name==='home-team'||name==='team-pick'){
    const t=el?.dataset?.team||el?.dataset?.id||'';
+   // The test Owner's P12 examples are NOT the teams in the loaded library.
+   // They must not block navigation within this already-open coach workspace.
+   if(session.role==='personal_owner')return M.activeTeams(ws).some(x=>x.id===t);
    return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>nativeTeamId(x.id)===t);
  }
  if(name==='home-go'&&session.role!=='personal_owner'){
@@ -6126,31 +6129,37 @@ async function teamPassProblem(p1, p2, team) {
   if (S.coachLock) { const c = await makeLock(p1, S.coachLock.salt, S.coachLock.iterations); if (await exportKey(c.key) === await exportKey(S.coachLock.key)) return 'Use a different password from the coach one.'; }
   return '';
 }
-function switchTeam(id,{keepHomeScope=false}={}) {
-  const t=M.findTeam(ws,id);if(!t)return;
+function switchTeam(id,{keepHomeScope=false,selectHomeTeam=false}={}) {
+  const t=M.findTeam(ws,id);if(!t||t.archived)return false;
   const session=nativePersona();
-  if(session){
+  if(session && session.role!=='personal_owner'){
+    // Preserve D02 exact group/role grants for every non-Owner QA persona.
     const assigned=personaRoleTeams(session.profileId,session.role)
       .find(p=>nativeTeamId(p.id)===id);
-    if(!assigned){toast('That team is not assigned to this test role');return;}
+    if(!assigned){toast('That team is not assigned to this test role');return false;}
     state.qaContext=assigned.contextId;
     state.personaTeamId=assigned.id;
-    if(session.role!=='personal_owner'&&!keepHomeScope)
-      state.nativeHomeScope={kind:'team',id};
+    if(!keepHomeScope)state.nativeHomeScope={kind:'team',id};
   }
+  // An Owner preview is navigating the unlocked local workspace, not the
+  // separate P12 test registry. Never repurpose a P12 grant or grant access.
   pickTeam(id);
   state.correcting=null;
   // Do not overwrite the Platform Owner's saved Home selection when testing
   // another person's club/team portfolio on this device.
   if(!session||session.role==='personal_owner'){
     const pref=homePref();
-    if(pref&&pref.kind==='team')store.set('tm-home-scope',JSON.stringify({kind:'team',id:data.id}));
+    // Explicit team pickers are authoritative for subsequent team views.
+    // Opening a record from an all/club Home overview does not change scope.
+    if(selectHomeTeam||pref?.kind==='team')
+      store.set('tm-home-scope',JSON.stringify({kind:'team',id:data.id}));
   }
   Object.assign(state,{lineupId:null,playId:null,msgDraft:null,msgSession:null,
     msgEvent:null,system:null,overlaysOpen:false,
     preview:session?['player','guardian','helper','staff','none'].includes(session.role):false});
   closeSheet();render();window.scrollTo(0,0);
   toast(`Now showing ${M.teamName(t)}`);
+  return true;
 }
 function teamSwitcher() {
   openSheet('Switch team', `<div class="list">${M.activeTeams(ws).map(t => `<button class="pick" data-act="team-pick" data-id="${t.id}" ${t === data ? 'aria-current="true"' : ''}><span class="switch-ic" aria-hidden="true">${sportIcon(sportOfTeam(t), 20)}</span><span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}</span><span class="tagline">${esc([sportOfTeam(t), t.team.event, `${arr(t.players).length} players`].filter(Boolean).join(' · '))}</span></span>${t === data ? icon('check') : ''}</button>`).join('')}</div>
@@ -8825,7 +8834,7 @@ const actions = {
   'import-do': coachOnly(el => doImport(el.dataset.m)),
   'teams': coachOnly(() => goTo('teams')),
   'team-switch': coachOnly(() => teamSwitcher()),
-  'team-pick': coachOnly(el => switchTeam(el.dataset.id)),
+  'team-pick': coachOnly(el => switchTeam(el.dataset.id,{selectHomeTeam:true})),
   'org-preview-open': coachOnly(() => openOrgPreview()),
   'org-preview-mode': coachOnly(el => {
     const next=nextOrgPreviewSelection(state.orgPreview,{kind:'mode',id:el.dataset.mode});
@@ -8952,6 +8961,14 @@ const actions = {
       else render();
       return;
     }
+    // Validate the actual workspace before persisting a Home filter. A
+    // stale or forged club/team choice must not highlight one organisation
+    // while leaving the header and editing team in another.
+    const active=M.activeTeams(ws);
+    if(kind==='team'&&!active.some(t=>t.id===id))return;
+    if(kind==='club'&&(!arr(ws.clubs).some(c=>c.id===id)||
+       !active.some(t=>t.team?.clubId===id)))return;
+    if(kind==='all'?!!id:!['team','club'].includes(kind))return;
     store.set('tm-home-scope',JSON.stringify({kind,id}));state.homeAllUp=false;
     if(kind==='team' && id!==data.id){switchTeam(id);return;}
     if(kind==='club' && id!==data.team.clubId){
@@ -9324,7 +9341,11 @@ document.addEventListener('change', e => {
   if (k === 'crew-team-pick' && isCoach()) {
     const t=M.activeTeams(ws).find(t=>t.id===e.target.value);
     if(!t)return;
-    switchTeam(t.id); state.crewClubId=t.team.clubId||''; render();
+    // This is a team selector, not a banner-setting control. Persist its
+    // exact team scope so the directory, readiness and Home agree.
+    if(switchTeam(t.id,{selectHomeTeam:true})){
+      state.crewClubId=t.team.clubId||'';render();
+    }
   }
   if (k === 'team-style') previewTeamStyle(e.target.closest('form'));
   if (k === 'club-branding-pick' && isCoach()) {
