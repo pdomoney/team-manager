@@ -855,6 +855,9 @@ function nativePersonaAllowedAction(name,el){
  }
  if(name==='home-team'||name==='team-pick'){
    const t=el?.dataset?.team||el?.dataset?.id||'';
+   // The test Owner's P12 examples are NOT the teams in the loaded library.
+   // They must not block navigation within this already-open coach workspace.
+   if(session.role==='personal_owner')return M.activeTeams(ws).some(x=>x.id===t);
    return !!t&&personaRoleTeams(session.profileId,session.role).some(x=>nativeTeamId(x.id)===t);
  }
  if(name==='home-go'&&session.role!=='personal_owner'){
@@ -1566,6 +1569,18 @@ const HOME_LEVEL = { 1: 'Critical', 2: 'Imminent', 3: 'Upcoming', 4: 'Next up' }
 const HOME_OPEN = { match: 'Open match', session: 'Open training', task: 'Open task', tournament: 'See the draw', rules: 'Review the update', result: 'Enter the result', messages: 'Open message log' };
 const HOME_KIND = { match: ['Match', 'k-match'], session: ['Training', 'k-train'], task: ['Help needed', 'k-task'], tournament: ['Tournament', 'k-event'] };
 const homePref = () => readJson('tm-home-scope');
+// Recover a previously saved Home selection when a test-library reload or
+// reopening the sandbox retained a different working team in the header.
+// Do this only at startup/library reload: a Home fixture link may intentionally
+// open another team's record while leaving its overview scope unchanged.
+function restoreOwnerHomeTeam() {
+  if(!DEV_SANDBOX || nativePersona()?.role!=='personal_owner' || !ws)return;
+  const pref=homePref(), active=M.activeTeams(ws);
+  const target=pref?.kind==='team' ? active.find(t=>t.id===pref.id) :
+    pref?.kind==='club' && data?.team?.clubId!==pref.id ?
+      active.find(t=>t.team?.clubId===pref.id) : null;
+  if(target && target!==data)pickTeam(target.id);
+}
 const homeDays = () => [7, 14, 30].includes(Number(store.get('tm-home-days'))) ? Number(store.get('tm-home-days')) : 14;
 // Club colours are words ("red and white"); the first two known colours make the badge, otherwise a
 // colour from the app's own palette, the same one every time for that club.
@@ -4441,14 +4456,17 @@ function viewCrew() {
   const appointments = teamScoped ? [] : reviewVolunteerAppointments(arr(ws.matchOfficials), arr(ws.volunteerAppointments), {type:'club',id:selectedId});
   const overviewSports = [...new Set(M.activeTeams(ws).filter(t=>!!M.clubOf(ws,t)).map(t=>M.teamSport(t.team,M.clubOf(ws,t))))].sort();
   const workspaceOverview = !teamScoped && arr(ws.clubs).length>1 ? workspaceCrewOverview(ws,{sport:state.crewOverviewSport || ''}) : null;
+  // A scoped QA role's picker must not list another club's unrelated teams.
+  const selectableCrewTeams = persona && persona.role!=='personal_owner'
+    ? M.activeTeams(nativeHomeWorkspace(persona)) : M.activeTeams(ws);
   // Which of the workspace's teams a person helps, for their directory row.
   const helps = p => M.activeTeams(ws).filter(t => inTeamPool(p, t)).map(t => M.teamName(t));
   return `<div class="sec-h"><h2>Match-day staff</h2><div class="btn-row">${cardToggle('crew')}<button class="btn primary sm" data-act="crew-new">${icon('plus', 18)}Add volunteer</button></div></div>
     <div class="crew-context crew-team-context">
       <label class="field-l crew-team-picker"><span>Staffing requirements for team</span>
         <select name="crewTeamId" data-change="crew-team-pick" aria-label="Choose team for match-day staffing">
-          ${arr(ws.clubs).map(c=>`<optgroup label="${esc(c.name)}">${M.activeTeams(ws).filter(t=>t.team.clubId===c.id).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}</optgroup>`).join('')}
-          ${M.activeTeams(ws).filter(t=>!t.team.clubId).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}
+          ${arr(ws.clubs).filter(c=>selectableCrewTeams.some(t=>t.team.clubId===c.id)).map(c=>`<optgroup label="${esc(c.name)}">${selectableCrewTeams.filter(t=>t.team.clubId===c.id).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}</optgroup>`).join('')}
+          ${selectableCrewTeams.filter(t=>!t.team.clubId).map(t=>`<option value="${esc(t.id)}" ${t.id===data.id?'selected':''}>${esc(M.teamName(t))} · ${esc(sportOfTeam(t))}</option>`).join('')}
         </select>
         <small>${esc(sport)} · ${esc(profile.provider)}. Select another team here without opening a second window.</small>
       </label>
@@ -6126,31 +6144,37 @@ async function teamPassProblem(p1, p2, team) {
   if (S.coachLock) { const c = await makeLock(p1, S.coachLock.salt, S.coachLock.iterations); if (await exportKey(c.key) === await exportKey(S.coachLock.key)) return 'Use a different password from the coach one.'; }
   return '';
 }
-function switchTeam(id,{keepHomeScope=false}={}) {
-  const t=M.findTeam(ws,id);if(!t)return;
+function switchTeam(id,{keepHomeScope=false,selectHomeTeam=false}={}) {
+  const t=M.findTeam(ws,id);if(!t||t.archived)return false;
   const session=nativePersona();
-  if(session){
+  if(session && session.role!=='personal_owner'){
+    // Preserve D02 exact group/role grants for every non-Owner QA persona.
     const assigned=personaRoleTeams(session.profileId,session.role)
       .find(p=>nativeTeamId(p.id)===id);
-    if(!assigned){toast('That team is not assigned to this test role');return;}
+    if(!assigned){toast('That team is not assigned to this test role');return false;}
     state.qaContext=assigned.contextId;
     state.personaTeamId=assigned.id;
-    if(session.role!=='personal_owner'&&!keepHomeScope)
-      state.nativeHomeScope={kind:'team',id};
+    if(!keepHomeScope)state.nativeHomeScope={kind:'team',id};
   }
+  // An Owner preview is navigating the unlocked local workspace, not the
+  // separate P12 test registry. Never repurpose a P12 grant or grant access.
   pickTeam(id);
   state.correcting=null;
   // Do not overwrite the Platform Owner's saved Home selection when testing
   // another person's club/team portfolio on this device.
   if(!session||session.role==='personal_owner'){
     const pref=homePref();
-    if(pref&&pref.kind==='team')store.set('tm-home-scope',JSON.stringify({kind:'team',id:data.id}));
+    // Explicit team pickers are authoritative for subsequent team views.
+    // Opening a record from an all/club Home overview does not change scope.
+    if(selectHomeTeam||pref?.kind==='team')
+      store.set('tm-home-scope',JSON.stringify({kind:'team',id:data.id}));
   }
   Object.assign(state,{lineupId:null,playId:null,msgDraft:null,msgSession:null,
     msgEvent:null,system:null,overlaysOpen:false,
     preview:session?['player','guardian','helper','staff','none'].includes(session.role):false});
   closeSheet();render();window.scrollTo(0,0);
   toast(`Now showing ${M.teamName(t)}`);
+  return true;
 }
 function teamSwitcher() {
   openSheet('Switch team', `<div class="list">${M.activeTeams(ws).map(t => `<button class="pick" data-act="team-pick" data-id="${t.id}" ${t === data ? 'aria-current="true"' : ''}><span class="switch-ic" aria-hidden="true">${sportIcon(sportOfTeam(t), 20)}</span><span class="grow"><span class="name" style="display:block">${esc(M.teamName(t))}</span><span class="tagline">${esc([sportOfTeam(t), t.team.event, `${arr(t.players).length} players`].filter(Boolean).join(' · '))}</span></span>${t === data ? icon('check') : ''}</button>`).join('')}</div>
@@ -7370,7 +7394,7 @@ function loadTestLibrary() {
     t.teamPass = k && k.teamPass ? k.teamPass : newTeamPass(); t.teamSalt = k && k.teamSalt ? k.teamSalt : toB64(newSalt());
   });
   state.crewClubId = ''; state.lineupId = null; state.matchDayId = null; state.msgDraft = null; state.viewSeason = {}; state.correcting = null;
-  pickTeam(ws.id); save(); closeSheet(); goTo('home');
+  pickTeam(ws.id); restoreOwnerHomeTeam(); save(); closeSheet(); goTo('home');
   toast(`Test library loaded. Data check ${dataCheck(ws)}`);
 }
 function extendTestLibrary(day) {
@@ -8825,7 +8849,7 @@ const actions = {
   'import-do': coachOnly(el => doImport(el.dataset.m)),
   'teams': coachOnly(() => goTo('teams')),
   'team-switch': coachOnly(() => teamSwitcher()),
-  'team-pick': coachOnly(el => switchTeam(el.dataset.id)),
+  'team-pick': coachOnly(el => switchTeam(el.dataset.id,{selectHomeTeam:nativePersona()?.role==='personal_owner'})),
   'org-preview-open': coachOnly(() => openOrgPreview()),
   'org-preview-mode': coachOnly(el => {
     const next=nextOrgPreviewSelection(state.orgPreview,{kind:'mode',id:el.dataset.mode});
@@ -8952,6 +8976,14 @@ const actions = {
       else render();
       return;
     }
+    // Validate the actual workspace before persisting a Home filter. A
+    // stale or forged club/team choice must not highlight one organisation
+    // while leaving the header and editing team in another.
+    const active=M.activeTeams(ws);
+    if(kind==='team'&&!active.some(t=>t.id===id))return;
+    if(kind==='club'&&(!arr(ws.clubs).some(c=>c.id===id)||
+       !active.some(t=>t.team?.clubId===id)))return;
+    if(kind==='all'?!!id:!['team','club'].includes(kind))return;
     store.set('tm-home-scope',JSON.stringify({kind,id}));state.homeAllUp=false;
     if(kind==='team' && id!==data.id){switchTeam(id);return;}
     if(kind==='club' && id!==data.team.clubId){
@@ -9324,7 +9356,11 @@ document.addEventListener('change', e => {
   if (k === 'crew-team-pick' && isCoach()) {
     const t=M.activeTeams(ws).find(t=>t.id===e.target.value);
     if(!t)return;
-    switchTeam(t.id); state.crewClubId=t.team.clubId||''; render();
+    // This is a team selector, not a banner-setting control. Persist its
+    // exact team scope so the directory, readiness and Home agree.
+    if(switchTeam(t.id,{selectHomeTeam:true})){
+      state.crewClubId=t.team.clubId||'';render();
+    }
   }
   if (k === 'team-style') previewTeamStyle(e.target.closest('form'));
   if (k === 'club-branding-pick' && isCoach()) {
@@ -10367,7 +10403,7 @@ function startTrial() {
       state.personaRecords=upgradePersonaRecords(readJson('tm-persona-actions-v2')||readJson('tm-persona-actions-v1')||{});
       // Never delete the PR144 v1 record. Its content remains readable if needed.
     }
-    if(DEV_SANDBOX)syncNativePersonaTeam();
+    if(DEV_SANDBOX){syncNativePersonaTeam();restoreOwnerHomeTeam();}
     render();
   });
 }
