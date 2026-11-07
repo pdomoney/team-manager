@@ -55,11 +55,11 @@ with sync_playwright() as p:
              and 'Titans Under 16' in pg.locator('#team-title .t-name').inner_text()
              and W("JSON.parse(localStorage.getItem('tm-home-scope')).id")=='testleague',
              f'[{width}] selecting a Titans team changes real active team, sport and banner')
-        for page in ('squad','training','matches','reports'):
-            pg.evaluate(act,['tab',{'tab':page}])
+        for section in ('squad','training','matches','reports'):
+            pg.evaluate(act,['tab',{'tab':section}])
             c.ok(W("D.id")=='testleague'
                  and 'Titans Under 16' in pg.locator('#team-title .t-name').inner_text(),
-                 f'[{width}] {page} reads selected team rather than an independent banner filter')
+                 f'[{width}] {section} reads selected team rather than an independent banner filter')
         pg.evaluate(act,['tab',{'tab':'squad'}])
         c.ok('Noah Parker' in pg.locator('#view').inner_text()
              and 'Ava Kelleher' not in pg.locator('#view').inner_text(),
