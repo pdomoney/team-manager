@@ -16,11 +16,19 @@ export const DATA_FILES = ['team.enc.json', 'coach.enc.json'];
 export const TEAM_FILE = /^team(?:-[a-z0-9]{3,32})?\.enc\.json$/;
 export const roleOf = name => name === 'coach.enc.json' ? 'coach' : TEAM_FILE.test(name) ? 'team' : null;
 
+// A publish-time shape check, not cryptographic verification (no decryption keys here).
+// seal() uses a 16-byte salt, a 12-byte AES-GCM IV and ciphertext with a 16-byte tag.
+const base64Size = value => typeof value === 'string' &&
+  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)
+  ? Buffer.from(value, 'base64').length : -1;
+
 export function isEncryptedFile(text, role = null) {
   let j;
   try { j = JSON.parse(text); } catch (e) { return false; }
   return !!j && j.format === 'team-manager' && typeof j.data === 'string' && typeof j.iv === 'string'
-    && typeof j.salt === 'string' && (j.role === 'team' || j.role === 'coach') && (!role || j.role === role) && Object.keys(j).every(k =>
+    && typeof j.salt === 'string' && (j.role === 'team' || j.role === 'coach') && (!role || j.role === role)
+    && base64Size(j.salt) === 16 && base64Size(j.iv) === 12 && base64Size(j.data) >= 16
+    && Object.keys(j).every(k =>
       ['format', 'version', 'role', 'kdf', 'salt', 'iv', 'data'].includes(k));
 }
 
