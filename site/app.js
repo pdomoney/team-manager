@@ -1695,7 +1695,7 @@ function startSquad() {
       <h3>Start with your squad</h3>
       <p>Add your players first. Roll call, lineups and messages all build on the squad list.</p>
       <div class="btn-row"><button class="btn primary" data-act="add-player">${icon('plus')}Add a player</button><button class="btn" data-act="bulk-add">Paste a list</button></div>
-      <p class="hint" style="margin-top:14px">Just exploring? <button class="link-btn inline" data-act="sample">Load a sample squad</button>, or <button class="link-btn inline" data-act="test-library">load the test library</button>: five teams in four real clubs, volunteers and a gala day today, the same on every device. Clear it in Settings before you invite players.</p>
+      <p class="hint" style="margin-top:14px">Just exploring? <button class="link-btn inline" data-act="sample">Load a sample squad</button>, or <button class="link-btn inline" data-act="test-library">load the test library</button>: eight fictional teams in four real clubs, including four Titans squads with demo history, volunteers and a gala day today, the same on every device. Clear it in Settings before you invite players.</p>
     </section>`;
 }
 // An active competition on Home: where it's up to, our results so far, today's matches (a tournament
@@ -7067,7 +7067,7 @@ function testLibrarySection() {
   const lib = ws.testLibrary, can = canLoadTestLibrary();
   return `<h3 class="form-sec" style="margin-top:0">Test data</h3>
     <div class="data-check"><span class="sub">Data check</span><b>${esc(dataCheck(ws))}</b><span class="sub">Two devices showing the same code hold the same data.</span></div>
-    <p class="muted small" style="margin:12px 0">The test library uses fictional people and fixtures. It includes Oztag, League Tag and Rugby League teams, completed/current/planned seasons, several leagues and tournaments, past results and upcoming games, a gala day today, and match-day volunteer accreditation scenarios. All competition details and participants are illustrative, not an official draw.</p>
+    <p class="muted small" style="margin:12px 0">The test library uses fictional people and fixtures. It includes four Taren Point Titans demo squads, example 2024–2026 scores, coaches, trainers, volunteers, historical seasons, upcoming games, several leagues and tournaments, a gala day today and match-day accreditation scenarios. No result or roster is an official club record. All competition details and participants are illustrative, not an official draw.</p>
     ${lib ? `<p class="note">This copy is the test library from ${esc(fmtLong(lib.day))} (version ${esc(lib.version)}).</p>` : ''}
     ${can ? `<button class="btn primary block" data-act="test-library">${lib ? 'Load a fresh test library' : 'Load the test library'}</button>`
       : '<p class="note">This copy has real players, so the test library can’t replace it.</p>'}
@@ -7452,6 +7452,90 @@ function extendTestLibrary(day) {
     session(weekday(1, 4), 'Attack structure', 'Gwawley Park')];
   M.addTeam(ws, league);
 
+  // Taren Point Titans DEMO HISTORY: every person, role, fixture and result below is
+  // invented. Real club identity/ground only; no real roster, accreditation or
+  // official result is asserted. This stays in the replaceable test library.
+  const demoStaff = (coach, assistant, manager, trainer) => [
+    { role: 'Head coach', name: coach, phone: '', email: '' },
+    { role: 'Assistant coach', name: assistant, phone: '', email: '' },
+    { role: 'Team manager', name: manager, phone: '', email: '' },
+    { role: 'Trainer', name: trainer, phone: '', email: '' }
+  ];
+  titans.team.staff = demoStaff('Alex Sample', 'Billie Sample', 'Morgan Example', 'Jules Example');
+  league.team.staff = demoStaff('Chris Example', 'Taylor Sample', 'Riley Example', 'Sam Example');
+  titans.players.push(...['Sienna Mercer', 'Paige Lumley', 'Ayla Sheridan', 'Zoe Marquez',
+    'Holly Price', 'Aria Davidson', 'Nora Maxwell', 'Piper Collins'].map((n,i) =>
+      P(n, 'F', String(i + 11), [M.SPORT_POSITIONS['League tag'][i % 9]])));
+  league.players.push(...['Noah Parker', 'Oliver Grant', 'Toby Leonard', 'Henry Navarro',
+    'Maxim Ward', 'Leo Gibson'].map((n,i) =>
+      P(n, 'M', String(i + 14), [M.SPORT_POSITIONS['Rugby league'][i % 9]])));
+  titans.players.forEach((p,i) => { if (!p.positions.length) p.positions = [M.SPORT_POSITIONS['League tag'][i % 9]]; });
+  league.players.forEach((p,i) => { if (!p.positions.length) p.positions = [M.SPORT_POSITIONS['Rugby league'][i % 9]]; });
+  // Existing test teams had season snapshots before this extra demo roster was
+  // added. Explicitly include every current player in the active season so the
+  // Squad screen, jersey records and season switcher show the same population.
+  for (const t of [titans, league]) {
+    const active = M.activeSeason(t);
+    if (!active) continue;
+    active.squad = t.players.map(p => ({
+      playerId: p.id, number: p.number, positions: p.positions.slice(),
+      status: p.status || 'available', reg: ''
+    }));
+    active.staff = t.team.staff.map(person => ({ ...person }));
+  }
+
+  const titansGirls = team('testtitansgirls12', 'Titans Under 12 Girls League Tag', 'tarenpointtitans',
+    { sport: 'League tag', category: 'girls', division: 'Under 12 Girls', ageGroup: 'U12', trainingVenue: 'Gwawley Park' });
+  titansGirls.players = [
+    'Ava Kendall', 'Mia Spencer', 'Sophie Greene', 'Poppy Ibrahim', 'Lilly Marsh', 'Isla Morton',
+    'Chloe West', 'Emily Webb', 'Ruby Chan', 'Zara Wilson', 'Ivy Hart', 'Ella Price',
+    'Jasmine Reid', 'Lucy Cole', 'Molly Collins', 'Sadie Roberts'
+  ].map((n,i) => P(n, 'F', String(i + 1), [M.SPORT_POSITIONS['League tag'][i % 9]]));
+  titansGirls.team.staff = demoStaff('Dana Sample', 'Jamie Example', 'Robin Example', 'Kerry Sample');
+  titansGirls.sessions = [session(M.addDays(day,-9), 'Support play and passing', 'Gwawley Park'),
+    session(weekday(0,2), 'Defensive spacing', 'Gwawley Park'),
+    session(weekday(1,2), 'Tag technique', 'Gwawley Park')];
+  M.addTeam(ws, titansGirls);
+
+  const titansMinis = team('testtitansmixed10', 'Titans Under 10 Mixed Rugby League', 'tarenpointtitans',
+    { sport: 'Rugby league', category: 'mixed', division: 'Under 10 Mixed', ageGroup: 'U10', trainingVenue: 'Gwawley Park' });
+  titansMinis.players = [
+    'Harper Walsh', 'Ethan Brooks', 'Amelia Fraser', 'Liam Khan', 'Avery Stone', 'Kai Patel',
+    'Evie Bennett', 'Jack Morgan', 'Luna Scott', 'Oscar Shaw', 'Grace Rivers', 'Isaac Doyle',
+    'Alice Hurst', 'Theo King', 'Maya Fraser', 'Charlie Reed'
+  ].map((n,i) => P(n, i%2 ? 'M':'F', String(i + 1), [M.SPORT_POSITIONS['Rugby league'][i % 9]]));
+  titansMinis.team.staff = demoStaff('Pat Sample', 'Drew Example', 'Casey Sample', 'Lee Example');
+  titansMinis.sessions = [session(M.addDays(day,-8), 'Catch and pass', 'Gwawley Park'),
+    session(weekday(0,4), 'Safe contact fundamentals', 'Gwawley Park'),
+    session(weekday(1,4), 'Team shape', 'Gwawley Park')];
+  M.addTeam(ws, titansMinis);
+
+  const demoTitans = [titans, league, titansGirls, titansMinis];
+  demoTitans.forEach((t,i) => {
+    t.team.tasksContact = { name: t.team.staff[2].name + ' (demo team manager)', phone: '' };
+    t.helpers = [
+      { id: uid(), name: ['Ari Volunteer', 'Remy Volunteer', 'Robin Volunteer', 'Jesse Volunteer'][i],
+        phone: '', relation: 'Fictional match-day helper', playerId: '', notes: 'DEMO ONLY' },
+      { id: uid(), name: ['Eden Helper', 'Sidney Helper', 'Frankie Helper', 'Ash Helper'][i],
+        phone: '', relation: 'Fictional team support', playerId: '', notes: 'DEMO ONLY' }
+    ];
+    t.sessions.forEach((tr,j) => {
+      if (tr.date < day) tr.attendance = Object.fromEntries(t.players.map((p,k) =>
+        [p.id, k%9===0?'apology':k%6===0?'late':'present']));
+      else if (j===0) tr.attendance = {};
+    });
+    const next = M.addDays(day, i+3), who = 'h:' + t.helpers[0].id;
+    t.tasks = [
+      { id: uid(), title: 'Set up demo match-day field', kind: 'setup', date: next,
+        start: '08:00', place: 'Gwawley Park', need: 2, people: [{who,status:'yes'}],
+        notes: 'Fictional demo volunteer roster, not an official duty appointment.' },
+      { id: uid(), title: 'Demo jersey and gear bag', kind: 'gear', date: next,
+        start: '08:30', place: 'Gwawley Park', need: 1,
+        people: [{who:'h:'+t.helpers[1].id,status:'asked'}], notes: 'Synthetic team duty.' }
+    ];
+    t.notices = [{ id: uid(), at: at(3,18), text: 'DEMO ONLY: next training and match-day roster are fictional.' }];
+  });
+
   // Multiple reviewable seasons per team. Earlier results belong only to the completed season;
   // future seasons have no fixtures or copied registrations, just a plan.
   const year = Number(day.slice(0, 4)), priorYear = year - 1, nextYear = year + 1;
@@ -7461,7 +7545,7 @@ function extendTestLibrary(day) {
     active.name = String(year); active.year = String(year);
     const prev = M.normSeason({ id: uid(), name: String(priorYear), year: String(priorYear),
       start: `${priorYear}-03-01`, end: `${priorYear}-09-30`, status: 'completed',
-      squad: t.players.slice(0, Math.min(8, t.players.length)).map(p => ({
+      squad: t.players.slice(0, Math.min(t.team.clubId === 'tarenpointtitans' ? 14 : 8, t.players.length)).map(p => ({
         playerId: p.id, number: p.number, positions: p.positions, status: 'available', reg: 'registered' })) });
     const future = M.normSeason({ id: uid(), name: String(nextYear), year: String(nextYear),
       start: `${nextYear}-03-01`, end: `${nextYear}-09-30`, status: 'planned', squad: [] });
@@ -7470,6 +7554,7 @@ function extendTestLibrary(day) {
   };
   const titansSeasons = seedSeasons(titans), dragonsSeasons = seedSeasons(engadine);
   const leagueSeasons = seedSeasons(league), penrithSeasons = seedSeasons(penrith);
+  const girlsSeasons = seedSeasons(titansGirls), minisSeasons = seedSeasons(titansMinis);
   const womenSeasons = seedSeasons(women);
 
   const reviewComp = (id, name, sport, format, start, end, status, venue) => {
@@ -7520,6 +7605,89 @@ function extendTestLibrary(day) {
     { round: 'Round 8', field: '2', venue: 'Gwawley Park' });
   reviewFixture(league, jrEntry, 'Gymea Gorillas', 11, '10:15', { round: 'Round 9' });
 
+  // Four Titans squads with current competition entries, scores, and next-game
+  // availability. These synthetic opponents/results are not a source draw.
+  const girlsLeague = reviewComp('test-titans-girls-current', 'Titans demo girls tag ' + year,
+    'League tag', 'league', M.addDays(day,-80), M.addDays(day,45), 'active', 'Demo district grounds');
+  const girlsEntry = reviewEntry(girlsLeague,titansGirls,girlsSeasons.active,'Under 12 Girls');
+  const minisLeague = reviewComp('test-titans-minis-current', 'Titans demo minis ' + year,
+    'Rugby league', 'league', M.addDays(day,-80), M.addDays(day,45), 'active', 'Demo district grounds');
+  const minisEntry = reviewEntry(minisLeague,titansMinis,minisSeasons.active,'Under 10 Mixed');
+  const activeTitans = [
+    [titans,tagTitans,'Fictional Harbour Taggers'],
+    [league,jrEntry,'Fictional Valley Juniors'],
+    [titansGirls,girlsEntry,'Fictional Bayside Taggers'],
+    [titansMinis,minisEntry,'Fictional Coastal Juniors']
+  ];
+  activeTitans.forEach(([t,entry,opp],i) => {
+    const played=reviewFixture(t,entry,opp,-35-i,'10:30',
+      {round:'Demo round 3',field:'1',venue:'Gwawley Park',status:'played',
+        result:{us: [16,22,18,20][i], them:[12,14,14,16][i]},
+        notes:'FICTIONAL score for product demonstration, not an official match result.'});
+    reviewFixture(t,entry,'Fictional Southside '+(i+1),-14-i,'11:00',
+      {round:'Demo round 7',status:'played',
+        result:{us:[12,26,14,18][i],them:[12,20,8,18][i]},
+        notes:'DEMO ONLY: invented historical score.'});
+    const upcoming=reviewFixture(t,entry,'Fictional Harbour '+(i+1),3+i,'10:00',
+      {round:'Demo round 12',field:String(i+1),venue:'Gwawley Park',
+        notes:'DEMO ONLY: bring team gear; this is not a club draw.'});
+    upcoming.rsvp=Object.fromEntries(t.players.map((p,k)=>[p.id,
+      {v:k%9===0?'no':k%5===0?'maybe':'yes',via:'coach'}]));
+    // Keep match-day training and volunteer tasks linked to the upcoming game.
+    t.tasks.forEach(task=>{task.date=upcoming.date;task.matchId=upcoming.id;});
+    void played;
+  });
+
+  // Two completed years of team-specific synthetic results and squads, plus
+  // an independent planned next season from seedSeasons above. Competitions
+  // and season IDs are linked, not just free-floating past score cards.
+  const titansHistory = [
+    {t:titans, seasons:titansSeasons, sport:'League tag', division:'Open Women'},
+    {t:league, seasons:leagueSeasons, sport:'Rugby league', division:'U16 Boys'},
+    {t:titansGirls, seasons:girlsSeasons, sport:'League tag', division:'U12 Girls'},
+    {t:titansMinis, seasons:minisSeasons, sport:'Rugby league', division:'U10 Mixed'}
+  ];
+  const historyComp = new Map();
+  for (const historicalYear of [year-2, priorYear]) {
+    for (const sportName of ['League tag','Rugby league']) {
+      const code = sportName==='League tag'?'tag':'league';
+      const comp = M.normComp({id:'test-titans-demo-'+code+'-'+historicalYear,
+        name:'Titans fictional '+sportName+' history '+historicalYear,
+        sport:sportName,format:'league',edition:String(historicalYear),
+        start:historicalYear+'-03-01',end:historicalYear+'-09-30',
+        status:'completed',venue:'Demo Sydney grounds',organiser:'Test library (invented)',
+        entries:[]});
+      ws.competitions.push(comp);
+      historyComp.set(code+'-'+historicalYear,comp);
+    }
+  }
+  titansHistory.forEach(({t,seasons,sport,division},i)=>{
+    const historical=[{year:priorYear,sid:seasons.prior}];
+    const oldest=year-2;
+    const oldSeason=M.normSeason({id:uid(),name:String(oldest),year:String(oldest),
+      start:oldest+'-03-01',end:oldest+'-09-30',status:'completed',
+      staff:t.team.staff.slice(0,3),
+      squad:t.players.slice(0,Math.min(11,t.players.length)).map(p=>({
+        playerId:p.id,number:p.number,positions:p.positions,status:'available',reg:'registered'}))});
+    t.seasons.unshift(oldSeason);
+    historical.unshift({year:oldest,sid:oldSeason.id});
+    historical.forEach(({year:histYear,sid})=>{
+      const code=sport==='League tag'?'tag':'league';
+      const comp=historyComp.get(code+'-'+histYear);
+      const entry=reviewEntry(comp,t,sid,division);
+      [0,1,2].forEach((round)=>{
+        const date=M.addDays(histYear+'-05-04',round*28+i*2);
+        const us= [14,20,12,18][i]+round*2+(histYear===priorYear?2:0);
+        const them=[12,16,16,10][i]+(round%2)*4;
+        const m=match('Fictional District '+(round+1),date,'10:00',
+          {venue:'Gwawley Park (demo)',field:String(i+1),round:'Demo '+histYear+' round '+(round+1),
+            status:'played',result:{us,them},seasonId:sid,
+            notes:'Fictional historical score; no official draw or player record.'});
+        t.matches.push(m);M.linkMatch(ws,t,m,entry.id);
+      });
+    });
+  });
+
   const archiveCup = reviewComp('test-archive-cup', `Community Cup ${priorYear}`,
     'League tag', 'knockout', `${priorYear}-08-01`, `${priorYear}-08-03`,
     'completed', 'Synthetic regional sports field');
@@ -7545,6 +7713,28 @@ function extendTestLibrary(day) {
   const ben = Vol('Ben Okafor', { clubIds: ['tarenpointtitans'], rolesBySport: { 'League tag': ['coach'] }, accreditationBySport: { 'League tag': { coach: past } }, wwccStatus: 'checked', wwccExpiry: soon });
   const jordan = Vol('Jordan Tait', { clubIds: ['engadinedragons'], rolesBySport: { 'League tag': ['manager'] }, active: false });
   ws.matchOfficials = [casey, frances, morgan, priya, ben, jordan];
+  // Fictional Titans coaches, managers and trainers in the shared match-day
+  // directory. Presence does not mean credentials or WWCC have been verified.
+  const titansCrew = demoTitans.flatMap((t,i)=>{
+    const sportName=t.team.sport;
+    const roles=['coach','manager','firstAid'];
+    return [0,2,3].map((j,k)=>Vol(t.team.staff[j].name,{
+      clubIds:['tarenpointtitans'],teamIds:[t.id],
+      rolesBySport:{[sportName]:[roles[k]]},
+      registrationBySport:{[sportName]:{coach:'',volunteer:'',trainer:''}},
+      accreditationBySport:{},wwccStatus:'unverified',
+      squadYears:{[t.id]:yr}
+    }));
+  });
+  ws.matchOfficials.push(...titansCrew);
+  demoTitans.forEach((t,i)=>{
+    const next=t.matches.find(m=>m.round==='Demo round 12');
+    if(next)next.crew=[
+      {personId:titansCrew[i*3].id,role:'coach',confirmed:true},
+      {personId:titansCrew[i*3+1].id,role:'manager',confirmed:true},
+      {personId:titansCrew[i*3+2].id,role:'firstAid',confirmed:false}
+    ];
+  });
   // Made-up staffing requirements for the Mixed 20s' friendlies, and staff on the Hills game (one not cleared yet).
   const sport = M.teamSport(T, M.clubOf(ws, data));
   T.crewPolicy = normCrewRules({ ...crewPolicyContext({ team: { ...T, sport } }), year: yr, source: 'Test library: made-up requirements, not official', reviewedAt: day,

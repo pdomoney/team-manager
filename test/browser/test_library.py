@@ -24,7 +24,21 @@ with sync_playwright() as p:
     ctx1, phone, _ = page(browser, url + '#home', width=390, height=844, errors=errs)
     load(phone)
     W = lambda js: phone.evaluate(f'(() => {{ const W = window.__team.ws, D = window.__team.data, M = window.__team.M, S = window.__team.S; return {js}; }})()')
-    c.ok(W('W.testLibrary.version') >= 3 and W('M.teamsOf(W).length') == 6 and W('W.clubs.map(c => c.id).sort()') == ['engadinedragons', 'penrithoztag', 'stgeorge', 'tarenpointtitans'] and W('W.matchOfficials.length') == 6, 'six teams in the four real clubs, and six volunteers')
+    c.ok(W('W.testLibrary.version') >= 3 and W('M.teamsOf(W).length') == 8 and W('W.clubs.map(c => c.id).sort()') == ['engadinedragons', 'penrithoztag', 'stgeorge', 'tarenpointtitans'] and W('W.matchOfficials.length') == 18, 'eight teams in four clubs, including four Titans squads and demo personnel')
+    # Titans historical demonstration is fictional, not actual club results.
+    titans = W("M.teamsOf(W).filter(t => t.team.clubId === 'tarenpointtitans').map(t => ({ id:t.id, players:t.players.length, activePlayers:M.activeLens(t).players.length, staff:t.team.staff.length, helpers:t.helpers.length, seasons:t.seasons.map(s=>({year:s.year,status:s.status})), matches:t.matches.map(m=>({status:m.status,seasonId:m.seasonId,entryId:m.entryId,result:m.result,round:m.round})), tasks:t.tasks.length }))")
+    c.ok(len(titans) == 4 and all(t['players'] >= 16 and t['activePlayers'] == t['players'] and t['staff'] == 4 and t['helpers'] == 2
+        and t['tasks'] >= 2 for t in titans), 'four Titans squads have players, staff, helpers and tasks')
+    c.ok(all(len(t['seasons']) == 4 and sum(s['status']=='completed' for s in t['seasons']) == 2
+        and any(s['status']=='active' for s in t['seasons']) and any(s['status']=='planned' for s in t['seasons'])
+        for t in titans), 'Titans squads have two historical, one current and one planned season')
+    c.ok(all(sum(m['status']=='played' and bool(m['entryId']) and isinstance(m['result'].get('us'),int)
+        for m in t['matches']) >= 8 for t in titans), 'Titans histories have linked played games and example scores')
+    c.ok(W("W.matchOfficials.filter(x=>x.clubIds.includes('tarenpointtitans')).length") >= 12
+        and W("M.teamsOf(W).filter(t=>t.team.clubId==='tarenpointtitans').every(t=>t.matches.some(m=>m.round==='Demo round 12' && m.crew.length===3 && Object.keys(m.rsvp).length===t.players.length))"),
+        'Titans have sample match-day officials and player availability replies')
+    c.ok(W("M.teamsOf(W).filter(t=>t.team.clubId==='tarenpointtitans').every(t=>t.matches.filter(m=>m.round.startsWith('Demo 202')).every(m=>M.findEntry(W,m.entryId)?.entry.teamId===t.id))"),
+        'historical fixtures are linked to their own team competition entries')
     c.ok(W('D.id') == W('W.id') and W('D.players.length') == 16 and W("D.players.every(p => /^tst\\d+$/.test(p.id))"), 'opens on the Mixed 20s; ids are the numbered test ones')
     today = W("(t => t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'))(new Date())")
     # A separate, pre-existing sample match may also fall on today's date.
@@ -59,7 +73,7 @@ with sync_playwright() as p:
         for t in TABS:
             phone.evaluate(act, ['tab', {'tab': t}]); phone.wait_for_timeout(40)
             if not phone.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1'): bad.append(f'{tid}/{t} overflow')
-    c.ok(not bad, f'every screen of all six teams opens and fits {bad[:5]}')
+    c.ok(not bad, f'every screen of all eight teams opens and fits {bad[:5]}')
     phone.evaluate(f"(() => {{ const b = document.createElement('button'); b.dataset.act = 'home-go'; b.dataset.team = '{W('W.id')}'; b.dataset.go = 'tab'; b.dataset.tab = 'matches'; document.body.appendChild(b); b.click(); b.remove(); }})()")
     phone.wait_for_timeout(100)
     hour = datetime.datetime.now().hour
@@ -113,7 +127,7 @@ with sync_playwright() as p:
     a.evaluate(act, ['go-live', {}]); a.fill('#sheet input[name=coach]', 'coach password one'); a.fill('#sheet input[name=coach2]', 'coach password one')
     a.fill('#sheet input[name=team]', 'team password one'); a.fill('#sheet input[name=team2]', 'team password one'); a.click('#sheet button[type=submit]')
     a.wait_for_function('window.__team.S.trial === false', timeout=20000); done(a)
-    c.ok(Wd(a, 'S.pub') == 'ok' and len(gh.files()) == 7, f'live: the test library published, one players’ file per team ({len(gh.files())} files)')
+    c.ok(Wd(a, 'S.pub') == 'ok' and len(gh.files()) == 9, f'live: the test library published, one players’ file per team ({len(gh.files())} files)')
     cb, bb = device(1280); bb.goto(url + '#home'); bb.wait_for_selector("text=I'm the coach"); bb.click("text=I'm the coach")
     bb.fill('input[name=password]', 'coach password one'); bb.click('button[type=submit]'); bb.wait_for_function('window.__team.ws', timeout=30000); bb.wait_for_timeout(200)
     c.ok(check(a) == check(bb) and Wd(bb, 'W.testLibrary.version') >= 1, 'live: the laptop signs in and holds the same data (same data check)')
@@ -124,12 +138,12 @@ with sync_playwright() as p:
         a.click('#sheet form[data-form=merge] button[type=submit]'); done(a)
     bb.evaluate(act, ['load-latest', {}]); bb.wait_for_timeout(1500)
     names = sorted(Wd(bb, 'W.matchOfficials.map(p => p.name)'))
-    c.ok('Laptop Volunteer' in names and 'Phone Volunteer' in names and len(names) == 8, f'live: volunteers added on both devices are both kept {names}')
+    c.ok('Laptop Volunteer' in names and 'Phone Volunteer' in names and len(names) == 20, f'live: volunteers added on both devices are both kept {names}')
     c.ok(check(a) == check(bb), 'live: after combining, both devices hold the same data again')
     # A fresh test library while live: passwords kept, published for the other devices.
     pw = Wd(a, '[W.teamPass, M.findTeam(W, "testwomen").teamPass]')
     a.evaluate(act, ['test-library', {}]); a.wait_for_timeout(300); a.evaluate(act, ['publish', {}]); done(a)
-    c.ok(Wd(a, '[W.teamPass, M.findTeam(W, "testwomen").teamPass]') == pw and Wd(a, 'W.matchOfficials.length') == 6 and Wd(a, 'S.pub') in ('ok', 'conflict'),
+    c.ok(Wd(a, '[W.teamPass, M.findTeam(W, "testwomen").teamPass]') == pw and Wd(a, 'W.matchOfficials.length') == 18 and Wd(a, 'S.pub') in ('ok', 'conflict'),
          'live: a fresh test library keeps the passwords and goes out to the other devices')
     ca.close(); cb.close()
     ok = c.done(errs)
