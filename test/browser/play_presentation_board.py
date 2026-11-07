@@ -24,8 +24,8 @@ with sync_playwright() as p:
                   fig.locator('.play-board-field svg.pf').count()==1 and
                   fig.locator('#anim-seek').count()==1,
                   f'[{width}] existing Coach Watch mode uses styled field and retains animation controls')
-        actual_title=fig.locator('.play-board-title').inner_text()
-        actual_kicker=fig.locator('.play-board-kicker').inner_text()
+        actual_title=fig.locator('.play-board-title').text_content()
+        actual_kicker=fig.locator('.play-board-kicker').text_content()
         checks.ok('Quickie Out' in actual_title,
                   f'[{width}] original play title shown; received {actual_title!r}')
         checks.ok('Oztag' in actual_kicker,
@@ -107,7 +107,7 @@ with sync_playwright() as p:
           return {visible:b.left>=a.left-2&&b.right<=a.right+2,
             scroll:row.scrollLeft,max:row.scrollWidth-row.clientWidth};
         }""")
-        last_title=pg.locator('#play-fig .study-cue h3').inner_text()
+        last_title=pg.locator('#play-fig .study-cue h3').text_content()
         checks.ok(geom['visible'],
                   f'[{width}] late step visible within rail; measured {geom!r}')
         checks.ok(width>=1000 or geom['scroll']>0,
