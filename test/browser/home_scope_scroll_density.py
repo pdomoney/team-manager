@@ -67,8 +67,8 @@ with sync_playwright() as p:
                       and pg.evaluate('window.__team.data.id')==id
                       and name in pg.locator('#team-title').inner_text(),
                       f'[{width}] team {id} remains visible and its banner follows the choice')
-        pg.locator('#view .scope-club[data-id=penrith]').click()
-        checks.ok(visible_selection('club')['name']=='penrith'
+        pg.locator('#view .scope-club[data-id=penrithoztag]').click()
+        checks.ok(visible_selection('club')['name']=='penrithoztag'
                   and visible_selection('club')['visible'],
                   f'[{width}] horizontal club selector follows Penrith without vertical scrolling')
         pg.locator('#view .scope-club[data-id=tarenpointtitans]').click()
