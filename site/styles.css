@@ -1492,6 +1492,24 @@ body.wide .jump{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;
   border-radius:12px;background:var(--paper);padding:12px 14px;margin:10px 0 8px}
 .crew-team-context .sub{color:var(--ink);font-size:15px}
 .crew-team-context strong{display:block;font-size:18px;color:var(--ink);line-height:1.4}
+.crew-team-context--compact{padding:8px 12px;margin:6px 0 10px}
+.crew-team-context--compact .field-l{margin:0}
+.crew-team-context--compact select{min-height:42px}
+.crew-readiness-summary{padding:11px 13px;margin:0 0 12px;border:1px solid var(--line);
+  border-radius:12px;background:var(--paper)}
+.crew-readiness-summary h3{font-size:16px;margin:0 0 4px}
+.crew-readiness-figures{font-size:14px;font-weight:600;margin:0;line-height:1.5}
+.crew-readiness-caution{font-size:12px;margin:4px 0 0}
+.crew-action-details{border-top:1px solid var(--line);margin-top:8px}
+.crew-action-details summary,.crew-workspace-overview summary{
+  cursor:pointer;min-height:42px;display:flex;align-items:center;font-weight:600;
+  color:var(--ink);gap:8px;list-style:revert;overflow-wrap:anywhere}
+.crew-action-details[open] summary,.crew-workspace-overview[open] summary{margin-bottom:10px}
+.crew-action-details .crew-req{margin:0 0 8px;padding-left:21px}
+.crew-workspace-overview{border:1px solid var(--line);border-radius:12px;
+  padding:5px 13px;margin:0 0 16px;background:var(--paper)}
+.crew-workspace-detail{padding:0 0 8px}
+.crew-workspace-detail h3{font-size:16px;margin:4px 0 8px}
 .crew-eyebrow{display:block;color:var(--muted);font-size:13px;font-weight:500;margin-bottom:2px}
 .crew-intro,.crew-section-help{color:var(--muted);font-size:14px;line-height:1.5;margin:8px 0 12px}
 .crew-page-nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 18px}

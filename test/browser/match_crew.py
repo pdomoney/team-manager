@@ -165,11 +165,16 @@ with sync_playwright() as p:
           x.M.addTeam(x.ws,t);
         }""")
         pg.evaluate(act, ['tab', {'tab':'crew'}])
-        # P06G: aggregated club comparison stays in the same encrypted coach workspace.
-        c.ok(pg.locator('#view .crew-workspace-overview').count()==1 and
-             'not an association-wide directory' in pg.locator('#view .crew-workspace-overview').inner_text(),
-             f'[{width}] local club overview does not imply association or account access')
+        # Club comparison is still available, but collapsed behind the
+        # people directory by default so it cannot bury daily staff actions.
         overview=pg.locator('#view .crew-workspace-overview')
+        c.ok(overview.count()==1 and not overview.get_attribute('open')
+             and pg.locator('#view #crew-directory-section').evaluate(
+                 '(el) => el.compareDocumentPosition(document.querySelector(".crew-workspace-overview")) & Node.DOCUMENT_POSITION_FOLLOWING') != 0,
+             f'[{width}] club comparison starts collapsed and below the volunteer directory')
+        overview.locator('summary').click()
+        c.ok('not an association-wide directory' in overview.inner_text(),
+             f'[{width}] club comparison preserves its scope/privacy explanation on request')
         c.ok('Taren Point Titans' in overview.inner_text() and 'PRIVATE MEDICAL' not in overview.inner_text()
              and 'Casey Coach' not in overview.inner_text(),
              f'[{width}] overview lists workspace clubs but suppresses individual volunteer details')
