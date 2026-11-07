@@ -94,7 +94,7 @@ with sync_playwright() as p:
         pg.reload();pg.wait_for_selector('#home-profile-button')
         unknown=pg.evaluate(scope)
         c.ok(len(unknown['teams'])==1 and unknown['root']=='team1'
-             and unknown['clubs']==['stgeorge'] and unknown['combined'] is None,
+             and unknown['clubs']==['stgeorge'] and unknown.get('combined') is None,
              f'[{width}] unmarked local workspace is never auto-seeded or overwritten')
         c.ok(pg.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),
              f'[{width}] combined catalogue does not cause page overflow')
