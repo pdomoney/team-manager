@@ -22,7 +22,8 @@ with sync_playwright() as p:
         pg.evaluate(act,['test-library',{}])
         pg.wait_for_function("window.__team.ws?.clubs?.some(c=>c.id==='tarenpointtitans')")
         W=lambda exp:pg.evaluate(f'(() => {{const W=window.__team.ws,D=window.__team.data,M=window.__team.M; return {exp};}})()')
-        before=W('JSON.stringify(W)')
+        stable="async () => (await import('./test-library.js')).stable(window.__team.ws)"
+        before=pg.evaluate(stable)
         c.ok(W("D.id")=='team1' and W("M.teamsOf(W).filter(t=>t.team.clubId==='tarenpointtitans').length")==4,
              f'[{width}] Owner test library contains DragonTag and four Titans squads')
         pg.locator('#view .scope-club[data-id=tarenpointtitans]').click()
@@ -96,7 +97,7 @@ with sync_playwright() as p:
              and W("D.id")=='testtitansmixed10'
              and pg.locator('#view .scope-club[data-kind=all][aria-pressed=true]').count()==1,
              f'[{width}] All clubs is a Home overview, not a silent switch of team records')
-        c.ok(W('JSON.stringify(W)')==before,
+        c.ok(pg.evaluate(stable)==before,
              f'[{width}] all context switches leave test workspace records unchanged')
         ctx.close()
 
