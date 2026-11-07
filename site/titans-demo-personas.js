@@ -1,8 +1,8 @@
 // Local, fictional profile appointments for the replaceable Titans test library.
 //
-// The original P12 18-team role fixtures stay independent. This bridge is
-// enabled ONLY when the optional eight-team library is loaded and all expected
-// Titans IDs/club boundaries match. It is never an account, a permission grant,
+// The P12 role/group contexts remain explicit even when both fixture collections
+// are present. Titans appointments are additional selectable contexts and require
+// exact saved team IDs, staff roles and club boundaries. It is never an account, a permission grant,
 // a verified accreditation, or a source for live club records.
 const APPOINTMENTS = Object.freeze({
   'qa-07': Object.freeze({role:'team_coach',teams:Object.freeze([
@@ -85,14 +85,19 @@ export function titansDemoSession(ws,base,contextId='',teamId=''){
   const a=appointment(ws,base.profileId);
   if(!a)return null;
   const options=assignments(ws,base.profileId);
+  if(!options.length)return null;
+  // Preserve all original P12 role/group choices alongside the Titans
+  // appointments. A Titan role is activated only by choosing that exact
+  // team context, never by adding its club to the shared catalogue.
+  const contexts=[...base.contexts,...options.map(x=>x.context)];
   const selected=options.find(x=>x.context.id===contextId)||
-    options.find(x=>x.team.id===teamId)||options[0];
-  if(!selected)return null;
+    (!contextId?options.find(x=>x.team.id===teamId):null);
+  if(!selected)return {...base,contexts};
   const team={...selected.team};
   const context=selected.context;
   const club=list(ws.clubs).find(c=>c.id===team.clubId);
   return {...base,role:a.role,contextId:context.id,context,
-    contexts:options.map(x=>x.context),team,
+    contexts,team,
     allowedTeams:options.map(x=>({...x.team})),
     clubs:club?[club]:[],club:club||null,
     label:a.role==='staff'?'Trainer':a.role==='team_assistant'?'Assistant coach':
@@ -102,7 +107,6 @@ export function titansDemoSession(ws,base,contextId='',teamId=''){
     demoTitans:true,demoPerson:selected.staff,
     accessGrant:a.role!=='staff',fictional:true};
 }
-
 export function titansDemoProfileLabel(ws,profileId){
   const values=assignments(ws,profileId);
   const a=appointment(ws,profileId);
