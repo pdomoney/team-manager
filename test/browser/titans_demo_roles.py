@@ -14,8 +14,8 @@ with sync_playwright() as p:
     for width in (390,1280):
         ctx,pg,_=page(browser,url+'?sandbox=1#home',width=width,height=860,errors=errs)
         pg.wait_for_selector('#home-profile-button')
-        c.ok(pg.evaluate('window.__team.M.teamsOf(window.__team.ws).length')==18,
-             f'[{width}] original P12 role fixture begins with 18 fictional teams')
+        c.ok(pg.evaluate('window.__team.M.teamsOf(window.__team.ws).length')==26,
+             f'[{width}] unified catalogue includes the 18 P12 and eight sporting-demo teams')
         # The original role context still works before the Titans library is loaded.
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
@@ -37,6 +37,8 @@ with sync_playwright() as p:
              and 'Jules Example' in pg.locator('#home-profile-panel').inner_text(),
              f'[{width}] profile picker identifies the linked fictional Titans staff')
         pg.click('#home-profile-panel [data-profile=qa-07]')
+        pg.locator('#view select[data-change=native-persona-context]').select_option(
+          'titans-demo:qa-07:team_coach:team:testtitans')
         c.ok(pg.evaluate('window.__team.data.id')=='testtitans'
              and 'Alex Sample' in pg.locator('#view .home-profile-identity').inner_text()
              and 'No assigned team' not in pg.locator('#view').inner_text()
@@ -61,6 +63,8 @@ with sync_playwright() as p:
         pg.evaluate(act,['tab',{'tab':'home'}])
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-08]')
+        pg.locator('#view select[data-change=native-persona-context]').select_option(
+          'titans-demo:qa-08:team_assistant:team:testtitans')
         c.ok(pg.evaluate('window.__team.data.id')=='testtitans'
              and 'Billie Sample' in pg.locator('#view .home-profile-identity').inner_text(),
              f'[{width}] assistant coach is assigned to actual demo team')
@@ -73,6 +77,8 @@ with sync_playwright() as p:
         pg.evaluate(act,['tab',{'tab':'home'}])
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
+        pg.locator('#view select[data-change=native-persona-context]').select_option(
+          'titans-demo:qa-09:team_manager:team:testtitans')
         c.ok(pg.evaluate('window.__team.data.id')=='testtitans'
              and 'Morgan Example' in pg.locator('#view .home-profile-identity').inner_text()
              and pg.locator('#tabs [data-g=tactics]').count()==0
@@ -97,6 +103,8 @@ with sync_playwright() as p:
 
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-12]')
+        pg.locator('#view select[data-change=native-persona-context]').select_option(
+          'titans-demo:qa-12:staff:team:testtitans')
         c.ok(pg.evaluate('window.__team.data.id')=='testtitans'
              and pg.evaluate("window.__team.state.preview") is True
              and 'Jules Example' in pg.locator('#view .home-profile-identity').inner_text()

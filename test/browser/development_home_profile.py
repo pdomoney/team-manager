@@ -16,8 +16,8 @@ with sync_playwright() as p:
         c.ok(pg.locator('#view .home-cols').count()==1 and
              pg.locator('#view [data-role-workspace]').count()==0,
              f'[{width}] native Home, not detached fictional persona app')
-        c.ok(pg.evaluate('window.__team.M.teamsOf(window.__team.ws).length')==18,
-             f'[{width}] fictional 18-team dataset appears in native workspace')
+        c.ok(pg.evaluate('window.__team.M.teamsOf(window.__team.ws).length')==26,
+             f'[{width}] combined 26-team catalogue appears in native workspace')
         pg.evaluate("""() => {
           localStorage.setItem('tm-auth',JSON.stringify({role:'coach',key:'old-secret'}));
           localStorage.setItem('tm-test-data','DO_NOT_CHANGE');
@@ -50,7 +50,7 @@ with sync_playwright() as p:
              pg.locator('#tabs [data-g=tactics]').count()==0 and
              pg.evaluate("window.__team.data.id")=='qacometsmixed',
              f'[{width}] Manager uses native shell with restricted navigation')
-        c.ok(pg.locator('#view nav.scope .scope-club').count()==3 and
+        c.ok(pg.locator('#view nav.scope .scope-club').count()==4 and
              pg.locator('#view .scope-team').count()==2 and
              pg.locator('#view .scope-club[data-id=qa-stars]').count()==0 and
              pg.locator('#view select[data-change=native-persona-team]').count()==0,
@@ -72,7 +72,7 @@ with sync_playwright() as p:
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-07]')
         c.ok(pg.locator('#tabs [data-g=tactics]').count()==1 and
-             pg.locator('#view nav.scope .scope-club').count()==3 and
+             pg.locator('#view nav.scope .scope-club').count()==4 and
              pg.locator('#view .scope-club[data-id=qa-comets]').count()==0 and
              pg.locator('#view select[data-change=native-persona-team]').count()==0,
              f'[{width}] Coach has native Tactics and original assigned-club menu')

@@ -9,8 +9,8 @@ with sync_playwright() as p:
         ctx,pg,_=page(browser,url+'?sandbox=1#home',width=width,height=844,errors=errors)
         pg.wait_for_selector('#home-profile-button')
         original=pg.evaluate('JSON.stringify(window.__team.ws)')
-        c.ok(pg.evaluate('window.__team.M.teamsOf(window.__team.ws).length')==18,
-             f'[{width}] original native workspace contains fictional team roster data')
+        c.ok(pg.evaluate('window.__team.M.teamsOf(window.__team.ws).length')==26,
+             f'[{width}] combined native workspace contains all fictional team roster data')
         pg.evaluate("""() => localStorage.setItem('tm-persona-actions-v2','{\"preserve\":true}')""")
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
@@ -33,7 +33,7 @@ with sync_playwright() as p:
         c.ok(pg.evaluate("localStorage.getItem('tm-persona-actions-v2')")=='{"preserve":true}',
              f'[{width}] past fictional workflow data key is not overwritten')
         pg.reload();pg.wait_for_selector('#home-profile-button')
-        c.ok(pg.evaluate("window.__team.M.teamsOf(window.__team.ws).length")==18 and
+        c.ok(pg.evaluate("window.__team.M.teamsOf(window.__team.ws).length")==26 and
              not pg.evaluate("document.body.classList.contains('persona-mode')"),
              f'[{width}] persisted native workspace opens after refresh')
         ctx.close()
