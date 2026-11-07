@@ -67,7 +67,7 @@ with sync_playwright() as p:
         }""")
         checks.ok(pg.locator('form.ped button[type=submit]').is_visible(),
                   f'[{width}] save control remains available when teaching list scrolls')
-        pg.locator('#sheet [data-act=close-sheet]').first.click()
+        pg.locator('#sheet .panel-head [data-act=close-sheet]').click()
         checks.ok(pg.evaluate("""() => JSON.stringify(window.__team.data.plays.find(x=>x.id==='quickie-out'))""")==before,
                   f'[{width}] opening and dismissing editor leaves original play unchanged')
         ctx.close()
