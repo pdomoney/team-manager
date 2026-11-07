@@ -39,7 +39,8 @@ with sync_playwright() as p:
         summary=pg.locator('#view .crew-readiness-summary').inner_text()
         rows=pg.locator('#view .crew-directory-results').inner_text()
         c.ok(pg.locator('#view .crew-readiness-summary[data-scope=team]').count()==1
-             and f'{counts} fixtures' in summary and 'Team fixture readiness' in summary
+             and f'{counts} fixtures' in summary
+             and 'Fixture readiness · Team' in pg.locator('#view .crew-readiness-summary h3').inner_text()
              and pg.locator('#view .crew-workspace-overview').count()==0,
              f'[{width}] readiness counts only the selected team, not other Titans fixtures')
         c.ok('Alex Sample' in rows and 'Morgan Example' in rows
