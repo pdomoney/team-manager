@@ -55,6 +55,20 @@ with sync_playwright() as p:
         checks.ok(dimensions['save']['bottom']<=820+2 and
                   pg.locator('.ped-save [data-act=ped-cancel]').is_visible(),
                   f'[{width}] Cancel and Save are available')
+        # Previously the sticky Save footer overlaid the zoom/snap row at
+        # phone width. Exercise real Playwright pointer clicks, not JS dispatch.
+        snap_button=pg.locator('[data-act=ped-snap]')
+        snap_button.click()
+        checks.ok(snap_button.get_attribute('aria-pressed')=='true',
+                  f'[{width}] Snap is actually clickable above the separate action bar')
+        zoom_button=pg.locator('[data-act=ped-zoom-in]')
+        zoom_button.click()
+        checks.ok(pg.locator('#ped-zoom-value').inner_text()=='175%',
+                  f'[{width}] Zoom control receives pointer clicks without footer interception')
+        snap_button.click()
+        pg.locator('[data-act=ped-zoom-out]').click()
+        checks.ok(pg.locator('#ped-zoom-value').inner_text()=='150%',
+                  f'[{width}] editor returns to original zoom after interaction')
 
         # Editing an ordinary form field was not covered by prior dirty
         # tracking. Decline dismissal and retain the unsaved draft.
