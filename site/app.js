@@ -26,6 +26,7 @@ import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassReceiver, receiverFollowOnRun } from './play-actor-links.js';
+import { editorSnapPoint } from './play-editor-snap.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
 import { playTeachingCompatibility } from './p08-play-compatibility.js';
@@ -3802,7 +3803,7 @@ function openPlayEditor(play) {
     ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
   };
   tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
-  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, undo: [], dirty: false, tab: 'teach', teachPhase: 0, teachPreview: 0 };
+  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'teach', teachPhase: 0, teachPreview: 0 };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
     <div class="two">
       <label class="field-l"><span>Name</span><input type="text" name="name" value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
@@ -3833,7 +3834,8 @@ function openPlayEditor(play) {
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
       <div class="ped-main">
         <div class="play-card ped-card play-presentation"><div class="play-board-field"><div id="ped-field"></div></div></div>
-        <div class="ped-under"><button type="button" class="btn sm" data-act="ped-undo">Undo</button><button type="button" class="btn sm" data-act="ped-whole">Show the whole field</button></div>
+        <div class="ped-under"><button type="button" class="btn sm" data-act="ped-undo">Undo</button><button type="button" class="btn sm" data-act="ped-snap" aria-pressed="false">Snap endpoints: Off</button><button type="button" class="btn sm" data-act="ped-whole">Show the whole field</button></div>
+        <p class="hint ped-edit-help">Drag on the board to edit. Scroll inside the board to reach the rest of the field. Snapping is off until you enable it.</p>
       </div>
       <div id="ped-panel" class="ped-panel"></div>
     </div>
@@ -3852,8 +3854,11 @@ const pedFrame = E => pedCur(E).view || autoFrame(playGeom(pedView(E), 'right'))
 function pedViewport(E) {
   if (E.lockView) return E.lockView;
   if (E.whole || E.placing) return { x0: 0, x1: 50, y0: 0, y1: 80 };
+  // Once editing starts, don't re-zoom on every player or line change.
+  if (E.stableViewport) return E.stableViewport;
   const f = pedFrame(E), m = 4;
-  return { x0: Math.max(0, f.x0 - m), x1: Math.min(50, f.x1 + m), y0: Math.max(0, f.y0 - m), y1: Math.min(80, f.y1 + m) };
+  E.stableViewport = { x0: Math.max(0, f.x0 - m), x1: Math.min(50, f.x1 + m), y0: Math.max(0, f.y0 - m), y1: Math.min(80, f.y1 + m) };
+  return E.stableViewport;
 }
 function frameFit(f, edge) {
   const v = { ...f }, MW = 10, MD = 8;
@@ -4090,13 +4095,14 @@ function refreshPlayEditor() {
   $('#ped-panel').innerHTML = pedPanel(E);
   const u = $('[data-act="ped-undo"]'); if (u) u.disabled = !E.undo.length;
   const w = $('[data-act="ped-whole"]'); if (w) w.textContent = E.whole ? 'Zoom to the picture' : 'Show the whole field';
+  const snap = $('[data-act="ped-snap"]'); if (snap) { snap.textContent = 'Snap endpoints: ' + (E.snapEnabled ? 'On' : 'Off'); snap.setAttribute('aria-pressed', String(!!E.snapEnabled)); }
   if (E.focusText) { E.focusText = false; const t = $('#ped-text'); if (t) { t.focus(); t.select(); } }
 }
 function pedSyncTitle() {
   const E = state.ped, t = $('#ped-ptitle'); if (E && t) t.value = pedCur(E).title || '';
 }
 function pedSetPhase(i) {
-  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length);
+  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length); E.stableViewport = null;
   E.teachPhase = Math.min(E.teachPhase || 0, E.draft.phases.length); E.placing = false; pedSelect(null); E.drawing = null;
   pedSyncTitle(); refreshPlayEditor();
 }
@@ -4165,7 +4171,13 @@ function bindPlayEditor() {
       Object.assign(drag, { kind: fe ? 'edge' : 'frame', edge: fe && fe.dataset.fe, f0: { ...pedFrame(E) } });
     } else if (PED_DRAW.includes(E.tool)) {
       drag.kind = 'draw';
-      drag.start = pedNearest(E, p, E.tool === 'shift' ? 'defence' : 'players', 2) || p;
+      // Clicking directly on an actor is intentional; otherwise use freehand
+      // unless the coach has opted into conservative endpoint snapping.
+      const hitPlayer = hit('[data-pl]'), hitDefender = hit('[data-df]'), hitMarker = hit('[data-mk]');
+      const explicit = E.tool === 'shift'
+        ? (hitMarker ? d.defence.marker : hitDefender ? d.defence.line[+hitDefender.dataset.df] : null)
+        : hitPlayer ? d.players[hitPlayer.dataset.pl] : null;
+      drag.start = explicit?.slice() || editorSnapPoint(d, p, E.tool === 'shift' ? 'defence' : 'player', E.snapEnabled);
     } else if (E.tool === 'label') {
       drag.kind = 'label';
     } else {
@@ -4216,7 +4228,7 @@ function bindPlayEditor() {
       if (k.moved && line && dist(line.pts[0], line.pts[1]) >= 1) {
         pedSnap();
         let to = line.pts[1];
-        if (E.tool === 'pass' || E.tool === 'dummy') to = pedNearest(E, to, 'players', 1.8) || to;
+        if (E.tool === 'pass' || E.tool === 'dummy') to = editorSnapPoint(d, to, 'player', E.snapEnabled);
         const authored = { t: E.tool, pts: [line.pts[0], to], ...(E.key && E.tool !== 'shift' ? { key: true } : {}), ...(E.curve ? { curve: true } : {}) };
         // Only new coach-drawn lines opt into persistent actor references.
         let moveId;
@@ -4232,8 +4244,7 @@ function bindPlayEditor() {
     } else if (k.kind === 'handle' && k.moved && E.sel && d.moves[E.sel.i]) {
       const m = d.moves[E.sel.i], last = m.pts.length - 1;
       if (k.j === 0 || k.j === last) {
-        const near = pedNearest(E, m.pts[k.j], m.t === 'shift' && k.j === 0 ? 'defence' : 'players', 1.5);
-        if (near) m.pts[k.j] = near;
+        m.pts[k.j] = editorSnapPoint(d, m.pts[k.j], m.t === 'shift' && k.j === 0 ? 'defence' : 'player', E.snapEnabled);
         rebindMovementEndpoint(d, E.sel.i, k.j);
       }
     }
@@ -8889,7 +8900,8 @@ const actions = {
     const E = state.ped; if (!E.phase || !confirm(`Delete phase ${E.phase + 1}?`)) return;
     pedSnap(); E.draft.phases.splice(E.phase - 1, 1); pedSetPhase(E.phase - 1);
   }),
-  'ped-whole': coachOnly(() => { state.ped.whole = !state.ped.whole; refreshPlayEditor(); }),
+  'ped-whole': coachOnly(() => { state.ped.whole = !state.ped.whole; state.ped.stableViewport = null; refreshPlayEditor(); }),
+  'ped-snap': coachOnly(() => { state.ped.snapEnabled = !state.ped.snapEnabled; refreshPlayEditor(); }),
   'ped-del': coachOnly(() => pedDelete()),
   'ped-opt': coachOnly(el => { const E = state.ped; E[el.dataset.f] = !E[el.dataset.f]; refreshPlayEditor(); }),
   'ped-mv-type': coachOnly(el => {
@@ -8945,7 +8957,7 @@ const actions = {
     if (f === 'width') d.view = { ...pedFrame(E), x0: 0, x1: 50 };
     if (f === 'field') d.view = { x0: 0, x1: 50, y0: 0, y1: 80 };
     if (f === 'auto') delete d.view;
-    refreshPlayEditor();
+    E.stableViewport = null; refreshPlayEditor();
   }),
   'move-mode': coachOnly(el => { state.moveMode = el.dataset.on === '1'; render(); }),
   'shape': coachOnly(el => { const sh = SHAPES[el.dataset.shape]; curLineup().slots.forEach(s => { if (sh[s.id]) { s.x = sh[s.id][0]; s.y = sh[s.id][1]; } }); save(); render(); }),
