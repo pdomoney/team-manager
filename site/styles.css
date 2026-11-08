@@ -2779,3 +2779,27 @@ body.persona-mode .top{background:var(--turf)}
     min-width:0;
   }
 }
+
+
+/* B3 corrective: pin actions in their own grid row, never over the diagram.
+   The main editor area scrolls independently. Sticky inside a scrolling form
+   previously intercepted genuine Snap/Zoom clicks at narrow widths. */
+#sheet .play-editor-workspace .panel-body{
+  overflow:hidden;
+}
+#sheet .play-editor-workspace form.ped{
+  height:100%;
+  overflow:hidden;
+}
+#sheet .play-editor-workspace form.ped > #ped-diagram,
+#sheet .play-editor-workspace form.ped > #ped-teach,
+#sheet .play-editor-workspace form.ped > #ped-words{
+  overflow:auto;
+  overscroll-behavior:contain;
+  scroll-padding-block-end:24px;
+}
+#sheet .play-editor-workspace form.ped > .ped-save{
+  position:relative;
+  bottom:auto;
+  z-index:1;
+}
