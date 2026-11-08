@@ -2161,7 +2161,10 @@ body.persona-mode .top{background:var(--turf)}
 .play-presentation .pf .pl.focus{fill:#F1C775;stroke:#F1C775}
 .play-presentation .pf .pl.ghost{fill:var(--pf-turf);stroke:#B9C5CD}
 .play-presentation .pf .plt{fill:#1A2731}
-.play-presentation .pf .idle + .plt,.play-presentation .pf .ghost + .plt{fill:#D5DEE3}
+/* Keep the label paired with the actual circle fill: inactive players are light,
+   while dashed/ghost players use a dark circle. Do not dim role names. */
+.play-presentation .pf .idle + .plt{fill:#1A2731}
+.play-presentation .pf .ghost + .plt{fill:#F4F6F6}
 .play-presentation .pf.study .plg.study-target .pl{fill:#F1C775;stroke:#F1C775}
 .play-presentation .pf.study .plg.study-target .plt{fill:#1A2731}
 .play-presentation .pf.study .plg.study-soft{opacity:.56}
