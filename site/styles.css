@@ -3100,3 +3100,36 @@ body.persona-mode .top{background:var(--turf)}
   }
   #sheet .play-editor-workspace .ped-save .ped-save-hint{display:none}
 }
+
+
+/* At desktop editing widths, the tool palette becomes a narrow left rail,
+   leaving the centre and phase strip to behave like a tactical studio. */
+@container play-editor (min-width:980px){
+  #sheet .play-editor-workspace form.ped > #ped-diagram{
+    grid-template-columns:96px minmax(0,1fr) minmax(230px,275px);
+    grid-template-rows:minmax(0,1fr) auto;
+    grid-template-areas:"tools main rail" "tools phases rail";
+    gap:8px 12px;
+  }
+  #sheet .play-editor-workspace #ped-diagram.inspector-collapsed{
+    grid-template-columns:96px minmax(0,1fr);
+    grid-template-areas:"tools main" "tools phases";
+  }
+  #sheet .play-editor-workspace #ped-diagram .ped-tools{
+    display:flex;
+    flex-direction:column;
+    align-self:stretch;
+    gap:5px;
+    padding:5px;
+    min-width:0;
+    overflow-y:auto;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:10px;
+  }
+  #sheet .play-editor-workspace #ped-diagram .ped-tools button{
+    flex:0 0 auto;
+    width:100%;
+    text-align:center;
+  }
+}
