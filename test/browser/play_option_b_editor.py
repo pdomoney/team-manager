@@ -50,8 +50,12 @@ with sync_playwright() as p:
                       dimensions['board']['width']-5,
                       f'[{width}] object properties are beside the canvas')
         else:
-            checks.ok(dimensions['props']['y']>=dimensions['board']['y'],
-                      f'[{width}] narrow device properties come after canvas')
+            checks.ok(not pg.locator('#ped-properties').is_visible(),
+                      f'[{width}] narrow device prioritises the canvas and collapses properties')
+            pg.locator('[data-act=ped-inspector]').click()
+            checks.ok(pg.locator('#ped-properties').is_visible(),
+                      f'[{width}] properties remain accessible on request')
+            pg.locator('[data-act=ped-inspector]').click()
         checks.ok(dimensions['save']['bottom']<=820+2 and
                   pg.locator('.ped-save [data-act=ped-cancel]').is_visible(),
                   f'[{width}] Cancel and Save are available')
@@ -62,16 +66,19 @@ with sync_playwright() as p:
         checks.ok(snap_button.get_attribute('aria-pressed')=='true',
                   f'[{width}] Snap is actually clickable above the separate action bar')
         zoom_button=pg.locator('[data-act=ped-zoom-in]')
+        first_zoom=int(pg.locator('#ped-zoom-value').inner_text().split('%')[0].split('·')[-1].strip())
         zoom_button.click()
-        checks.ok(pg.locator('#ped-zoom-value').inner_text()=='175%',
-                  f'[{width}] Zoom control receives pointer clicks without footer interception')
+        next_zoom=int(pg.locator('#ped-zoom-value').inner_text().split('%')[0].split('·')[-1].strip())
+        checks.ok(next_zoom>first_zoom,
+                  f'[{width}] Zoom receives pointer clicks and increases from the fitted scale')
         snap_button.click()
         pg.locator('[data-act=ped-zoom-out]').click()
-        checks.ok(pg.locator('#ped-zoom-value').inner_text()=='150%',
-                  f'[{width}] editor returns to original zoom after interaction')
+        checks.ok(int(pg.locator('#ped-zoom-value').inner_text().replace('%',''))==first_zoom,
+                  f'[{width}] editor returns to initial display scale after zooming')
 
         # Editing an ordinary form field was not covered by prior dirty
         # tracking. Decline dismissal and retain the unsaved draft.
+        pg.locator('details.ped-setup summary').click()
         pg.locator('form.ped [name=name]').fill('Unsaved B3 title')
         pg.evaluate("""() => {
           window.__discardQuestion='';
@@ -98,6 +105,7 @@ with sync_playwright() as p:
     pg.locator('.play-row[data-id=quickie-in]').click()
     before=pg.evaluate("""() => structuredClone(window.__team.data.plays.find(p=>p.id==='quickie-in'))""")
     pg.locator('[data-act=play-edit]').click()
+    pg.locator('details.ped-setup summary').click()
     pg.locator('form.ped [name=name]').fill('Step In practice')
     pg.locator('.ped-save button[type=submit]').click()
     after=pg.evaluate("""() => structuredClone(window.__team.data.plays.find(p=>p.id==='quickie-in'))""")
