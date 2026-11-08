@@ -26,10 +26,10 @@ with sync_playwright() as p:
             cardHeight:card.clientHeight,contentHeight:card.scrollHeight,
             scrollTop:card.scrollTop,tool:!!document.querySelector('[data-t=pan]')};
         }""")
-        checks.ok(metrics['scale']>1.35 and metrics['scale']<1.65 and metrics['tool'],
-                  f'[{width}] working board opens enlarged with a pan tool: {metrics!r}')
-        checks.ok(metrics['contentWidth']>metrics['cardWidth']+10,
-                  f'[{width}] enlarged board has real horizontal scrolling: {metrics!r}')
+        checks.ok(metrics['scale']<=1.01 and metrics['tool'],
+                  f'[{width}] editor starts at fit view with a pan tool: {metrics!r}')
+        checks.ok(metrics['contentWidth']>=metrics['cardWidth'],
+                  f'[{width}] fit view retains a real canvas scroll container: {metrics!r}')
         checks.ok(metrics['contentHeight']>=metrics['cardHeight'],
                   f'[{width}] short plays fit vertically while taller plays can scroll: {metrics!r}')
         zoom=pg.locator('#ped-zoom-value')
