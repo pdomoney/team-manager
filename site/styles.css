@@ -2295,3 +2295,34 @@ body.persona-mode .top{background:var(--turf)}
     border-radius:16px 16px 0 0;
   }
 }
+
+
+/* E4.4: keep an oversized tactical diagram scrollable inside the editor
+   rather than pushing the coach controls and save action off-screen. */
+.panel.wide:has(form.ped) .ped-main .ped-card.play-presentation{
+  max-height:clamp(280px,58dvh,640px);
+  overflow:auto;
+  overscroll-behavior:contain;
+  touch-action:pan-y;
+  scrollbar-gutter:stable;
+}
+.panel.wide:has(form.ped) .ped-main .pf.editor{
+  touch-action:none;
+}
+.panel.wide:has(form.ped) .ped-under{
+  flex-wrap:wrap;
+  gap:8px;
+  justify-content:flex-start;
+}
+.panel.wide:has(form.ped) .ped-under .btn{
+  flex:1 1 130px;
+}
+.panel.wide:has(form.ped) .ped-under [data-act=ped-snap][aria-pressed=true]{
+  color:#17212B;
+  background:#F1C775;
+  border-color:#937944;
+}
+.panel.wide:has(form.ped) .ped-edit-help{
+  margin:8px 2px 0;
+  line-height:1.45;
+}
