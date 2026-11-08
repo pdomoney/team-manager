@@ -3808,7 +3808,7 @@ function openPlayEditor(play) {
     ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
   };
   tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
-  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1.5, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'teach', teachPhase: 0, teachPreview: 0 };
+  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1.5, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
     <div class="two">
       <label class="field-l"><span>Name</span><input type="text" name="name" value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
@@ -3816,11 +3816,11 @@ function openPlayEditor(play) {
     </div>
     <label class="field-l"><span>Play sport</span><select name="playSport">${[...M.SPORTS, ...(draft.sport && !M.SPORTS.includes(draft.sport) ? [draft.sport] : [])].map(sp => `<option value="${esc(sp)}" ${sp === (draft.sport || curSport()) ? 'selected' : ''}>${esc(sp)}</option>`).join('')}</select><small>Review this choice when adapting an old play to another sport. A diagram's eight drawn positions are not a full team formation.</small></label>
     <div class="seg ped-workspaces" role="group" aria-label="Play editor workspace">
-      <button type="button" data-act="ped-tab" data-tab="teach" aria-pressed="true">Teach the play</button>
-      <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="false">Advanced diagram</button>
+      <button type="button" data-act="ped-tab" data-tab="teach" aria-pressed="false">Teach the play</button>
+      <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="true">Advanced diagram</button>
       <button type="button" data-act="ped-tab" data-tab="words" aria-pressed="false">Play details</button>
     </div>
-    <div id="ped-teach" class="ped-teach">
+    <div id="ped-teach" class="ped-teach" hidden>
       <p class="hint">Create actions in the order players should learn them. Link each instruction to a movement and position in the diagram. Your existing drawing and written steps stay unchanged.</p>
       <div id="ped-teach-body"></div>
     </div>
@@ -3830,23 +3830,29 @@ function openPlayEditor(play) {
       <label class="field-l"><span>Steps, one per line</span><textarea name="steps" rows="6" placeholder="Use LW, LL, LR, LM, RM, RR, RL, RW so the left version swaps them automatically.">${esc(draft.steps)}</textarea></label>
       ${playRulesField(draft)}
     </div>
-    <div id="ped-diagram" class="ped-diagram" hidden>
+    <div id="ped-diagram" class="ped-diagram">
       <div class="ped-phases" id="ped-phases"></div>
-      <div class="ped-meta">
-      <label class="field-l ped-list"><span>Diagram role labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select><small>These are label names, not full team formations. A rugby league list has 13 role labels, but this diagram still draws eight positions.</small><small>Manage custom role lists in Tactics → Library after saving your play.</small></label>
-      <label class="field-l ped-ptitle"><span id="ped-ptitle-l">Phase 1</span><input type="text" id="ped-ptitle" data-input="ped-ptitle" value="${esc(draft.title || '')}" placeholder="What happens in this phase, e.g. Tag 2: hands right"></label>
-      </div>
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
       <div class="ped-main">
         <div class="play-card ped-card play-presentation"><div class="play-board-field"><div id="ped-field"></div></div></div>
         <div class="ped-under"><button type="button" class="btn sm" data-act="ped-undo">Undo</button><button type="button" class="btn sm" data-act="ped-snap" aria-pressed="false">Snap endpoints: Off</button><button type="button" class="btn sm" data-act="ped-zoom-out" aria-label="Zoom out of the editing canvas">−</button><output id="ped-zoom-value" aria-label="Editing canvas zoom">150%</output><button type="button" class="btn sm" data-act="ped-zoom-in" aria-label="Zoom into the editing canvas">+</button><button type="button" class="btn sm" data-act="ped-whole">Show the whole field</button></div>
         <p class="hint ped-edit-help">Choose Pan board to move around the canvas. Use − and + to resize players and paths. Select to drag actors or lines. Snapping controls endpoint attachment only.</p>
       </div>
+      <div class="ped-properties" aria-label="Diagram properties">
+      <div class="ped-meta">
+      <label class="field-l ped-list"><span>Diagram role labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select><small>These are label names, not full team formations. A rugby league list has 13 role labels, but this diagram still draws eight positions.</small><small>Manage custom role lists in Tactics → Library after saving your play.</small></label>
+      <label class="field-l ped-ptitle"><span id="ped-ptitle-l">Phase 1</span><input type="text" id="ped-ptitle" data-input="ped-ptitle" value="${esc(draft.title || '')}" placeholder="What happens in this phase, e.g. Tag 2: hands right"></label>
+      </div>
       <div id="ped-panel" class="ped-panel"></div>
+      </div>
     </div>
-    <div class="ped-save"><button class="btn primary block" type="submit">Save play</button></div>
+    <div class="ped-save" role="group" aria-label="Save or cancel play editing"><span class="ped-save-hint">Play editing · changes are saved only when you choose Save play</span><button class="btn" type="button" data-act="ped-cancel">Cancel</button><button class="btn primary" type="submit">Save play</button></div>
   </form>`, 'play-editor');
-  const panel = $('#sheet .panel'); if (panel) panel.classList.add('wide');
+  // Dedicated full-area coaching workspace hosted by the existing local form
+  // and focus/submit plumbing. Other sheets keep their existing modal layout.
+  const panel = $('#sheet .panel'); if (panel) panel.classList.add('wide', 'play-editor-workspace');
+  const form = $('#sheet form.ped');
+  state.ped.initialForm = form ? JSON.stringify([...new FormData(form).entries()]) : null;
   bindPlayEditor(); refreshPlayEditor();
 }
 
@@ -7457,7 +7463,12 @@ document.addEventListener('keydown', e => {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
 function requestCloseSheet() {
-  if (state.sheet === 'play-editor' && state.ped && state.ped.dirty && !confirm('Close without saving the changes to this play?')) return;
+  // Field edits (name, sport, steps) are normal HTML form values; diagram undo
+  // snapshots alone do not detect them. Warn on both before discarding.
+  const E = state.sheet === 'play-editor' && state.ped;
+  const form = E && $('#sheet form.ped');
+  const fieldsChanged = form && E.initialForm !== JSON.stringify([...new FormData(form).entries()]);
+  if (E && (E.dirty || fieldsChanged) && !confirm('Close without saving the changes to this play?')) return;
   closeSheet();
 }
 function closeSheet() {
@@ -8938,6 +8949,7 @@ const actions = {
     document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === E.tab)));
     if (E.tab === 'diagram') refreshPlayEditor();
   }),
+  'ped-cancel': coachOnly(() => requestCloseSheet()),
   'ped-undo': coachOnly(() => pedUndo()),
   'ped-phase': coachOnly(el => pedSetPhase(Number(el.dataset.i))),
   'ped-phase-add': coachOnly(() => { const E = state.ped; if (E.placing) return; E.wasWhole = E.whole; E.placing = true; pedSelect(null); refreshPlayEditor(); }),
