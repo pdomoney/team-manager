@@ -4029,7 +4029,21 @@ function refreshPedField() {
   const svg = box.querySelector('svg');
   if (svg) { svg.style.width = ((E.zoom || 1) * 100) + '%'; svg.style.maxWidth = 'none'; svg.style.maxHeight = 'none'; svg.style.height = 'auto'; }
   // Pointer edits redraw SVG frequently; never jump back to the top-left.
-  if (card) { card.scrollLeft = left; card.scrollTop = top; }
+  if (card) {
+    card.scrollLeft = left; card.scrollTop = top;
+    // On first visible edit, frame the actors instead of starting above the play.
+    if (!E.canvasPositioned && card.clientWidth > 0 && card.clientHeight > 0 && svg?.clientWidth > 0) {
+      const players = Object.values(pedCur(E).players || {});
+      if (players.length) {
+        const x = players.reduce((a, p) => a + p[0], 0) / players.length;
+        const y = players.reduce((a, p) => a + p[1], 0) / players.length;
+        const scale = svg.clientWidth / PW;
+        card.scrollLeft = (PPAD + (x - Number(svg.dataset.x0)) * Number(svg.dataset.k)) * scale - card.clientWidth / 2;
+        card.scrollTop = (Number(svg.dataset.top) + (y - Number(svg.dataset.y0)) * Number(svg.dataset.k)) * scale - card.clientHeight / 2;
+      }
+      E.canvasPositioned = true;
+    }
+  }
 }
 
 function refreshPedTeaching() {
@@ -4120,7 +4134,7 @@ function pedSyncTitle() {
   const E = state.ped, t = $('#ped-ptitle'); if (E && t) t.value = pedCur(E).title || '';
 }
 function pedSetPhase(i) {
-  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length); E.stableViewport = null;
+  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length); E.stableViewport = null; E.canvasPositioned = false;
   E.teachPhase = Math.min(E.teachPhase || 0, E.draft.phases.length); E.placing = false; pedSelect(null); E.drawing = null;
   pedSyncTitle(); refreshPlayEditor();
 }
@@ -8917,6 +8931,7 @@ const actions = {
     if (E.tab === 'teach') refreshPedTeaching();
     $('#ped-words').hidden = E.tab !== 'words'; $('#ped-diagram').hidden = E.tab !== 'diagram'; $('#ped-teach').hidden = E.tab !== 'teach';
     document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === E.tab)));
+    if (E.tab === 'diagram') refreshPlayEditor();
   }),
   'ped-undo': coachOnly(() => pedUndo()),
   'ped-phase': coachOnly(el => pedSetPhase(Number(el.dataset.i))),
