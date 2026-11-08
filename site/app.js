@@ -3809,7 +3809,7 @@ function openPlayEditor(play) {
     ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
   };
   tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
-  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1, zoomMode: 'fit', precisionStep: 0.5, inspectorOpen: window.matchMedia('(min-width: 1000px)').matches, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
+  state.ped = { draft, initialDraft: JSON.stringify(draft), phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1, zoomMode: 'fit', precisionStep: 0.5, inspectorOpen: window.matchMedia('(min-width: 1000px)').matches, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
     <div class="ped-topline">
     <div class="seg ped-workspaces" role="group" aria-label="Play editor workspace">
@@ -4251,6 +4251,9 @@ function pedUndo() {
   const E = state.ped; if (!E || !E.undo.length) return;
   const step = E.undo.pop();
   E.draft = JSON.parse(step.draft); E.selH = null; E.drawing = null; E.textSnap = false;
+  // A complete undo returns the play to its original draft; ordinary form
+  // field edits are independently compared when the coach leaves the editor.
+  E.dirty = JSON.stringify(E.draft) !== E.initialDraft;
   E.phase = Math.min(E.phase, E.draft.phases.length); pedSyncTitle();
   if (step.words) PED_WORDS.forEach(k => { const f = $(`#sheet [name=${k}]`); if (f) f.value = step.words[k]; });
   const d = pedCur(E), s = E.sel;   // keep the selection if it is still there
