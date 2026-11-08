@@ -25,6 +25,18 @@ export function actorEndpointLinks(phase, actorKey, tolerance = 0.4) {
   const actors = diagramActors(phase), actor = actors.find(a => a.key === actorKey);
   if (!actor) return [];
   return (Array.isArray(phase?.moves) ? phase.moves : []).flatMap((move, moveIndex) => {
+    // New movement objects carry explicit links. Do not fall back to proximity
+    // for those moves, even if one endpoint is deliberately unconnected.
+    if (move?.linkVersion === 1) {
+      if (!move.actorLinks || typeof move.actorLinks !== 'object') return [];
+      const pts = move.pts;
+      if (!Array.isArray(pts) || pts.length < 2) return [];
+      return [0, pts.length - 1].flatMap(pointIndex => {
+        const key = pointIndex === 0 ? 'start' : 'end';
+        return move.actorLinks[key] === actorKey && point(pts[pointIndex])
+          ? [{ moveIndex, pointIndex, actorKey }] : [];
+      });
+    }
     const pts = move?.pts;
     if (!Array.isArray(pts) || pts.length < 2) return [];
     const indices = [0, pts.length - 1];
@@ -51,4 +63,56 @@ export function followActorEndpoints(phase, links, actorKey, position) {
     updated += 1;
   }
   return updated;
+}
+
+
+// A link is attached only to a uniquely identified actor at the actual snapped
+// endpoint. Do not guess when two actors overlap or the endpoint is freehand.
+export function actorAtEndpoint(phase, position, type = 'player', tolerance = 0.4) {
+  if (!point(position) || !Number.isFinite(tolerance) || tolerance <= 0) return null;
+  const candidates = diagramActors(phase).filter(a =>
+    (type === 'player' ? a.key.startsWith('player:') :
+      type === 'defence' ? !a.key.startsWith('player:') : true) &&
+    distance(a.position, position) < tolerance);
+  return candidates.length === 1 ? candidates[0].key : null;
+}
+
+// E4.2 metadata applies to NEW coach-authored movements only. Historical lines
+// retain the legacy geometry/semantics and are never upgraded on read or save.
+export function newLinkedMovement(phase, move, moveId) {
+  if (!/^m-[a-z0-9-]{3,64}$/.test(String(moveId ?? '')) ||
+      phase?.moves?.some(m => m?.moveId === moveId) ||
+      !Array.isArray(move?.pts) || move.pts.length < 2 ||
+      !move.pts.every(point)) return null;
+  const startType = move.t === 'shift' ? 'defence' : 'player';
+  const start = actorAtEndpoint(phase, move.pts[0], startType);
+  const end = actorAtEndpoint(phase, move.pts.at(-1), 'player');
+  return {
+    ...move, moveId, linkVersion: 1,
+    actorLinks: { ...(start ? { start } : {}), ...(end && move.t !== 'shift' ? { end } : {}) }
+  };
+}
+
+// When a coach edits an endpoint, the old relationship must not silently
+// survive if they move it away from the actor. Explicit links are overwritten
+// only for the touched endpoint. Historical movements remain unmodified.
+export function rebindMovementEndpoint(phase, moveIndex, pointIndex) {
+  const move = phase?.moves?.[moveIndex], pts = move?.pts;
+  if (!move || move.linkVersion !== 1 || !Array.isArray(pts) || pts.length < 2 ||
+      ![0, pts.length - 1].includes(pointIndex) || !point(pts[pointIndex])) return false;
+  const isStart = pointIndex === 0, key = isStart ? 'start' : 'end';
+  const actor = actorAtEndpoint(phase, pts[pointIndex],
+    isStart && move.t === 'shift' ? 'defence' : 'player');
+  move.actorLinks = { ...(move.actorLinks || {}) };
+  if (actor && (isStart || move.t !== 'shift')) move.actorLinks[key] = actor;
+  else delete move.actorLinks[key];
+  return true;
+}
+
+// Whole-line translation is an explicit detachment from previously attached
+// actors. The player drag flow separately moves only endpoints with valid links.
+export function detachMovementActors(move) {
+  if (move?.linkVersion !== 1) return false;
+  move.actorLinks = {};
+  return true;
 }
