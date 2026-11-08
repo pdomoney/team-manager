@@ -2549,3 +2549,224 @@ body.persona-mode .top{background:var(--turf)}
     gap:10px;
   }
 }
+
+
+/* Option B / B3: play authoring owns a full-area workspace. This is deliberately
+   scoped to the play editor; every other Team Manager sheet remains unchanged. */
+#sheet .panel.wide.play-editor-workspace:has(form.ped){
+  position:fixed;
+  inset:0;
+  left:0;
+  right:0;
+  top:0;
+  bottom:0;
+  margin:0;
+  width:100%;
+  max-width:100%;
+  height:100dvh;
+  max-height:100dvh;
+  border-radius:0;
+  animation:none;
+  container:play-editor / inline-size;
+}
+#sheet:has(.play-editor-workspace) > .backdrop{
+  display:none;
+}
+#sheet .play-editor-workspace .panel-head{
+  flex:0 0 auto;
+  min-height:60px;
+  padding:12px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));
+  background:var(--paper);
+  border-bottom:1px solid var(--line);
+  z-index:2;
+}
+#sheet .play-editor-workspace .panel-head h2{
+  font-size:clamp(19px,2.1vw,25px);
+}
+#sheet .play-editor-workspace .panel-body{
+  display:flex;
+  flex-direction:column;
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+  padding:10px clamp(12px,1.6vw,24px) 0;
+  overscroll-behavior:contain;
+}
+#sheet .play-editor-workspace form.ped{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(220px,300px);
+  grid-template-rows:auto auto minmax(0,1fr) auto;
+  column-gap:16px;
+  row-gap:8px;
+  flex:1;
+  min-height:0;
+  width:100%;
+  max-width:none;
+}
+#sheet .play-editor-workspace form.ped > [hidden]{
+  display:none !important;
+}
+#sheet .play-editor-workspace form.ped > .two{
+  grid-column:1;
+  grid-row:1;
+  min-width:0;
+  margin:0;
+}
+#sheet .play-editor-workspace form.ped > .field-l{
+  grid-column:2;
+  grid-row:1;
+  min-width:0;
+  margin:0;
+}
+#sheet .play-editor-workspace form.ped > .field-l small{
+  display:block;
+  font-size:11px;
+  line-height:1.3;
+  margin-top:3px;
+}
+#sheet .play-editor-workspace form.ped > .ped-workspaces{
+  grid-column:1/-1;
+  grid-row:2;
+  margin:0;
+  min-width:0;
+}
+#sheet .play-editor-workspace form.ped > #ped-diagram,
+#sheet .play-editor-workspace form.ped > #ped-teach,
+#sheet .play-editor-workspace form.ped > #ped-words{
+  grid-column:1/-1;
+  grid-row:3;
+  min-width:0;
+  min-height:0;
+  max-width:none;
+}
+#sheet .play-editor-workspace .ped-diagram{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(260px,310px);
+  grid-template-rows:auto minmax(0,1fr);
+  grid-template-areas:"tools phases" "main rail";
+  column-gap:16px;
+  row-gap:8px;
+  align-items:stretch;
+}
+#sheet .play-editor-workspace .ped-diagram .ped-tools{
+  grid-area:tools;
+  grid-template-columns:repeat(9,minmax(0,1fr));
+  min-width:0;
+  margin:0;
+}
+#sheet .play-editor-workspace .ped-diagram .ped-phases{
+  grid-area:phases;
+  min-width:0;
+}
+#sheet .play-editor-workspace .ped-diagram .ped-main{
+  grid-area:main;
+  min-width:0;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+}
+#sheet .play-editor-workspace .ped-diagram .ped-meta{
+  grid-area:rail;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  overflow:visible;
+}
+#sheet .play-editor-workspace .ped-diagram .ped-panel{
+  grid-area:rail;
+  position:static;
+  align-self:end;
+  min-width:0;
+  margin-top:0;
+  max-height:min(38dvh,340px);
+  overflow-y:auto;
+}
+#sheet .play-editor-workspace .ped-diagram .ped-main .ped-card.play-presentation{
+  flex:1 1 auto;
+  min-height:clamp(320px,48dvh,620px);
+  max-height:calc(100dvh - 300px);
+  overflow:auto;
+  margin:0;
+}
+#sheet .play-editor-workspace .ped-diagram .ped-under{
+  flex:0 0 auto;
+  margin-top:8px;
+}
+#sheet .play-editor-workspace form.ped > .ped-save{
+  grid-column:1/-1;
+  grid-row:4;
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+  align-items:center;
+  flex:0 0 auto;
+  position:sticky;
+  bottom:0;
+  margin:0;
+  padding:9px 2px calc(9px + env(safe-area-inset-bottom));
+  min-height:60px;
+  width:100%;
+  background:var(--chalk);
+  border-top:1px solid var(--line);
+  z-index:3;
+}
+#sheet .play-editor-workspace .ped-save .ped-save-hint{
+  margin-right:auto;
+  color:var(--muted);
+  font-size:13px;
+}
+#sheet .play-editor-workspace .ped-save .btn{
+  flex:0 0 auto;
+  min-width:115px;
+  width:auto;
+}
+@container play-editor (max-width: 979px){
+  #sheet .play-editor-workspace form.ped{
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto auto auto minmax(0,1fr) auto;
+  }
+  #sheet .play-editor-workspace form.ped > .two{
+    grid-row:1;
+  }
+  #sheet .play-editor-workspace form.ped > .field-l{
+    grid-column:1;
+    grid-row:2;
+  }
+  #sheet .play-editor-workspace form.ped > .ped-workspaces{
+    grid-row:3;
+  }
+  #sheet .play-editor-workspace form.ped > #ped-diagram,
+  #sheet .play-editor-workspace form.ped > #ped-teach,
+  #sheet .play-editor-workspace form.ped > #ped-words{
+    grid-row:4;
+  }
+  #sheet .play-editor-workspace form.ped > .ped-save{
+    grid-row:5;
+  }
+  #sheet .play-editor-workspace .ped-diagram{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr) auto auto;
+    grid-template-areas:"tools" "main" "phases" "rail";
+  }
+  #sheet .play-editor-workspace .ped-diagram .ped-main .ped-card.play-presentation{
+    min-height:clamp(320px,50dvh,560px);
+    max-height:70dvh;
+  }
+  #sheet .play-editor-workspace .ped-diagram .ped-panel{
+    max-height:none;
+  }
+}
+@container play-editor (max-width: 490px){
+  #sheet .play-editor-workspace .ped-diagram .ped-tools{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+  #sheet .play-editor-workspace .ped-save .ped-save-hint{
+    display:none;
+  }
+  #sheet .play-editor-workspace .ped-save .btn{
+    flex:1 1 0;
+    min-width:0;
+  }
+}
