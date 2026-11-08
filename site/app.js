@@ -25,7 +25,7 @@ import { GitHub, repoFromLocation } from './github.js';
 import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
-import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors } from './play-actor-links.js';
+import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassReceiver, receiverFollowOnRun } from './play-actor-links.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
 import { playTeachingCompatibility } from './p08-play-compatibility.js';
@@ -3967,9 +3967,14 @@ function pedPanel(E) {
   const sides = side => `<label class="field-l"><span>Where the words go</span><select data-change="ped-side">${PED_SIDES.map(([v, l]) => `<option value="${v}" ${v === side ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
   if (sel && sel.k === 'mv' && d.moves[sel.i]) {
     const m = d.moves[sel.i], bend = E.selH > 0 && E.selH < m.pts.length - 1;
+    const receiverControls = m.t === 'pass' && m.linkVersion === 1 ? `<div class="ped-sub">Pass receiver</div>
+      <div class="btn-row" role="group" aria-label="Choose pass receiver">${Object.keys(d.players).map(id => `<button type="button" class="btn sm${m.actorLinks?.end === 'player:' + id ? ' on' : ''}" data-act="ped-receiver" data-player="${esc(id)}" aria-pressed="${m.actorLinks?.end === 'player:' + id}">${esc(whoOf(E.draft, id))}</button>`).join('')}</div>
+      <div class="btn-row" style="margin-top:8px"><button type="button" class="btn sm" data-act="ped-receiver-run" ${m.actorLinks?.end ? '' : 'disabled'}>Add receiver run</button></div>
+      <p class="hint">Select the player who catches the pass. Add receiver run creates an editable short run from that player; it does not set catch timing or possession.</p>` : '';
     return `<div class="ped-h3">${MOVE_KINDS[m.t] || m.t}${m.key ? ', a key move' : ''}</div>
       <div class="seg ped-types" role="group" aria-label="Line type">${PED_DRAW.map(t => `<button type="button" data-act="ped-mv-type" data-t="${t}" aria-pressed="${m.t === t}">${PED_NAMES[t]}</button>`).join('')}</div>
       <div class="btn-row">${m.t !== 'shift' ? btn('ped-mv', 'Key move (blue)', m.key, 'data-f="key"') : ''}${btn('ped-mv', 'Curved', m.curve, 'data-f="curve"')}${m.t === 'pass' || m.t === 'kick' ? btn('ped-mv', 'Option', m.opt, 'data-f="opt"') : ''}${bend ? btn('ped-mv', 'Remove this bend', false, 'data-f="unbend"') : ''}${del('Delete line')}</div>
+      ${receiverControls}
       <p class="hint">Drag the round handles to move the start, the end or a bend. Drag a small + to add a bend. Drag the line itself to move all of it.${m.t === 'pass' || m.t === 'kick' ? ' An Option pass is drawn lighter and left out when the play is animated.' : ''}</p>`;
   }
   if (sel && ['pl', 'df', 'mk'].includes(sel.k)) {
@@ -8897,6 +8902,26 @@ const actions = {
     if (f === 'unbend') { m.pts.splice(E.selH, 1); E.selH = null; }
     else { if (m[f]) delete m[f]; else m[f] = true; E[f] = !!m[f]; }
     refreshPlayEditor();
+  }),
+  'ped-receiver': coachOnly(el => {
+    const E = state.ped, d = E && pedCur(E), i = E?.sel?.k === 'mv' ? E.sel.i : -1;
+    if (!d || i < 0 || d.moves[i]?.t !== 'pass' || d.moves[i]?.linkVersion !== 1) return;
+    const player = el.dataset.player;
+    if (!d.players[player] || d.moves[i].actorLinks?.end === 'player:' + player) return;
+    pedSnap();
+    if (!assignPassReceiver(d, i, player)) { pedUndo(); toast('Receiver is ambiguous. Move the overlapping players apart first.'); return; }
+    refreshPlayEditor();
+  }),
+  'ped-receiver-run': coachOnly(() => {
+    const E = state.ped, d = E && pedCur(E), i = E?.sel?.k === 'mv' ? E.sel.i : -1;
+    if (!d || i < 0 || d.moves[i]?.t !== 'pass') return;
+    const id = d.moves[i].actorLinks?.end?.slice(7), start = d.players[id];
+    if (!start) return;
+    const end = [start[0], Math.min(80, start[1] + 4)];
+    let moveId; do { moveId = 'm-' + uid(); } while (d.moves.some(m => m.moveId === moveId));
+    const run = receiverFollowOnRun(d, i, moveId, end);
+    if (!run) { toast('Unable to add a safe receiver run from this location.'); return; }
+    pedSnap(); d.moves.push(run); pedSelect({ k: 'mv', i: d.moves.length - 1 }); refreshPlayEditor();
   }),
   'ped-pl': coachOnly(el => {
     const E = state.ped, d = pedCur(E), id = E.sel && E.sel.id, f = el.dataset.f; if (!id) return;
