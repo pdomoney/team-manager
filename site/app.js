@@ -4277,6 +4277,17 @@ function pedPick(t) {
 }
 function bindPlayEditor() {
   const box = $('#ped-field'); if (!box) return;
+  box.tabIndex = 0;
+  box.setAttribute('aria-label', 'Play drawing stage. Select a player or movement point, then use arrow keys to nudge it.');
+  box.addEventListener('keydown', e => {
+    const direction = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
+    const E = state.ped;
+    if (!direction || e.altKey || e.ctrlKey || e.metaKey || e.target !== box ||
+        !E || E.tool !== 'select' || !E.sel) return;
+    e.preventDefault();
+    const step = Number(E.precisionStep) || 0.5;
+    pedNudgeSelected(direction[0] * step, direction[1] * step);
+  });
   let drag = null, raf = 0;
   const svgEl = () => box.querySelector('svg');
   const toMetres = e => {
@@ -4323,6 +4334,7 @@ function bindPlayEditor() {
       else if (sel && sel.k === 'mv') Object.assign(drag, { kind: 'mv', orig: d.moves[sel.i].pts.map(q => q.slice()) });
       else drag.kind = 'none';
       refreshPlayEditor();
+      if (E.tool === 'select' && E.sel) box.focus({ preventScroll: true });
     }
     try { box.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
     e.preventDefault();
@@ -9039,6 +9051,20 @@ const actions = {
   }),
   'ped-cancel': coachOnly(() => requestCloseSheet()),
   'ped-undo': coachOnly(() => pedUndo()),
+  'ped-precision-handle': coachOnly(el => {
+    const E = state.ped, d = E && pedCur(E), i = E?.sel?.k === 'mv' ? E.sel.i : -1;
+    const j = Number(el.dataset.j);
+    if (!d?.moves?.[i]?.pts?.[j] || !Number.isInteger(j)) return;
+    E.selH = j; refreshPlayEditor();
+    $('#ped-field')?.focus({ preventScroll: true });
+  }),
+  'ped-precision-nudge': coachOnly(el => {
+    const E = state.ped, step = Number(E?.precisionStep) || 0.5;
+    const dx = Number(el.dataset.dx), dy = Number(el.dataset.dy);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.abs(dx) > 1 || Math.abs(dy) > 1) return;
+    pedNudgeSelected(dx * step, dy * step);
+    $('#ped-field')?.focus({ preventScroll: true });
+  }),
   'ped-phase': coachOnly(el => pedSetPhase(Number(el.dataset.i))),
   'ped-phase-add': coachOnly(() => { const E = state.ped; if (E.placing) return; E.wasWhole = E.whole; E.placing = true; pedSelect(null); refreshPlayEditor(); }),
   'ped-phase-cancel': coachOnly(() => { const E = state.ped; E.placing = false; E.whole = E.wasWhole || false; refreshPlayEditor(); }),
@@ -9748,6 +9774,11 @@ document.addEventListener('change', e => {
   if (k === 'msg-session') { state.msgSession = e.target.value; state.msgDraft = buildTemplate(state.msgTpl); render(); }
   if (k === 'post-notice') state.postNotice = e.target.checked;
   if (k === 'ped-list' && state.ped) { pedSetList(e.target.value); refreshPlayEditor(); toast(`Showing ${getSet(e.target.value).name} labels`); }
+  if (k === 'ped-precision-step' && state.ped) {
+    const next = Number(e.target.value);
+    if (![0.5, 1, 2].includes(next)) return;
+    state.ped.precisionStep = next; refreshPedPrecision(state.ped);
+  }
   if ((k === 'teach-role' || k === 'teach-move') && state.ped) {
     const E = state.ped, step = teachingSteps(E.draft, E.teachPhase)[Number(e.target.dataset.i)];
     if (!step) return;
