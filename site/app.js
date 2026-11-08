@@ -4155,6 +4155,7 @@ function refreshPedTeaching() {
 // collapsed on phones. These are display controls, never saved as play fields.
 function refreshPedPrecision(E) {
   const bar = $('#ped-precision'); if (!bar) return;
+  const priorPointScroll = bar.querySelector('.ped-precision-points')?.scrollLeft || 0;
   const sel = E.sel, d = pedCur(E);
   const valid = E.tool === 'select' && !E.placing && !!sel &&
     (sel.k === 'pl' || sel.k === 'df' || sel.k === 'mk' || sel.k === 'lb' || sel.k === 'mv');
@@ -4187,6 +4188,8 @@ function refreshPedPrecision(E) {
     <label class="ped-precision-step">Step <select aria-label="Nudge step in diagram units" data-change="ped-precision-step">
       ${[0.5, 1, 2].map(v => `<option value="${v}" ${step === v ? 'selected' : ''}>${v}</option>`).join('')}
     </select></label>`;
+  const pointRail = bar.querySelector('.ped-precision-points');
+  if (pointRail) pointRail.scrollLeft = priorPointScroll;
 }
 function pedNudgeSelected(dx, dy) {
   const E = state.ped;
