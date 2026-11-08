@@ -29,6 +29,7 @@ Coach: select current club/team and active role → Tactics → Plays → find S
 
 - B0: source and supplied screenshots reviewed; physical Safari baseline test remains pending.
 - B1: PR #176 merged to `main` at `2284ff339ba26803e2466b5fc2aa05d84d3c5945`; source delivered, actual Safari owner acceptance not inferred.
-- B2: draft PR #177 implements diagram-first viewer and compact supporting information rail, including header preservation across phases. CI and owner visual acceptance pending.
-- B3–B5: planned, not implemented or accepted.
+- B2: PR #177 merged to `main` at `b69eadbbd97dd9bd1aa1e67462e0b01df88e8264`; source delivered, owner Safari acceptance remains independent.
+- B3: dedicated full-area play editor is implemented for a draft PR. Existing HTML form, role checks, undo and save paths are retained; initial tab is diagram, Cancel prompts on all unsaved form changes, and the properties rail is separate from the large board. CI and owner usability acceptance pending.
+- B4–B5: planned, not implemented or accepted.
 - E5 animation, E6 defence logic and optional Option C tactical studio: deferred until an actually usable B2/B3 experience is owner-accepted.
