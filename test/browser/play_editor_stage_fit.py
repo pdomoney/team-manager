@@ -76,6 +76,20 @@ with sync_playwright() as p:
                   pg.locator('[data-act=ped-fit]').get_attribute('aria-pressed')=='true',
                   f'[{width}] Fit button restores whole-play workspace')
 
+        if width==1280:
+            pg.set_viewport_size({'width':1160,'height':760})
+            pg.wait_for_timeout(100)
+            resized=pg.evaluate("""() => {
+              const card=document.querySelector('.ped-card'),
+                svg=card.querySelector('svg').getBoundingClientRect();
+              return {svgHeight:svg.height,svgWidth:svg.width,
+                cardHeight:card.clientHeight,cardWidth:card.clientWidth};
+            }""")
+            checks.ok(resized['svgHeight']<=resized['cardHeight']+4 and
+                      resized['svgWidth']<=resized['cardWidth']+4 and
+                      'Fit' in pg.locator('#ped-zoom-value').inner_text(),
+                      f'[{width}] Fit recalculates on live viewport resize: {resized!r}')
+
         pg.locator('details.ped-setup summary').click()
         checks.ok(pg.locator('[name=name]').is_visible() and
                   pg.locator('[name=playSport]').is_visible(),
