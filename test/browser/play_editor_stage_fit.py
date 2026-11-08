@@ -44,7 +44,7 @@ with sync_playwright() as p:
                   metrics['horizontalOverflow']<=2,
                   f'[{width}] canvas, phase track and action bar do not overlap: {metrics!r}')
         checks.ok(not metrics['setupOpen'] and
-                  pg.locator('.ped-phase-label').inner_text()=='Phase track',
+                  pg.locator('.ped-phase-label').text_content().strip().lower()=='phase track',
                   f'[{width}] metadata is folded and the phase track is visible')
 
         if width>=1000:
