@@ -25,7 +25,7 @@ import { GitHub, repoFromLocation } from './github.js';
 import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
-import { actorEndpointLinks, followActorEndpoints } from './play-actor-links.js';
+import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors } from './play-actor-links.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
 import { playTeachingCompatibility } from './p08-play-compatibility.js';
@@ -4196,7 +4196,7 @@ function bindPlayEditor() {
       case 'df': d.defence.line[E.sel.i] = shift(drag.orig); follow(d.defence.line[E.sel.i]); break;
       case 'mk': d.defence.marker = shift(drag.orig); follow(d.defence.marker); break;
       case 'lb': d.labels[E.sel.i].at = shift(drag.orig); break;
-      case 'mv': d.moves[E.sel.i].pts = drag.orig.map(shift); break;
+      case 'mv': d.moves[E.sel.i].pts = drag.orig.map(shift); detachMovementActors(d.moves[E.sel.i]); break;
       default: return;
     }
     later();
@@ -4212,7 +4212,11 @@ function bindPlayEditor() {
         pedSnap();
         let to = line.pts[1];
         if (E.tool === 'pass' || E.tool === 'dummy') to = pedNearest(E, to, 'players', 1.8) || to;
-        d.moves.push({ t: E.tool, pts: [line.pts[0], to], ...(E.key && E.tool !== 'shift' ? { key: true } : {}), ...(E.curve ? { curve: true } : {}) });
+        const authored = { t: E.tool, pts: [line.pts[0], to], ...(E.key && E.tool !== 'shift' ? { key: true } : {}), ...(E.curve ? { curve: true } : {}) };
+        // Only new coach-drawn lines opt into persistent actor references.
+        let moveId;
+        do { moveId = 'm-' + uid(); } while (d.moves.some(m => m.moveId === moveId));
+        d.moves.push(newLinkedMovement(d, authored, moveId) || authored);
         pedSelect({ k: 'mv', i: d.moves.length - 1 });
       } else pedSelect(pedPick(k.tap));   // a tap picks what it landed on
     } else if (k.kind === 'label' && !k.moved) {
@@ -4222,7 +4226,11 @@ function bindPlayEditor() {
       E.focusText = true;
     } else if (k.kind === 'handle' && k.moved && E.sel && d.moves[E.sel.i]) {
       const m = d.moves[E.sel.i], last = m.pts.length - 1;
-      if (k.j === 0 || k.j === last) { const near = pedNearest(E, m.pts[k.j], m.t === 'shift' && k.j === 0 ? 'defence' : 'players', 1.5); if (near) m.pts[k.j] = near; }
+      if (k.j === 0 || k.j === last) {
+        const near = pedNearest(E, m.pts[k.j], m.t === 'shift' && k.j === 0 ? 'defence' : 'players', 1.5);
+        if (near) m.pts[k.j] = near;
+        rebindMovementEndpoint(d, E.sel.i, k.j);
+      }
     }
     E.lockView = null;
     refreshPlayEditor();
