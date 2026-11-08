@@ -15,7 +15,7 @@ Coach: select current club/team and active role → Tactics → Plays → find S
 | Stage | Scope and positive acceptance | Negative / preservation check | Approval gate |
 | --- | --- | --- | --- |
 | B0: baseline and UX reference | Record current and owner-supplied 100%/zoom-out screens; run representative plays in Cards/List and coach edit | Old data intact, 390/853/1280 widths; permissions unchanged | Source + synthetic journeys; owner visual baseline |
-| **B1: compact library** | **First PR:** compact Cards mode with much smaller diagram preview, readable title/brief, category and sport context; List remains available | IDs, playback, filtering, selected role/team and data unchanged; no horizontal overflow | Chromium layout checks and Safari owner review |
+| **B1: compact library** | Delivered in merged PR #176: compact Cards mode with much smaller diagram preview, readable title/brief, category and sport context; List remains available | IDs, playback, filtering, selected role/team and data unchanged; no horizontal overflow | Chromium layout checks and Safari owner review |
 | B2: diagram-first viewing | On play detail, diagram is primary and text appears in a compact adjacent area on desktop; mobile uses diagram-first stack; learn/watch remain available | Both attack directions, notes, study cues and seek/animation remain functional, no data rewrite | Owner acceptance of actual desktop and mobile view |
 | B3: dedicated editor workspace | Replace only the general-purpose **play editing modal** with a dedicated full-area coach page/surface: large adjustable canvas, properties drawer, persistent save/cancel/unsaved warning; maintain existing tools initially | Player read-only, role/group restrictions, no unintended navigation/login, existing draft and save pathways | Owner accepts actual pointer/keyboard Safari edit |
 | B4: authoring usability | Fit play/field, zoom/pan with retained position, precise select/drag handles, explicit endpoint snap mode with visible feedback and keyboard/numeric position aids | No actor/path stealing, no unwanted snap, no viewport jump, robust undo/reload | Real Step In/Step Out and synthetic custom play edit tests |
@@ -28,6 +28,7 @@ Coach: select current club/team and active role → Tactics → Plays → find S
 ## Programme status
 
 - B0: source and supplied screenshots reviewed; physical Safari baseline test remains pending.
-- B1: implementation PR open, CI/owner acceptance pending.
-- B2–B5: planned, not implemented or accepted.
+- B1: PR #176 merged to `main` at `2284ff339ba26803e2466b5fc2aa05d84d3c5945`; source delivered, actual Safari owner acceptance not inferred.
+- B2: draft PR #177 implements diagram-first viewer and compact supporting information rail, including header preservation across phases. CI and owner visual acceptance pending.
+- B3–B5: planned, not implemented or accepted.
 - E5 animation, E6 defence logic and optional Option C tactical studio: deferred until an actually usable B2/B3 experience is owner-accepted.
