@@ -27,6 +27,7 @@ import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassReceiver, receiverFollowOnRun } from './play-actor-links.js';
 import { editorSnapPoint } from './play-editor-snap.js';
+import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
 import { playTeachingCompatibility } from './p08-play-compatibility.js';
@@ -3808,7 +3809,7 @@ function openPlayEditor(play) {
     ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
   };
   tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
-  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1, zoomMode: 'fit', inspectorOpen: window.matchMedia('(min-width: 1000px)').matches, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
+  state.ped = { draft, initialDraft: JSON.stringify(draft), phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1, zoomMode: 'fit', precisionStep: 0.5, inspectorOpen: window.matchMedia('(min-width: 1000px)').matches, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
     <div class="ped-topline">
     <div class="seg ped-workspaces" role="group" aria-label="Play editor workspace">
@@ -3851,6 +3852,7 @@ function openPlayEditor(play) {
           <button type="button" class="btn sm" data-act="ped-whole">Show whole field</button>
           <button type="button" class="btn sm" data-act="ped-inspector" aria-expanded="true" aria-controls="ped-properties">Properties</button>
         </div>
+        <div id="ped-precision" class="ped-precision" aria-live="polite" hidden></div>
         <div class="play-card ped-card play-presentation"><div class="play-board-field"><div id="ped-field"></div></div></div>
       </div>
       <div class="ped-properties" id="ped-properties" aria-label="Diagram properties">
@@ -4147,6 +4149,50 @@ function refreshPedTeaching() {
       </section>
     </div>`;
 }
+// B4.1 precision positioning is available even with the object inspector
+// collapsed on phones. These are display controls, never saved as play fields.
+function refreshPedPrecision(E) {
+  const bar = $('#ped-precision'); if (!bar) return;
+  const sel = E.sel, d = pedCur(E);
+  const valid = E.tool === 'select' && !E.placing && !!sel &&
+    (sel.k === 'pl' || sel.k === 'df' || sel.k === 'mk' || sel.k === 'lb' || sel.k === 'mv');
+  bar.hidden = !valid;
+  if (!valid) { bar.innerHTML = ''; return; }
+  const h = E.selH, isLine = sel.k === 'mv', line = isLine && d.moves[sel.i];
+  const label = sel.k === 'pl' ? whoOf(E.draft, sel.id) || sel.id :
+    sel.k === 'df' ? 'Defender ' + (sel.i + 1) : sel.k === 'mk' ? 'Marker' :
+    sel.k === 'lb' ? 'Label ' + (sel.i + 1) : line ? (MOVE_KINDS[line.t] || line.t) : 'Movement';
+  if (isLine && !line) { bar.hidden = true; return; }
+  const handleOptions = isLine ? `<span class="ped-precision-points" role="group" aria-label="Choose movement point">
+    <button type="button" class="btn sm" data-act="ped-precision-handle" data-j="0" aria-pressed="${h === 0}">Start</button>
+    <button type="button" class="btn sm" data-act="ped-precision-handle" data-j="${line.pts.length - 1}" aria-pressed="${h === line.pts.length - 1}">End</button>
+    </span>` : '';
+  const selected = !isLine || (Number.isInteger(h) && h >= 0 && h < line.pts.length);
+  const step = Number(E.precisionStep) || 0.5;
+  const buttons = [['up', '↑', 0, -1], ['left', '←', -1, 0], ['right', '→', 1, 0], ['down', '↓', 0, 1]]
+    .map(([name, glyph, dx, dy]) => `<button class="btn sm" type="button" data-act="ped-precision-nudge" data-dx="${dx}" data-dy="${dy}" aria-label="Nudge ${esc(label)} ${name} ${step} diagram units" ${!selected ? 'disabled' : ''}>${glyph}</button>`).join('');
+  bar.innerHTML = `<strong class="ped-precision-title">${esc(label)}${isLine && selected ? ' · point ' + (h + 1) : ''}</strong>
+    ${handleOptions}
+    ${isLine && !selected ? '<span class="ped-precision-help">Choose Start or End to position its handle</span>' : ''}
+    <div class="ped-precision-controls" role="group" aria-label="Precision movement">${buttons}</div>
+    <label class="ped-precision-step">Step <select aria-label="Nudge step in diagram units" data-change="ped-precision-step">
+      ${[0.5, 1, 2].map(v => `<option value="${v}" ${step === v ? 'selected' : ''}>${v}</option>`).join('')}
+    </select></label>`;
+}
+function pedNudgeSelected(dx, dy) {
+  const E = state.ped;
+  if (!E || E.tool !== 'select' || E.placing) return false;
+  const phase = pedCur(E);
+  if (!previewSelectionNudge(phase, E.sel, E.selH, dx, dy)) return false;
+  pedSnap();
+  if (!applySelectionNudge(phase, E.sel, E.selH, dx, dy)) {
+    pedUndo(); // defensive: no phantom undo if selection changed unexpectedly
+    return false;
+  }
+  refreshPlayEditor();
+  return true;
+}
+
 function refreshPlayEditor() {
   const E = state.ped; if (!E || !$('#ped-field')) return;
   const n = phaseCount(E.draft);
@@ -4158,10 +4204,13 @@ function refreshPlayEditor() {
   $('#ped-phases').innerHTML = `<span class="ped-phase-label">Phase track</span><div class="seg phase-bar" role="group" aria-label="Phase">${Array.from({ length: n }, (_, j) => `<button type="button" data-act="ped-phase" data-i="${j}" aria-pressed="${j === E.phase && !E.placing}">Phase ${j + 1}</button>`).join('')}<button type="button" data-act="ped-phase-add" aria-pressed="${!!E.placing}">+ Phase</button></div>
     ${E.phase ? `<button type="button" class="link-btn ped-phase-del" data-act="ped-phase-del">Delete phase ${E.phase + 1}</button>` : ''}`;
   $('#ped-ptitle-l').textContent = n > 1 ? `Phase ${E.phase + 1}` : 'Phase 1 (add more phases for the next rucks)';
-  $('#ped-tools').innerHTML = PED_TOOLS.map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${E.tool === k}">${l}</button>`).join('');
+  const tools = $('#ped-tools'), toolScroll = tools?.scrollLeft || 0;
+  tools.innerHTML = PED_TOOLS.map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${E.tool === k}">${l}</button>`).join('');
+  tools.scrollLeft = toolScroll;
   refreshPedField();
   if (E.tab === 'teach') refreshPedTeaching();
   $('#ped-panel').innerHTML = pedPanel(E);
+  refreshPedPrecision(E);
   const u = $('[data-act="ped-undo"]'); if (u) u.disabled = !E.undo.length;
   const w = $('[data-act="ped-whole"]'); if (w) w.textContent = E.whole ? 'Zoom to the picture' : 'Show the whole field';
   const snap = $('[data-act="ped-snap"]'); if (snap) { snap.textContent = 'Snap: ' + (E.snapEnabled ? 'On' : 'Off'); snap.setAttribute('aria-pressed', String(!!E.snapEnabled)); }
@@ -4202,6 +4251,9 @@ function pedUndo() {
   const E = state.ped; if (!E || !E.undo.length) return;
   const step = E.undo.pop();
   E.draft = JSON.parse(step.draft); E.selH = null; E.drawing = null; E.textSnap = false;
+  // A complete undo returns the play to its original draft; ordinary form
+  // field edits are independently compared when the coach leaves the editor.
+  E.dirty = JSON.stringify(E.draft) !== E.initialDraft;
   E.phase = Math.min(E.phase, E.draft.phases.length); pedSyncTitle();
   if (step.words) PED_WORDS.forEach(k => { const f = $(`#sheet [name=${k}]`); if (f) f.value = step.words[k]; });
   const d = pedCur(E), s = E.sel;   // keep the selection if it is still there
@@ -4228,6 +4280,17 @@ function pedPick(t) {
 }
 function bindPlayEditor() {
   const box = $('#ped-field'); if (!box) return;
+  box.tabIndex = 0;
+  box.setAttribute('aria-label', 'Play drawing stage. Select a player or movement point, then use arrow keys to nudge it.');
+  box.addEventListener('keydown', e => {
+    const direction = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
+    const E = state.ped;
+    if (!direction || e.altKey || e.ctrlKey || e.metaKey || e.target !== box ||
+        !E || E.tool !== 'select' || !E.sel) return;
+    e.preventDefault();
+    const step = Number(E.precisionStep) || 0.5;
+    pedNudgeSelected(direction[0] * step, direction[1] * step);
+  });
   let drag = null, raf = 0;
   const svgEl = () => box.querySelector('svg');
   const toMetres = e => {
@@ -4274,6 +4337,7 @@ function bindPlayEditor() {
       else if (sel && sel.k === 'mv') Object.assign(drag, { kind: 'mv', orig: d.moves[sel.i].pts.map(q => q.slice()) });
       else drag.kind = 'none';
       refreshPlayEditor();
+      if (E.tool === 'select' && E.sel) box.focus({ preventScroll: true });
     }
     try { box.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
     e.preventDefault();
@@ -8990,6 +9054,20 @@ const actions = {
   }),
   'ped-cancel': coachOnly(() => requestCloseSheet()),
   'ped-undo': coachOnly(() => pedUndo()),
+  'ped-precision-handle': coachOnly(el => {
+    const E = state.ped, d = E && pedCur(E), i = E?.sel?.k === 'mv' ? E.sel.i : -1;
+    const j = Number(el.dataset.j);
+    if (!d?.moves?.[i]?.pts?.[j] || !Number.isInteger(j)) return;
+    E.selH = j; refreshPlayEditor();
+    $('#ped-field')?.focus({ preventScroll: true });
+  }),
+  'ped-precision-nudge': coachOnly(el => {
+    const E = state.ped, step = Number(E?.precisionStep) || 0.5;
+    const dx = Number(el.dataset.dx), dy = Number(el.dataset.dy);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.abs(dx) > 1 || Math.abs(dy) > 1) return;
+    pedNudgeSelected(dx * step, dy * step);
+    $('#ped-field')?.focus({ preventScroll: true });
+  }),
   'ped-phase': coachOnly(el => pedSetPhase(Number(el.dataset.i))),
   'ped-phase-add': coachOnly(() => { const E = state.ped; if (E.placing) return; E.wasWhole = E.whole; E.placing = true; pedSelect(null); refreshPlayEditor(); }),
   'ped-phase-cancel': coachOnly(() => { const E = state.ped; E.placing = false; E.whole = E.wasWhole || false; refreshPlayEditor(); }),
@@ -9699,6 +9777,11 @@ document.addEventListener('change', e => {
   if (k === 'msg-session') { state.msgSession = e.target.value; state.msgDraft = buildTemplate(state.msgTpl); render(); }
   if (k === 'post-notice') state.postNotice = e.target.checked;
   if (k === 'ped-list' && state.ped) { pedSetList(e.target.value); refreshPlayEditor(); toast(`Showing ${getSet(e.target.value).name} labels`); }
+  if (k === 'ped-precision-step' && state.ped) {
+    const next = Number(e.target.value);
+    if (![0.5, 1, 2].includes(next)) return;
+    state.ped.precisionStep = next; refreshPedPrecision(state.ped);
+  }
   if ((k === 'teach-role' || k === 'teach-move') && state.ped) {
     const E = state.ped, step = teachingSteps(E.draft, E.teachPhase)[Number(e.target.dataset.i)];
     if (!step) return;
