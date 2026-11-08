@@ -3273,8 +3273,8 @@ function playSVG(play, side, opts = {}) {
   }
   // defence
   const defs = g.line.map((p, i) => ({ p, i })).filter(d => opts.editor || fr.shows(d.p));
-  defs.forEach(({ p, i }) => { s += `<g class="dfg" data-df="${i}" transform="translate(${X(p[0])} ${Y(p[1])})${opts.editor ? ` scale(${art})` : ''}">${actorHit}<circle class="df" r="${dr}"/></g>`; });
-  if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${X(g.marker[0])} ${Y(g.marker[1])})${opts.editor ? ` scale(${art})` : ''}">${actorHit}<circle class="df mk" r="${dr}"/></g>`;
+  defs.forEach(({ p, i }) => { s += `<g class="dfg" data-df="${i}" transform="translate(${X(p[0])} ${Y(p[1])})${opts.editor ? ` scale(${art})` : ''}"><circle class="df" r="${dr}"/>${actorHit}</g>`; });
+  if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${X(g.marker[0])} ${Y(g.marker[1])})${opts.editor ? ` scale(${art})` : ''}"><circle class="df mk" r="${dr}"/>${actorHit}</g>`;
   if (annotations && defs.length) {
     const text = g.notes.line ? g.notes.line.text : 'Their line, 7 m back';
     const ly = Math.min(...defs.map(d => Y(d.p[1]))) - (dr + 9) * art;
@@ -3298,7 +3298,7 @@ function playSVG(play, side, opts = {}) {
     const tag = g.tags[pid], cls = ['pl', g.focus.includes(pid) && 'focus', g.ghost.includes(pid) && 'ghost', !opts.editor && !busy(pid) && 'idle'].filter(Boolean).join(' ');
     const studyClass = opts.study && spotlightIds.length ? (spotlightIds.includes(pid) ? ' study-target' : ' study-soft') : '';
     const code = g.codes[pid] ?? pid;
-    return `<g class="plg${studyClass}" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})${opts.editor ? ` scale(${art})` : ''}">${actorHit}<circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}</g>`;
+    return `<g class="plg${studyClass}" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})${opts.editor ? ` scale(${art})` : ''}"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}${actorHit}</g>`;
   };
   shown.filter(([pid]) => g.ghost.includes(pid)).forEach(e => { s += player(e); });
   g.moves.forEach((m, i) => {
@@ -3985,8 +3985,8 @@ function pedOverlay(E, fr) {
   if (sel && sel.k === 'mv' && d.moves[sel.i]) {
     const m = d.moves[sel.i], pts = m.pts.map(p => [X(p[0]), Y(p[1])]);
     s += `<path class="ped-glow" d="${pathD(pts, m.curve)}"/>`;
-    pts.slice(1).forEach((q, j) => { const a = pts[j]; s += `<g class="ped-add" data-hadd="${j}" transform="translate(${((a[0] + q[0]) / 2).toFixed(1)} ${((a[1] + q[1]) / 2).toFixed(1)}) scale(${art})"><circle class="ped-handle-hit" r="22"/><circle r="8"/><path d="M-4 0H4M0 -4V4"/></g>`; });
-    pts.forEach((q, j) => { s += `<circle class="ped-handle-hit" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${22 * art}"/><circle class="ped-h${j === 0 ? ' start' : ''}${E.selH === j ? ' on' : ''}" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${8 * art}"/>`; });
+    pts.slice(1).forEach((q, j) => { const a = pts[j]; s += `<g class="ped-add" data-hadd="${j}" transform="translate(${((a[0] + q[0]) / 2).toFixed(1)} ${((a[1] + q[1]) / 2).toFixed(1)}) scale(${art})"><circle r="8"/><path d="M-4 0H4M0 -4V4"/><circle class="ped-handle-hit" r="22"/></g>`; });
+    pts.forEach((q, j) => { s += `<circle class="ped-h${j === 0 ? ' start' : ''}${E.selH === j ? ' on' : ''}" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${8 * art}"/><circle class="ped-handle-hit" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${22 * art}"/>`; });
   }
   const ring = (p, r) => `<circle class="ped-ring" cx="${X(p[0])}" cy="${Y(p[1])}" r="${r * art}"/>`;
   if (sel && sel.k === 'pl' && d.players[sel.id]) s += ring(d.players[sel.id], PR + 5);
