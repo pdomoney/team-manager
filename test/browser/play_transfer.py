@@ -51,6 +51,8 @@ with sync_playwright() as p:
         pg.locator('#sheet [data-act=close-sheet]').last.click()
         pg.locator('[data-act=play-edit]').click()
         pg.locator('#sheet [data-act=ped-tab][data-tab=diagram]').click()
+        if not pg.locator('.ped-list').is_visible():
+            pg.locator('#sheet [data-act=ped-inspector]').click()
         checks.ok(pg.locator('.ped-list').is_visible()
                   and 'role labels' in pg.locator('.ped-list').inner_text().lower(),
                   f'[{width}] optional diagram role labels live in advanced editor')
