@@ -25,6 +25,7 @@ import { GitHub, repoFromLocation } from './github.js';
 import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
+import { actorEndpointLinks, followActorEndpoints } from './play-actor-links.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
 import { playTeachingCompatibility } from './p08-play-compatibility.js';
@@ -4142,8 +4143,8 @@ function bindPlayEditor() {
     return [clamp(round1(+d.x0 + (q.x - PPAD) / +d.k), 0, 50), clamp(round1(+d.y0 + (q.y - +d.top) / +d.k), 0, 80)];
   };
   const later = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; refreshPedField(); }); };
-  // points of lines that start or end on a spot, so they follow the player or defender there
-  const anchored = (d, spot) => d.moves.flatMap((m, i) => m.pts.map((q, j) => (j === 0 || j === m.pts.length - 1) && dist(q, spot) < 0.4 ? [i, j] : null).filter(Boolean));
+  // A movement follows this actor only if its endpoint has one unambiguous owner.
+  // The link exists for this drag, not as an inferred saved-play relationship.
   box.addEventListener('pointerdown', e => {
     const E = state.ped, s = svgEl(); if (!E || !s || (e.button && e.button > 0)) return;
     const p = toMetres(e), t = e.target, d = pedCur(E), hit = q => t.closest && t.closest(q);
@@ -4164,9 +4165,9 @@ function bindPlayEditor() {
       drag.kind = 'label';
     } else {
       const sel = pedPick(t); pedSelect(sel);
-      if (sel && sel.k === 'pl') Object.assign(drag, { kind: 'pl', orig: d.players[sel.id].slice(), links: anchored(d, d.players[sel.id]) });
-      else if (sel && sel.k === 'df') Object.assign(drag, { kind: 'df', orig: d.defence.line[sel.i].slice(), links: anchored(d, d.defence.line[sel.i]) });
-      else if (sel && sel.k === 'mk') Object.assign(drag, { kind: 'mk', orig: d.defence.marker.slice(), links: anchored(d, d.defence.marker) });
+      if (sel && sel.k === 'pl') Object.assign(drag, { kind: 'pl', orig: d.players[sel.id].slice(), actorKey: 'player:' + sel.id, links: actorEndpointLinks(d, 'player:' + sel.id) });
+      else if (sel && sel.k === 'df') Object.assign(drag, { kind: 'df', orig: d.defence.line[sel.i].slice(), actorKey: 'defender:' + sel.i, links: actorEndpointLinks(d, 'defender:' + sel.i) });
+      else if (sel && sel.k === 'mk') Object.assign(drag, { kind: 'mk', orig: d.defence.marker.slice(), actorKey: 'marker', links: actorEndpointLinks(d, 'marker') });
       else if (sel && sel.k === 'lb') Object.assign(drag, { kind: 'lb', orig: d.labels[sel.i].at.slice() });
       else if (sel && sel.k === 'mv') Object.assign(drag, { kind: 'mv', orig: d.moves[sel.i].pts.map(q => q.slice()) });
       else drag.kind = 'none';
@@ -4185,7 +4186,7 @@ function bindPlayEditor() {
     }
     const dx = p[0] - drag.p0[0], dy = p[1] - drag.p0[1];
     const shift = q => [clamp(round1(q[0] + dx), 0, 50), clamp(round1(q[1] + dy), 0, 80)];
-    const follow = to => (drag.links || []).forEach(([i, j]) => { if (d.moves[i]) d.moves[i].pts[j] = to.slice(); });
+    const follow = to => followActorEndpoints(d, drag.links, drag.actorKey, to);
     switch (drag.kind) {
       case 'handle': d.moves[E.sel.i].pts[drag.j] = p; break;
       case 'draw': E.drawing = { pts: [drag.start, p] }; break;
