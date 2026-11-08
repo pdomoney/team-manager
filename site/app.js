@@ -9529,6 +9529,18 @@ window.matchMedia('(min-width: 900px)').addEventListener('change', () => {
   // Keep the selected fictional persona and original workspace untouched.
   if(S.role)render();
 });
+window.addEventListener('resize', () => {
+  // Browser zoom, rotation and split-window resize should recalculate Fit
+  // without rewriting a diagram or changing a deliberately manual zoom.
+  const E = state.sheet === 'play-editor' && state.ped;
+  if (!E || E.zoomMode !== 'fit') return;
+  requestAnimationFrame(() => {
+    if (state.ped !== E || state.sheet !== 'play-editor' || E.zoomMode !== 'fit') return;
+    refreshPedField();
+    const output = $('#ped-zoom-value');
+    if (output) output.textContent = 'Fit · ' + Math.round(E.zoom * 100) + '%';
+  });
+});
 document.addEventListener('keydown', e => {
   if(e.key==='Escape'&&state.desktopProfileOpen){
     e.preventDefault();state.desktopProfileOpen=false;render();$(DEV_SANDBOX?'#home-profile-button':'#desktop-profile-button')?.focus();return;
