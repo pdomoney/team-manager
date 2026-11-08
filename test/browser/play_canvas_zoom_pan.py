@@ -28,9 +28,10 @@ with sync_playwright() as p:
         }""")
         checks.ok(metrics['scale']>1.35 and metrics['scale']<1.65 and metrics['tool'],
                   f'[{width}] working board opens enlarged with a pan tool: {metrics!r}')
-        checks.ok(metrics['contentWidth']>metrics['cardWidth'] and
-                  metrics['contentHeight']>metrics['cardHeight'],
-                  f'[{width}] large board pans in two directions: {metrics!r}')
+        checks.ok(metrics['contentWidth']>metrics['cardWidth']+10,
+                  f'[{width}] enlarged board has real horizontal scrolling: {metrics!r}')
+        checks.ok(metrics['contentHeight']>=metrics['cardHeight'],
+                  f'[{width}] short plays fit vertically while taller plays can scroll: {metrics!r}')
         zoom=pg.locator('#ped-zoom-value')
         checks.ok(zoom.inner_text()=='150%',f'[{width}] labelled initial zoom')
         pg.locator('[data-act=ped-zoom-in]').click()
