@@ -2335,6 +2335,11 @@ body.persona-mode .top{background:var(--turf)}
   overflow:auto;
   overscroll-behavior:contain;
 }
+.panel.wide:has(form.ped) .ped-main .play-board-field{
+  /* The presentation board normally clips overflow; the editor must not
+     clip its enlarged SVG before the outer card can scroll it. */
+  overflow:visible;
+}
 .panel.wide:has(form.ped) .ped-main #ped-field{
   min-width:0;
   width:100%;
