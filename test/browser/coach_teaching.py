@@ -17,8 +17,11 @@ with sync_playwright() as p:
         pg.locator('.play-row[data-id="quickie-out"]').click()
         pg.locator('[data-act=play-edit]').click()
         pg.wait_for_selector('#sheet form[data-form=play]')
+        checks.ok(pg.locator('#ped-diagram').is_visible(),
+                  f'[{width}] B3 opens with the diagram available')
+        pg.locator('[data-act=ped-tab][data-tab=teach]').click()
         checks.ok(pg.locator('#ped-teach').is_visible() and pg.locator('#ped-diagram').is_hidden(),
-                  f'[{width}] coach starts in Teach, advanced tools are preserved but not distracting')
+                  f'[{width}] Teach remains available without losing advanced tools')
         checks.ok(pg.locator('[data-act=teach-seed]').is_visible(),
                   f'[{width}] old plays can deliberately seed teaching actions')
         pg.locator('[data-act=teach-seed]').click()
