@@ -3438,6 +3438,7 @@ function viewPlay(p) {
       ${esc(compatibility.notice)}
       ${compatibility.rulePackMismatch ? '<span> The team’s selected rule pack belongs to another sport; review it before using this play.</span>' : ''}
     </div>` : ''}
+    <div class="play-workspace-toolbar" aria-label="Play viewer controls">
     <div class="seg play-modes" role="group" aria-label="How to explore this play">
       <button data-act="play-mode" data-mode="learn" aria-pressed="${mode === 'learn'}">Learn step by step</button>
       <button data-act="play-mode" data-mode="watch" aria-pressed="${mode === 'watch'}">Watch animation</button>
@@ -3446,7 +3447,8 @@ function viewPlay(p) {
       <button data-act="play-side" data-side="left" aria-pressed="${side === 'left'}">Attacking left</button>
       <button data-act="play-side" data-side="right" aria-pressed="${side === 'right'}">Attacking right</button>
     </div>
-    <div class="cols play-cols ${mode === 'learn' ? 'learn-cols' : ''}"><div class="col">
+    </div>
+    <div class="cols play-cols play-workspace-view ${mode === 'learn' ? 'learn-cols' : ''}"><div class="col play-workspace-stage">
       <figure class="play-card play-presentation ${mode === 'learn' ? 'play-study' : ''}" id="play-fig">
         <figcaption class="play-board-header">
           <p class="play-board-kicker">${esc(curSport())} · ${esc(p.category || 'Play')}</p>
@@ -3455,7 +3457,7 @@ function viewPlay(p) {
         </figcaption>
         ${mode === 'learn' ? studyFigure(p, side, cards) : playFigure(p, side, state.playPhase)}
       </figure>
-    </div><div class="col">
+    </div><aside class="col play-workspace-info" aria-label="Play information and actions">
     ${mode === 'learn' ? `<section class="sec study-side">
       <h3 class="play-h">Find your position</h3>
       <p class="hint">Highlight your role to find where you stand and which lines start near you.</p>
@@ -3471,7 +3473,7 @@ function viewPlay(p) {
     ${libBar('plays', p.id, p)}
     ${coach ? `<div class="btn-row"><button class="btn" data-act="play-transfer" data-id="${esc(p.id)}">Adapt to another sport</button><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
-    </div></div>`;
+    </aside></div>`;
 }
 function playFigure(p, side, i) {
   const view = phaseView(p, i), n = phaseCount(p), title = phaseTitle(p, i, side);
@@ -3733,7 +3735,10 @@ function animSeek(pct) {
 function animShowPhase(p, i) {
   state.playPhase = i;
   const fig = $('#play-fig'); if (!fig) return null;
-  fig.innerHTML = playFigure(p, state.playSide, i);
+  // Preserve the viewer identity and its heading when animation advances a
+  // phase. Only the phase board/controls change; the side notes are untouched.
+  const header = fig.querySelector('.play-board-header')?.outerHTML || '';
+  fig.innerHTML = header + playFigure(p, state.playSide, i);
   const svg = fig.querySelector('svg');
   anim.plan = planPhase(playGeom(phaseView(p, i), state.playSide)); anim.t = 0;
   return svg;
