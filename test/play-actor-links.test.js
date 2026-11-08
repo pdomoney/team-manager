@@ -25,7 +25,7 @@ test('E4: a selected RM keeps the pass receiver and follow-on run attached', () 
   assert.deepEqual(structuredClone(d), JSON.parse(JSON.stringify(d))); // legacy format
 });
 
-test('E4: LM run remains attached to LM, not to another player's path', () => {
+test("E4: LM run remains attached to LM, not to another player\'s path", () => {
   const d = phase();
   const links = actorEndpointLinks(d, 'player:LM');
   assert.deepEqual(links.map(x => [x.moveIndex, x.pointIndex]), [[0, 0]]);
