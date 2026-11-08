@@ -2450,3 +2450,102 @@ body.persona-mode .top{background:var(--turf)}
     gap:8px;
   }
 }
+
+/* Option B / B2: give the tactical diagram visual priority on the existing
+   read-only play page. This does not change coordinates, permissions or editor. */
+.play-workspace-toolbar{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:stretch;
+  gap:8px;
+  margin:8px 0 14px;
+}
+.play-workspace-toolbar > .seg{
+  flex:1 1 260px;
+  min-width:0;
+  margin:0;
+}
+.play-workspace-view{
+  min-width:0;
+}
+.play-workspace-view > .play-workspace-stage,
+.play-workspace-view > .play-workspace-info{
+  min-width:0;
+  max-width:100%;
+}
+.play-workspace-view .play-workspace-stage .play-board-header{
+  padding-bottom:10px;
+}
+.play-workspace-view .play-workspace-stage .play-board-title{
+  font-size:clamp(21px,2.5vw,29px);
+}
+.play-workspace-view .play-workspace-stage .play-board-subtitle{
+  font-size:14px;
+  line-height:1.4;
+  margin-top:5px;
+}
+.play-workspace-view .play-workspace-stage .play-board-field{
+  min-width:0;
+}
+.play-workspace-view .play-workspace-info{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.play-workspace-view .play-workspace-info > .sec{
+  margin:0;
+}
+.play-workspace-view .play-workspace-info .play-h{
+  font-size:18px;
+  margin:0 0 7px;
+}
+.play-workspace-view .play-workspace-info .steps{
+  line-height:1.45;
+}
+.play-workspace-view .play-workspace-info .btn-row{
+  flex-wrap:wrap;
+}
+@media(min-width:1000px){
+  body.wide .cols.play-cols.play-workspace-view{
+    grid-template-columns:minmax(0,2.1fr) minmax(245px,1fr);
+    gap:0 18px;
+    align-items:start;
+  }
+  body.wide .play-workspace-view .play-workspace-stage .play-card{
+    position:static;
+    top:auto;
+  }
+  body.wide .play-workspace-view .play-workspace-info{
+    position:sticky;
+    top:calc(var(--top-h,64px) + 12px);
+    align-self:start;
+    max-height:calc(100dvh - var(--top-h,64px) - 24px);
+    overflow-y:auto;
+    overscroll-behavior:contain;
+  }
+}
+@media(max-width:999px){
+  body.wide .cols.play-cols.play-workspace-view{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  body.wide .play-workspace-view .play-workspace-stage .play-card{
+    position:static;
+  }
+}
+@media(max-width:600px){
+  .play-workspace-toolbar{
+    gap:6px;
+    margin:6px 0 10px;
+  }
+  .play-workspace-toolbar > .seg{
+    flex:1 1 100%;
+  }
+  .play-workspace-view .play-workspace-stage .play-board-header{
+    padding-bottom:8px;
+  }
+  .play-workspace-view .play-workspace-info{
+    gap:10px;
+  }
+}
