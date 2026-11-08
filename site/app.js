@@ -3808,17 +3808,24 @@ function openPlayEditor(play) {
     ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
   };
   tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
-  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1.5, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
+  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1, zoomMode: 'fit', inspectorOpen: window.matchMedia('(min-width: 1000px)').matches, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
+    <div class="ped-topline">
+    <div class="seg ped-workspaces" role="group" aria-label="Play editor workspace">
+      <button type="button" data-act="ped-tab" data-tab="teach" aria-pressed="false">Teach the play</button>
+      <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="true">Advanced diagram</button>
+      <button type="button" data-act="ped-tab" data-tab="words" aria-pressed="false">Play details</button>
+    </div>
+      <details class="ped-setup" ${play ? '' : 'open'}>
+        <summary>Play setup <span>${esc(draft.name || 'New play')} · ${esc(draft.sport || curSport())}</span></summary>
+        <div class="ped-setup-fields">
     <div class="two">
       <label class="field-l"><span>Name</span><input type="text" name="name" value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
       <label class="field-l"><span>Type</span><select name="category">${[...PLAY_CATS, ...(PLAY_CATS.includes(draft.category) ? [] : [draft.category])].map(c => `<option ${c === draft.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
     </div>
     <label class="field-l"><span>Play sport</span><select name="playSport">${[...M.SPORTS, ...(draft.sport && !M.SPORTS.includes(draft.sport) ? [draft.sport] : [])].map(sp => `<option value="${esc(sp)}" ${sp === (draft.sport || curSport()) ? 'selected' : ''}>${esc(sp)}</option>`).join('')}</select><small>Review this choice when adapting an old play to another sport. A diagram's eight drawn positions are not a full team formation.</small></label>
-    <div class="seg ped-workspaces" role="group" aria-label="Play editor workspace">
-      <button type="button" data-act="ped-tab" data-tab="teach" aria-pressed="false">Teach the play</button>
-      <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="true">Advanced diagram</button>
-      <button type="button" data-act="ped-tab" data-tab="words" aria-pressed="false">Play details</button>
+        </div>
+      </details>
     </div>
     <div id="ped-teach" class="ped-teach" hidden>
       <p class="hint">Create actions in the order players should learn them. Link each instruction to a movement and position in the diagram. Your existing drawing and written steps stay unchanged.</p>
@@ -3834,16 +3841,25 @@ function openPlayEditor(play) {
       <div class="ped-phases" id="ped-phases"></div>
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
       <div class="ped-main">
+        <div class="ped-under" role="toolbar" aria-label="Canvas view controls">
+          <button type="button" class="btn sm" data-act="ped-undo">Undo</button>
+          <button type="button" class="btn sm" data-act="ped-snap" aria-pressed="false">Snap: Off</button>
+          <button type="button" class="btn sm" data-act="ped-fit" aria-pressed="true">Fit view</button>
+          <button type="button" class="btn sm" data-act="ped-zoom-out" aria-label="Zoom out of the editing canvas">−</button>
+          <output id="ped-zoom-value" aria-label="Editing canvas zoom">Fit</output>
+          <button type="button" class="btn sm" data-act="ped-zoom-in" aria-label="Zoom into the editing canvas">+</button>
+          <button type="button" class="btn sm" data-act="ped-whole">Show whole field</button>
+          <button type="button" class="btn sm" data-act="ped-inspector" aria-expanded="true" aria-controls="ped-properties">Properties</button>
+        </div>
         <div class="play-card ped-card play-presentation"><div class="play-board-field"><div id="ped-field"></div></div></div>
-        <div class="ped-under"><button type="button" class="btn sm" data-act="ped-undo">Undo</button><button type="button" class="btn sm" data-act="ped-snap" aria-pressed="false">Snap endpoints: Off</button><button type="button" class="btn sm" data-act="ped-zoom-out" aria-label="Zoom out of the editing canvas">−</button><output id="ped-zoom-value" aria-label="Editing canvas zoom">150%</output><button type="button" class="btn sm" data-act="ped-zoom-in" aria-label="Zoom into the editing canvas">+</button><button type="button" class="btn sm" data-act="ped-whole">Show the whole field</button></div>
-        <p class="hint ped-edit-help">Choose Pan board to move around the canvas. Use − and + to resize players and paths. Select to drag actors or lines. Snapping controls endpoint attachment only.</p>
       </div>
-      <div class="ped-properties" aria-label="Diagram properties">
+      <div class="ped-properties" id="ped-properties" aria-label="Diagram properties">
       <div class="ped-meta">
       <label class="field-l ped-list"><span>Diagram role labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select><small>These are label names, not full team formations. A rugby league list has 13 role labels, but this diagram still draws eight positions.</small><small>Manage custom role lists in Tactics → Library after saving your play.</small></label>
       <label class="field-l ped-ptitle"><span id="ped-ptitle-l">Phase 1</span><input type="text" id="ped-ptitle" data-input="ped-ptitle" value="${esc(draft.title || '')}" placeholder="What happens in this phase, e.g. Tag 2: hands right"></label>
       </div>
       <div id="ped-panel" class="ped-panel"></div>
+      <details class="ped-edit-help"><summary>Editing help</summary><p>Choose Pan board to navigate, Select to drag actors and paths, and Fit view to see the full diagram. Snap governs freehand endpoints, not existing connections.</p></details>
       </div>
     </div>
     <div class="ped-save" role="group" aria-label="Save or cancel play editing"><span class="ped-save-hint">Play editing · changes are saved only when you choose Save play</span><button class="btn" type="button" data-act="ped-cancel">Cancel</button><button class="btn primary" type="submit">Save play</button></div>
