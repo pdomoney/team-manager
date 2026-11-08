@@ -3337,3 +3337,82 @@ body.persona-mode .top{background:var(--turf)}
   stroke-dasharray:5 3;
   filter:drop-shadow(0 1px 2px rgba(0,0,0,.8));
 }
+
+/* B4.6: SVG zoom moves geometry apart, not the visual size of its coaching art.
+   --ped-art-scale is the inverse display zoom, bounded for readability.
+   The viewer, print, teaching preview and saved play data remain untouched. */
+#sheet .play-editor-workspace .pf.editor .pf-q{
+  font-size:calc(11.5px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .pf-note,
+#sheet .play-editor-workspace .pf.editor .pf-lbl{
+  font-size:calc(12px * var(--ped-art-scale));
+  stroke-width:calc(4px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .pf-line,
+#sheet .play-editor-workspace .pf.editor .pf-zone{
+  stroke-width:calc(1.25px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .pf-chan{
+  stroke-width:calc(1px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .mv{
+  stroke-width:calc(1.5px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .mv.key{
+  stroke-width:calc(2.25px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .mv.pass.key{
+  stroke-width:calc(1.9px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .mv.kick{
+  stroke-width:calc(2.2px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .mv.shift{
+  stroke-width:calc(1.6px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .mv.draft{
+  stroke-width:calc(2px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .mv.pass{
+  stroke-dasharray:calc(5px * var(--ped-art-scale)) calc(4px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .mv.dummy{
+  stroke-dasharray:calc(3px * var(--ped-art-scale)) calc(3px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .mv.kick{
+  stroke-dasharray:calc(.5px * var(--ped-art-scale)) calc(4.5px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .mv.draft{
+  stroke-dasharray:calc(5px * var(--ped-art-scale)) calc(3px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .mv-hit{
+  stroke-width:calc(24px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .ped-glow{
+  stroke-width:calc(14px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .ped-ring,
+#sheet .play-editor-workspace .pf.editor .ped-h{
+  stroke-width:calc(2.2px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .ped-h.on{
+  stroke-width:calc(4px * var(--ped-art-scale));
+}
+#sheet .play-editor-workspace .pf.editor .ped-actor-hit,
+#sheet .play-editor-workspace .pf.editor .ped-handle-hit{
+  fill:transparent;
+  stroke:none;
+  pointer-events:all;
+}
+#sheet .play-editor-workspace .pf.editor .ped-actor-hit{
+  cursor:grab;
+}
+#sheet .play-editor-workspace .pf.editor .ped-handle-hit{
+  cursor:grab;
+}
+/* Add-bend plus retains a separate transparent 44px touch target. */
+#sheet .play-editor-workspace .pf.editor .ped-add .ped-handle-hit{
+  fill:transparent;
+  stroke:none;
+}
