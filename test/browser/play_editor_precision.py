@@ -68,8 +68,15 @@ with sync_playwright() as p:
         checks.ok(keyed[0]==old[0] and round(keyed[1]-old[1],1)==1,
                   f'[{width}] canvas keyboard arrow uses the chosen one-unit step')
         pg.locator('[data-act=ped-undo]').click()
-
+        checks.ok(pg.evaluate("window.__team.state.ped.dirty") is False,
+                  f'[{width}] fully undone diagram has no pending data change')
+        pg.evaluate("""() => {
+          window.__unexpectedCancelPrompt=0;
+          window.confirm=() => { window.__unexpectedCancelPrompt++; return false; };
+        }""")
         pg.locator('#sheet .ped-save [data-act=ped-cancel]').click()
+        checks.ok(pg.evaluate('window.__unexpectedCancelPrompt')==0,
+                  f'[{width}] Cancel after undo does not show an unnecessary warning')
         checks.ok(pg.locator('#sheet form.ped').count()==0 and
                   pg.evaluate("""() => JSON.stringify(window.__team.data.plays.find(x=>x.id==='quickie-out'))""")==original,
                   f'[{width}] cancelling an undone edit retains original Step Out')
