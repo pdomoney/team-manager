@@ -56,7 +56,6 @@ with sync_playwright() as p:
           const e=window.__team.state.ped,m=e.draft.moves[e.sel.i];
           return {index:e.selH,points:m.pts.length,move:JSON.stringify(m)};
         }""")
-        initial_points=pg.evaluate("""() => JSON.parse(window.__b4Original || 'null')""") if False else None
         checks.ok(added['index']==1 and
                   pg.locator('#ped-precision [data-act=ped-precision-handle]').count()>=3,
                   f'[{width}] midpoint added and selected as Bend 1')
