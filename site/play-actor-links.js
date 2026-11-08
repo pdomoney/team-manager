@@ -27,8 +27,9 @@ export function actorEndpointLinks(phase, actorKey, tolerance = 0.4) {
   return (Array.isArray(phase?.moves) ? phase.moves : []).flatMap((move, moveIndex) => {
     // New movement objects carry explicit links. Do not fall back to proximity
     // for those moves, even if one endpoint is deliberately unconnected.
-    if (move?.linkVersion === 1) {
-      if (!move.actorLinks || typeof move.actorLinks !== 'object') return [];
+    if (move?.linkVersion !== undefined) {
+      // Unknown future versions are not legacy geometry: fail closed.
+      if (move.linkVersion !== 1 || !move.actorLinks || typeof move.actorLinks !== 'object') return [];
       const pts = move.pts;
       if (!Array.isArray(pts) || pts.length < 2) return [];
       return [0, pts.length - 1].flatMap(pointIndex => {
