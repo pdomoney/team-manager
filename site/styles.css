@@ -3133,3 +3133,38 @@ body.persona-mode .top{background:var(--turf)}
     text-align:center;
   }
 }
+
+
+/* PR179 corrective for the real 390px browser failure: the named container
+   breakpoint can leave the old desktop 275px inspector track allocated when
+   the inspector is hidden, reducing the stage to ~87px. Use a viewport
+   fallback for the full-screen editor and explicitly reclaim that track. */
+@media (max-width:979px){
+  #sheet .panel.wide.play-editor-workspace form.ped > #ped-diagram{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr) auto auto;
+    grid-template-areas:"tools" "main" "phases" "rail";
+    width:100%;
+    min-width:0;
+  }
+  #sheet .panel.wide.play-editor-workspace form.ped > #ped-diagram.inspector-collapsed{
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr) auto;
+    grid-template-areas:"tools" "main" "phases";
+  }
+  #sheet .panel.wide.play-editor-workspace #ped-diagram > .ped-main,
+  #sheet .panel.wide.play-editor-workspace #ped-diagram > .ped-phases,
+  #sheet .panel.wide.play-editor-workspace #ped-diagram > .ped-tools{
+    grid-column:1;
+    min-width:0;
+    width:100%;
+  }
+}
+@media (min-width:980px){
+  #sheet .panel.wide.play-editor-workspace form.ped > #ped-diagram.inspector-collapsed{
+    grid-template-columns:96px minmax(0,1fr);
+    grid-template-rows:minmax(0,1fr) auto;
+    grid-template-areas:"tools main" "tools phases";
+  }
+}
