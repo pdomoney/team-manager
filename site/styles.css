@@ -3322,3 +3322,18 @@ body.persona-mode .top{background:var(--turf)}
 #sheet .play-editor-workspace #ped-field svg{
   touch-action:none;
 }
+
+/* Option B B4.5: display the exact, opt-in actor endpoint target without
+   stealing pointer events from the drawing or introducing saved SVG content. */
+#sheet .play-editor-workspace #ped-field .ped-snap-cue{
+  fill:none;
+  stroke:#F1C775;
+  stroke-width:2.7;
+  pointer-events:none;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+#sheet .play-editor-workspace #ped-field .ped-snap-cue circle{
+  stroke-dasharray:5 3;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.8));
+}
