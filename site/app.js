@@ -29,6 +29,7 @@ import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMove
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
 import { previewBendInsertion, insertMovementBend, canRemoveMovementBend, removeMovementBend } from './play-editor-bends.js';
+import { editorArtworkScale } from './play-editor-art-scale.js';
 import { captureEditorPointer, cancelEditorPointer } from './play-editor-pointer.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
@@ -3208,15 +3209,15 @@ function playFrame(g, opts) {
   return { ...v, k, top, H, X, Y, shows };
 }
 // Words beside a point: side is l, r, a (above), b (below), or a corner such as bl / br.
-function svgWords(cx, cy, r, side, text, cls) {
-  const lines = String(text).split('\n').filter(l => l.trim()), lh = 13.5, n = lines.length;
+function svgWords(cx, cy, r, side, text, cls, art = 1) {
+  const lines = String(text).split('\n').filter(l => l.trim()), lh = 13.5 * art, n = lines.length;
   if (!n) return '';
   const h = /l/.test(side) ? 'l' : /r/.test(side) ? 'r' : '', v = /a/.test(side) ? 'a' : /b/.test(side) ? 'b' : /c/.test(side) ? 'c' : '';
   let x = cx, y, anchor = 'middle';
-  if (!v) { x = h === 'l' ? cx - r - 6 : cx + r + 6; anchor = h === 'l' ? 'end' : 'start'; y = cy + 4 - (n - 1) * lh / 2; }
+  if (!v) { x = h === 'l' ? cx - r - 6 * art : cx + r + 6 * art; anchor = h === 'l' ? 'end' : 'start'; y = cy + 4 * art - (n - 1) * lh / 2; }
   else {
-    y = v === 'a' ? cy - r - 6 - (n - 1) * lh : v === 'b' ? cy + r + 13 : cy + 4 - (n - 1) * lh / 2;
-    if (h) { x = h === 'l' ? cx - 4 : cx + 4; anchor = h === 'l' ? 'end' : 'start'; }
+    y = v === 'a' ? cy - r - 6 * art - (n - 1) * lh : v === 'b' ? cy + r + 13 * art : cy + 4 * art - (n - 1) * lh / 2;
+    if (h) { x = h === 'l' ? cx - 4 * art : cx + 4 * art; anchor = h === 'l' ? 'end' : 'start'; }
   }
   return `<text class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}">${lines.map((l, i) => `<tspan x="${x.toFixed(1)}" ${i ? `dy="${lh}"` : ''}>${esc(l)}</tspan>`).join('')}</text>`;
 }
@@ -3236,6 +3237,8 @@ let svgSeq = 0;
 function playSVG(play, side, opts = {}) {
   const g = playGeom(play, side), fr = playFrame(g, opts), { X, Y, k, H } = fr, id = `p${++svgSeq}`;
   const thumb = !!opts.thumb, words = !thumb, annotations = words && !opts.study, F = fieldDims(V.team.field);
+  const art = opts.editor ? editorArtworkScale(opts.editorZoom) : 1;
+  const actorHit = opts.editor ? '<circle class="ped-actor-hit" r="22"/>' : '';
   const studyCodes = new Set(opts.studyCodes || []);
   const spotlightIds = Object.keys(g.codes).filter(k => studyCodes.has(g.codes[k]));
   const studyMoves = Array.isArray(opts.studyMoves) ? opts.studyMoves : [];
@@ -3245,8 +3248,8 @@ function playSVG(play, side, opts = {}) {
   const XY = p => [X(p[0]), Y(p[1])];
   // field: the tint runs to the picture's edge wherever the field carries on past it
   const L = fr.x0 <= 0 ? X(0) : 0, R = fr.x1 >= 50 ? X(50) : PW, T = fr.y0 <= 0 ? Y(0) : 0, B = fr.y1 >= 80 ? Y(80) : H;
-  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="pf${thumb ? ' thumb' : ''}${opts.editor ? ' editor' : ''}${opts.study ? ' study' : ''}" viewBox="0 0 ${PW} ${H}" data-x0="${fr.x0}" data-y0="${fr.y0}" data-k="${k}" data-top="${fr.top}" role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
-  const aw = thumb ? 22 : 8, ak = thumb ? 24 : 10;
+  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="pf${thumb ? ' thumb' : ''}${opts.editor ? ' editor' : ''}${opts.study ? ' study' : ''}" viewBox="0 0 ${PW} ${H}" data-x0="${fr.x0}" data-y0="${fr.y0}" data-k="${k}" data-top="${fr.top}" ${opts.editor ? `data-art-scale="${art}" style="--ped-art-scale:${art}"` : ''} role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
+  const aw = (thumb ? 22 : 8) * art, ak = (thumb ? 24 : 10) * art;
   s += `<defs><marker id="${id}-g" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${aw}" markerHeight="${aw}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker><marker id="${id}-b" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${ak}" markerHeight="${ak}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah key"/></marker><marker id="${id}-r" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${aw}" markerHeight="${aw}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah shift"/></marker></defs>`;
   s += `<rect class="pf-turf" x="${L}" y="${T}" width="${R - L}" height="${B - T}"/>`;
   [[0, 5], [75, 80]].forEach(([a, b]) => { const ya = Math.max(T, Y(a)), yb = Math.min(B, Y(b)); if (yb > ya) s += `<rect class="pf-ingoal" x="${L}" y="${ya}" width="${R - L}" height="${yb - ya}"/>`; });
@@ -3270,16 +3273,16 @@ function playSVG(play, side, opts = {}) {
   }
   // defence
   const defs = g.line.map((p, i) => ({ p, i })).filter(d => opts.editor || fr.shows(d.p));
-  defs.forEach(({ p, i }) => { s += `<g class="dfg" data-df="${i}" transform="translate(${X(p[0])} ${Y(p[1])})"><circle class="df" r="${dr}"/></g>`; });
-  if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${X(g.marker[0])} ${Y(g.marker[1])})"><circle class="df mk" r="${dr}"/></g>`;
+  defs.forEach(({ p, i }) => { s += `<g class="dfg" data-df="${i}" transform="translate(${X(p[0])} ${Y(p[1])}) scale(${art})">${actorHit}<circle class="df" r="${dr}"/></g>`; });
+  if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${X(g.marker[0])} ${Y(g.marker[1])}) scale(${art})">${actorHit}<circle class="df mk" r="${dr}"/></g>`;
   if (annotations && defs.length) {
     const text = g.notes.line ? g.notes.line.text : 'Their line, 7 m back';
-    const ly = Math.min(...defs.map(d => Y(d.p[1]))) - dr - 9;
+    const ly = Math.min(...defs.map(d => Y(d.p[1]))) - (dr + 9) * art;
     if (text) s += `<text class="pf-note" ${away} y="${ly.toFixed(1)}">${esc(text)}</text>`;
   }
   if (annotations && g.marker) {
     const n = g.notes.marker || { text: 'Marker', side: 'l' };
-    if (n.text) s += svgWords(X(g.marker[0]), Y(g.marker[1]), dr, n.side || 'l', n.text, 'pf-note');
+    if (n.text) s += svgWords(X(g.marker[0]), Y(g.marker[1]), dr * art, n.side || 'l', n.text, 'pf-note', art);
   }
   // who is in the play: anyone with a line, a note, a tag or a highlight
   const starts = g.moves.map(m => m.pts[0]);
@@ -3287,15 +3290,15 @@ function playSVG(play, side, opts = {}) {
   const shown = Object.entries(g.players).filter(([, p]) => opts.editor || fr.shows(p));
   const dots = g.labels.filter(l => l.dot);
   const blockers = [
-    ...shown.map(([, p]) => ({ x: X(p[0]), y: Y(p[1]), r: pr })),
-    ...g.line.map(p => ({ x: X(p[0]), y: Y(p[1]), r: dr, def: true })), ...(g.marker ? [{ x: X(g.marker[0]), y: Y(g.marker[1]), r: dr, def: true }] : []),
-    ...dots.map(l => ({ x: X(l.at[0]), y: Y(l.at[1]), r: dot }))
+    ...shown.map(([, p]) => ({ x: X(p[0]), y: Y(p[1]), r: pr * art })),
+    ...g.line.map(p => ({ x: X(p[0]), y: Y(p[1]), r: dr * art, def: true })), ...(g.marker ? [{ x: X(g.marker[0]), y: Y(g.marker[1]), r: dr * art, def: true }] : []),
+    ...dots.map(l => ({ x: X(l.at[0]), y: Y(l.at[1]), r: dot * art }))
   ];
   const player = ([pid, p]) => {
     const tag = g.tags[pid], cls = ['pl', g.focus.includes(pid) && 'focus', g.ghost.includes(pid) && 'ghost', !opts.editor && !busy(pid) && 'idle'].filter(Boolean).join(' ');
     const studyClass = opts.study && spotlightIds.length ? (spotlightIds.includes(pid) ? ' study-target' : ' study-soft') : '';
     const code = g.codes[pid] ?? pid;
-    return `<g class="plg${studyClass}" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}</g>`;
+    return `<g class="plg${studyClass}" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])}) scale(${art})">${actorHit}<circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}</g>`;
   };
   shown.filter(([pid]) => g.ghost.includes(pid)).forEach(e => { s += player(e); });
   g.moves.forEach((m, i) => {
@@ -3311,14 +3314,14 @@ function playSVG(play, side, opts = {}) {
     s += `<path class="mv draft" d="${pathD(opts.drawing.pts.map(XY), opts.drawing.curve)}"/>`;
     opts.drawing.pts.forEach(p => { s += `<circle class="draft-pt" cx="${X(p[0])}" cy="${Y(p[1])}" r="4"/>`; });
   }
-  dots.forEach(l => { s += `<circle class="dot" cx="${X(l.at[0])}" cy="${Y(l.at[1])}" r="${dot}"/>`; });
+  dots.forEach(l => { s += `<circle class="dot" cx="${X(l.at[0])}" cy="${Y(l.at[1])}" r="${dot * art}"/>`; });
   shown.filter(([pid]) => !g.ghost.includes(pid)).forEach(e => { s += player(e); });
   if (annotations) {
-    shown.forEach(([pid, p]) => { const n = g.notes[pid]; if (n && n.text) s += svgWords(X(p[0]), Y(p[1]), pr, n.side || 'r', n.text, 'pf-note'); });
-    defs.forEach(({ p, i }) => { const n = g.notes['d' + i]; if (n && n.text) s += svgWords(X(p[0]), Y(p[1]), dr, n.side || 'r', n.text, 'pf-note'); });
-    g.labels.forEach((l, i) => { s += svgWords(X(l.at[0]), Y(l.at[1]), l.dot ? dot : 0, l.side || 'r', l.text, (l.dot ? 'pf-lbl' : 'pf-note') + (opts.editor ? '" data-lb="' + i : '')); });
+    shown.forEach(([pid, p]) => { const n = g.notes[pid]; if (n && n.text) s += svgWords(X(p[0]), Y(p[1]), pr * art, n.side || 'r', n.text, 'pf-note', art); });
+    defs.forEach(({ p, i }) => { const n = g.notes['d' + i]; if (n && n.text) s += svgWords(X(p[0]), Y(p[1]), dr * art, n.side || 'r', n.text, 'pf-note', art); });
+    g.labels.forEach((l, i) => { s += svgWords(X(l.at[0]), Y(l.at[1]), l.dot ? dot * art : 0, l.side || 'r', l.text, (l.dot ? 'pf-lbl' : 'pf-note') + (opts.editor ? '" data-lb="' + i : ''), art); });
   }
-  if (opts.editor) g.labels.forEach((l, i) => { s += `<circle class="ped-lbh" data-lb="${i}" cx="${X(l.at[0])}" cy="${Y(l.at[1])}" r="11"/>`; });
+  if (opts.editor) g.labels.forEach((l, i) => { s += `<circle class="ped-lbh" data-lb="${i}" cx="${X(l.at[0])}" cy="${Y(l.at[1])}" r="${20 * art}"/>`; });
   if (opts.overlay) s += opts.overlay(fr);
   if (opts.anim) s += `<g class="ball" transform="translate(-40 -40)"><ellipse rx="6.5" ry="4.6" transform="rotate(-35)"/><path d="M-3.2 -1.6L3.2 1.6" transform="rotate(-35)"/></g>`;
   return s + '</svg>';
@@ -3967,7 +3970,7 @@ function pedNearest(E, p, kind, r) {
 const pedNoteKey = sel => sel.k === 'pl' ? sel.id : sel.k === 'mk' ? 'marker' : 'd' + sel.i;
 
 function pedOverlay(E, fr) {
-  const { X, Y, H } = fr, d = pedCur(E), f = pedFrame(E);
+  const { X, Y, H } = fr, d = pedCur(E), f = pedFrame(E), art = editorArtworkScale(E.zoom);
   if (E.placing) return '';
   const fx0 = X(f.x0), fx1 = X(f.x1), fy0 = Y(f.y0), fy1 = Y(f.y1);
   let s = `<path class="ped-dim" fill-rule="evenodd" d="M0 0H${PW}V${H}H0Z M${fx0} ${fy0}V${fy1}H${fx1}V${fy0}Z"/>`;
@@ -3982,17 +3985,17 @@ function pedOverlay(E, fr) {
   if (sel && sel.k === 'mv' && d.moves[sel.i]) {
     const m = d.moves[sel.i], pts = m.pts.map(p => [X(p[0]), Y(p[1])]);
     s += `<path class="ped-glow" d="${pathD(pts, m.curve)}"/>`;
-    pts.slice(1).forEach((q, j) => { const a = pts[j]; s += `<g class="ped-add" data-hadd="${j}" transform="translate(${((a[0] + q[0]) / 2).toFixed(1)} ${((a[1] + q[1]) / 2).toFixed(1)})"><circle r="8"/><path d="M-4 0H4M0 -4V4"/></g>`; });
-    pts.forEach((q, j) => { s += `<circle class="ped-h${j === 0 ? ' start' : ''}${E.selH === j ? ' on' : ''}" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="8"/>`; });
+    pts.slice(1).forEach((q, j) => { const a = pts[j]; s += `<g class="ped-add" data-hadd="${j}" transform="translate(${((a[0] + q[0]) / 2).toFixed(1)} ${((a[1] + q[1]) / 2).toFixed(1)}) scale(${art})"><circle class="ped-handle-hit" r="22"/><circle r="8"/><path d="M-4 0H4M0 -4V4"/></g>`; });
+    pts.forEach((q, j) => { s += `<circle class="ped-handle-hit" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${22 * art}"/><circle class="ped-h${j === 0 ? ' start' : ''}${E.selH === j ? ' on' : ''}" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${8 * art}"/>`; });
   }
-  const ring = (p, r) => `<circle class="ped-ring" cx="${X(p[0])}" cy="${Y(p[1])}" r="${r}"/>`;
+  const ring = (p, r) => `<circle class="ped-ring" cx="${X(p[0])}" cy="${Y(p[1])}" r="${r * art}"/>`;
   if (sel && sel.k === 'pl' && d.players[sel.id]) s += ring(d.players[sel.id], PR + 5);
   if (sel && sel.k === 'df' && d.defence.line[sel.i]) s += ring(d.defence.line[sel.i], DR + 5);
   if (sel && sel.k === 'mk' && d.defence.marker) s += ring(d.defence.marker, DR + 5);
   if (sel && sel.k === 'lb' && d.labels[sel.i]) s += ring(d.labels[sel.i].at, 11);
   if (E.drawing) {
     const pts = E.drawing.pts.map(p => [X(p[0]), Y(p[1])]);
-    s += `<path class="mv draft" d="${pathD(pts)}"/>` + pts.map(q => `<circle class="draft-pt" cx="${q[0]}" cy="${q[1]}" r="4"/>`).join('');
+    s += `<path class="mv draft" d="${pathD(pts)}"/>` + pts.map(q => `<circle class="draft-pt" cx="${q[0]}" cy="${q[1]}" r="${4 * art}"/>`).join('');
   }
   // Purely visual, never saved: the highlighted position is the *same*
   // unambiguous endpoint returned by editorSnapDetails on pointer release.
@@ -4078,10 +4081,17 @@ function refreshPedField() {
   const E = state.ped, box = $('#ped-field'); if (!E || !box) return;
   const card = box.closest('.ped-card');
   const left = card?.scrollLeft || 0, top = card?.scrollTop || 0;
-  box.innerHTML = playSVG(pedView(E), 'right', { editor: true, svgId: 'ped-svg', viewport: pedViewport(E), overlay: fr => pedOverlay(E, fr) });
-  const svg = box.querySelector('svg');
+  const render = () => {
+    box.innerHTML = playSVG(pedView(E), 'right', { editor: true, editorZoom: E.zoom,
+      svgId: 'ped-svg', viewport: pedViewport(E), overlay: fr => pedOverlay(E, fr) });
+    return box.querySelector('svg');
+  };
+  let svg = render();
   if (svg) {
-    if (E.zoomMode === 'fit') E.zoom = pedFitZoom(card, box, svg);
+    if (E.zoomMode === 'fit') {
+      const fitZoom = pedFitZoom(card, box, svg);
+      if (fitZoom !== E.zoom) { E.zoom = fitZoom; svg = render(); }
+    }
     svg.style.width = (E.zoom * 100) + '%';
     svg.style.maxWidth = 'none';
     svg.style.maxHeight = 'none';
