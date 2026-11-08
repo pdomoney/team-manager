@@ -28,6 +28,7 @@ import { studyCards, cueRoles } from './play-study.js';
 import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassReceiver, receiverFollowOnRun } from './play-actor-links.js';
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
+import { previewBendInsertion, insertMovementBend, canRemoveMovementBend, removeMovementBend } from './play-editor-bends.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
 import { playTeachingCompatibility } from './p08-play-compatibility.js';
@@ -4154,6 +4155,7 @@ function refreshPedTeaching() {
 // collapsed on phones. These are display controls, never saved as play fields.
 function refreshPedPrecision(E) {
   const bar = $('#ped-precision'); if (!bar) return;
+  const priorPointScroll = bar.querySelector('.ped-precision-points')?.scrollLeft || 0;
   const sel = E.sel, d = pedCur(E);
   const valid = E.tool === 'select' && !E.placing && !!sel &&
     (sel.k === 'pl' || sel.k === 'df' || sel.k === 'mk' || sel.k === 'lb' || sel.k === 'mv');
@@ -4165,20 +4167,29 @@ function refreshPedPrecision(E) {
     sel.k === 'lb' ? 'Label ' + (sel.i + 1) : line ? (MOVE_KINDS[line.t] || line.t) : 'Movement';
   if (isLine && !line) { bar.hidden = true; return; }
   const handleOptions = isLine ? `<span class="ped-precision-points" role="group" aria-label="Choose movement point">
-    <button type="button" class="btn sm" data-act="ped-precision-handle" data-j="0" aria-pressed="${h === 0}">Start</button>
-    <button type="button" class="btn sm" data-act="ped-precision-handle" data-j="${line.pts.length - 1}" aria-pressed="${h === line.pts.length - 1}">End</button>
+    ${line.pts.map((_, j) => `<button type="button" class="btn sm" data-act="ped-precision-handle" data-j="${j}"
+      aria-pressed="${h === j}">${j === 0 ? 'Start' : j === line.pts.length - 1 ? 'End' : 'Bend ' + j}</button>`).join('')}
     </span>` : '';
-  const selected = !isLine || (Number.isInteger(h) && h >= 0 && h < line.pts.length);
+  const selected = !isLine || (line.linkVersion === undefined || line.linkVersion === 1) &&
+    Number.isInteger(h) && h >= 0 && h < line.pts.length;
+  const canInsert = isLine && selected && !!previewBendInsertion(d, sel.i, h);
+  const canRemove = isLine && selected && canRemoveMovementBend(d, sel.i, h);
   const step = Number(E.precisionStep) || 0.5;
   const buttons = [['up', '↑', 0, -1], ['left', '←', -1, 0], ['right', '→', 1, 0], ['down', '↓', 0, 1]]
     .map(([name, glyph, dx, dy]) => `<button class="btn sm" type="button" data-act="ped-precision-nudge" data-dx="${dx}" data-dy="${dy}" aria-label="Nudge ${esc(label)} ${name} ${step} diagram units" ${!selected ? 'disabled' : ''}>${glyph}</button>`).join('');
   bar.innerHTML = `<strong class="ped-precision-title">${esc(label)}${isLine && selected ? ' · point ' + (h + 1) : ''}</strong>
     ${handleOptions}
-    ${isLine && !selected ? '<span class="ped-precision-help">Choose Start or End to position its handle</span>' : ''}
+    ${isLine ? `<span class="ped-precision-bends" role="group" aria-label="Edit movement bends">
+      <button type="button" class="btn sm" data-act="ped-precision-add-bend" ${canInsert ? '' : 'disabled'}>+ Bend</button>
+      <button type="button" class="btn sm" data-act="ped-precision-remove-bend" ${canRemove ? '' : 'disabled'}>Remove bend</button>
+    </span>` : ''}
+    ${isLine && !selected ? '<span class="ped-precision-help">Choose a point to move or add a bend</span>' : ''}
     <div class="ped-precision-controls" role="group" aria-label="Precision movement">${buttons}</div>
     <label class="ped-precision-step">Step <select aria-label="Nudge step in diagram units" data-change="ped-precision-step">
       ${[0.5, 1, 2].map(v => `<option value="${v}" ${step === v ? 'selected' : ''}>${v}</option>`).join('')}
     </select></label>`;
+  const pointRail = bar.querySelector('.ped-precision-points');
+  if (pointRail) pointRail.scrollLeft = priorPointScroll;
 }
 function pedNudgeSelected(dx, dy) {
   const E = state.ped;
@@ -9080,6 +9091,29 @@ const actions = {
     const j = Number(el.dataset.j);
     if (!d?.moves?.[i]?.pts?.[j] || !Number.isInteger(j)) return;
     E.selH = j; refreshPlayEditor();
+    $('#ped-field')?.focus({ preventScroll: true });
+  }),
+  'ped-precision-add-bend': coachOnly(() => {
+    const E = state.ped;
+    if (E?.tool !== 'select' || E.sel?.k !== 'mv') return;
+    const d = pedCur(E), i = E.sel.i, h = E.selH;
+    if (!previewBendInsertion(d, i, h)) return;
+    pedSnap();
+    const inserted = insertMovementBend(d, i, h);
+    if (inserted === null) { pedUndo(); return; }
+    E.selH = inserted;
+    refreshPlayEditor();
+    $('#ped-field')?.focus({ preventScroll: true });
+  }),
+  'ped-precision-remove-bend': coachOnly(() => {
+    const E = state.ped;
+    if (E?.tool !== 'select' || E.sel?.k !== 'mv') return;
+    const d = pedCur(E), i = E.sel.i, h = E.selH;
+    if (!canRemoveMovementBend(d, i, h)) return;
+    pedSnap();
+    if (!removeMovementBend(d, i, h)) { pedUndo(); return; }
+    E.selH = h - 1;
+    refreshPlayEditor();
     $('#ped-field')?.focus({ preventScroll: true });
   }),
   'ped-precision-nudge': coachOnly(el => {

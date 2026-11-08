@@ -3293,3 +3293,24 @@ body.persona-mode .top{background:var(--turf)}
     bottom:8px;
   }
 }
+
+/* B4.3: long paths stay selectable without turning the floating precision
+   palette into a tall list that covers the mobile drawing. */
+#sheet .play-editor-workspace #ped-diagram .ped-precision-points{
+  max-width:min(100%,250px);
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:thin;
+  overscroll-behavior-x:contain;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision-points .btn{
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision-bends{
+  display:inline-flex;
+  flex:0 0 auto;
+  align-items:center;
+  gap:3px;
+}
