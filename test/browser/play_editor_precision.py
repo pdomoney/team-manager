@@ -16,7 +16,19 @@ with sync_playwright() as p:
         pg.locator('.play-row[data-id=quickie-out]').click()
         original=pg.evaluate("""() => JSON.stringify(window.__team.data.plays.find(x=>x.id==='quickie-out'))""")
         pg.locator('[data-act=play-edit]').click()
+        fitted=pg.evaluate("""() => {
+          const c=document.querySelector('.ped-main .ped-card').getBoundingClientRect(),
+            s=document.querySelector('#ped-field svg').getBoundingClientRect();
+          return [c.height,s.width,s.height];
+        }""")
         pg.locator('#ped-field svg [data-pl="LM"]').first.click()
+        selectedFit=pg.evaluate("""() => {
+          const c=document.querySelector('.ped-main .ped-card').getBoundingClientRect(),
+            s=document.querySelector('#ped-field svg').getBoundingClientRect();
+          return [c.height,s.width,s.height];
+        }""")
+        checks.ok(all(abs(a-b)<=3 for a,b in zip(fitted,selectedFit)),
+                  f'[{width}] selecting an actor does not resize or jump Fit view: {fitted!r} → {selectedFit!r}')
         precision=pg.locator('#ped-precision')
         checks.ok(precision.is_visible() and 'LM' in precision.inner_text(),
                   f'[{width}] selecting player reveals precision controls without opening inspector')
