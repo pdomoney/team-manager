@@ -21,11 +21,12 @@ with sync_playwright() as p:
             canvas=panel.querySelector('.ped-card'),
             svg=canvas.querySelector('svg.pf'),
             phases=panel.querySelector('.ped-phases'),
+            tools=panel.querySelector('#ped-tools'),
             footer=panel.querySelector('.ped-save'),
             setup=panel.querySelector('details.ped-setup'),
             rect=x=>{const r=x.getBoundingClientRect(); return {top:r.top,bottom:r.bottom,width:r.width,height:r.height}};
           return {panel:rect(panel),canvas:rect(canvas),svg:rect(svg),
-            phases:rect(phases),footer:rect(footer),
+            phases:rect(phases),tools:rect(tools),footer:rect(footer),
             setupOpen:setup.open,
             inspectorVisible:!!panel.querySelector('#ped-properties').offsetParent,
             horizontalOverflow:document.documentElement.scrollWidth-innerWidth};
@@ -47,6 +48,10 @@ with sync_playwright() as p:
                   f'[{width}] metadata is folded and the phase track is visible')
 
         if width>=1000:
+            checks.ok(metrics['tools']['width']<=120 and
+                      metrics['tools']['top']<=metrics['canvas']['top']+2 and
+                      metrics['tools']['width']+metrics['tools']['top']>0,
+                      f'[{width}] desktop drawing tools occupy a dedicated left palette')
             before=metrics['canvas']['width']
             pg.locator('[data-act=ped-inspector]').click()
             after=pg.locator('.ped-card').bounding_box()['width']
