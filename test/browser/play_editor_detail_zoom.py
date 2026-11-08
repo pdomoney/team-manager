@@ -87,9 +87,13 @@ with sync_playwright() as p:
         checks.ok(pg.evaluate("""() => JSON.stringify(window.__team.data.plays.find(x=>x.id==='quickie-out'))""")==original,
                   f'[{width}] zoom edits remain presentation-only, Step Out survives Cancel')
         # The reader's field retains its own unscaled SVG style and geometry.
-        pg.locator('.play-row[data-id=quickie-out]').click() if pg.locator('.play-row[data-id=quickie-out]').count() else None
-        checks.ok(pg.locator('svg.pf:not(.editor)[data-art-scale]').count()==0,
-                  f'[{width}] play viewer and thumbnails do not inherit editor art scaling')
+        pg.goto(url+'#plays')
+        pg.locator('.play-row[data-id=quickie-out]').click()
+        reader=pg.locator('svg.pf:not(.editor)').first
+        checks.ok(reader.count()==1 and
+                  reader.get_attribute('data-art-scale') is None and
+                  'scale(' not in (reader.locator('[data-pl="LM"]').first.get_attribute('transform') or ''),
+                  f'[{width}] play viewer and thumbnails keep original unscaled symbols')
         ctx.close()
     ok=checks.done(errors)
     browser.close()
