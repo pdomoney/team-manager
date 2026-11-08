@@ -2370,3 +2370,83 @@ body.persona-mode .top{background:var(--turf)}
 @media(max-width:600px){
   .panel.wide:has(form.ped) .ped-main .ped-card.play-presentation{max-height:60dvh}
 }
+
+
+/* Option B / B1: the plays catalogue is a catalogue, not a wall of full-size
+   diagrams. Viewer, coaching canvas, stored SVG paths and List mode are intact. */
+.plays-grid.view-cards .play-row{
+  min-width:0;
+  gap:10px 12px;
+  padding:10px;
+}
+.plays-grid.view-cards .play-thumb{
+  flex:none;
+  width:112px;
+  height:108px;
+  aspect-ratio:auto;
+  padding:4px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+.plays-grid.view-cards .play-thumb .pf.thumb{
+  display:block;
+  width:100%;
+  height:100%;
+  max-width:100%;
+  max-height:100%;
+  object-fit:contain;
+}
+.plays-grid.view-cards .play-row .grow{
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+.plays-grid.view-cards .play-row .play-when{
+  display:-webkit-box!important;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+}
+@media(min-width:900px){
+  body.wide .plays-grid.view-cards{
+    grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));
+    gap:10px;
+  }
+  body.wide .plays-grid.view-cards .play-row{
+    display:grid;
+    grid-template-columns:112px minmax(0,1fr);
+    grid-template-rows:auto auto;
+    align-content:center;
+    align-items:start;
+    gap:6px 12px;
+    min-height:132px;
+    padding:10px;
+  }
+  body.wide .plays-grid.view-cards .play-thumb{
+    grid-column:1;
+    grid-row:1 / 3;
+    align-self:center;
+    width:112px;
+    height:108px;
+  }
+  body.wide .plays-grid.view-cards .play-row > .grow{
+    grid-column:2;
+    grid-row:1;
+    align-self:end;
+  }
+  body.wide .plays-grid.view-cards .play-row > .pill{
+    grid-column:2;
+    grid-row:2;
+    justify-self:start;
+    align-self:start;
+  }
+}
+@media(max-width:520px){
+  .plays-grid.view-cards .play-thumb{
+    width:94px;
+    height:92px;
+  }
+  .plays-grid.view-cards .play-row{
+    gap:8px;
+  }
+}
