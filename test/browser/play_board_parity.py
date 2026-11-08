@@ -39,6 +39,7 @@ with sync_playwright() as p:
         c.ok('Step Out' in pg.locator('#play-fig .play-board-title').text_content(),
              f'[{width}] viewer shares canonical title with list')
         pg.locator('[data-act=play-edit]').click()
+        pg.locator('[data-act=ped-tab][data-tab=teach]').click()
         preview=pg.locator('.teach-preview.play-editor-preview')
         c.ok(preview.count()==1 and
              preview.locator('.play-card.play-presentation .pf.study').count()==1,
