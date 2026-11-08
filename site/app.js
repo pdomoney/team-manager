@@ -4004,8 +4004,8 @@ function pedOverlay(E, fr) {
   if (E.snapEnabled && cue?.point?.length === 2 && cue.point.every(Number.isFinite)) {
     const cx = X(cue.point[0]), cy = Y(cue.point[1]);
     s += `<g class="ped-snap-cue" data-snap-target="${esc(cue.target)}" aria-hidden="true">
-      <circle cx="${cx}" cy="${cy}" r="18"/>
-      <path d="M${cx - 7} ${cy}h14M${cx} ${cy - 7}v14"/>
+      <circle cx="${cx}" cy="${cy}" r="${18 * art}"/>
+      <path d="M${cx - 7 * art} ${cy}h${14 * art}M${cx} ${cy - 7 * art}v${14 * art}"/>
     </g>`;
   }
   return s;
