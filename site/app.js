@@ -26,7 +26,7 @@ import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassReceiver, receiverFollowOnRun } from './play-actor-links.js';
-import { editorSnapPoint } from './play-editor-snap.js';
+import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
@@ -3845,6 +3845,7 @@ function openPlayEditor(play) {
         <div class="ped-under" role="toolbar" aria-label="Canvas view controls">
           <button type="button" class="btn sm" data-act="ped-undo">Undo</button>
           <button type="button" class="btn sm" data-act="ped-snap" aria-pressed="false">Snap: Off</button>
+          <span id="ped-snap-status" class="small" role="status" aria-live="polite" hidden></span>
           <button type="button" class="btn sm" data-act="ped-fit" aria-pressed="true">Fit view</button>
           <button type="button" class="btn sm" data-act="ped-zoom-out" aria-label="Zoom out of the editing canvas">−</button>
           <output id="ped-zoom-value" aria-label="Editing canvas zoom">Fit</output>
@@ -4292,6 +4293,16 @@ function bindPlayEditor() {
     pedNudgeSelected(direction[0] * step, direction[1] * step);
   });
   let drag = null, raf = 0;
+  const snapStatus = (position, kind) => {
+    const el = $('#ped-snap-status'), E = state.ped;
+    if (!el) return;
+    if (!position || !E?.snapEnabled) { el.hidden = true; el.textContent = ''; return; }
+    const result = editorSnapDetails(pedCur(E), position, kind, true);
+    el.textContent = result.status === 'ready' ? 'Snap ready: ' + result.target
+      : result.status === 'ambiguous' ? 'Multiple nearby actors: freehand'
+      : result.status === 'none' ? 'No nearby actor: freehand' : '';
+    el.hidden = !el.textContent;
+  };
   const svgEl = () => box.querySelector('svg');
   const toMetres = e => {
     const s = svgEl(), p = s.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
@@ -4303,6 +4314,7 @@ function bindPlayEditor() {
   // The link exists for this drag, not as an inferred saved-play relationship.
   box.addEventListener('pointerdown', e => {
     const E = state.ped, s = svgEl(); if (!E || !s || (e.button && e.button > 0)) return;
+    snapStatus(null);
     const p = toMetres(e), t = e.target, d = pedCur(E), hit = q => t.closest && t.closest(q);
     if (E.placing) { pedAddPhase(p); e.preventDefault(); return; }
     E.lockView = pedViewport(E);
@@ -4359,8 +4371,16 @@ function bindPlayEditor() {
     const shift = q => [clamp(round1(q[0] + dx), 0, 50), clamp(round1(q[1] + dy), 0, 80)];
     const follow = to => followActorEndpoints(d, drag.links, drag.actorKey, to);
     switch (drag.kind) {
-      case 'handle': d.moves[E.sel.i].pts[drag.j] = p; break;
-      case 'draw': E.drawing = { pts: [drag.start, p] }; break;
+      case 'handle': {
+        d.moves[E.sel.i].pts[drag.j] = p;
+        const m = d.moves[E.sel.i], end = drag.j === 0 || drag.j === m.pts.length - 1;
+        snapStatus(end ? p : null, m.t === 'shift' && drag.j === 0 ? 'defence' : 'player');
+        break;
+      }
+      case 'draw':
+        E.drawing = { pts: [drag.start, p] };
+        snapStatus(E.tool === 'pass' || E.tool === 'dummy' ? p : null, 'player');
+        break;
       case 'edge': d.view = frameFit({ ...drag.f0, [drag.edge]: drag.edge[0] === 'x' ? p[0] : p[1] }, drag.edge); break;
       case 'frame': d.view = frameMove(drag.f0, dx, dy); break;
       case 'pl': d.players[E.sel.id] = shift(drag.orig); follow(d.players[E.sel.id]); break;
@@ -4374,6 +4394,7 @@ function bindPlayEditor() {
   });
   const end = e => {
     const E = state.ped, k = drag; drag = null;
+    snapStatus(null);
     try { box.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
     if (!E || !k) return;
     const d = pedCur(E);
