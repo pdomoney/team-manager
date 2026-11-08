@@ -4311,6 +4311,7 @@ function bindPlayEditor() {
     drag = null;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     if (!E || !k) return;
+    try { box.releasePointerCapture(k.pointerId); } catch (err) { /* already released */ }
     cancelEditorPointer(E, k.before);
     snapStatus(null);
     refreshPlayEditor();
