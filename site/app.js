@@ -4048,13 +4048,30 @@ function pedPanel(E) {
   if (E.tool === 'label') return `<p class="hint">Tap the field to add words there, or tap a player or defender to put words beside them.</p>`;
   return `<p class="hint">Tap a line, player, defender or label to change it, or drag it to move it. Pick Run, Pass, Dummy, Kick or Defender to draw a new line, and Picture to set how much of the field shows.</p>`;
 }
+// Editor view scale, not saved field coordinates. Fit is responsive to the
+// available stage and the SVG's own viewBox, including at narrow browser zoom.
+function pedFitZoom(card, box, svg) {
+  const view = svg?.viewBox?.baseVal, width = box?.clientWidth || 0;
+  if (!view?.width || !view?.height || width <= 0 || !card?.clientHeight) return 1;
+  const availableWidth = Math.max(1, card.clientWidth - 28);
+  const availableHeight = Math.max(1, card.clientHeight - 28);
+  const naturalHeight = width * view.height / view.width;
+  return Math.round(clamp(Math.min(availableWidth / width, availableHeight / naturalHeight), 0.25, 3) * 100) / 100;
+}
 function refreshPedField() {
   const E = state.ped, box = $('#ped-field'); if (!E || !box) return;
   const card = box.closest('.ped-card');
   const left = card?.scrollLeft || 0, top = card?.scrollTop || 0;
   box.innerHTML = playSVG(pedView(E), 'right', { editor: true, svgId: 'ped-svg', viewport: pedViewport(E), overlay: fr => pedOverlay(E, fr) });
   const svg = box.querySelector('svg');
-  if (svg) { svg.style.width = ((E.zoom || 1) * 100) + '%'; svg.style.maxWidth = 'none'; svg.style.maxHeight = 'none'; svg.style.height = 'auto'; }
+  if (svg) {
+    if (E.zoomMode === 'fit') E.zoom = pedFitZoom(card, box, svg);
+    svg.style.width = (E.zoom * 100) + '%';
+    svg.style.maxWidth = 'none';
+    svg.style.maxHeight = 'none';
+    svg.style.height = 'auto';
+    svg.style.flexShrink = '0';
+  }
   // Pointer edits redraw SVG frequently; never jump back to the top-left.
   if (card) {
     card.scrollLeft = left; card.scrollTop = top;
@@ -4133,6 +4150,11 @@ function refreshPedTeaching() {
 function refreshPlayEditor() {
   const E = state.ped; if (!E || !$('#ped-field')) return;
   const n = phaseCount(E.draft);
+  const diagram = $('#ped-diagram');
+  if (diagram) diagram.classList.toggle('inspector-collapsed', !E.inspectorOpen);
+  const inspector = $('#ped-properties'); if (inspector) inspector.hidden = !E.inspectorOpen;
+  const inspectorBtn = $('[data-act="ped-inspector"]');
+  if (inspectorBtn) { inspectorBtn.setAttribute('aria-expanded', String(!!E.inspectorOpen)); inspectorBtn.textContent = E.inspectorOpen ? 'Hide properties' : 'Show properties'; }
   $('#ped-phases').innerHTML = `<div class="seg phase-bar" role="group" aria-label="Phase">${Array.from({ length: n }, (_, j) => `<button type="button" data-act="ped-phase" data-i="${j}" aria-pressed="${j === E.phase && !E.placing}">Phase ${j + 1}</button>`).join('')}<button type="button" data-act="ped-phase-add" aria-pressed="${!!E.placing}">+ Phase</button></div>
     ${E.phase ? `<button type="button" class="link-btn ped-phase-del" data-act="ped-phase-del">Delete phase ${E.phase + 1}</button>` : ''}`;
   $('#ped-ptitle-l').textContent = n > 1 ? `Phase ${E.phase + 1}` : 'Phase 1 (add more phases for the next rucks)';
@@ -4142,18 +4164,19 @@ function refreshPlayEditor() {
   $('#ped-panel').innerHTML = pedPanel(E);
   const u = $('[data-act="ped-undo"]'); if (u) u.disabled = !E.undo.length;
   const w = $('[data-act="ped-whole"]'); if (w) w.textContent = E.whole ? 'Zoom to the picture' : 'Show the whole field';
-  const snap = $('[data-act="ped-snap"]'); if (snap) { snap.textContent = 'Snap endpoints: ' + (E.snapEnabled ? 'On' : 'Off'); snap.setAttribute('aria-pressed', String(!!E.snapEnabled)); }
-  const zoomValue = $('#ped-zoom-value'); if (zoomValue) zoomValue.textContent = Math.round((E.zoom || 1) * 100) + '%';
+  const snap = $('[data-act="ped-snap"]'); if (snap) { snap.textContent = 'Snap: ' + (E.snapEnabled ? 'On' : 'Off'); snap.setAttribute('aria-pressed', String(!!E.snapEnabled)); }
+  const fitBtn = $('[data-act="ped-fit"]'); if (fitBtn) fitBtn.setAttribute('aria-pressed', String(E.zoomMode === 'fit'));
+  const zoomValue = $('#ped-zoom-value'); if (zoomValue) zoomValue.textContent = (E.zoomMode === 'fit' ? 'Fit · ' : '') + Math.round(E.zoom * 100) + '%';
   if (E.focusText) { E.focusText = false; const t = $('#ped-text'); if (t) { t.focus(); t.select(); } }
 }
 function pedResizeCanvas(delta) {
   const E = state.ped, card = $('#ped-field')?.closest('.ped-card'); if (!E || !card) return;
-  const before = E.zoom || 1, after = clamp(Math.round((before + delta) * 100) / 100, 1, 2.5);
+  const before = E.zoom || 1, after = clamp(Math.round((before + delta) * 100) / 100, 0.25, 3);
   if (after === before) return;
   // Keep the same relative centre when resizing, never alter field coordinates.
   const x = (card.scrollLeft + card.clientWidth / 2) / Math.max(1, card.scrollWidth);
   const y = (card.scrollTop + card.clientHeight / 2) / Math.max(1, card.scrollHeight);
-  E.zoom = after; refreshPlayEditor();
+  E.zoomMode = 'manual'; E.zoom = after; refreshPlayEditor();
   card.scrollLeft = x * card.scrollWidth - card.clientWidth / 2;
   card.scrollTop = y * card.scrollHeight - card.clientHeight / 2;
 }
@@ -8974,8 +8997,10 @@ const actions = {
     const E = state.ped; if (!E.phase || !confirm(`Delete phase ${E.phase + 1}?`)) return;
     pedSnap(); E.draft.phases.splice(E.phase - 1, 1); pedSetPhase(E.phase - 1);
   }),
-  'ped-whole': coachOnly(() => { state.ped.whole = !state.ped.whole; state.ped.stableViewport = null; refreshPlayEditor(); }),
+  'ped-whole': coachOnly(() => { state.ped.whole = !state.ped.whole; state.ped.stableViewport = null; state.ped.canvasPositioned = false; refreshPlayEditor(); }),
   'ped-snap': coachOnly(() => { state.ped.snapEnabled = !state.ped.snapEnabled; refreshPlayEditor(); }),
+  'ped-fit': coachOnly(() => { state.ped.zoomMode = 'fit'; state.ped.canvasPositioned = false; refreshPlayEditor(); }),
+  'ped-inspector': coachOnly(() => { const E = state.ped; E.inspectorOpen = !E.inspectorOpen; E.canvasPositioned = false; refreshPlayEditor(); }),
   'ped-zoom-in': coachOnly(() => pedResizeCanvas(0.25)),
   'ped-zoom-out': coachOnly(() => pedResizeCanvas(-0.25)),
   'ped-del': coachOnly(() => pedDelete()),
@@ -10534,7 +10559,7 @@ document.addEventListener('submit', async e => {
       document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === 'teach')));
       refreshPedTeaching(); toast('Every teaching action needs an instruction before saving.'); return;
     }
-    if (!str('name')) { toast('Give the play a name'); const n = form.querySelector('[name=name]'); if (n) n.focus(); return; }
+    if (!str('name')) { toast('Give the play a name'); const n = form.querySelector('[name=name]'); const setup = n?.closest('details'); if (setup) setup.open = true; if (n) n.focus(); return; }
     Object.assign(E.draft, { name: str('name'), sport: M.SPORTS.includes(str('playSport')) ? str('playSport') : curSport(), category: str('category') || 'Other', headline: str('headline'), when: str('when'), steps: String(f.get('steps') || '').trim() });
     if (form.querySelector('[name=rules]')) E.draft.rules = f.getAll('rules').map(String);
     if (E.draft.builtin) E.draft.edited = true;   // keep the coach's version when the starter drawings are updated
