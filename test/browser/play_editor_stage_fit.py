@@ -38,6 +38,8 @@ with sync_playwright() as p:
         checks.ok(metrics['svg']['height']<=metrics['canvas']['height']+3 and
                   metrics['svg']['width']<=metrics['canvas']['width']+3,
                   f'[{width}] complete drawing is visible in fitted stage: {metrics!r}')
+        checks.ok(metrics['canvas']['width']>=max(280,width*0.55),
+                  f'[{width}] editing canvas cannot collapse into a leftover inspector column: {metrics!r}')
         checks.ok(metrics['canvas']['height']>=245 and
                   metrics['phases']['top']>=metrics['canvas']['bottom']-4 and
                   metrics['footer']['top']>=metrics['phases']['bottom']-4 and
