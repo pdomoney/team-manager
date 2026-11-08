@@ -4408,6 +4408,7 @@ function bindPlayEditor() {
       if (card) { card.scrollLeft = drag.scrollLeft - (e.clientX - drag.clientX); card.scrollTop = drag.scrollTop - (e.clientY - drag.clientY); }
       return;
     }
+    if (drag.kind === 'placing') return;
     const p = toMetres(e), d = pedCur(E);
     if (!drag.moved) {
       if (dist(p, drag.p0) < 0.6) return;
