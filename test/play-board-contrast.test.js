@@ -11,7 +11,7 @@ const block = selector => {
   return css.slice(start, end);
 };
 const hex = (selector, property) => {
-  const declaration = block(selector).match(new RegExp(`(?:^|[;\\s])${property}\\s*:\\s*(#[0-9a-fA-F]{6})`, 'i'));
+  const declaration = block(selector).match(new RegExp(`(?:^|[;{\\s])${property}\\s*:\\s*(#[0-9a-fA-F]{6})`, 'i'));
   assert.ok(declaration, `Missing ${property} for ${selector}`);
   return declaration[1];
 };
