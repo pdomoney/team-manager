@@ -2979,15 +2979,15 @@ body.persona-mode .top{background:var(--turf)}
   width:100%;
 }
 #sheet .play-editor-workspace #ped-diagram #ped-field{
-  display:flex;
-  justify-content:center;
-  align-items:flex-start;
+  display:block;
+  text-align:center;
   min-height:100%;
   width:100%;
   min-width:0;
 }
 #sheet .play-editor-workspace #ped-diagram .ped-card svg.pf.editor{
   display:block;
+  margin:0 auto;
   flex-shrink:0;
   min-width:0;
   max-width:none!important;
