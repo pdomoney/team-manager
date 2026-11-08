@@ -3779,7 +3779,7 @@ function animStart() {
 //   Run, Pass, Dummy, Kick, Defender   drag from where the line starts to where it ends.
 //   Label     tap the field to put words there, or a player or defender to put words beside them.
 //   Picture   drag the frame's edges to set how wide and deep the picture is.
-const PED_TOOLS = [['select', 'Select'], ['run', 'Run'], ['pass', 'Pass'], ['dummy', 'Dummy'], ['kick', 'Kick'], ['shift', 'Defender'], ['label', 'Label'], ['frame', 'Picture']];
+const PED_TOOLS = [['select', 'Select'], ['pan', 'Pan board'], ['run', 'Run'], ['pass', 'Pass'], ['dummy', 'Dummy'], ['kick', 'Kick'], ['shift', 'Defender'], ['label', 'Label'], ['frame', 'Picture']];
 const PED_NAMES = Object.fromEntries(PED_TOOLS);
 const PED_DRAW = ['run', 'pass', 'dummy', 'kick', 'shift'];
 const PED_SIDES = [['l', 'Left'], ['r', 'Right'], ['a', 'Above'], ['b', 'Below'], ['al', 'Above left'], ['ar', 'Above right'], ['bl', 'Below left'], ['br', 'Below right']];
@@ -3803,7 +3803,7 @@ function openPlayEditor(play) {
     ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
   };
   tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
-  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'teach', teachPhase: 0, teachPreview: 0 };
+  state.ped = { draft, phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1.5, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'teach', teachPhase: 0, teachPreview: 0 };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
     <div class="two">
       <label class="field-l"><span>Name</span><input type="text" name="name" value="${esc(draft.name)}" placeholder="e.g. Blind-side wrap"></label>
@@ -3834,8 +3834,8 @@ function openPlayEditor(play) {
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
       <div class="ped-main">
         <div class="play-card ped-card play-presentation"><div class="play-board-field"><div id="ped-field"></div></div></div>
-        <div class="ped-under"><button type="button" class="btn sm" data-act="ped-undo">Undo</button><button type="button" class="btn sm" data-act="ped-snap" aria-pressed="false">Snap endpoints: Off</button><button type="button" class="btn sm" data-act="ped-whole">Show the whole field</button></div>
-        <p class="hint ped-edit-help">Drag on the board to edit. Scroll inside the board to reach the rest of the field. Snapping is off until you enable it.</p>
+        <div class="ped-under"><button type="button" class="btn sm" data-act="ped-undo">Undo</button><button type="button" class="btn sm" data-act="ped-snap" aria-pressed="false">Snap endpoints: Off</button><button type="button" class="btn sm" data-act="ped-zoom-out" aria-label="Zoom out of the editing canvas">−</button><output id="ped-zoom-value" aria-label="Editing canvas zoom">150%</output><button type="button" class="btn sm" data-act="ped-zoom-in" aria-label="Zoom into the editing canvas">+</button><button type="button" class="btn sm" data-act="ped-whole">Show the whole field</button></div>
+        <p class="hint ped-edit-help">Choose Pan board to move around the canvas. Use − and + to resize players and paths. Select to drag actors or lines. Snapping controls endpoint attachment only.</p>
       </div>
       <div id="ped-panel" class="ped-panel"></div>
     </div>
@@ -4023,7 +4023,13 @@ function pedPanel(E) {
 }
 function refreshPedField() {
   const E = state.ped, box = $('#ped-field'); if (!E || !box) return;
+  const card = box.closest('.ped-card');
+  const left = card?.scrollLeft || 0, top = card?.scrollTop || 0;
   box.innerHTML = playSVG(pedView(E), 'right', { editor: true, svgId: 'ped-svg', viewport: pedViewport(E), overlay: fr => pedOverlay(E, fr) });
+  const svg = box.querySelector('svg');
+  if (svg) { svg.style.width = ((E.zoom || 1) * 100) + '%'; svg.style.maxWidth = 'none'; svg.style.maxHeight = 'none'; svg.style.height = 'auto'; }
+  // Pointer edits redraw SVG frequently; never jump back to the top-left.
+  if (card) { card.scrollLeft = left; card.scrollTop = top; }
 }
 
 function refreshPedTeaching() {
@@ -4096,7 +4102,19 @@ function refreshPlayEditor() {
   const u = $('[data-act="ped-undo"]'); if (u) u.disabled = !E.undo.length;
   const w = $('[data-act="ped-whole"]'); if (w) w.textContent = E.whole ? 'Zoom to the picture' : 'Show the whole field';
   const snap = $('[data-act="ped-snap"]'); if (snap) { snap.textContent = 'Snap endpoints: ' + (E.snapEnabled ? 'On' : 'Off'); snap.setAttribute('aria-pressed', String(!!E.snapEnabled)); }
+  const zoomValue = $('#ped-zoom-value'); if (zoomValue) zoomValue.textContent = Math.round((E.zoom || 1) * 100) + '%';
   if (E.focusText) { E.focusText = false; const t = $('#ped-text'); if (t) { t.focus(); t.select(); } }
+}
+function pedResizeCanvas(delta) {
+  const E = state.ped, card = $('#ped-field')?.closest('.ped-card'); if (!E || !card) return;
+  const before = E.zoom || 1, after = clamp(Math.round((before + delta) * 100) / 100, 1, 2.5);
+  if (after === before) return;
+  // Keep the same relative centre when resizing, never alter field coordinates.
+  const x = (card.scrollLeft + card.clientWidth / 2) / Math.max(1, card.scrollWidth);
+  const y = (card.scrollTop + card.clientHeight / 2) / Math.max(1, card.scrollHeight);
+  E.zoom = after; refreshPlayEditor();
+  card.scrollLeft = x * card.scrollWidth - card.clientWidth / 2;
+  card.scrollTop = y * card.scrollHeight - card.clientHeight / 2;
 }
 function pedSyncTitle() {
   const E = state.ped, t = $('#ped-ptitle'); if (E && t) t.value = pedCur(E).title || '';
@@ -4167,6 +4185,9 @@ function bindPlayEditor() {
       if (add) { pedSnap(); const j = +add.dataset.hadd + 1; d.moves[E.sel.i].pts.splice(j, 0, p); E.selH = j; Object.assign(drag, { kind: 'handle', j, moved: true }); }
       else { E.selH = +h.dataset.h; Object.assign(drag, { kind: 'handle', j: E.selH }); }
       refreshPlayEditor();
+    } else if (E.tool === 'pan') {
+      const card = box.closest('.ped-card');
+      Object.assign(drag, { kind: 'pan', clientX: e.clientX, clientY: e.clientY, scrollLeft: card?.scrollLeft || 0, scrollTop: card?.scrollTop || 0 });
     } else if (E.tool === 'frame' && (fe || fb)) {
       Object.assign(drag, { kind: fe ? 'edge' : 'frame', edge: fe && fe.dataset.fe, f0: { ...pedFrame(E) } });
     } else if (PED_DRAW.includes(E.tool)) {
@@ -4195,6 +4216,11 @@ function bindPlayEditor() {
   });
   box.addEventListener('pointermove', e => {
     const E = state.ped; if (!drag || !E) return;
+    if (drag.kind === 'pan') {
+      const card = box.closest('.ped-card');
+      if (card) { card.scrollLeft = drag.scrollLeft - (e.clientX - drag.clientX); card.scrollTop = drag.scrollTop - (e.clientY - drag.clientY); }
+      return;
+    }
     const p = toMetres(e), d = pedCur(E);
     if (!drag.moved) {
       if (dist(p, drag.p0) < 0.6) return;
@@ -8902,6 +8928,8 @@ const actions = {
   }),
   'ped-whole': coachOnly(() => { state.ped.whole = !state.ped.whole; state.ped.stableViewport = null; refreshPlayEditor(); }),
   'ped-snap': coachOnly(() => { state.ped.snapEnabled = !state.ped.snapEnabled; refreshPlayEditor(); }),
+  'ped-zoom-in': coachOnly(() => pedResizeCanvas(0.25)),
+  'ped-zoom-out': coachOnly(() => pedResizeCanvas(-0.25)),
   'ped-del': coachOnly(() => pedDelete()),
   'ped-opt': coachOnly(el => { const E = state.ped; E[el.dataset.f] = !E[el.dataset.f]; refreshPlayEditor(); }),
   'ped-mv-type': coachOnly(el => {
