@@ -33,6 +33,9 @@ with sync_playwright() as p:
         before=pg.evaluate("""() => JSON.stringify(window.__team.data.plays.find(x=>x.id==='quickie-out'))""")
         pg.locator('[data-act=play-edit]').click()
         pg.wait_for_selector('#sheet form.ped')
+        checks.ok(pg.locator('#ped-diagram').is_visible(),
+                  f'[{width}] play editor now starts with the diagram workspace')
+        pg.locator('[data-act=ped-tab][data-tab=teach]').click()
         snap=pg.evaluate(measure)
         checks.ok(snap['viewport']['left']>=-2 and
                   snap['viewport']['right']<=width+2 and
