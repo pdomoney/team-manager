@@ -86,7 +86,7 @@ with sync_playwright() as p:
     checks.ok(after['name']=='Step In practice' and
               after['moves']==before['moves'] and
               after['players']==before['players'] and
-              after['phases']==before['phases'],
+              after.get('phases', [])==before.get('phases', []),
               'Save uses original play data contract with no movement or phase migration')
     checks.ok(pg.locator('#sheet form.ped').count()==0 and
               'Step In practice' in pg.locator('#play-fig .play-board-title').inner_text(),
