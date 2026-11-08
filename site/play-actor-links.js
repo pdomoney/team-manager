@@ -117,3 +117,33 @@ export function detachMovementActors(move) {
   move.actorLinks = {};
   return true;
 }
+
+
+// Explicit E4.3 coach decision: a receiver is chosen by the diagram slot ID.
+// Only an E4.2+ movement can be changed; historical play geometry is untouched.
+export function assignPassReceiver(phase, moveIndex, playerId) {
+  const move = phase?.moves?.[moveIndex], target = phase?.players?.[playerId];
+  if (move?.linkVersion !== 1 || move.t !== 'pass' ||
+      !Array.isArray(move.pts) || move.pts.length < 2 || !point(target) ||
+      !actorAtEndpoint(phase, target, 'player') ||
+      actorAtEndpoint(phase, target, 'player') !== 'player:' + playerId) return false;
+  move.pts[move.pts.length - 1] = target.slice();
+  move.actorLinks = { ...move.actorLinks, end: 'player:' + playerId };
+  return true;
+}
+
+// Start a separate, explicitly identified teaching run from the selected
+// receiver. This does NOT assert possession, catch timing, or a legal route.
+export function receiverFollowOnRun(phase, passIndex, moveId, targetPosition) {
+  const pass = phase?.moves?.[passIndex];
+  if (pass?.linkVersion !== 1 || pass.t !== 'pass' ||
+      !pass.actorLinks?.end?.startsWith('player:') || !point(targetPosition)) return null;
+  const actorKey = pass.actorLinks.end, actorId = actorKey.slice(7);
+  const start = phase?.players?.[actorId];
+  if (!point(start) || distance(start, targetPosition) < 1 ||
+      distance(start, pass.pts?.at(-1) || []) > 0.4 ||
+      targetPosition[0] < 0 || targetPosition[0] > 50 ||
+      targetPosition[1] < 0 || targetPosition[1] > 80) return null;
+  const run = newLinkedMovement(phase, { t: 'run', pts: [start.slice(), targetPosition.slice()] }, moveId);
+  return run?.actorLinks?.start === actorKey ? run : null;
+}
