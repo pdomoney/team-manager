@@ -3168,3 +3168,104 @@ body.persona-mode .top{background:var(--turf)}
     grid-template-areas:"tools main" "tools phases";
   }
 }
+
+
+/* Option B / B4.1: precise actor positioning without opening the inspector.
+   Keep this UI scoped to the coach play editor, not the read-only viewer. */
+#sheet .play-editor-workspace #ped-diagram .ped-precision[hidden]{display:none!important}
+#sheet .play-editor-workspace #ped-diagram .ped-precision{
+  display:flex;
+  align-items:center;
+  flex:0 0 auto;
+  flex-wrap:wrap;
+  gap:5px 8px;
+  min-width:0;
+  padding:5px 8px;
+  margin:0 0 6px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--paper);
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision-title{
+  font-size:13px;
+  white-space:nowrap;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision-help{
+  color:var(--muted);
+  font-size:12px;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision-points,
+#sheet .play-editor-workspace #ped-diagram .ped-precision-controls{
+  display:inline-flex;
+  flex:0 0 auto;
+  align-items:center;
+  gap:3px;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision .btn{
+  min-width:40px;
+  min-height:40px;
+  padding:7px;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision .btn[aria-pressed=true]{
+  color:var(--sky-ink);
+  background:var(--sky-soft);
+  border-color:var(--sky);
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision-step{
+  margin-left:auto;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  font-size:12px;
+  white-space:nowrap;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision-step select{
+  min-height:40px;
+  width:66px;
+  padding:6px;
+  margin:0;
+}
+#sheet .play-editor-workspace #ped-diagram #ped-field:focus-visible{
+  outline:2px solid var(--sky);
+  outline-offset:3px;
+}
+@media(max-width:610px){
+  /* A short scrollable tools row gives the stage room instead of wrapping
+     nine tools plus Zoom/Snap controls into four tall mobile rows. */
+  #sheet .panel.wide.play-editor-workspace #ped-diagram .ped-tools{
+    display:flex;
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    overflow-y:hidden;
+    min-width:0;
+    gap:4px;
+    padding:3px 1px;
+    scrollbar-width:thin;
+    overscroll-behavior-x:contain;
+  }
+  #sheet .panel.wide.play-editor-workspace #ped-diagram .ped-tools button{
+    flex:0 0 82px;
+    width:82px;
+    min-height:40px;
+    white-space:nowrap;
+  }
+  #sheet .panel.wide.play-editor-workspace #ped-diagram .ped-under{
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    overflow-y:hidden;
+    scrollbar-width:thin;
+    overscroll-behavior-x:contain;
+    padding:0 1px 4px;
+  }
+  #sheet .panel.wide.play-editor-workspace #ped-diagram .ped-under .btn{
+    flex:0 0 auto;
+    min-height:40px;
+    white-space:nowrap;
+  }
+  #sheet .play-editor-workspace #ped-diagram .ped-precision{
+    flex-wrap:wrap;
+  }
+  #sheet .play-editor-workspace #ped-diagram .ped-precision-step{
+    margin-left:0;
+  }
+}
