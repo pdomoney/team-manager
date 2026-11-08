@@ -29,6 +29,7 @@ import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMove
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
 import { previewBendInsertion, insertMovementBend, canRemoveMovementBend, removeMovementBend } from './play-editor-bends.js';
+import { captureEditorPointer, cancelEditorPointer } from './play-editor-pointer.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
 import { playTeachingCompatibility } from './p08-play-compatibility.js';
@@ -4303,7 +4304,23 @@ function bindPlayEditor() {
     const step = Number(E.precisionStep) || 0.5;
     pedNudgeSelected(direction[0] * step, direction[1] * step);
   });
-  let drag = null, raf = 0;
+  let drag = null, raf = 0, multiPointerBlocked = false;
+  const pointerIds = new Set();
+  const abortGesture = () => {
+    const E = state.ped, k = drag;
+    drag = null;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    if (!E || !k) return;
+    try { box.releasePointerCapture(k.pointerId); } catch (err) { /* already released */ }
+    cancelEditorPointer(E, k.before);
+    snapStatus(null);
+    refreshPlayEditor();
+    const card = box.closest('.ped-card');
+    if (card) {
+      card.scrollLeft = k.scrollLeft;
+      card.scrollTop = k.scrollTop;
+    }
+  };
   const snapStatus = (position, kind) => {
     const el = $('#ped-snap-status'), E = state.ped;
     if (!el) return;
@@ -4325,11 +4342,30 @@ function bindPlayEditor() {
   // The link exists for this drag, not as an inferred saved-play relationship.
   box.addEventListener('pointerdown', e => {
     const E = state.ped, s = svgEl(); if (!E || !s || (e.button && e.button > 0)) return;
+    pointerIds.add(e.pointerId);
+    if (pointerIds.size > 1) {
+      // Two-finger touch is never a path move: discard the first gesture and
+      // ignore both fingers until they are all lifted.
+      multiPointerBlocked = true;
+      abortGesture();
+      e.preventDefault();
+      return;
+    }
+    if (multiPointerBlocked) { e.preventDefault(); return; }
     snapStatus(null);
     const p = toMetres(e), t = e.target, d = pedCur(E), hit = q => t.closest && t.closest(q);
-    if (E.placing) { pedAddPhase(p); e.preventDefault(); return; }
+    const card = box.closest('.ped-card');
+    const before = captureEditorPointer(E);
+    if (!before) { pointerIds.delete(e.pointerId); return; }
     E.lockView = pedViewport(E);
-    drag = { p0: p, moved: false, tap: t };
+    drag = { p0: p, moved: false, tap: t, pointerId: e.pointerId,
+      before, scrollLeft: card?.scrollLeft || 0, scrollTop: card?.scrollTop || 0 };
+    if (E.placing) {
+      drag.kind = 'placing'; // Commit the phase on release, not on a canceled tap.
+      try { box.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
+      e.preventDefault();
+      return;
+    }
     const h = hit('[data-h]'), add = hit('[data-hadd]'), fe = hit('[data-fe]'), fb = hit('[data-fb]');
     if (E.sel && E.sel.k === 'mv' && d.moves[E.sel.i] && (h || add)) {
       if (add) { pedSnap(); const j = +add.dataset.hadd + 1; d.moves[E.sel.i].pts.splice(j, 0, p); E.selH = j; Object.assign(drag, { kind: 'handle', j, moved: true }); }
@@ -4366,12 +4402,14 @@ function bindPlayEditor() {
     e.preventDefault();
   });
   box.addEventListener('pointermove', e => {
-    const E = state.ped; if (!drag || !E) return;
+    const E = state.ped;
+    if (!drag || !E || multiPointerBlocked || e.pointerId !== drag.pointerId) return;
     if (drag.kind === 'pan') {
       const card = box.closest('.ped-card');
       if (card) { card.scrollLeft = drag.scrollLeft - (e.clientX - drag.clientX); card.scrollTop = drag.scrollTop - (e.clientY - drag.clientY); }
       return;
     }
+    if (drag.kind === 'placing') return;
     const p = toMetres(e), d = pedCur(E);
     if (!drag.moved) {
       if (dist(p, drag.p0) < 0.6) return;
@@ -4404,12 +4442,20 @@ function bindPlayEditor() {
     later();
   });
   const end = e => {
+    pointerIds.delete(e.pointerId);
+    if (multiPointerBlocked) {
+      if (!pointerIds.size) multiPointerBlocked = false;
+      return;
+    }
+    if (!drag || drag.pointerId !== e.pointerId) return;
     const E = state.ped, k = drag; drag = null;
     snapStatus(null);
     try { box.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
     if (!E || !k) return;
     const d = pedCur(E);
-    if (k.kind === 'draw') {
+    if (k.kind === 'placing') {
+      pedAddPhase(k.p0);
+    } else if (k.kind === 'draw') {
       const line = E.drawing; E.drawing = null;
       if (k.moved && line && dist(line.pts[0], line.pts[1]) >= 1) {
         pedSnap();
@@ -4437,7 +4483,17 @@ function bindPlayEditor() {
     E.lockView = null;
     refreshPlayEditor();
   };
-  box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+  const cancel = e => {
+    pointerIds.delete(e.pointerId);
+    if (drag?.pointerId === e.pointerId) abortGesture();
+    if (!pointerIds.size) multiPointerBlocked = false;
+  };
+  box.addEventListener('pointerup', end);
+  box.addEventListener('pointercancel', cancel);
+  // A capture lost to browser/system UI is also an incomplete gesture.
+  box.addEventListener('lostpointercapture', e => {
+    if (drag?.pointerId === e.pointerId) cancel(e);
+  });
 }
 function playShareText(p, side) {
   const steps = playSteps(p, side), when = playWhen(p, side), head = playHeadline(p, side), n = phaseCount(p);

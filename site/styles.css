@@ -3314,3 +3314,11 @@ body.persona-mode .top{background:var(--turf)}
   align-items:center;
   gap:3px;
 }
+
+/* B4.4: keep touch drawing on the editor stage under pointer control.
+   Use the existing Pan board tool for deliberate movement of the canvas;
+   surrounding editor panels remain ordinarily scrollable. */
+#sheet .play-editor-workspace #ped-field,
+#sheet .play-editor-workspace #ped-field svg{
+  touch-action:none;
+}
