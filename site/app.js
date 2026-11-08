@@ -3832,6 +3832,7 @@ function openPlayEditor(play) {
     </div>
     <div id="ped-diagram" class="ped-diagram">
       <div class="ped-phases" id="ped-phases"></div>
+      <div class="ped-properties" aria-label="Diagram properties">
       <div class="ped-meta">
       <label class="field-l ped-list"><span>Diagram role labels</span><select data-change="ped-list">${allSets().map(x => `<option value="${esc(x.id)}" ${x.id === getSet(draft.set).id ? 'selected' : ''}>${esc(x.name)} (${x.labels.length})</option>`).join('')}</select><small>These are label names, not full team formations. A rugby league list has 13 role labels, but this diagram still draws eight positions.</small><small>Manage custom role lists in Tactics → Library after saving your play.</small></label>
       <label class="field-l ped-ptitle"><span id="ped-ptitle-l">Phase 1</span><input type="text" id="ped-ptitle" data-input="ped-ptitle" value="${esc(draft.title || '')}" placeholder="What happens in this phase, e.g. Tag 2: hands right"></label>
@@ -3843,6 +3844,7 @@ function openPlayEditor(play) {
         <p class="hint ped-edit-help">Choose Pan board to move around the canvas. Use − and + to resize players and paths. Select to drag actors or lines. Snapping controls endpoint attachment only.</p>
       </div>
       <div id="ped-panel" class="ped-panel"></div>
+      </div>
     </div>
     <div class="ped-save" role="group" aria-label="Save or cancel play editing"><span class="ped-save-hint">Play editing · changes are saved only when you choose Save play</span><button class="btn" type="button" data-act="ped-cancel">Cancel</button><button class="btn primary" type="submit">Save play</button></div>
   </form>`, 'play-editor');
