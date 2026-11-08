@@ -33,11 +33,26 @@ with sync_playwright() as p:
         checks.ok(metrics['contentHeight']>=metrics['cardHeight'],
                   f'[{width}] short plays fit vertically while taller plays can scroll: {metrics!r}')
         zoom=pg.locator('#ped-zoom-value')
-        checks.ok(zoom.inner_text()=='150%',f'[{width}] labelled initial zoom')
+        initial=zoom.inner_text()
+        start=int(initial.split('%')[0].split('·')[-1].strip())
+        checks.ok('Fit' in initial and 10<=start<100,
+                  f'[{width}] opens with a fitted view below 100%, not an arbitrary 150%: {initial}')
         pg.locator('[data-act=ped-zoom-in]').click()
-        checks.ok(zoom.inner_text()=='175%',f'[{width}] explicit zoom in')
+        enlarged=int(zoom.inner_text().replace('%',''))
+        checks.ok(enlarged>start,f'[{width}] manual zoom in from Fit')
         pg.locator('[data-act=ped-zoom-out]').click()
-        checks.ok(zoom.inner_text()=='150%',f'[{width}] explicit zoom out')
+        checks.ok(int(zoom.inner_text().replace('%',''))==start,
+                  f'[{width}] zoom out restores previous displayed scale')
+        # Force a large working view to exercise two-axis panning and
+        # verify scroll survives SVG redraw when Snap is toggled.
+        for _ in range(9):
+            pg.locator('[data-act=ped-zoom-in]').click()
+        grown=pg.evaluate("""() => {
+          const c=document.querySelector('#ped-field').closest('.ped-card');
+          return {visible:c.clientWidth,content:c.scrollWidth};
+        }""")
+        checks.ok(grown['content']>grown['visible']+10,
+                  f'[{width}] zoomed board really scrolls horizontally: {grown!r}')
         pg.locator('[data-act=ped-tool][data-t=pan]').click()
         checks.ok(pg.locator('[data-act=ped-tool][data-t=pan]').get_attribute('aria-pressed')=='true',
                   f'[{width}] pan mode has clear active state')
