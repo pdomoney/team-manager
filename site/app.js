@@ -4056,7 +4056,7 @@ function pedFitZoom(card, box, svg) {
   const availableWidth = Math.max(1, card.clientWidth - 28);
   const availableHeight = Math.max(1, card.clientHeight - 28);
   const naturalHeight = width * view.height / view.width;
-  return Math.round(clamp(Math.min(availableWidth / width, availableHeight / naturalHeight), 0.25, 3) * 100) / 100;
+  return Math.round(clamp(Math.min(availableWidth / width, availableHeight / naturalHeight), 0.1, 3) * 100) / 100;
 }
 function refreshPedField() {
   const E = state.ped, box = $('#ped-field'); if (!E || !box) return;
@@ -4155,7 +4155,7 @@ function refreshPlayEditor() {
   const inspector = $('#ped-properties'); if (inspector) inspector.hidden = !E.inspectorOpen;
   const inspectorBtn = $('[data-act="ped-inspector"]');
   if (inspectorBtn) { inspectorBtn.setAttribute('aria-expanded', String(!!E.inspectorOpen)); inspectorBtn.textContent = E.inspectorOpen ? 'Hide properties' : 'Show properties'; }
-  $('#ped-phases').innerHTML = `<div class="seg phase-bar" role="group" aria-label="Phase">${Array.from({ length: n }, (_, j) => `<button type="button" data-act="ped-phase" data-i="${j}" aria-pressed="${j === E.phase && !E.placing}">Phase ${j + 1}</button>`).join('')}<button type="button" data-act="ped-phase-add" aria-pressed="${!!E.placing}">+ Phase</button></div>
+  $('#ped-phases').innerHTML = `<span class="ped-phase-label">Phase track</span><div class="seg phase-bar" role="group" aria-label="Phase">${Array.from({ length: n }, (_, j) => `<button type="button" data-act="ped-phase" data-i="${j}" aria-pressed="${j === E.phase && !E.placing}">Phase ${j + 1}</button>`).join('')}<button type="button" data-act="ped-phase-add" aria-pressed="${!!E.placing}">+ Phase</button></div>
     ${E.phase ? `<button type="button" class="link-btn ped-phase-del" data-act="ped-phase-del">Delete phase ${E.phase + 1}</button>` : ''}`;
   $('#ped-ptitle-l').textContent = n > 1 ? `Phase ${E.phase + 1}` : 'Phase 1 (add more phases for the next rucks)';
   $('#ped-tools').innerHTML = PED_TOOLS.map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${E.tool === k}">${l}</button>`).join('');
@@ -4171,7 +4171,7 @@ function refreshPlayEditor() {
 }
 function pedResizeCanvas(delta) {
   const E = state.ped, card = $('#ped-field')?.closest('.ped-card'); if (!E || !card) return;
-  const before = E.zoom || 1, after = clamp(Math.round((before + delta) * 100) / 100, 0.25, 3);
+  const before = E.zoom || 1, after = clamp(Math.round((before + delta) * 100) / 100, 0.1, 3);
   if (after === before) return;
   // Keep the same relative centre when resizing, never alter field coordinates.
   const x = (card.scrollLeft + card.clientWidth / 2) / Math.max(1, card.scrollWidth);
@@ -9001,8 +9001,8 @@ const actions = {
   'ped-snap': coachOnly(() => { state.ped.snapEnabled = !state.ped.snapEnabled; refreshPlayEditor(); }),
   'ped-fit': coachOnly(() => { state.ped.zoomMode = 'fit'; state.ped.canvasPositioned = false; refreshPlayEditor(); }),
   'ped-inspector': coachOnly(() => { const E = state.ped; E.inspectorOpen = !E.inspectorOpen; E.canvasPositioned = false; refreshPlayEditor(); }),
-  'ped-zoom-in': coachOnly(() => pedResizeCanvas(0.25)),
-  'ped-zoom-out': coachOnly(() => pedResizeCanvas(-0.25)),
+  'ped-zoom-in': coachOnly(() => pedResizeCanvas(0.15)),
+  'ped-zoom-out': coachOnly(() => pedResizeCanvas(-0.15)),
   'ped-del': coachOnly(() => pedDelete()),
   'ped-opt': coachOnly(el => { const E = state.ped; E[el.dataset.f] = !E[el.dataset.f]; refreshPlayEditor(); }),
   'ped-mv-type': coachOnly(el => {
