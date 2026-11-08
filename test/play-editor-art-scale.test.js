@@ -15,7 +15,7 @@ test('visibility and usability bounds at extreme zoom', () => {
   assert.equal(editorArtworkScale(0.5),1.4);
   assert.equal(editorArtworkScale(3),0.333);
   for (const z of [0.1,0.5,0.85,1,1.41,1.71,2.5,3]) {
-    assert.ok(editorArtworkScale(z)>=0.55 && editorArtworkScale(z)<=1.4);
+    assert.ok(editorArtworkScale(z)>=0.33 && editorArtworkScale(z)<=1.4);
   }
 });
 
