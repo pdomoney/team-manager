@@ -3416,3 +3416,7 @@ body.persona-mode .top{background:var(--turf)}
   fill:transparent;
   stroke:none;
 }
+
+#sheet .play-editor-workspace .pf.editor .ped-snap-cue{
+  stroke-width:calc(2.7px * var(--ped-art-scale));
+}
