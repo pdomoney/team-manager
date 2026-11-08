@@ -3811,7 +3811,7 @@ function openPlayEditor(play) {
     ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
   };
   tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
-  state.ped = { draft, initialDraft: JSON.stringify(draft), phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1, zoomMode: 'fit', precisionStep: 0.5, inspectorOpen: window.matchMedia('(min-width: 1000px)').matches, snapEnabled: false, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
+  state.ped = { draft, initialDraft: JSON.stringify(draft), phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1, zoomMode: 'fit', precisionStep: 0.5, inspectorOpen: window.matchMedia('(min-width: 1000px)').matches, snapEnabled: false, snapPreview: null, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
     <div class="ped-topline">
     <div class="seg ped-workspaces" role="group" aria-label="Play editor workspace">
@@ -3993,6 +3993,17 @@ function pedOverlay(E, fr) {
   if (E.drawing) {
     const pts = E.drawing.pts.map(p => [X(p[0]), Y(p[1])]);
     s += `<path class="mv draft" d="${pathD(pts)}"/>` + pts.map(q => `<circle class="draft-pt" cx="${q[0]}" cy="${q[1]}" r="4"/>`).join('');
+  }
+  // Purely visual, never saved: the highlighted position is the *same*
+  // unambiguous endpoint returned by editorSnapDetails on pointer release.
+  // No marker appears for two overlapping actors or freehand snapping.
+  const cue = E.snapPreview;
+  if (E.snapEnabled && cue?.point?.length === 2 && cue.point.every(Number.isFinite)) {
+    const cx = X(cue.point[0]), cy = Y(cue.point[1]);
+    s += `<g class="ped-snap-cue" data-snap-target="${esc(cue.target)}" aria-hidden="true">
+      <circle cx="${cx}" cy="${cy}" r="18"/>
+      <path d="M${cx - 7} ${cy}h14M${cx} ${cy - 7}v14"/>
+    </g>`;
   }
   return s;
 }
@@ -4246,7 +4257,7 @@ function pedSyncTitle() {
   const E = state.ped, t = $('#ped-ptitle'); if (E && t) t.value = pedCur(E).title || '';
 }
 function pedSetPhase(i) {
-  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length); E.stableViewport = null; E.canvasPositioned = false;
+  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length); E.stableViewport = null; E.canvasPositioned = false; E.snapPreview = null;
   E.teachPhase = Math.min(E.teachPhase || 0, E.draft.phases.length); E.placing = false; pedSelect(null); E.drawing = null;
   pedSyncTitle(); refreshPlayEditor();
 }
@@ -4323,9 +4334,16 @@ function bindPlayEditor() {
   };
   const snapStatus = (position, kind) => {
     const el = $('#ped-snap-status'), E = state.ped;
-    if (!el) return;
-    if (!position || !E?.snapEnabled) { el.hidden = true; el.textContent = ''; return; }
+    if (!E) return;
+    if (!position || !E.snapEnabled) {
+      E.snapPreview = null;
+      if (el) { el.hidden = true; el.textContent = ''; }
+      return;
+    }
     const result = editorSnapDetails(pedCur(E), position, kind, true);
+    E.snapPreview = result.status === 'ready'
+      ? { point: result.point, target: result.target } : null;
+    if (!el) return;
     el.textContent = result.status === 'ready' ? 'Snap ready: ' + result.target
       : result.status === 'ambiguous' ? 'Multiple nearby actors: freehand'
       : result.status === 'none' ? 'No nearby actor: freehand' : '';
@@ -9131,7 +9149,7 @@ const actions = {
     const E = state.ped; if (!E) return;
     E.teachPreview = Number(el.dataset.i) || 0; refreshPedTeaching();
   }),
-  'ped-tool': coachOnly(el => { const E = state.ped; E.tool = el.dataset.t; E.drawing = null; if (E.tool !== 'select') pedSelect(null); refreshPlayEditor(); }),
+  'ped-tool': coachOnly(el => { const E = state.ped; E.tool = el.dataset.t; E.drawing = null; E.snapPreview = null; if (E.tool !== 'select') pedSelect(null); refreshPlayEditor(); }),
   'ped-tab': coachOnly(el => {
     const E = state.ped; E.tab = el.dataset.tab;
     if (E.tab === 'diagram') pedSetPhase(E.teachPhase);
@@ -9187,7 +9205,7 @@ const actions = {
     pedSnap(); E.draft.phases.splice(E.phase - 1, 1); pedSetPhase(E.phase - 1);
   }),
   'ped-whole': coachOnly(() => { state.ped.whole = !state.ped.whole; state.ped.stableViewport = null; state.ped.canvasPositioned = false; refreshPlayEditor(); }),
-  'ped-snap': coachOnly(() => { state.ped.snapEnabled = !state.ped.snapEnabled; refreshPlayEditor(); }),
+  'ped-snap': coachOnly(() => { state.ped.snapEnabled = !state.ped.snapEnabled; state.ped.snapPreview = null; refreshPlayEditor(); }),
   'ped-fit': coachOnly(() => { state.ped.zoomMode = 'fit'; state.ped.canvasPositioned = false; refreshPlayEditor(); }),
   'ped-inspector': coachOnly(() => { const E = state.ped; E.inspectorOpen = !E.inspectorOpen; E.canvasPositioned = false; refreshPlayEditor(); }),
   'ped-zoom-in': coachOnly(() => pedResizeCanvas(0.15)),
