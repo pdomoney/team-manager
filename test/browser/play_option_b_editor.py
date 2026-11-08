@@ -18,6 +18,10 @@ with sync_playwright() as p:
         pg.locator('[data-act=play-edit]').click()
         form=pg.locator('#sheet form.ped')
         stage=pg.locator('#sheet #ped-diagram')
+        checks.ok(pg.locator('#ped-diagram > .ped-main').count()==1 and
+                  pg.locator('#ped-diagram > .ped-tools').count()==1 and
+                  pg.locator('#ped-diagram > .ped-properties #ped-panel').count()==1,
+                  f'[{width}] board, tools and properties are independent layout regions')
         checks.ok(form.count()==1 and stage.is_visible() and
                   pg.locator('[data-act=ped-tab][data-tab=diagram]').get_attribute('aria-pressed')=='true',
                   f'[{width}] editor opens directly on usable Advanced diagram')
