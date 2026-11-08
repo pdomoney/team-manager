@@ -2326,3 +2326,47 @@ body.persona-mode .top{background:var(--turf)}
   margin:8px 2px 0;
   line-height:1.45;
 }
+
+
+/* E4.4 corrective: a coach-controlled zoomable working surface. SVG is
+   enlarged inside its own scroller; its authored coordinates never change. */
+.panel.wide:has(form.ped) .ped-main .ped-card.play-presentation{
+  max-height:clamp(380px,70dvh,900px);
+  overflow:auto;
+  overscroll-behavior:contain;
+}
+.panel.wide:has(form.ped) .ped-main .play-board-field{
+  /* The presentation board normally clips overflow; the editor must not
+     clip its enlarged SVG before the outer card can scroll it. */
+  overflow:visible;
+}
+.panel.wide:has(form.ped) .ped-main #ped-field{
+  min-width:0;
+  width:100%;
+}
+.panel.wide:has(form.ped) .ped-main .pf.editor{
+  display:block;
+  max-width:none !important;
+  max-height:none !important;
+  height:auto;
+}
+.panel.wide:has(form.ped) .ped-main .ped-under [data-act^="ped-zoom"]{
+  flex:0 0 46px;
+  min-width:44px;
+  font-weight:800;
+}
+.panel.wide:has(form.ped) .ped-main #ped-zoom-value{
+  align-self:center;
+  text-align:center;
+  font-variant-numeric:tabular-nums;
+  min-width:52px;
+}
+.panel.wide:has(form.ped) #ped-tools{
+  grid-template-columns:repeat(9,minmax(0,1fr));
+}
+@container play-editor (max-width: 979px){
+  .ped-diagram #ped-tools{grid-template-columns:repeat(auto-fit,minmax(92px,1fr))}
+}
+@media(max-width:600px){
+  .panel.wide:has(form.ped) .ped-main .ped-card.play-presentation{max-height:60dvh}
+}
