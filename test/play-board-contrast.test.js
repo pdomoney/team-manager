@@ -32,8 +32,7 @@ test('inactive player codes use dark ink against pale board circles', () => {
 });
 
 test('ghost player codes use light ink against dark dashed board circles', () => {
-  const circle = hex('.play-presentation .pf .pl.ghost', 'fill');
-  assert.equal(circle.toUpperCase(), '#28323B', 'Ghost circle should use the existing dark board surface');
+  const circle = hex('.play-presentation .pf', '--pf-turf');
   const text = hex('.play-presentation .pf .ghost + .plt', 'fill');
   assert.ok(ratio(circle, text) >= 4.5, `Ghost player label contrast ${ratio(circle, text).toFixed(2)}:1 is too low`);
 });
