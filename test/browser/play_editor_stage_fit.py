@@ -24,7 +24,7 @@ with sync_playwright() as p:
             tools=panel.querySelector('#ped-tools'),
             footer=panel.querySelector('.ped-save'),
             setup=panel.querySelector('details.ped-setup'),
-            rect=x=>{const r=x.getBoundingClientRect(); return {top:r.top,bottom:r.bottom,width:r.width,height:r.height}};
+            rect=x=>{const r=x.getBoundingClientRect(); return {x:r.x,top:r.top,bottom:r.bottom,width:r.width,height:r.height}};
           return {panel:rect(panel),canvas:rect(canvas),svg:rect(svg),
             phases:rect(phases),tools:rect(tools),footer:rect(footer),
             setupOpen:setup.open,
@@ -50,7 +50,7 @@ with sync_playwright() as p:
         if width>=1000:
             checks.ok(metrics['tools']['width']<=120 and
                       metrics['tools']['top']<=metrics['canvas']['top']+2 and
-                      metrics['tools']['width']+metrics['tools']['top']>0,
+                      metrics['tools']['x']+metrics['tools']['width']<=metrics['canvas']['x']+2,
                       f'[{width}] desktop drawing tools occupy a dedicated left palette')
             before=metrics['canvas']['width']
             pg.locator('[data-act=ped-inspector]').click()
