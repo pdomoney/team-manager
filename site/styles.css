@@ -3610,3 +3610,18 @@ body.persona-mode .top{background:var(--turf)}
     margin:0 auto;
   }
 }
+
+/* E4.5: coach-only connection warnings should be readable without shrinking
+   the field or opening the properties inspector at phone width. */
+#sheet .play-editor-workspace #ped-diagram .ped-link-warning{
+  margin:0 0 6px;
+  padding:7px 9px;
+  border:1px solid var(--line);
+  border-left:3px solid #b98534;
+  border-radius:8px;
+  background:var(--paper);
+  color:var(--ink);
+  font-size:13px;
+  line-height:1.4;
+  overflow-wrap:anywhere;
+}
