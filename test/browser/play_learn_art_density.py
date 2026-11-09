@@ -53,12 +53,13 @@ with sync_playwright() as p:
         pg.locator('[data-act=play-side][data-side=left]').click()
         checks.ok(pg.locator('#play-fig svg.pf.study').get_attribute('aria-label').endswith('attacking left'),
                   f'[{width}] Learn mirroring preserved')
+        mirrored=artwork()
         pg.set_viewport_size({'width':width+210,'height':820})
         pg.wait_for_timeout(100)
         resized=artwork()
         expected=(24*resized['width']/380 if resized['width']<=570 else 36)
         checks.ok(abs(resized['icon']-expected)<=2 and
-                  resized['cue']==second['cue'] and
+                  resized['cue']==mirrored['cue'] and
                   resized['overflow']<=2,
                   f'[{width}] resizing updates artwork without resetting step: {resized!r}')
         pg.locator('[data-act=play-mode][data-mode=watch]').click()
