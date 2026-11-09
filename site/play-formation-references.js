@@ -49,6 +49,19 @@ const entries = [
     },
     localFormatNeedsReview: true,
     notes: 'Under 9–12 regional formats may differ. Exact junior grade, local league and number on field must be independently verified.'
+  },
+  {
+    id: 'league-tag-local-format-review',
+    sport: 'League tag', format: 'league-tag-local-review',
+    ageScope: 'competition-defined', maxOnField: null,
+    source: {
+      authority: 'Play Rugby League',
+      title: 'Other Laws of the Game (including League Tag)',
+      edition: 'Community format laws entry point',
+      url: 'https://www.playrugbyleague.com/laws-of-the-game-community/other-laws-of-the-game/'
+    },
+    localFormatNeedsReview: true,
+    notes: 'League Tag is a distinct code/format. Confirm competition, age group, current laws and player count before defining any tactical slots.'
   }
 ];
 
@@ -88,7 +101,7 @@ const freezeConcept = profile => Object.freeze({
 });
 
 // A draft *concept* can only be built when the rules entry states the number
-// on the field. Junior 6–12 is deliberately refused: local grade/league could
+// on the field. Junior 6–12 and League Tag are deliberately refused: local grade/league could
 // have a different player count. Null field dimensions and empty actor lists
 // prevent this from being mistaken for an approved formation.
 export function conceptProfileForFormatReference(referenceId) {
