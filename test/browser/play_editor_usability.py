@@ -18,15 +18,15 @@ with sync_playwright() as p:
         pg.locator('[data-act=play-edit]').click()
         pg.locator('[data-act=ped-tab][data-tab=diagram]').click()
         snap=pg.locator('[data-act=ped-snap]')
-        checks.ok(snap.count()==1 and snap.get_attribute('aria-pressed')=='false'
-                  and 'Off' in snap.inner_text(),
-                  f'[{width}] manual freehand editing is default')
+        checks.ok(snap.count()==1 and snap.get_attribute('aria-pressed')=='true'
+                  and 'On' in snap.inner_text(),
+                  f'[{width}] conservative snapping now starts enabled')
         snap.click()
-        checks.ok(snap.get_attribute('aria-pressed')=='true' and 'On' in snap.inner_text(),
-                  f'[{width}] coach can explicitly enable snapping')
+        checks.ok(snap.get_attribute('aria-pressed')=='false' and 'Off' in snap.inner_text(),
+                  f'[{width}] coach can explicitly select freehand mode')
         snap.click()
-        checks.ok(snap.get_attribute('aria-pressed')=='false',
-                  f'[{width}] coach can disable snapping again')
+        checks.ok(snap.get_attribute('aria-pressed')=='true',
+                  f'[{width}] coach can re-enable snapping')
 
         pg.locator('[data-act=ped-whole]').click()
         metrics=pg.evaluate("""() => {
