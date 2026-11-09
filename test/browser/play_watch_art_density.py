@@ -77,9 +77,15 @@ with sync_playwright() as p:
         pg.set_viewport_size({'width':newWidth,'height':820})
         pg.wait_for_function("""previous => {
           const svg=document.querySelector('#play-fig svg.pf.watch-art');
-          return !!svg && Math.abs(svg.getBoundingClientRect().width-previous)>5;
+          if (!svg) return false;
+          const width=svg.getBoundingClientRect().width;
+          if (Math.abs(width-previous)<=5) return false;
+          // Resize, CSS breakpoint layout and the redraw may settle in
+          // different animation frames. Verify the artwork is sized against
+          // the actual *new* board width before inspecting the paused path.
+          const expected=Math.round(Math.max(.28,Math.min(2,570/width))*1000)/1000;
+          return Math.abs(Number(svg.dataset.watchArtScale)-expected)<.005;
         }""", arg=start['width'])
-        pg.wait_for_timeout(70)
         resized=art()
         checks.ok(28<=resized['symbol']<=42 and
                   abs(resized['symbol']-start['symbol'])<=3,
@@ -87,7 +93,7 @@ with sync_playwright() as p:
         checks.ok(resized['pct']=='65%' and not resized['playing'] and
                   abs(resized['animTime']-sought['animTime'])<=.02 and
                   'scale(' in resized['playerTransform'],
-                  f'[{width}] responsive redraw preserves paused seek position and actor transforms')
+                  f'[{width}] responsive redraw preserves paused seek position and actor transforms: {sought!r} -> {resized!r}')
         pg.locator('[data-act=anim-restart]').click()
         checks.ok(pg.locator('#anim-pct').inner_text()=='0%',
                   f'[{width}] Restart remains at phase beginning')
