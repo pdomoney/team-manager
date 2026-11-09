@@ -16,6 +16,8 @@ with sync_playwright() as p:
         pg.goto(url+'#plays')
         pg.locator('.play-row[data-id=quickie-out]').click()
         stored=pg.evaluate("""() => JSON.stringify(window.__team.data.plays.find(q=>q.id==='quickie-out'))""")
+        checks.ok(pg.locator('#play-fig svg.pf.watch-art').count()==1,
+                  f'[{width}] default Coach Watch view receives compact artwork immediately')
         pg.locator('[data-act=play-mode][data-mode=watch]').click()
 
         def art():
