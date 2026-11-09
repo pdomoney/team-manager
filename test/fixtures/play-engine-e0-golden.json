@@ -1,0 +1,560 @@
+{
+  "meta": {
+    "purpose": "E0 synthetic no-client-data source contract",
+    "coordinateUnits": "50x80 teaching canvas, NOT metres",
+    "legacyMeaning": "old geometry has no authored actor IDs, receiver semantics or timing",
+    "futureSportStatus": "Taren Point Rugby League sample is CONCEPT ONLY"
+  },
+  "legacySingleTeam": {
+    "version": 2,
+    "team": {
+      "name": "Fictional sample Oztag",
+      "sport": "Oztag"
+    },
+    "players": [],
+    "helpers": [],
+    "sessions": [],
+    "matches": [],
+    "tasks": [],
+    "messages": [],
+    "notices": [],
+    "lineups": [],
+    "plays": [
+      {
+        "id": "quickie-out",
+        "name": "Step Out",
+        "builtin": true,
+        "sport": "Oztag",
+        "category": "Attack",
+        "title": "First phase",
+        "players": {
+          "LM": [
+            15,
+            30
+          ],
+          "RM": [
+            25,
+            28
+          ],
+          "LR": [
+            7,
+            34
+          ]
+        },
+        "defence": {
+          "marker": [
+            18,
+            24
+          ],
+          "line": [
+            [
+              12,
+              20
+            ],
+            [
+              28,
+              20
+            ]
+          ]
+        },
+        "moves": [
+          {
+            "t": "run",
+            "pts": [
+              [
+                15,
+                30
+              ],
+              [
+                18,
+                29
+              ]
+            ]
+          },
+          {
+            "t": "pass",
+            "pts": [
+              [
+                15,
+                30
+              ],
+              [
+                25,
+                28
+              ]
+            ],
+            "key": true
+          }
+        ],
+        "steps": "LM draws the marker. Pass to RM; RM supports.",
+        "labels": [
+          {
+            "at": [
+              9,
+              40
+            ],
+            "text": "Support"
+          }
+        ]
+      },
+      {
+        "id": "coach-legacy-e0",
+        "name": "Legacy coach-authored play",
+        "sport": "Oztag",
+        "edited": true,
+        "category": "Other",
+        "players": {
+          "LM": [
+            15,
+            30
+          ],
+          "RM": [
+            25,
+            28
+          ]
+        },
+        "defence": {
+          "marker": [
+            18,
+            24
+          ],
+          "line": [
+            [
+              12,
+              20
+            ]
+          ]
+        },
+        "moves": [
+          {
+            "t": "run",
+            "pts": [
+              [
+                15,
+                30
+              ],
+              [
+                19,
+                29
+              ]
+            ],
+            "curve": true
+          },
+          {
+            "t": "pass",
+            "pts": [
+              [
+                15,
+                30
+              ],
+              [
+                25,
+                28
+              ]
+            ]
+          }
+        ],
+        "steps": "Coach wrote this before explicit movement links.",
+        "phases": [
+          {
+            "title": "Follow on",
+            "players": {
+              "LM": [
+                17,
+                30
+              ],
+              "RM": [
+                27,
+                30
+              ]
+            },
+            "defence": {
+              "marker": [
+                18,
+                24
+              ],
+              "line": [
+                [
+                  14,
+                  20
+                ]
+              ]
+            },
+            "moves": [
+              {
+                "t": "run",
+                "pts": [
+                  [
+                    27,
+                    30
+                  ],
+                  [
+                    30,
+                    34
+                  ]
+                ]
+              }
+            ],
+            "steps": "Retain this follow-on phase without inferring time."
+          }
+        ]
+      }
+    ],
+    "systems": {},
+    "playerSets": [],
+    "updatedAt": "2026-10-18T00:00:00Z"
+  },
+  "schema4Workspace": {
+    "schema": 4,
+    "id": "team1",
+    "team": {
+      "name": "Fictional sample Oztag",
+      "sport": "Oztag"
+    },
+    "players": [],
+    "helpers": [],
+    "sessions": [],
+    "matches": [],
+    "tasks": [],
+    "messages": [],
+    "notices": [],
+    "lineups": [],
+    "plays": [
+      {
+        "id": "quickie-out",
+        "name": "Step Out",
+        "builtin": true,
+        "sport": "Oztag",
+        "category": "Attack",
+        "title": "First phase",
+        "players": {
+          "LM": [
+            15,
+            30
+          ],
+          "RM": [
+            25,
+            28
+          ],
+          "LR": [
+            7,
+            34
+          ]
+        },
+        "defence": {
+          "marker": [
+            18,
+            24
+          ],
+          "line": [
+            [
+              12,
+              20
+            ],
+            [
+              28,
+              20
+            ]
+          ]
+        },
+        "moves": [
+          {
+            "t": "run",
+            "pts": [
+              [
+                15,
+                30
+              ],
+              [
+                18,
+                29
+              ]
+            ]
+          },
+          {
+            "t": "pass",
+            "pts": [
+              [
+                15,
+                30
+              ],
+              [
+                25,
+                28
+              ]
+            ],
+            "key": true
+          }
+        ],
+        "steps": "LM draws the marker. Pass to RM; RM supports.",
+        "labels": [
+          {
+            "at": [
+              9,
+              40
+            ],
+            "text": "Support"
+          }
+        ]
+      },
+      {
+        "id": "coach-legacy-e0",
+        "name": "Legacy coach-authored play",
+        "sport": "Oztag",
+        "edited": true,
+        "category": "Other",
+        "players": {
+          "LM": [
+            15,
+            30
+          ],
+          "RM": [
+            25,
+            28
+          ]
+        },
+        "defence": {
+          "marker": [
+            18,
+            24
+          ],
+          "line": [
+            [
+              12,
+              20
+            ]
+          ]
+        },
+        "moves": [
+          {
+            "t": "run",
+            "pts": [
+              [
+                15,
+                30
+              ],
+              [
+                19,
+                29
+              ]
+            ],
+            "curve": true
+          },
+          {
+            "t": "pass",
+            "pts": [
+              [
+                15,
+                30
+              ],
+              [
+                25,
+                28
+              ]
+            ]
+          }
+        ],
+        "steps": "Coach wrote this before explicit movement links.",
+        "phases": [
+          {
+            "title": "Follow on",
+            "players": {
+              "LM": [
+                17,
+                30
+              ],
+              "RM": [
+                27,
+                30
+              ]
+            },
+            "defence": {
+              "marker": [
+                18,
+                24
+              ],
+              "line": [
+                [
+                  14,
+                  20
+                ]
+              ]
+            },
+            "moves": [
+              {
+                "t": "run",
+                "pts": [
+                  [
+                    27,
+                    30
+                  ],
+                  [
+                    30,
+                    34
+                  ]
+                ]
+              }
+            ],
+            "steps": "Retain this follow-on phase without inferring time."
+          }
+        ]
+      },
+      {
+        "id": "coach-v1-e0",
+        "name": "Explicit linked pass then run",
+        "sport": "Oztag",
+        "edited": true,
+        "category": "Other",
+        "players": {
+          "LM": [
+            15,
+            30
+          ],
+          "RM": [
+            25,
+            28
+          ]
+        },
+        "defence": {
+          "marker": [
+            18,
+            24
+          ],
+          "line": [
+            [
+              12,
+              20
+            ]
+          ]
+        },
+        "moves": [
+          {
+            "t": "pass",
+            "moveId": "m-e0pass1",
+            "linkVersion": 1,
+            "actorLinks": {
+              "start": "player:LM",
+              "end": "player:RM"
+            },
+            "pts": [
+              [
+                15,
+                30
+              ],
+              [
+                25,
+                28
+              ]
+            ]
+          },
+          {
+            "t": "run",
+            "moveId": "m-e0run1",
+            "linkVersion": 1,
+            "actorLinks": {
+              "start": "player:RM"
+            },
+            "pts": [
+              [
+                25,
+                28
+              ],
+              [
+                29,
+                36
+              ]
+            ]
+          }
+        ],
+        "study": [
+          {
+            "title": "Draw and release",
+            "text": "LM passes to RM.",
+            "moves": [
+              0
+            ],
+            "roles": [
+              "LM",
+              "RM"
+            ]
+          }
+        ]
+      }
+    ],
+    "systems": {},
+    "playerSets": [],
+    "teams": [
+      {
+        "id": "testtitansjunior",
+        "team": {
+          "name": "Fictional Taren Point junior concept",
+          "sport": "Rugby league"
+        },
+        "players": [],
+        "helpers": [],
+        "sessions": [],
+        "matches": [],
+        "tasks": [],
+        "messages": [],
+        "notices": [],
+        "lineups": [],
+        "plays": [
+          {
+            "id": "titans-concept-e0",
+            "name": "Illustrative support channel",
+            "sport": "Oztag",
+            "moves": [
+              {
+                "t": "pass",
+                "pts": [
+                  [
+                    15,
+                    30
+                  ],
+                  [
+                    25,
+                    28
+                  ]
+                ]
+              }
+            ],
+            "steps": "Teaching concept only. No grade-specific rules or valid 13-player shape asserted."
+          }
+        ],
+        "systems": {},
+        "playerSets": []
+      }
+    ],
+    "library": {
+      "plays": [
+        {
+          "id": "lib-e0keep",
+          "name": "Shared versioned teaching play",
+          "sport": "Oztag",
+          "rev": 2,
+          "steps": "Never overwrite a coach-owned library version",
+          "moves": [
+            {
+              "t": "run",
+              "pts": [
+                [
+                  12,
+                  30
+                ],
+                [
+                  18,
+                  32
+                ]
+              ]
+            }
+          ]
+        }
+      ],
+      "systems": {},
+      "playerSets": []
+    },
+    "clubs": [],
+    "competitions": [],
+    "updatedAt": "2026-11-09T00:00:00Z"
+  }
+}
