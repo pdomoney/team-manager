@@ -3237,8 +3237,8 @@ let svgSeq = 0;
 function playSVG(play, side, opts = {}) {
   const g = playGeom(play, side), fr = playFrame(g, opts), { X, Y, k, H } = fr, id = `p${++svgSeq}`;
   const thumb = !!opts.thumb, words = !thumb, annotations = words && !opts.study, F = fieldDims(V.team.field);
-  const art = opts.editor ? editorArtworkScale(opts.editorZoom) : 1;
-  const actorHit = opts.editor ? '<circle class="ped-actor-hit" r="22"/>' : '';
+  const art = opts.editor ? (opts.editorArtScale || 1) : 1;
+  const actorHit = opts.editor ? '<circle class="ped-actor-hit" r="15"/>' : '';
   const studyCodes = new Set(opts.studyCodes || []);
   const spotlightIds = Object.keys(g.codes).filter(k => studyCodes.has(g.codes[k]));
   const studyMoves = Array.isArray(opts.studyMoves) ? opts.studyMoves : [];
@@ -3321,7 +3321,7 @@ function playSVG(play, side, opts = {}) {
     defs.forEach(({ p, i }) => { const n = g.notes['d' + i]; if (n && n.text) s += svgWords(X(p[0]), Y(p[1]), dr * art, n.side || 'r', n.text, 'pf-note', art); });
     g.labels.forEach((l, i) => { s += svgWords(X(l.at[0]), Y(l.at[1]), l.dot ? dot * art : 0, l.side || 'r', l.text, (l.dot ? 'pf-lbl' : 'pf-note') + (opts.editor ? '" data-lb="' + i : ''), art); });
   }
-  if (opts.editor) g.labels.forEach((l, i) => { s += `<circle class="ped-lbh" data-lb="${i}" cx="${X(l.at[0])}" cy="${Y(l.at[1])}" r="${20 * art}"/>`; });
+  if (opts.editor) g.labels.forEach((l, i) => { s += `<circle class="ped-lbh" data-lb="${i}" cx="${X(l.at[0])}" cy="${Y(l.at[1])}" r="${15 * art}"/>`; });
   if (opts.overlay) s += opts.overlay(fr);
   if (opts.anim) s += `<g class="ball" transform="translate(-40 -40)"><ellipse rx="6.5" ry="4.6" transform="rotate(-35)"/><path d="M-3.2 -1.6L3.2 1.6" transform="rotate(-35)"/></g>`;
   return s + '</svg>';
@@ -3970,7 +3970,7 @@ function pedNearest(E, p, kind, r) {
 const pedNoteKey = sel => sel.k === 'pl' ? sel.id : sel.k === 'mk' ? 'marker' : 'd' + sel.i;
 
 function pedOverlay(E, fr) {
-  const { X, Y, H } = fr, d = pedCur(E), f = pedFrame(E), art = editorArtworkScale(E.zoom);
+  const { X, Y, H } = fr, d = pedCur(E), f = pedFrame(E), art = E.artScale || 1;
   if (E.placing) return '';
   const fx0 = X(f.x0), fx1 = X(f.x1), fy0 = Y(f.y0), fy1 = Y(f.y1);
   let s = `<path class="ped-dim" fill-rule="evenodd" d="M0 0H${PW}V${H}H0Z M${fx0} ${fy0}V${fy1}H${fx1}V${fy0}Z"/>`;
@@ -3985,8 +3985,8 @@ function pedOverlay(E, fr) {
   if (sel && sel.k === 'mv' && d.moves[sel.i]) {
     const m = d.moves[sel.i], pts = m.pts.map(p => [X(p[0]), Y(p[1])]);
     s += `<path class="ped-glow" d="${pathD(pts, m.curve)}"/>`;
-    pts.slice(1).forEach((q, j) => { const a = pts[j]; s += `<g class="ped-add" data-hadd="${j}" transform="translate(${((a[0] + q[0]) / 2).toFixed(1)} ${((a[1] + q[1]) / 2).toFixed(1)}) scale(${art})"><circle r="8"/><path d="M-4 0H4M0 -4V4"/><circle class="ped-handle-hit" r="22"/></g>`; });
-    pts.forEach((q, j) => { s += `<circle class="ped-h${j === 0 ? ' start' : ''}${E.selH === j ? ' on' : ''}" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${8 * art}"/><circle class="ped-handle-hit" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${22 * art}"/>`; });
+    pts.slice(1).forEach((q, j) => { const a = pts[j]; s += `<g class="ped-add" data-hadd="${j}" transform="translate(${((a[0] + q[0]) / 2).toFixed(1)} ${((a[1] + q[1]) / 2).toFixed(1)}) scale(${art})"><circle r="8"/><path d="M-4 0H4M0 -4V4"/><circle class="ped-handle-hit" r="15"/></g>`; });
+    pts.forEach((q, j) => { s += `<circle class="ped-h${j === 0 ? ' start' : ''}${E.selH === j ? ' on' : ''}" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${8 * art}"/><circle class="ped-handle-hit" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${15 * art}"/>`; });
   }
   const ring = (p, r) => `<circle class="ped-ring" cx="${X(p[0])}" cy="${Y(p[1])}" r="${r * art}"/>`;
   if (sel && sel.k === 'pl' && d.players[sel.id]) s += ring(d.players[sel.id], PR + 5);
@@ -4082,7 +4082,10 @@ function refreshPedField() {
   const card = box.closest('.ped-card');
   const left = card?.scrollLeft || 0, top = card?.scrollTop || 0;
   const render = () => {
-    box.innerHTML = playSVG(pedView(E), 'right', { editor: true, editorZoom: E.zoom,
+    // Use the real workspace width, including a collapsed/expanded inspector.
+    // Fit may change zoom during this call, in which case we render again.
+    E.artScale = editorArtworkScale(E.zoom, box.clientWidth, PW, PR);
+    box.innerHTML = playSVG(pedView(E), 'right', { editor: true, editorArtScale: E.artScale,
       svgId: 'ped-svg', viewport: pedViewport(E), overlay: fr => pedOverlay(E, fr) });
     return box.querySelector('svg');
   };
