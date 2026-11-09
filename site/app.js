@@ -4128,6 +4128,8 @@ function pedPanel(E) {
     s += `<label class="field-l"><span>Words beside ${sel.k === 'pl' ? esc(code || 'them') : 'them'}</span><textarea id="ped-text" data-input="ped-text" rows="2" placeholder="${sel.k === 'pl' ? 'e.g. Dummy half' : 'e.g. A defender'}">${esc(text)}</textarea></label>`;
     s += sides((n && n.side) || (sel.k === 'mk' ? 'l' : 'r'));
     if (sel.k !== 'pl') s += `<label class="field-l"><span>Words above their line</span><input type="text" data-input="ped-line" value="${esc(d.notes.line ? d.notes.line.text : 'Their line, 7 m back')}"></label>`;
+    if (sel.k === 'df' || sel.k === 'mk') s += `<button type="button" class="btn sm primary" data-act="ped-defender-run">+ Add defender run</button>
+      <p class="hint">Starts a short editable path attached to this ${sel.k === 'mk' ? 'marker' : 'defender'}. Drag its end handle to set the response. This does not invent a defensive decision.</p>`;
     return s + `<p class="hint">Drag ${sel.k === 'pl' ? 'the player to move them; lines that start or end on them move too' : 'them to move them'}.</p>`;
   }
   if (sel && sel.k === 'lb' && d.labels[sel.i]) {
@@ -4147,7 +4149,7 @@ function pedPanel(E) {
   if (PED_DRAW.includes(E.tool)) {
     return `<div class="ped-h3">Draw ${E.tool === 'shift' ? 'defender moves' : MOVE_KINDS[E.tool].toLowerCase() + ' lines'}</div>
       <div class="btn-row">${E.tool !== 'shift' ? btn('ped-opt', 'Key move (blue)', E.key, 'data-f="key"') : ''}${btn('ped-opt', 'Curved', E.curve, 'data-f="curve"')}</div>
-      <p class="hint">${E.tool === 'shift' ? 'Drag from a defender to where they move.' : E.tool === 'pass' || E.tool === 'dummy' ? 'Drag from the passer (or a point on their run) to the receiver.' : 'Drag from a player to where the line ends.'} Tap a line to change it.</p>`;
+      <p class="hint">${E.tool === 'shift' ? 'Drag from a defender or marker to its destination. On phones, Select a defender first and tap + Defender run in the precision bar.' : E.tool === 'pass' || E.tool === 'dummy' ? 'Drag from the passer (or a point on their run) to the receiver.' : 'Drag from a player to where the line ends.'} Tap a line to change it.</p>`;
   }
   if (E.tool === 'label') return `<p class="hint">Tap the field to add words there, or tap a player or defender to put words beside them.</p>`;
   return `<p class="hint">Tap a line, player, defender or label to change it, or drag it to move it. Pick Run, Pass, Dummy, Kick or Defender to draw a new line, and Picture to set how much of the field shows.</p>`;
@@ -4332,6 +4334,8 @@ function refreshPlayEditor() {
   const tools = $('#ped-tools'), toolScroll = tools?.scrollLeft || 0;
   tools.innerHTML = PED_TOOLS.map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${E.tool === k}">${l}</button>`).join('');
   tools.scrollLeft = toolScroll;
+  const defenderHelp = $('#ped-defender-help');
+  if (defenderHelp) defenderHelp.hidden = E.tool !== 'shift';
   refreshPedField();
   const connectionWarning = $('#ped-link-warning');
   if (connectionWarning) {
