@@ -45,8 +45,10 @@ with sync_playwright() as p:
               };
             }""")
         start=art()
-        checks.ok(start['watch'] and 28<=start['symbol']<=42,
-                  f'[{width}] Watch begins with compact players instead of fat, oversized art: {start!r}')
+        expected_start=(27 if start['width']<=420 else 36 if start['width']>=760
+                        else 27+(start['width']-420)*9/340)
+        checks.ok(start['watch'] and abs(start['symbol']-expected_start)<=2,
+                  f'[{width}] Watch begins with responsive phone/desktop badge size: {start!r}, target={expected_start}')
         checks.ok(start['factor']>0 and 0<start['line']<=4 and
                   (start['font']==0 or 11<=start['font']<=23),
                   f'[{width}] line ink and visible annotations keep lean readable size')
@@ -83,13 +85,16 @@ with sync_playwright() as p:
           // Resize, CSS breakpoint layout and the redraw may settle in
           // different animation frames. Verify the artwork is sized against
           // the actual *new* board width before inspecting the paused path.
-          const expected=Math.round(Math.max(.28,Math.min(2,570/width))*1000)/1000;
+          const target=width<=420?27:width>=760?36:27+(width-420)*9/340;
+          const expected=Math.round(Math.max(.28,Math.min(2,target*380/(24*width)))*1000)/1000;
           return Math.abs(Number(svg.dataset.watchArtScale)-expected)<.005;
         }""", arg=start['width'])
         resized=art()
-        checks.ok(28<=resized['symbol']<=42 and
-                  abs(resized['symbol']-start['symbol'])<=3,
-                  f'[{width}] Watch badge size remains steady across layout resize: {start!r} -> {resized!r}')
+        expected_resize=(27 if resized['width']<=420 else 36 if resized['width']>=760
+                         else 27+(resized['width']-420)*9/340)
+        checks.ok(abs(resized['symbol']-expected_resize)<=2 and
+                  abs(resized['symbol']-start['symbol'])<=10,
+                  f'[{width}] Watch badge follows intentional device density after resize: {start!r} -> {resized!r}')
         checks.ok(resized['pct']=='65%' and not resized['playing'] and
                   abs(resized['animTime']-sought['animTime'])<=.02 and
                   'scale(' in resized['playerTransform'],
