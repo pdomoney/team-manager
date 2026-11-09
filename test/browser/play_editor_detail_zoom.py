@@ -1,4 +1,5 @@
-# B4.7: editor zoom uses actual CSS canvas pixels for symbols/annotations.
+# B4.12: mobile Advanced Diagram uses leaner paint at every zoom, while
+# maintaining B4.7 desktop proportions and original 44px+ hit targets.
 # Owner showed unusable 61%-Fit art, with usable symbols only near 193%.
 # Synthetic Chromium validates Fit FIRST, then 118/193 and 141/171 detail.
 # Watch has separate presentation-only scaling in B4.8; Learn remains unscaled.
@@ -66,11 +67,21 @@ with sync_playwright() as p:
                 fitted:rect(svg).width<=card.clientWidth+2 && rect(svg).height<=card.clientHeight+2
               };
             }""")
+        def target(snap):
+            w=snap['boxWidth']
+            return 27 if w<=420 else 36 if w>=760 else 27+(w-420)*9/340
+
+        def readable(snap):
+            # At extreme small Fit, the established SVG scale clamp can
+            # make art smaller than its target; it must not become bigger.
+            return (max(20,target(snap)-7)<=snap['actor']<=target(snap)+3 and
+                    40<=snap['touch']<=54 and 10<=snap['note']<=22)
+
         fit=measure()
         checks.ok(fit['mode']=='fit' and fit['fitted'],
                   f'[{width}] Fit starts by showing the editing field within the stage: {fit!r}')
-        checks.ok(29<=fit['actor']<=42 and 40<=fit['touch']<=54 and 10<=fit['note']<=22,
-                  f'[{width}] icons/notes are usable at Fit without first zooming to 200%: {fit!r}')
+        checks.ok(readable(fit),
+                  f'[{width}] Fit has lean phone art but original touch targets: {fit!r}')
 
         # Normal zoom buttons still magnify field geometry and preserve centre.
         # A programmed starting value makes this deterministic across viewport sizes.
@@ -85,15 +96,15 @@ with sync_playwright() as p:
         checks.ok(detailed['gap']>medium['gap']*1.4 and detailed['gap']>fit['gap'],
                   f'[{width}] field geometry gains space between positions when zoomed')
         for label, snap in [('118%',medium),('193%',detailed)]:
-            checks.ok(29<=snap['actor']<=42 and 40<=snap['touch']<=54 and 10<=snap['note']<=22,
-                      f'[{width}] at {label}, symbols remain compact and touchable: {snap!r}')
+            checks.ok(readable(snap) and abs(snap['actor']-target(snap))<=2,
+                      f'[{width}] at {label}, symbols follow responsive size while touch stays usable: {snap!r}')
             checks.ok(snap['saved']==fit['saved'] and snap['stage']==fit['stage'],
                       f'[{width}] {label} zoom never mutates coordinates or stage size')
-        checks.ok(abs(fit['actor']-medium['actor'])<=3 and
+        checks.ok(fit['actor']<=medium['actor']+3 and
                   abs(medium['actor']-detailed['actor'])<=3 and
                   abs(medium['line']-detailed['line'])<=1.5 and
                   abs(medium['note']-detailed['note'])<=2,
-                  f'[{width}] symbols, ink and notes hold their visual size from Fit to 193%')
+                  f'[{width}] mobile art stays lean, and ink/notes do not balloon at 193%')
         checks.ok(detailed['marker']<medium['marker'],
                   f'[{width}] arrowheads compensate rather than filling the zoomed canvas')
         checks.ok(abs(detailed['scrollX']-medium['scrollX'])<=.1 and
