@@ -18,8 +18,8 @@ with sync_playwright() as p:
         pg.goto(url+'#plays')
         pg.locator('.play-row[data-id=quickie-out]').click()
         original=pg.evaluate("""() => JSON.stringify(window.__team.data.plays.find(x=>x.id==='quickie-out'))""")
-        # Watch has its own responsive art density, not the editor zoom value.
-        # Learn must still retain its original unscaled teaching diagram.
+        # Watch and desktop Learn have independent responsive density, never
+        # inherited from the editor zoom. Narrow Learn keeps its original art.
         watch=pg.locator('#play-fig svg.pf.watch-art').first
         checks.ok(watch.count()==1 and watch.get_attribute('data-art-scale') is None and
                   watch.get_attribute('data-watch-art-scale') is not None and
@@ -27,10 +27,15 @@ with sync_playwright() as p:
                   f'[{width}] Watch artwork is lean but independent of editor zoom')
         pg.locator('[data-act=play-mode][data-mode=learn]').click()
         learn=pg.locator('#play-fig svg.pf.study').first
+        learn_width=learn.evaluate('e => e.getBoundingClientRect().width')
+        learn_factor=learn.get_attribute('data-learn-art-scale')
+        learn_scaled='scale(' in (learn.locator('[data-pl="LM"]').first.get_attribute('transform') or '')
         checks.ok(learn.count()==1 and learn.get_attribute('data-art-scale') is None and
                   learn.get_attribute('data-watch-art-scale') is None and
-                  'scale(' not in (learn.locator('[data-pl="LM"]').first.get_attribute('transform') or ''),
-                  f'[{width}] Learn keeps its original unscaled teaching artwork')
+                  ((learn_width<=570 and learn_factor is None and not learn_scaled) or
+                   (learn_width>570 and learn_factor is not None and
+                    0<float(learn_factor)<1 and learn_scaled)),
+                  f'[{width}] Learn uses its own desktop-only density, not the editor zoom')
         pg.locator('[data-act=play-mode][data-mode=watch]').click()
         pg.locator('[data-act=play-edit]').click()
         pg.wait_for_selector('#ped-field svg.editor')
