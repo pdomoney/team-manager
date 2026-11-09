@@ -3501,16 +3501,22 @@ function syncWatchArtwork(restoreFrame = false) {
   const key = `${play.id}/${state.playSide}/${state.playPhase}`;
   const restore = restoreFrame && anim.plan && anim.planFor === key;
   if (svg.classList.contains('watch-art') && Math.abs(previous - scale) < 0.005) {
-    // Responsive layout can change after an initial width check without
-    // changing the rounded artwork scale. Still restore a paused seek frame.
-    if (restore) animFrame(svg, anim.plan, anim.t);
+    // Responsive layout can replace the Watch controls without changing
+    // artwork density. Restore both the paused field and its progress UI.
+    if (restore) {
+      animFrame(svg, anim.plan, anim.t);
+      animButtons();
+    }
     return;
   }
   svg.outerHTML = playSVG(phaseView(play, state.playPhase), state.playSide,
     { anim: true, watchArtScale: scale });
   const next = board.querySelector('svg.pf');
   if (anim.playing) next?.classList.add('animating');
-  if (restore && next) animFrame(next, anim.plan, anim.t);
+  if (restore && next) {
+    animFrame(next, anim.plan, anim.t);
+    animButtons();
+  }
 }
 function playFigure(p, side, i) {
   const view = phaseView(p, i), n = phaseCount(p), title = phaseTitle(p, i, side);
