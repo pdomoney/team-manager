@@ -26,6 +26,7 @@ import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassReceiver, receiverFollowOnRun } from './play-actor-links.js';
+import { coachPlayConnectionNotice } from './play-link-warning.js';
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
 import { previewBendInsertion, insertMovementBend, canRemoveMovementBend, removeMovementBend } from './play-editor-bends.js';
@@ -3925,6 +3926,7 @@ function openPlayEditor(play) {
           <button type="button" class="btn sm" data-act="ped-inspector" aria-expanded="true" aria-controls="ped-properties">Properties</button>
         </div>
         <div id="ped-precision" class="ped-precision" aria-live="polite" hidden></div>
+        <div id="ped-link-warning" class="ped-link-warning" role="status" aria-live="polite" hidden></div>
         <div class="play-card ped-card play-presentation"><div class="play-board-field"><div id="ped-field"></div></div></div>
       </div>
       <div class="ped-properties" id="ped-properties" aria-label="Diagram properties">
@@ -4313,6 +4315,12 @@ function refreshPlayEditor() {
   tools.innerHTML = PED_TOOLS.map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${E.tool === k}">${l}</button>`).join('');
   tools.scrollLeft = toolScroll;
   refreshPedField();
+  const connectionWarning = $('#ped-link-warning');
+  if (connectionWarning) {
+    const notice = coachPlayConnectionNotice(pedCur(E));
+    connectionWarning.textContent = notice.text;
+    connectionWarning.hidden = !notice.visible;
+  }
   if (E.tab === 'teach') refreshPedTeaching();
   $('#ped-panel').innerHTML = pedPanel(E);
   refreshPedPrecision(E);
