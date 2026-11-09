@@ -3392,7 +3392,8 @@ function studyBoardSVG(p, side, cards, artScale) {
     ...(Number.isFinite(artScale) ? { learnArtScale: artScale } : {}) });
 }
 function studyFigure(p, side, cards) {
-  const item = cards[state.studyIndex];
+  // The notation still uses this exact phase view; SVG density is display-only.
+  const item = cards[state.studyIndex], v = phaseView(p, item.phase);
   return `<div class="play-board-field">
       ${studyBoardSVG(p, side, cards)}
     </div>
