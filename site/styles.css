@@ -3737,3 +3737,21 @@ body.persona-mode .top{background:var(--turf)}
     max-height:45dvh;
   }
 }
+
+#sheet .play-editor-workspace #ped-diagram [data-act="ped-snap"][aria-pressed="true"]{
+  background:var(--sky-soft);
+  border-color:var(--sky);
+  color:var(--sky-ink);
+}
+#sheet .play-editor-workspace #ped-quicklook [data-act="ped-quick-slow"][aria-pressed="true"]{
+  background:var(--sky-soft);
+  border-color:var(--sky);
+  color:var(--sky-ink);
+}
+@container play-editor (max-width:610px){
+  #sheet .play-editor-workspace #ped-diagram .ped-tools [data-t="shift"]{
+    white-space:normal;
+    font-size:11px;
+    line-height:1.15;
+  }
+}
