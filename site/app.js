@@ -35,6 +35,7 @@ import { watchArtworkScale } from './play-watch-art-scale.js';
 import { learnArtworkScale } from './play-learn-art-scale.js';
 import { captureEditorPointer, cancelEditorPointer } from './play-editor-pointer.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
+import { sportFormatReviewOptions, coachSportFormatReview, sportFormatReviewBrief } from './play-format-review.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
 import { playTeachingCompatibility } from './p08-play-compatibility.js';
 import { libraryCopyReview, libraryOrigin } from './p08-library-provenance.js';
@@ -3492,7 +3493,7 @@ function viewPlay(p) {
     </section>` : `${when ? `<section class="sec play-when-sec"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
     ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}`}
     ${libBar('plays', p.id, p)}
-    ${coach ? `<div class="btn-row"><button class="btn" data-act="play-transfer" data-id="${esc(p.id)}">Adapt to another sport</button><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
+    ${coach ? `<div class="btn-row"><button class="btn" data-act="play-format-review" data-id="${esc(p.id)}">Review sport format</button><button class="btn" data-act="play-transfer" data-id="${esc(p.id)}">Adapt to another sport</button><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
     </aside></div>`;
 }
@@ -3570,6 +3571,64 @@ function castKey(play, side) {
   const fr = playFrame(g, {}), shown = Object.entries(g.players).filter(([, q]) => fr.shows(q)).map(([id]) => g.codes[id]);
   const codes = [...new Set(shown.filter(Boolean))].sort((a, b) => (parseFloat(a) || 99) - (parseFloat(b) || 99) || String(a).localeCompare(b));
   return `<p class="cast-key">${codes.map(c => `<span><b>${esc(c)}</b> ${esc(labelName(g.set, c))}</span>`).join('')}</p>`;
+}
+
+/* ----- E3.3 sport-format review (coach-only; no saved formation) ----- */
+// This review is intentionally independent from the editor's current 50×80
+// geometry. Local competition/grade fields exist only until this sheet closes.
+function openSportFormatChoices(p) {
+  if (!p || !isCoach()) return;
+  const sport = curSport(), choices = sportFormatReviewOptions(sport);
+  openSheet('Review sport format', `<div class="transfer-intro sport-format-review">
+    <span class="transfer-eyebrow">E3 · concept only · no data changes</span>
+    <h3>${esc(p.name)}</h3>
+    <p>Check the current team's sport and governing format before creating a reviewed tactical formation. An Oztag eight-slot drawing cannot automatically become a Rugby League, junior or League Tag formation.</p>
+    <p><strong>Working team sport:</strong> ${esc(sport)} · <strong>Play sport:</strong> ${esc(p.sport || (p.builtin ? 'Oztag (built-in)' : 'Not confirmed'))}</p>
+  </div>
+  ${choices.length ? `<form data-form="play-format-review" autocomplete="off">
+    <input type="hidden" name="id" value="${esc(p.id)}">
+    <label class="field-l"><span>Governing reference to check</span><select name="referenceId" required>
+      <option value="">Choose an exact format reference</option>
+      ${choices.map(ref => `<option value="${esc(ref.id)}">${esc(ref.format)} · ${esc(ref.ageScope)}</option>`).join('')}
+    </select><small>References are official rules entry points, not approved formations. Local overrides may apply.</small></label>
+    <label class="field-l"><span>Local league or competition</span><input name="competition" maxlength="140" placeholder="Exact competition or local league"></label>
+    <label class="field-l"><span>Grade / age group</span><input name="grade" maxlength="80" placeholder="e.g. Under 12 or open age"></label>
+    <label class="field-l"><span>Season / applicable rule edition</span><input name="season" maxlength="40" placeholder="e.g. 2026"></label>
+    <p class="hint">These inputs are not saved to the team, play, Rules pack or server. You can copy a review brief for a sporting-domain reviewer.</p>
+    <button type="submit" class="btn primary block">Review format and remaining approvals</button>
+  </form>` : `<p class="note" role="status">No reviewed format reference is available for ${esc(sport)}. This play remains an illustrative teaching concept. Do not reuse a different sport's profile.</p>`}`, 'sport-format-review');
+}
+function openSportFormatResult(p, review) {
+  const brief = sportFormatReviewBrief(review);
+  const labels = {
+    'unsupported-team-sport': 'The current team sport has no source-backed format reference.',
+    'reference-required': 'Choose an exact rules reference.',
+    'unknown-reference': 'The requested reference does not exist.',
+    'reference-sport-mismatch': 'The selected rules reference belongs to a different sport.',
+    'play-source-unconfirmed': 'Confirm the original sport of this legacy custom play.',
+    'cross-sport-play': 'This play belongs to a different sport; review an adaptation separately.',
+    'competition-required': 'Specify the local league or competition.',
+    'grade-required': 'Specify the exact grade or age group.',
+    'season-required': 'Specify the season and applicable rule edition.',
+    'formation-review-required': 'An authorised sporting reviewer must approve actual roles, positions, field and actions.'
+  };
+  openSheet('Sport format: review needed', `<section class="sport-format-result" aria-label="Sport format review outcome">
+    <strong class="sport-format-status">Concept only · no reviewed formation</strong>
+    <h3>${esc(p.name)}</h3>
+    <p>This review has not changed the play, created player positions or verified a match lineup.</p>
+    ${review.source ? `<p><strong>Governing entry point:</strong> <a href="${esc(review.source.url)}" target="_blank" rel="noopener noreferrer">${esc(review.source.title)}</a> (${esc(review.source.edition)}).</p>
+      <p>On-field reference: ${review.source.maxOnField === null ? 'Local format review required' : esc(String(review.source.maxOnField)) + ' maximum. This is not a verified formation shape.'}</p>` : `<p role="status">No applicable source was selected or the source was incompatible with the active sport.</p>`}
+    <h4>Review still required</h4>
+    <ul>${review.issues.map(code => `<li>${esc(labels[code] || 'Sporting review required.')}</li>`).join('')}</ul>
+    <label class="field-l"><span>Copyable review brief (not saved)</span>
+      <textarea id="sport-format-brief" readonly rows="11">${esc(brief)}</textarea>
+    </label>
+    <div class="btn-row">
+      <button type="button" class="btn primary" data-act="play-format-copy">Copy review brief</button>
+      <button type="button" class="btn" data-act="play-format-change" data-id="${esc(p.id)}">Check another format</button>
+    </div>
+    <p class="hint">Even when local competition details are supplied, E3 will not enable a formation until its layout and rules have been independently approved and tested. Match-day registration and lineup authority are separate.</p>
+  </section>`, 'sport-format-result');
 }
 
 /* ----- Cross-sport play adaptation (coach review, concept only) ----- */
@@ -9346,6 +9405,9 @@ const actions = {
         !confirm('This play needs a sport/rules review before sharing. The diagram is not a verified full-team formation. Share the instructions anyway?')) return;
     sendWa(playShareText(p, state.playSide), { ref: 'play:' + p.id });
   }),
+  'play-format-review': coachOnly(el => { const p = playById(el.dataset.id); if (p) openSportFormatChoices(p); }),
+  'play-format-change': coachOnly(el => { const p = playById(el.dataset.id); if (p) openSportFormatChoices(p); }),
+  'play-format-copy': coachOnly(() => { const brief = $('#sheet #sport-format-brief')?.value; if (brief) copyText(brief, 'Sport format review brief copied'); }),
   'play-transfer': coachOnly(el => { const p = playById(el.dataset.id); if(p) openTransferChoices(p); }),
   'transfer-change': coachOnly(el => { const p = playById(el.dataset.id); if(p) openTransferChoices(p, el.dataset.from, el.dataset.to); }),
   'transfer-copy': coachOnly(el => {
@@ -11101,6 +11163,16 @@ document.addEventListener('submit', async e => {
     if (i >= 0) data.plays[i] = E.draft; else data.plays.push(E.draft);
     state.playId = E.draft.id; state.ped = null;
     save(); closeSheet(); render(); toast('Play saved');
+    return;
+  }
+  if (kind === 'play-format-review') {
+    const p = playById(str('id'));
+    if (!p || !isCoach()) return;
+    const review = coachSportFormatReview(p, curSport(), {
+      referenceId: str('referenceId'), competition: str('competition'),
+      grade: str('grade'), season: str('season')
+    });
+    openSportFormatResult(p, review);
     return;
   }
   if (kind === 'transfer-choose') {
