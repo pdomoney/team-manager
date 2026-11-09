@@ -3857,7 +3857,7 @@ function animStart() {
 //   Run, Pass, Dummy, Kick, Defender   drag from where the line starts to where it ends.
 //   Label     tap the field to put words there, or a player or defender to put words beside them.
 //   Picture   drag the frame's edges to set how wide and deep the picture is.
-const PED_TOOLS = [['select', 'Select'], ['pan', 'Pan board'], ['run', 'Run'], ['pass', 'Pass'], ['dummy', 'Dummy'], ['kick', 'Kick'], ['shift', 'Defender'], ['label', 'Label'], ['frame', 'Picture']];
+const PED_TOOLS = [['select', 'Select'], ['pan', 'Pan board'], ['run', 'Run'], ['pass', 'Pass'], ['dummy', 'Dummy'], ['kick', 'Kick'], ['shift', 'Defender run'], ['label', 'Label'], ['frame', 'Picture']];
 const PED_NAMES = Object.fromEntries(PED_TOOLS);
 const PED_DRAW = ['run', 'pass', 'dummy', 'kick', 'shift'];
 const PED_SIDES = [['l', 'Left'], ['r', 'Right'], ['a', 'Above'], ['b', 'Below'], ['al', 'Above left'], ['ar', 'Above right'], ['bl', 'Below left'], ['br', 'Below right']];
@@ -3881,7 +3881,7 @@ function openPlayEditor(play) {
     ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
   };
   tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
-  state.ped = { draft, initialDraft: JSON.stringify(draft), phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1, zoomMode: 'fit', precisionStep: 0.5, inspectorOpen: window.matchMedia('(min-width: 1000px)').matches, snapEnabled: false, snapPreview: null, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
+  state.ped = { draft, initialDraft: JSON.stringify(draft), phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1, zoomMode: 'fit', precisionStep: 0.5, inspectorOpen: window.matchMedia('(min-width: 1000px)').matches, snapEnabled: true, snapPreview: null, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
     <div class="ped-topline">
     <div class="seg ped-workspaces" role="group" aria-label="Play editor workspace">
@@ -3889,6 +3889,7 @@ function openPlayEditor(play) {
       <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="true">Advanced diagram</button>
       <button type="button" data-act="ped-tab" data-tab="words" aria-pressed="false">Play details</button>
     </div>
+    <button type="button" class="btn sm ped-quick-trigger" data-act="ped-quicklook" aria-pressed="false" aria-controls="ped-quicklook">Quick Look <span aria-hidden="true">▶</span></button>
       <details class="ped-setup" ${play ? '' : 'open'}>
         <summary>Play setup <span>${esc(draft.name || 'New play')} · ${esc(draft.sport || curSport())}</span></summary>
         <div class="ped-setup-fields">
@@ -3900,6 +3901,21 @@ function openPlayEditor(play) {
         </div>
       </details>
     </div>
+    <section id="ped-quicklook" class="ped-quicklook" aria-label="Unsaved play Quick Look" hidden>
+      <div class="ped-quick-top"><div><h3 id="ped-quick-title">Quick Look</h3><p class="hint">Unsaved draft preview. Return to editing without saving.</p></div>
+        <button type="button" class="btn sm" data-act="ped-quick-close">← Back to editing</button></div>
+      <div id="ped-quick-phases" class="seg phase-bar" role="group" aria-label="Quick Look phase"></div>
+      <div class="play-card play-presentation ped-quick-board"><div class="play-board-field" id="ped-quick-stage"></div></div>
+      <div class="anim-bar ped-quick-controls" role="group" aria-label="Quick Look animation controls">
+        <button type="button" class="btn sm primary" data-act="ped-quick-play">▶ Play</button>
+        <button type="button" class="btn sm" data-act="ped-quick-slow" aria-pressed="false">Slow · 0.45×</button>
+        <button type="button" class="btn sm" data-act="ped-quick-restart">Restart</button>
+      </div>
+      <div class="anim-timeline"><label for="ped-quick-seek">Quick Look progress</label>
+        <input id="ped-quick-seek" data-input="ped-quick-seek" type="range" min="0" max="100" step="1" value="0">
+        <output id="ped-quick-pct" for="ped-quick-seek">0%</output></div>
+      <p class="hint">Playback timing is estimated from drawn paths, not authored ball possession or catch events. This preview never publishes or saves.</p>
+    </section>
     <div id="ped-teach" class="ped-teach" hidden>
       <p class="hint">Create actions in the order players should learn them. Link each instruction to a movement and position in the diagram. Your existing drawing and written steps stay unchanged.</p>
       <div id="ped-teach-body"></div>
@@ -3913,10 +3929,11 @@ function openPlayEditor(play) {
     <div id="ped-diagram" class="ped-diagram">
       <div class="ped-phases" id="ped-phases"></div>
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
+      <p id="ped-defender-help" class="ped-defender-help hint" hidden>Defender run: drag from a defender or marker to its destination. Or choose Select, tap a defender and use Add defender run.</p>
       <div class="ped-main">
         <div class="ped-under" role="toolbar" aria-label="Canvas view controls">
           <button type="button" class="btn sm" data-act="ped-undo">Undo</button>
-          <button type="button" class="btn sm" data-act="ped-snap" aria-pressed="false">Snap: Off</button>
+          <button type="button" class="btn sm" data-act="ped-snap" aria-pressed="true">Snap: On</button>
           <span id="ped-snap-status" class="small" role="status" aria-live="polite" hidden></span>
           <button type="button" class="btn sm" data-act="ped-fit" aria-pressed="true">Fit view</button>
           <button type="button" class="btn sm" data-act="ped-zoom-out" aria-label="Zoom out of the editing canvas">−</button>
@@ -4278,6 +4295,7 @@ function refreshPedPrecision(E) {
       <button type="button" class="btn sm" data-act="ped-precision-add-bend" ${canInsert ? '' : 'disabled'}>+ Bend</button>
       <button type="button" class="btn sm" data-act="ped-precision-remove-bend" ${canRemove ? '' : 'disabled'}>Remove bend</button>
     </span>` : ''}
+    ${sel.k === 'df' || sel.k === 'mk' ? '<button type="button" class="btn sm" data-act="ped-defender-run">+ Defender run</button>' : ''}
     ${isLine && !selected ? '<span class="ped-precision-help">Choose a point to move or add a bend</span>' : ''}
     <div class="ped-precision-controls" role="group" aria-label="Precision movement">${buttons}</div>
     <label class="ped-precision-step">Step <select aria-label="Nudge step in diagram units" data-change="ped-precision-step">
