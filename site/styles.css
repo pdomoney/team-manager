@@ -3386,8 +3386,10 @@ body.persona-mode .top{background:var(--turf)}
 #sheet .play-editor-workspace .pf.editor .mv.draft{
   stroke-dasharray:calc(5px * var(--ped-art-scale)) calc(3px * var(--ped-art-scale));
 }
+/* The invisible movement tap target remains its former 36px wide even
+   when phone-visible movement strokes are deliberately finer. */
 #sheet .play-editor-workspace .pf.editor .mv-hit{
-  stroke-width:calc(24px * var(--ped-art-scale));
+  stroke-width:calc(24px * var(--ped-hit-scale, var(--ped-art-scale)));
 }
 #sheet .play-editor-workspace .pf.editor .ped-glow{
   stroke-width:calc(14px * var(--ped-art-scale));
