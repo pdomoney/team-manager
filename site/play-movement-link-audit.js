@@ -57,7 +57,8 @@ export function inspectPlayMovementLinks(phase) {
           codes.push('missing-tactical-actor');
           continue;
         }
-        const where = endpoint === 'start' ? move.pts?.[0] : move.pts?.at(-1);
+        const where = Array.isArray(move.pts)
+          ? (endpoint === 'start' ? move.pts[0] : move.pts[move.pts.length - 1]) : null;
         if (!coordinate(where) || !positionMatches(where, actorMap.get(actorKey)))
           codes.push('stale-actor-endpoint');
         if (endpoint === 'start' && move.t === 'shift' && actorKey.startsWith('player:'))
