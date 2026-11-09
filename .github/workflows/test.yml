@@ -53,3 +53,25 @@ jobs:
           path: qualification.json
           if-no-files-found: warn
           retention-days: 14
+
+  browser-webkit:
+    # Targeted B5 cross-engine check. Linux WebKit catches engine-specific
+    # behaviour but does NOT substitute for iPhone/macOS Safari or owner UX.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install pinned WebKit qualification runner
+        run: |
+          python -m pip install playwright==1.55.0
+          python -m playwright install --with-deps webkit
+      - name: B5 full play journey on WebKit (synthetic data, no installation)
+        env:
+          B5_BROWSER_ENGINE: webkit
+        run: python3 test/browser/play_b5_cross_device.py
