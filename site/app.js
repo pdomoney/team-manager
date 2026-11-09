@@ -4221,7 +4221,7 @@ function refreshPedTeaching() {
   box.innerHTML = `<div class="teach-phase-picker" role="group" aria-label="Edit teaching phase">
       ${phases.map((p, i) => `<button type="button" class="btn sm${i === E.teachPhase ? ' on' : ''}" data-act="teach-phase" data-i="${i}" aria-pressed="${i === E.teachPhase}">Phase ${i + 1}</button>`).join('')}
     </div>
-    <div class="teach-layout">
+    <div class="teach-layout ${cues.length ? 'has-actions' : 'is-empty'}">
       <div class="teach-list">
         <div class="teach-help"><strong>Tell the team what happens, in order.</strong>
           <p>Each action has one clear instruction. The optional movement link makes the player highlight exact rather than inferred.</p></div>
