@@ -83,7 +83,7 @@ test('E4.4 unsupported versions, malformed movement inputs and counterfeit actor
     [p=>{p.moves[0].linkVersion=2}, 'unsupported-link-version'],
     [p=>{p.moves[0].pts={broken:true}}, 'invalid-movement-geometry'],
     [p=>{p.moves[0].actorLinks={start:'player:LM',end:'player:FAKE'}}, 'missing-tactical-actor'],
-    [p=>{p.moves[0].actorLinks={start:'player:LM',end:'defender:0'}}, 'missing-tactical-actor'],
+    [p=>{p.moves[0].actorLinks={start:'player:LM',end:'defender:0'}}, 'attacking-movement-needs-player'],
     [p=>{p.moves[0].actorLinks={start:'player:LM',end:'player:RM',spoof:'player:LM'}},'unsupported-link-endpoint'],
     [p=>{p.moves[0].moveId='bad'}, 'invalid-movement-id'],
     [p=>{p.moves[0].pts[1]=[51,29]},'invalid-movement-geometry']
