@@ -1,7 +1,8 @@
 # B4.7: editor zoom uses actual CSS canvas pixels for symbols/annotations.
 # Owner showed unusable 61%-Fit art, with usable symbols only near 193%.
 # Synthetic Chromium validates Fit FIRST, then 118/193 and 141/171 detail.
-# Read-only Learn/Watch, saved Step Out and real Safari remain distinct gates.
+# Watch has separate presentation-only scaling in B4.8; Learn remains unscaled.
+# Saved Step Out and real Safari remain distinct gates.
 import sys
 from harness import *
 from playwright.sync_api import sync_playwright
@@ -17,11 +18,20 @@ with sync_playwright() as p:
         pg.goto(url+'#plays')
         pg.locator('.play-row[data-id=quickie-out]').click()
         original=pg.evaluate("""() => JSON.stringify(window.__team.data.plays.find(x=>x.id==='quickie-out'))""")
-        # Read-only viewer is not an editor, and must never inherit inverse art scale.
-        viewer=pg.locator('#play-fig svg.pf:not(.editor)').first
-        checks.ok(viewer.count()==1 and viewer.get_attribute('data-art-scale') is None and
-                  'scale(' not in (viewer.locator('[data-pl="LM"]').first.get_attribute('transform') or ''),
-                  f'[{width}] original player-facing play retains full-size artwork')
+        # Watch has its own responsive art density, not the editor zoom value.
+        # Learn must still retain its original unscaled teaching diagram.
+        watch=pg.locator('#play-fig svg.pf.watch-art').first
+        checks.ok(watch.count()==1 and watch.get_attribute('data-art-scale') is None and
+                  watch.get_attribute('data-watch-art-scale') is not None and
+                  'scale(' in (watch.locator('[data-pl="LM"]').first.get_attribute('transform') or ''),
+                  f'[{width}] Watch artwork is lean but independent of editor zoom')
+        pg.locator('[data-act=play-mode][data-mode=learn]').click()
+        learn=pg.locator('#play-fig svg.pf.study').first
+        checks.ok(learn.count()==1 and learn.get_attribute('data-art-scale') is None and
+                  learn.get_attribute('data-watch-art-scale') is None and
+                  'scale(' not in (learn.locator('[data-pl="LM"]').first.get_attribute('transform') or ''),
+                  f'[{width}] Learn keeps its original unscaled teaching artwork')
+        pg.locator('[data-act=play-mode][data-mode=watch]').click()
         pg.locator('[data-act=play-edit]').click()
         pg.wait_for_selector('#ped-field svg.editor')
 
