@@ -4156,6 +4156,153 @@ function pedPanel(E) {
 }
 // Editor view scale, not saved field coordinates. Fit is responsive to the
 // available stage and the SVG's own viewBox, including at narrow browser zoom.
+
+// Quick Look runs the existing Watch animation planner on a detached snapshot
+// of the coach's unsaved draft. It is display-only and never writes to data.
+function pedQuickStop() {
+  const q = state.ped?.quick;
+  if (!q) return;
+  if (q.raf) cancelAnimationFrame(q.raf);
+  q.raf = 0;
+  q.playing = false;
+  $('#ped-quick-stage svg')?.classList.remove('animating');
+}
+function pedQuickButtons() {
+  const q = state.ped?.quick;
+  if (!q) return;
+  const play = $('[data-act="ped-quick-play"]');
+  if (play) play.textContent = q.playing ? 'Pause' : q.done ? 'Play again' : '▶ Play';
+  const slow = $('[data-act="ped-quick-slow"]');
+  if (slow) {
+    slow.textContent = q.slow ? 'Slow · 0.45× (On)' : 'Slow · 0.45×';
+    slow.setAttribute('aria-pressed', String(q.slow));
+    slow.classList.toggle('on', q.slow);
+  }
+  const pct = q.plan?.T ? Math.round(100 * q.t / q.plan.T) : 0;
+  const seek = $('#ped-quick-seek'), out = $('#ped-quick-pct');
+  if (seek) seek.value = String(clamp(pct, 0, 100));
+  if (out) out.textContent = clamp(pct, 0, 100) + '%';
+}
+function pedQuickRender() {
+  const q = state.ped?.quick;
+  if (!q) return;
+  const current = phaseView(q.draft, q.phase);
+  q.plan = planPhase(playGeom(current, 'right'));
+  q.t = 0; q.hold = 0; q.done = false;
+  const header = $('#ped-quick-title');
+  if (header) header.textContent = q.draft.name || 'Untitled play';
+  const stages = $('#ped-quick-phases');
+  if (stages) stages.innerHTML = Array.from({ length: phaseCount(q.draft) }, (_, i) =>
+    '<button type="button" class="btn sm" data-act="ped-quick-phase" data-i="' + i +
+    '" aria-pressed="' + (i === q.phase) + '">Phase ' + (i + 1) + '</button>').join('');
+  const board = $('#ped-quick-stage');
+  if (board) {
+    board.innerHTML = playSVG(current, 'right', { anim: true });
+    const svg = board.querySelector('svg');
+    if (svg) {
+      animFrame(svg, q.plan, 0);
+      if (q.playing) svg.classList.add('animating');
+    }
+  }
+  pedQuickButtons();
+}
+function pedQuickOpen() {
+  const E = state.ped, form = $('#sheet form.ped');
+  if (!E || !form) return;
+  if (E.quick) pedQuickStop();
+  // Form fields are not stored on E.draft until Save. Include the current
+  // values for preview without mutating or persisting E.draft.
+  const draft = JSON.parse(JSON.stringify(E.draft));
+  const formValue = (name, fallback) => form.elements.namedItem(name)?.value ?? fallback;
+  draft.name = formValue('name', draft.name);
+  draft.category = formValue('category', draft.category);
+  draft.sport = formValue('playSport', draft.sport);
+  for (const name of ['headline', 'when', 'steps']) draft[name] = formValue(name, draft[name]);
+  E.quick = { draft, phase: clamp(E.tab === 'teach' ? E.teachPhase : E.phase, 0, phaseCount(draft) - 1),
+    playing: false, done: false, slow: false, plan: null, t: 0, last: 0, hold: 0, raf: 0 };
+  $('#ped-quicklook').hidden = false;
+  for (const id of ['ped-teach','ped-words','ped-diagram']) $('#' + id).hidden = true;
+  const setup = $('#sheet .ped-setup'); if (setup) setup.hidden = true;
+  document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  const trigger = $('[data-act="ped-quicklook"]'); if (trigger) trigger.setAttribute('aria-pressed', 'true');
+  pedQuickRender();
+  $('[data-act="ped-quick-close"]')?.focus({ preventScroll: true });
+}
+function pedQuickClose(focus = true) {
+  const E = state.ped;
+  if (!E?.quick) return;
+  pedQuickStop();
+  E.quick = null;
+  const quick = $('#ped-quicklook'); if (quick) quick.hidden = true;
+  const setup = $('#sheet .ped-setup'); if (setup) setup.hidden = false;
+  for (const id of ['teach', 'words', 'diagram']) {
+    const pane = $('#ped-' + id);
+    if (pane) pane.hidden = E.tab !== id;
+  }
+  document.querySelectorAll('[data-act="ped-tab"]').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.tab === E.tab)));
+  const trigger = $('[data-act="ped-quicklook"]');
+  if (trigger) trigger.setAttribute('aria-pressed', 'false');
+  if (E.tab === 'diagram') refreshPlayEditor();
+  else if (E.tab === 'teach') refreshPedTeaching();
+  if (focus) trigger?.focus({ preventScroll: true });
+}
+function pedQuickPlay() {
+  const q = state.ped?.quick;
+  if (!q) return;
+  if (q.playing) { pedQuickStop(); pedQuickButtons(); return; }
+  if (q.done) { q.phase = 0; pedQuickRender(); }
+  q.playing = true; q.last = performance.now();
+  $('#ped-quick-stage svg')?.classList.add('animating');
+  pedQuickButtons();
+  const tick = now => {
+    if (!q.playing || state.ped?.quick !== q) return;
+    const svg = $('#ped-quick-stage svg');
+    if (!svg || $('#ped-quicklook')?.hidden) { pedQuickStop(); return; }
+    const dt = Math.max(0, Math.min(0.05, (now - q.last) / 1000)) * (q.slow ? 0.45 : 1);
+    q.last = now;
+    if (q.hold > 0) {
+      q.hold -= dt;
+      if (q.hold <= 0) {
+        q.phase += 1;
+        pedQuickRender();
+      }
+    } else {
+      q.t = Math.min(q.plan.T, q.t + dt);
+      animFrame(svg, q.plan, q.t);
+      if (q.t >= q.plan.T) {
+        if (q.phase + 1 < phaseCount(q.draft)) q.hold = 0.75;
+        else {
+          q.done = true; pedQuickStop(); pedQuickButtons(); return;
+        }
+      }
+    }
+    pedQuickButtons();
+    q.raf = requestAnimationFrame(tick);
+  };
+  q.raf = requestAnimationFrame(tick);
+}
+function pedQuickSeek(value) {
+  const q = state.ped?.quick;
+  if (!q?.plan) return;
+  pedQuickStop();
+  q.t = q.plan.T * clamp(Number(value) / 100 || 0, 0, 1);
+  q.done = q.t >= q.plan.T;
+  const svg = $('#ped-quick-stage svg');
+  if (svg) animFrame(svg, q.plan, q.t);
+  pedQuickButtons();
+}
+function pedQuickPhase(i) {
+  const q = state.ped?.quick;
+  if (!q || !Number.isInteger(i) || i < 0 || i >= phaseCount(q.draft)) return;
+  pedQuickStop(); q.phase = i; pedQuickRender();
+}
+function pedQuickRestart() {
+  const q = state.ped?.quick;
+  if (!q) return;
+  pedQuickStop(); q.phase = 0; pedQuickRender();
+}
+
 function pedFitZoom(card, box, svg) {
   const view = svg?.viewBox?.baseVal, width = box?.clientWidth || 0;
   if (!view?.width || !view?.height || width <= 0 || !card?.clientHeight) return 1;
