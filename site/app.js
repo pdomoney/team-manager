@@ -4365,7 +4365,9 @@ function refreshPedTeaching() {
   const list = cues.map((cue, i) => {
     const role = (cue.roles || [])[0] || '';
     const move = (cue.moves || [])[0];
-    return `<section class="teach-action${i === E.teachPreview ? ' selected' : ''}">
+    const invalid = E.teachError?.phase === E.teachPhase && E.teachError?.index === i &&
+      !String(cue.text || '').trim();
+    return `<section class="teach-action${i === E.teachPreview ? ' selected' : ''}${invalid ? ' is-invalid' : ''}" aria-label="Teaching action ${i + 1}">
       <div class="teach-action-head"><strong>Action ${i + 1}</strong>
         <div class="btn-row">
           <button type="button" class="btn sm" data-act="teach-prev" data-i="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Move action ${i + 1} earlier">↑</button>
@@ -4374,7 +4376,8 @@ function refreshPedTeaching() {
         </div>
       </div>
       <label class="field-l"><span>Short title</span><input type="text" data-input="teach-title" data-i="${i}" maxlength="100" value="${esc(cue.title || '')}" placeholder="e.g. Draw the marker"></label>
-      <label class="field-l"><span>What should players do?</span><textarea data-input="teach-text" data-i="${i}" rows="2" maxlength="700" placeholder="One clear instruction, with the names or positions involved">${esc(cue.text || '')}</textarea></label>
+      <label class="field-l"><span>What should players do?</span><textarea data-input="teach-text" data-i="${i}" rows="2" maxlength="700" placeholder="One clear instruction, with the names or positions involved" ${invalid ? `aria-invalid="true" aria-describedby="teach-error-${i}"` : ''}>${esc(cue.text || '')}</textarea></label>
+      ${invalid ? `<p class="teach-inline-error" id="teach-error-${i}" role="alert">Add an instruction before saving this play.</p>` : ''}
       <div class="two">
         <label class="field-l"><span>Highlight position</span><select data-change="teach-role" data-i="${i}">
           <option value="">Auto from instruction</option>
@@ -4385,7 +4388,7 @@ function refreshPedTeaching() {
           ${(ph.moves || []).map((m, k) => `<option value="${k}" ${move === k ? 'selected' : ''}>${k + 1}. ${esc(MOVE_KINDS[m.t] || m.t)}</option>`).join('')}
         </select></label>
       </div>
-      <button type="button" class="btn sm" data-act="teach-preview" data-i="${i}">Preview this action</button>
+      <button type="button" class="btn sm" data-act="teach-preview" data-i="${i}" aria-pressed="${i === E.teachPreview}">Preview this action</button>
     </section>`;
   }).join('');
   const preview = cues[E.teachPreview];
@@ -4397,7 +4400,7 @@ function refreshPedTeaching() {
       <div class="teach-list">
         <div class="teach-help"><strong>Tell the team what happens, in order.</strong>
           <p>Each action has one clear instruction. The optional movement link makes the player highlight exact rather than inferred.</p></div>
-        ${list || '<p class="hint">No guided actions yet. Existing drawings and coaching words are preserved.</p>'}
+        ${list || '<p class="teach-empty-state" role="status">No guided actions yet. Existing drawings and coaching words are preserved.</p>'}
         <div class="btn-row">
           <button type="button" class="btn primary sm" data-act="teach-add">+ Add action</button>
           ${!cues.length ? '<button type="button" class="btn sm" data-act="teach-seed">Use existing instructions</button>' : ''}
@@ -9407,7 +9410,11 @@ const actions = {
   }),
   'teach-preview': coachOnly(el => {
     const E = state.ped; if (!E) return;
-    E.teachPreview = Number(el.dataset.i) || 0; refreshPedTeaching();
+    const index = Number(el.dataset.i);
+    if (!Number.isInteger(index) || index < 0 ||
+        index >= teachingSteps(E.draft, E.teachPhase).length) return;
+    E.teachPreview = index; refreshPedTeaching();
+    $('#ped-teach-body [data-act="teach-preview"][data-i="' + index + '"]')?.focus({ preventScroll: true });
   }),
   'ped-quicklook': coachOnly(() => pedQuickOpen()),
   'ped-quick-close': coachOnly(() => pedQuickClose()),
@@ -10070,6 +10077,14 @@ document.addEventListener('input', e => {
     if (E.lastTeachInput !== editKey) { pedSnap(pedWords()); E.lastTeachInput = editKey; }
     step[k === 'teach-title' ? 'title' : 'text'] = e.target.value;
     E.dirty = true;
+    if (k === 'teach-text' && E.teachError?.phase === E.teachPhase &&
+        E.teachError?.index === Number(e.target.dataset.i) && e.target.value.trim()) {
+      E.teachError = null;
+      e.target.removeAttribute('aria-invalid');
+      e.target.removeAttribute('aria-describedby');
+      e.target.closest('.teach-action')?.classList.remove('is-invalid');
+      e.target.closest('.teach-action')?.querySelector('.teach-inline-error')?.remove();
+    }
   }
   if ((k === 'ped-text' || k === 'ped-line') && state.ped && state.ped.sel) {
     const E = state.ped, d = pedCur(E);
@@ -11068,10 +11083,14 @@ document.addEventListener('submit', async e => {
     const phases = [E.draft, ...E.draft.phases];
     const bad = phases.findIndex(ph => Array.isArray(ph.study) && ph.study.some(x => !String(x.text || '').trim()));
     if (bad >= 0) {
-      E.tab = 'teach'; E.teachPhase = bad;
+      const missing = phases[bad].study.findIndex(x => !String(x.text || '').trim());
+      E.tab = 'teach'; E.teachPhase = bad; E.teachPreview = missing;
+      E.teachError = { phase: bad, index: missing };
       $('#ped-teach').hidden = false; $('#ped-diagram').hidden = true; $('#ped-words').hidden = true;
       document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === 'teach')));
-      refreshPedTeaching(); toast('Every teaching action needs an instruction before saving.'); return;
+      refreshPedTeaching();
+      $('#ped-teach-body [data-input="teach-text"][data-i="' + missing + '"]')?.focus({ preventScroll: true });
+      toast('Every teaching action needs an instruction before saving.'); return;
     }
     if (!str('name')) { toast('Give the play a name'); const n = form.querySelector('[name=name]'); const setup = n?.closest('details'); if (setup) setup.open = true; if (n) n.focus(); return; }
     Object.assign(E.draft, { name: str('name'), sport: M.SPORTS.includes(str('playSport')) ? str('playSport') : curSport(), category: str('category') || 'Other', headline: str('headline'), when: str('when'), steps: String(f.get('steps') || '').trim() });
