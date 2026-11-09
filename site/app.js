@@ -1446,7 +1446,7 @@ function render() {
   state.lastView[g.id] = state.tab;
   document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
   v.innerHTML = subNav(g) + (['home', 'people'].includes(state.tab) ? '' : seasonBanner()) + VIEWS[state.tab]();
-  if (state.tab === 'plays' && state.playId && state.playMode === 'watch') syncWatchArtwork();
+  if (state.tab === 'plays' && state.playId) syncWatchArtwork();
   if (state.tab === 'field' || state.tab === 'matchday') bindField();
   fitSubnav();
   if(state.tab==='home')restoreHomeScopeScroll(v,previousHomeScroll);
@@ -3488,7 +3488,7 @@ function viewPlay(p) {
 // symbols/lines/text are counter-scaled to the visible board width. Never
 // rebuild the entire player-facing page or reset its animation/seek controls.
 function syncWatchArtwork(restoreFrame = false) {
-  if (state.tab !== 'plays' || state.playMode !== 'watch' || !state.playId) return;
+  if (state.tab !== 'plays' || !state.playId || !document.querySelector('#play-fig #anim-seek')) return;
   const board = document.querySelector('#play-fig .play-board-field');
   const svg = board?.querySelector('svg.pf');
   if (!svg) return;
@@ -3496,7 +3496,7 @@ function syncWatchArtwork(restoreFrame = false) {
   if (!Number.isFinite(width) || width <= 0) return;
   const scale = watchArtworkScale(width, PW, PR);
   const previous = Number(svg.dataset.watchArtScale || 1);
-  if (Math.abs(previous - scale) < 0.005) return;
+  if (svg.classList.contains('watch-art') && Math.abs(previous - scale) < 0.005) return;
   const play = playById(state.playId);
   if (!play) return;
   svg.outerHTML = playSVG(phaseView(play, state.playPhase), state.playSide,
@@ -3717,7 +3717,7 @@ const arcAt = (keys, t) => {
 function animFrame(svg, plan, t) {
   const d = svg.dataset, k = +d.k, X = x => (PPAD + (x - +d.x0) * k).toFixed(1), Y = y => (+d.top + (y - +d.y0) * k).toFixed(1);
   const art = svg.classList.contains('watch-art') ? (+d.watchArtScale || 1) : 1;
-  const glyphScale = art === 1 ? '' : ` scale(${art})`;
+  const glyphScale = svg.classList.contains('watch-art') ? ` scale(${art})` : '';
   const at = {};
   Object.entries(plan.paths).forEach(([id, P]) => {
     const q = at[id] = pointAt(P.pts, arcAt(P.keys, t)), el = svg.querySelector(`[data-pl="${id}"]`);
@@ -9778,7 +9778,7 @@ window.matchMedia('(min-width: 900px)').addEventListener('change', () => {
   if(S.role)render();
 });
 window.addEventListener('resize', () => {
-  if (state.tab === 'plays' && state.playMode === 'watch' && state.playId)
+  if (state.tab === 'plays' && state.playId)
     requestAnimationFrame(() => syncWatchArtwork(true));
   // Browser zoom, rotation and split-window resize should recalculate Fit
   // without rewriting a diagram or changing a deliberately manual zoom.
