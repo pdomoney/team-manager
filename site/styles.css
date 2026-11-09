@@ -3795,3 +3795,54 @@ body.persona-mode .top{background:var(--turf)}
   outline:3px solid #F1C775;
   outline-offset:3px;
 }
+
+
+/* E3.3: focused coach-only sport format review. No formation canvas or
+   match-ready indicator is introduced by this panel. */
+#sheet .sport-format-review p,
+#sheet .sport-format-result p,
+#sheet .sport-format-result li{
+  line-height:1.5;
+  overflow-wrap:anywhere;
+}
+#sheet .sport-format-result{
+  min-width:0;
+}
+#sheet .sport-format-result h3{
+  margin:8px 0;
+}
+#sheet .sport-format-result h4{
+  margin:18px 0 6px;
+}
+#sheet .sport-format-result ul{
+  padding-left:24px;
+  margin:4px 0 16px;
+}
+#sheet .sport-format-result li{
+  padding:2px 0;
+}
+#sheet .sport-format-result .sport-format-status{
+  display:inline-block;
+  border:1px solid #987A44;
+  background:#26323D;
+  color:#F1C775;
+  border-radius:8px;
+  padding:6px 10px;
+}
+#sheet #sport-format-brief{
+  width:100%;
+  min-width:0;
+  box-sizing:border-box;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12px;
+  line-height:1.5;
+  overflow:auto;
+}
+#sheet .sport-format-result .btn-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+#sheet .sport-format-result .btn-row .btn{
+  min-height:44px;
+}
