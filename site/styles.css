@@ -3625,3 +3625,133 @@ body.persona-mode .top{background:var(--turf)}
   line-height:1.4;
   overflow-wrap:anywhere;
 }
+
+/* B6: Quick Look stays inside the existing full-area coaching editor.
+   The preview shares the Watch SVG but has independent draft-only controls. */
+#sheet .play-editor-workspace .ped-quick-trigger{
+  flex:0 0 auto;
+  min-height:38px;
+  white-space:nowrap;
+}
+#sheet .play-editor-workspace form.ped > #ped-quicklook{
+  grid-column:1;
+  grid-row:2;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  min-height:0;
+  min-width:0;
+  height:100%;
+  overflow:auto;
+  gap:8px;
+  padding:5px clamp(3px,1vw,12px) 12px;
+}
+#sheet .play-editor-workspace form.ped > #ped-quicklook[hidden]{
+  display:none!important;
+}
+#sheet .play-editor-workspace #ped-quicklook .ped-quick-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:8px;
+}
+#sheet .play-editor-workspace #ped-quicklook .ped-quick-top h3{
+  margin:0 0 3px;
+  font-size:clamp(19px,2vw,24px);
+}
+#sheet .play-editor-workspace #ped-quicklook .ped-quick-top p{
+  font-size:13px;
+}
+#sheet .play-editor-workspace #ped-quicklook .phase-bar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+  flex:0 0 auto;
+}
+#sheet .play-editor-workspace #ped-quicklook .phase-bar:empty{
+  display:none;
+}
+#sheet .play-editor-workspace #ped-quicklook .ped-quick-board{
+  flex:1 0 auto;
+  align-self:stretch;
+  min-height:200px;
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+  background:#1B242D;
+  border-radius:12px;
+  margin:0;
+  padding:8px;
+}
+#sheet .play-editor-workspace #ped-quicklook .ped-quick-board .play-board-field{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-width:0;
+  max-width:100%;
+  height:auto;
+  overflow:hidden;
+}
+#sheet .play-editor-workspace #ped-quicklook .ped-quick-board svg.pf{
+  display:block;
+  width:auto;
+  max-width:100%;
+  max-height:min(46dvh,600px);
+  height:auto;
+  flex:0 1 auto;
+}
+#sheet .play-editor-workspace #ped-quicklook .ped-quick-controls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  flex:0 0 auto;
+}
+#sheet .play-editor-workspace #ped-quicklook .ped-quick-controls button{
+  min-height:38px;
+}
+#sheet .play-editor-workspace #ped-quicklook .anim-timeline{
+  width:100%;
+  min-width:0;
+  flex:0 0 auto;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-defender-help{
+  flex:0 0 auto;
+  margin:0 0 6px;
+  border-left:3px solid var(--sky);
+  padding:7px 10px;
+  background:var(--paper);
+  border-radius:8px;
+  font-size:12px;
+  line-height:1.4;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-defender-help[hidden]{
+  display:none!important;
+}
+@container play-editor (max-width:610px){
+  #sheet .play-editor-workspace .ped-topline .ped-quick-trigger{
+    order:1;
+    flex:0 0 auto;
+  }
+  #sheet .play-editor-workspace #ped-quicklook .ped-quick-board svg.pf{
+    max-height:45dvh;
+  }
+}
+
+#sheet .play-editor-workspace #ped-diagram [data-act="ped-snap"][aria-pressed="true"]{
+  background:var(--sky-soft);
+  border-color:var(--sky);
+  color:var(--sky-ink);
+}
+#sheet .play-editor-workspace #ped-quicklook [data-act="ped-quick-slow"][aria-pressed="true"]{
+  background:var(--sky-soft);
+  border-color:var(--sky);
+  color:var(--sky-ink);
+}
+@container play-editor (max-width:610px){
+  #sheet .play-editor-workspace #ped-diagram .ped-tools [data-t="shift"]{
+    white-space:normal;
+    font-size:11px;
+    line-height:1.15;
+  }
+}

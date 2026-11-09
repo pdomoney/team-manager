@@ -3857,7 +3857,7 @@ function animStart() {
 //   Run, Pass, Dummy, Kick, Defender   drag from where the line starts to where it ends.
 //   Label     tap the field to put words there, or a player or defender to put words beside them.
 //   Picture   drag the frame's edges to set how wide and deep the picture is.
-const PED_TOOLS = [['select', 'Select'], ['pan', 'Pan board'], ['run', 'Run'], ['pass', 'Pass'], ['dummy', 'Dummy'], ['kick', 'Kick'], ['shift', 'Defender'], ['label', 'Label'], ['frame', 'Picture']];
+const PED_TOOLS = [['select', 'Select'], ['pan', 'Pan board'], ['run', 'Run'], ['pass', 'Pass'], ['dummy', 'Dummy'], ['kick', 'Kick'], ['shift', 'Defender run'], ['label', 'Label'], ['frame', 'Picture']];
 const PED_NAMES = Object.fromEntries(PED_TOOLS);
 const PED_DRAW = ['run', 'pass', 'dummy', 'kick', 'shift'];
 const PED_SIDES = [['l', 'Left'], ['r', 'Right'], ['a', 'Above'], ['b', 'Below'], ['al', 'Above left'], ['ar', 'Above right'], ['bl', 'Below left'], ['br', 'Below right']];
@@ -3881,7 +3881,7 @@ function openPlayEditor(play) {
     ph.notes = ph.notes || {}; ph.tags = ph.tags || {}; ph.players = ph.players || formation(46);
   };
   tidy(draft); draft.phases = arr(draft.phases); draft.phases.forEach(tidy);
-  state.ped = { draft, initialDraft: JSON.stringify(draft), phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1, zoomMode: 'fit', precisionStep: 0.5, inspectorOpen: window.matchMedia('(min-width: 1000px)').matches, snapEnabled: false, snapPreview: null, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
+  state.ped = { draft, initialDraft: JSON.stringify(draft), phase: 0, tool: 'select', key: false, curve: false, sel: null, selH: null, whole: false, zoom: 1, zoomMode: 'fit', precisionStep: 0.5, inspectorOpen: window.matchMedia('(min-width: 1000px)').matches, snapEnabled: true, snapPreview: null, stableViewport: null, undo: [], dirty: false, tab: 'diagram', teachPhase: 0, teachPreview: 0 };
   openSheet(play ? `Edit ${play.name}` : 'New play', `<form data-form="play" autocomplete="off" class="ped">
     <div class="ped-topline">
     <div class="seg ped-workspaces" role="group" aria-label="Play editor workspace">
@@ -3889,6 +3889,7 @@ function openPlayEditor(play) {
       <button type="button" data-act="ped-tab" data-tab="diagram" aria-pressed="true">Advanced diagram</button>
       <button type="button" data-act="ped-tab" data-tab="words" aria-pressed="false">Play details</button>
     </div>
+    <button type="button" class="btn sm ped-quick-trigger" data-act="ped-quicklook" aria-pressed="false" aria-controls="ped-quicklook">Quick Look <span aria-hidden="true">▶</span></button>
       <details class="ped-setup" ${play ? '' : 'open'}>
         <summary>Play setup <span>${esc(draft.name || 'New play')} · ${esc(draft.sport || curSport())}</span></summary>
         <div class="ped-setup-fields">
@@ -3900,6 +3901,21 @@ function openPlayEditor(play) {
         </div>
       </details>
     </div>
+    <section id="ped-quicklook" class="ped-quicklook" aria-label="Unsaved play Quick Look" hidden>
+      <div class="ped-quick-top"><div><h3 id="ped-quick-title">Quick Look</h3><p class="hint">Unsaved draft preview. Return to editing without saving.</p></div>
+        <button type="button" class="btn sm" data-act="ped-quick-close">← Back to editing</button></div>
+      <div id="ped-quick-phases" class="seg phase-bar" role="group" aria-label="Quick Look phase"></div>
+      <div class="play-card play-presentation ped-quick-board"><div class="play-board-field" id="ped-quick-stage"></div></div>
+      <div class="anim-bar ped-quick-controls" role="group" aria-label="Quick Look animation controls">
+        <button type="button" class="btn sm primary" data-act="ped-quick-play">▶ Play</button>
+        <button type="button" class="btn sm" data-act="ped-quick-slow" aria-pressed="false">Slow · 0.45×</button>
+        <button type="button" class="btn sm" data-act="ped-quick-restart">Restart</button>
+      </div>
+      <div class="anim-timeline"><label for="ped-quick-seek">Quick Look progress</label>
+        <input id="ped-quick-seek" data-input="ped-quick-seek" type="range" min="0" max="100" step="1" value="0">
+        <output id="ped-quick-pct" for="ped-quick-seek">0%</output></div>
+      <p class="hint">Playback timing is estimated from drawn paths, not authored ball possession or catch events. This preview never publishes or saves.</p>
+    </section>
     <div id="ped-teach" class="ped-teach" hidden>
       <p class="hint">Create actions in the order players should learn them. Link each instruction to a movement and position in the diagram. Your existing drawing and written steps stay unchanged.</p>
       <div id="ped-teach-body"></div>
@@ -3916,7 +3932,7 @@ function openPlayEditor(play) {
       <div class="ped-main">
         <div class="ped-under" role="toolbar" aria-label="Canvas view controls">
           <button type="button" class="btn sm" data-act="ped-undo">Undo</button>
-          <button type="button" class="btn sm" data-act="ped-snap" aria-pressed="false">Snap: Off</button>
+          <button type="button" class="btn sm" data-act="ped-snap" aria-pressed="true">Snap: On</button>
           <span id="ped-snap-status" class="small" role="status" aria-live="polite" hidden></span>
           <button type="button" class="btn sm" data-act="ped-fit" aria-pressed="true">Fit view</button>
           <button type="button" class="btn sm" data-act="ped-zoom-out" aria-label="Zoom out of the editing canvas">−</button>
@@ -3925,6 +3941,7 @@ function openPlayEditor(play) {
           <button type="button" class="btn sm" data-act="ped-whole">Show whole field</button>
           <button type="button" class="btn sm" data-act="ped-inspector" aria-expanded="true" aria-controls="ped-properties">Properties</button>
         </div>
+        <p id="ped-defender-help" class="ped-defender-help hint" hidden>Defender run: drag from a defender or marker to its destination. Or choose Select, tap a defender and use Add defender run.</p>
         <div id="ped-precision" class="ped-precision" aria-live="polite" hidden></div>
         <div id="ped-link-warning" class="ped-link-warning" role="status" aria-live="polite" hidden></div>
         <div class="play-card ped-card play-presentation"><div class="play-board-field"><div id="ped-field"></div></div></div>
@@ -4111,6 +4128,8 @@ function pedPanel(E) {
     s += `<label class="field-l"><span>Words beside ${sel.k === 'pl' ? esc(code || 'them') : 'them'}</span><textarea id="ped-text" data-input="ped-text" rows="2" placeholder="${sel.k === 'pl' ? 'e.g. Dummy half' : 'e.g. A defender'}">${esc(text)}</textarea></label>`;
     s += sides((n && n.side) || (sel.k === 'mk' ? 'l' : 'r'));
     if (sel.k !== 'pl') s += `<label class="field-l"><span>Words above their line</span><input type="text" data-input="ped-line" value="${esc(d.notes.line ? d.notes.line.text : 'Their line, 7 m back')}"></label>`;
+    if (sel.k === 'df' || sel.k === 'mk') s += `<button type="button" class="btn sm primary" data-act="ped-defender-run">+ Add defender run</button>
+      <p class="hint">Starts a short editable path attached to this ${sel.k === 'mk' ? 'marker' : 'defender'}. Drag its end handle to set the response. This does not invent a defensive decision.</p>`;
     return s + `<p class="hint">Drag ${sel.k === 'pl' ? 'the player to move them; lines that start or end on them move too' : 'them to move them'}.</p>`;
   }
   if (sel && sel.k === 'lb' && d.labels[sel.i]) {
@@ -4130,13 +4149,160 @@ function pedPanel(E) {
   if (PED_DRAW.includes(E.tool)) {
     return `<div class="ped-h3">Draw ${E.tool === 'shift' ? 'defender moves' : MOVE_KINDS[E.tool].toLowerCase() + ' lines'}</div>
       <div class="btn-row">${E.tool !== 'shift' ? btn('ped-opt', 'Key move (blue)', E.key, 'data-f="key"') : ''}${btn('ped-opt', 'Curved', E.curve, 'data-f="curve"')}</div>
-      <p class="hint">${E.tool === 'shift' ? 'Drag from a defender to where they move.' : E.tool === 'pass' || E.tool === 'dummy' ? 'Drag from the passer (or a point on their run) to the receiver.' : 'Drag from a player to where the line ends.'} Tap a line to change it.</p>`;
+      <p class="hint">${E.tool === 'shift' ? 'Drag from a defender or marker to its destination. On phones, Select a defender first and tap + Defender run in the precision bar.' : E.tool === 'pass' || E.tool === 'dummy' ? 'Drag from the passer (or a point on their run) to the receiver.' : 'Drag from a player to where the line ends.'} Tap a line to change it.</p>`;
   }
   if (E.tool === 'label') return `<p class="hint">Tap the field to add words there, or tap a player or defender to put words beside them.</p>`;
   return `<p class="hint">Tap a line, player, defender or label to change it, or drag it to move it. Pick Run, Pass, Dummy, Kick or Defender to draw a new line, and Picture to set how much of the field shows.</p>`;
 }
 // Editor view scale, not saved field coordinates. Fit is responsive to the
 // available stage and the SVG's own viewBox, including at narrow browser zoom.
+
+// Quick Look runs the existing Watch animation planner on a detached snapshot
+// of the coach's unsaved draft. It is display-only and never writes to data.
+function pedQuickStop() {
+  const q = state.ped?.quick;
+  if (!q) return;
+  if (q.raf) cancelAnimationFrame(q.raf);
+  q.raf = 0;
+  q.playing = false;
+  $('#ped-quick-stage svg')?.classList.remove('animating');
+}
+function pedQuickButtons() {
+  const q = state.ped?.quick;
+  if (!q) return;
+  const play = $('[data-act="ped-quick-play"]');
+  if (play) play.textContent = q.playing ? 'Pause' : q.done ? 'Play again' : '▶ Play';
+  const slow = $('[data-act="ped-quick-slow"]');
+  if (slow) {
+    slow.textContent = q.slow ? 'Slow · 0.45× (On)' : 'Slow · 0.45×';
+    slow.setAttribute('aria-pressed', String(q.slow));
+    slow.classList.toggle('on', q.slow);
+  }
+  const pct = q.plan?.T ? Math.round(100 * q.t / q.plan.T) : 0;
+  const seek = $('#ped-quick-seek'), out = $('#ped-quick-pct');
+  if (seek) seek.value = String(clamp(pct, 0, 100));
+  if (out) out.textContent = clamp(pct, 0, 100) + '%';
+}
+function pedQuickRender() {
+  const q = state.ped?.quick;
+  if (!q) return;
+  const current = phaseView(q.draft, q.phase);
+  q.plan = planPhase(playGeom(current, 'right'));
+  q.t = 0; q.hold = 0; q.done = false;
+  const header = $('#ped-quick-title');
+  if (header) header.textContent = q.draft.name || 'Untitled play';
+  const stages = $('#ped-quick-phases');
+  if (stages) stages.innerHTML = Array.from({ length: phaseCount(q.draft) }, (_, i) =>
+    '<button type="button" class="btn sm" data-act="ped-quick-phase" data-i="' + i +
+    '" aria-pressed="' + (i === q.phase) + '">Phase ' + (i + 1) + '</button>').join('');
+  const board = $('#ped-quick-stage');
+  if (board) {
+    board.innerHTML = playSVG(current, 'right', { anim: true });
+    const svg = board.querySelector('svg');
+    if (svg) {
+      animFrame(svg, q.plan, 0);
+      if (q.playing) svg.classList.add('animating');
+    }
+  }
+  pedQuickButtons();
+}
+function pedQuickOpen() {
+  const E = state.ped, form = $('#sheet form.ped');
+  if (!E || !form) return;
+  if (E.quick) pedQuickStop();
+  // Form fields are not stored on E.draft until Save. Include the current
+  // values for preview without mutating or persisting E.draft.
+  const draft = JSON.parse(JSON.stringify(E.draft));
+  const formValue = (name, fallback) => form.elements.namedItem(name)?.value ?? fallback;
+  draft.name = formValue('name', draft.name);
+  draft.category = formValue('category', draft.category);
+  draft.sport = formValue('playSport', draft.sport);
+  for (const name of ['headline', 'when', 'steps']) draft[name] = formValue(name, draft[name]);
+  E.quick = { draft, phase: clamp(E.tab === 'teach' ? E.teachPhase : E.phase, 0, phaseCount(draft) - 1),
+    playing: false, done: false, slow: false, plan: null, t: 0, last: 0, hold: 0, raf: 0 };
+  $('#ped-quicklook').hidden = false;
+  for (const id of ['ped-teach','ped-words','ped-diagram']) $('#' + id).hidden = true;
+  const setup = $('#sheet .ped-setup'); if (setup) setup.hidden = true;
+  document.querySelectorAll('[data-act="ped-tab"]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  const trigger = $('[data-act="ped-quicklook"]'); if (trigger) trigger.setAttribute('aria-pressed', 'true');
+  pedQuickRender();
+  $('[data-act="ped-quick-close"]')?.focus({ preventScroll: true });
+}
+function pedQuickClose(focus = true) {
+  const E = state.ped;
+  if (!E?.quick) return;
+  pedQuickStop();
+  E.quick = null;
+  const quick = $('#ped-quicklook'); if (quick) quick.hidden = true;
+  const setup = $('#sheet .ped-setup'); if (setup) setup.hidden = false;
+  for (const id of ['teach', 'words', 'diagram']) {
+    const pane = $('#ped-' + id);
+    if (pane) pane.hidden = E.tab !== id;
+  }
+  document.querySelectorAll('[data-act="ped-tab"]').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.tab === E.tab)));
+  const trigger = $('[data-act="ped-quicklook"]');
+  if (trigger) trigger.setAttribute('aria-pressed', 'false');
+  if (E.tab === 'diagram') refreshPlayEditor();
+  else if (E.tab === 'teach') refreshPedTeaching();
+  if (focus) trigger?.focus({ preventScroll: true });
+}
+function pedQuickPlay() {
+  const q = state.ped?.quick;
+  if (!q) return;
+  if (q.playing) { pedQuickStop(); pedQuickButtons(); return; }
+  if (q.done) { q.phase = 0; pedQuickRender(); }
+  q.playing = true; q.last = performance.now();
+  $('#ped-quick-stage svg')?.classList.add('animating');
+  pedQuickButtons();
+  const tick = now => {
+    if (!q.playing || state.ped?.quick !== q) return;
+    const svg = $('#ped-quick-stage svg');
+    if (!svg || $('#ped-quicklook')?.hidden) { pedQuickStop(); return; }
+    const dt = Math.max(0, Math.min(0.05, (now - q.last) / 1000)) * (q.slow ? 0.45 : 1);
+    q.last = now;
+    if (q.hold > 0) {
+      q.hold -= dt;
+      if (q.hold <= 0) {
+        q.phase += 1;
+        pedQuickRender();
+      }
+    } else {
+      q.t = Math.min(q.plan.T, q.t + dt);
+      animFrame(svg, q.plan, q.t);
+      if (q.t >= q.plan.T) {
+        if (q.phase + 1 < phaseCount(q.draft)) q.hold = 0.75;
+        else {
+          q.done = true; pedQuickStop(); pedQuickButtons(); return;
+        }
+      }
+    }
+    pedQuickButtons();
+    q.raf = requestAnimationFrame(tick);
+  };
+  q.raf = requestAnimationFrame(tick);
+}
+function pedQuickSeek(value) {
+  const q = state.ped?.quick;
+  if (!q?.plan) return;
+  pedQuickStop();
+  q.t = q.plan.T * clamp(Number(value) / 100 || 0, 0, 1);
+  q.done = q.t >= q.plan.T;
+  const svg = $('#ped-quick-stage svg');
+  if (svg) animFrame(svg, q.plan, q.t);
+  pedQuickButtons();
+}
+function pedQuickPhase(i) {
+  const q = state.ped?.quick;
+  if (!q || !Number.isInteger(i) || i < 0 || i >= phaseCount(q.draft)) return;
+  pedQuickStop(); q.phase = i; pedQuickRender();
+}
+function pedQuickRestart() {
+  const q = state.ped?.quick;
+  if (!q) return;
+  pedQuickStop(); q.phase = 0; pedQuickRender();
+}
+
 function pedFitZoom(card, box, svg) {
   const view = svg?.viewBox?.baseVal, width = box?.clientWidth || 0;
   if (!view?.width || !view?.height || width <= 0 || !card?.clientHeight) return 1;
@@ -4278,6 +4444,7 @@ function refreshPedPrecision(E) {
       <button type="button" class="btn sm" data-act="ped-precision-add-bend" ${canInsert ? '' : 'disabled'}>+ Bend</button>
       <button type="button" class="btn sm" data-act="ped-precision-remove-bend" ${canRemove ? '' : 'disabled'}>Remove bend</button>
     </span>` : ''}
+    ${sel.k === 'df' || sel.k === 'mk' ? '<button type="button" class="btn sm" data-act="ped-defender-run">+ Defender run</button>' : ''}
     ${isLine && !selected ? '<span class="ped-precision-help">Choose a point to move or add a bend</span>' : ''}
     <div class="ped-precision-controls" role="group" aria-label="Precision movement">${buttons}</div>
     <label class="ped-precision-step">Step <select aria-label="Nudge step in diagram units" data-change="ped-precision-step">
@@ -4314,6 +4481,8 @@ function refreshPlayEditor() {
   const tools = $('#ped-tools'), toolScroll = tools?.scrollLeft || 0;
   tools.innerHTML = PED_TOOLS.map(([k, l]) => `<button type="button" data-act="ped-tool" data-t="${k}" aria-pressed="${E.tool === k}">${l}</button>`).join('');
   tools.scrollLeft = toolScroll;
+  const defenderHelp = $('#ped-defender-help');
+  if (defenderHelp) defenderHelp.hidden = E.tool !== 'shift';
   refreshPedField();
   const connectionWarning = $('#ped-link-warning');
   if (connectionWarning) {
@@ -7777,6 +7946,8 @@ function closeSheet() {
   state.teamPlacementPending = null;
   state.pendingRulesEvidence=null;
   if (state.pending?.fixtureRevision) state.pending = null;
+  pedQuickStop();
+  if (state.ped) state.ped.quick = null;
   stopPlayerCrop();
   const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; document.body.classList.remove('locked'); state.sheet = null;
   if (state.stylePreview) { state.stylePreview = false; applyTeamStyle(); }
@@ -9238,9 +9409,16 @@ const actions = {
     const E = state.ped; if (!E) return;
     E.teachPreview = Number(el.dataset.i) || 0; refreshPedTeaching();
   }),
+  'ped-quicklook': coachOnly(() => pedQuickOpen()),
+  'ped-quick-close': coachOnly(() => pedQuickClose()),
+  'ped-quick-play': coachOnly(() => pedQuickPlay()),
+  'ped-quick-slow': coachOnly(() => { const q = state.ped?.quick; if (!q) return; q.slow = !q.slow; pedQuickButtons(); }),
+  'ped-quick-restart': coachOnly(() => pedQuickRestart()),
+  'ped-quick-phase': coachOnly(el => pedQuickPhase(Number(el.dataset.i))),
   'ped-tool': coachOnly(el => { const E = state.ped; E.tool = el.dataset.t; E.drawing = null; E.snapPreview = null; if (E.tool !== 'select') pedSelect(null); refreshPlayEditor(); }),
   'ped-tab': coachOnly(el => {
-    const E = state.ped; E.tab = el.dataset.tab;
+    const E = state.ped; if (E?.quick) pedQuickClose(false);
+    E.tab = el.dataset.tab;
     if (E.tab === 'diagram') pedSetPhase(E.teachPhase);
     if (E.tab === 'teach') refreshPedTeaching();
     $('#ped-words').hidden = E.tab !== 'words'; $('#ped-diagram').hidden = E.tab !== 'diagram'; $('#ped-teach').hidden = E.tab !== 'teach';
@@ -9331,6 +9509,22 @@ const actions = {
     const run = receiverFollowOnRun(d, i, moveId, end);
     if (!run) { toast('Unable to add a safe receiver run from this location.'); return; }
     pedSnap(); d.moves.push(run); pedSelect({ k: 'mv', i: d.moves.length - 1 }); refreshPlayEditor();
+  }),
+  'ped-defender-run': coachOnly(() => {
+    const E = state.ped, d = E && pedCur(E), sel = E?.sel;
+    if (!d || E.tool !== 'select' || !sel || !['df', 'mk'].includes(sel.k)) return;
+    const key = sel.k === 'mk' ? 'marker' : 'defender:' + sel.i;
+    const point = sel.k === 'mk' ? d.defence?.marker : d.defence?.line?.[sel.i];
+    if (!Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite)) return;
+    const end = [point[0], clamp(round1(point[1] + (point[1] > 75 ? -4 : 4)), 0, 80)];
+    let moveId; do { moveId = 'm-' + uid(); } while (d.moves.some(m => m.moveId === moveId));
+    const move = newLinkedMovement(d, { t: 'shift', pts: [point.slice(), end] }, moveId);
+    if (!move || move.actorLinks?.start !== key) {
+      toast('Defender start is ambiguous. Move overlapping defenders apart, then try again.');
+      return;
+    }
+    pedSnap(); d.moves.push(move); pedSelect({ k: 'mv', i: d.moves.length - 1 });
+    E.selH = 1; refreshPlayEditor();
   }),
   'ped-pl': coachOnly(el => {
     const E = state.ped, d = pedCur(E), id = E.sel && E.sel.id, f = el.dataset.f; if (!id) return;
@@ -9865,6 +10059,7 @@ document.addEventListener('input', e => {
     });
   }
   if (k === 'anim-seek') animSeek(e.target.value);
+  if (k === 'ped-quick-seek' && state.sheet === 'play-editor') pedQuickSeek(e.target.value);
   if (k === 'team-positions') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'msg') state.msgDraft = e.target.value;
   if (k === 'ped-ptitle' && state.ped) { pedCur(state.ped).title = e.target.value; state.ped.dirty = true; }

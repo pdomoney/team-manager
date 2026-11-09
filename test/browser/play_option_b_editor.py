@@ -62,9 +62,11 @@ with sync_playwright() as p:
         # Previously the sticky Save footer overlaid the zoom/snap row at
         # phone width. Exercise real Playwright pointer clicks, not JS dispatch.
         snap_button=pg.locator('[data-act=ped-snap]')
-        snap_button.click()
         checks.ok(snap_button.get_attribute('aria-pressed')=='true',
-                  f'[{width}] Snap is actually clickable above the separate action bar')
+                  f'[{width}] Snap starts enabled by default')
+        snap_button.click()
+        checks.ok(snap_button.get_attribute('aria-pressed')=='false',
+                  f'[{width}] Snap toggle remains pointer-clickable above the action bar')
         zoom_button=pg.locator('[data-act=ped-zoom-in]')
         first_zoom=int(pg.locator('#ped-zoom-value').inner_text().split('%')[0].split('·')[-1].strip())
         zoom_button.click()

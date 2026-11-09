@@ -48,7 +48,8 @@ with sync_playwright() as p:
         checks.ok(pg.locator('#ped-field svg .ped-snap-cue').count()==0,
                   f'[{width}] no snap cue before a gesture')
         pg.locator('#ped-tools [data-t=pass]').click()
-        pg.locator('[data-act=ped-snap]').click()
+        checks.ok(pg.locator('[data-act=ped-snap]').get_attribute('aria-pressed')=='true',
+                  f'[{width}] Snap starts On in a new editing session')
         box_size=pg.evaluate("""() => {
           const c=document.querySelector('.ped-main .ped-card').getBoundingClientRect();
           return [c.width,c.height];
@@ -87,7 +88,7 @@ with sync_playwright() as p:
                   f'[{width}] cue and drawn draft do not write saved Step Out until Save')
         pg.locator('[data-act=ped-undo]').click()
 
-        # No cue without explicit Snap, even when the pointer is near RM.
+        # Switching Snap Off suppresses cues, even when near RM.
         pg.locator('[data-act=ped-snap]').click()
         pg.evaluate("() => window.__snapCueStart(102)")
         pg.evaluate("() => window.__snapCueMove('near',102)")
