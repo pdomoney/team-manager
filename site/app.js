@@ -7946,6 +7946,8 @@ function closeSheet() {
   state.teamPlacementPending = null;
   state.pendingRulesEvidence=null;
   if (state.pending?.fixtureRevision) state.pending = null;
+  pedQuickStop();
+  if (state.ped) state.ped.quick = null;
   stopPlayerCrop();
   const sh = $('#sheet'); sh.hidden = true; sh.innerHTML = ''; document.body.classList.remove('locked'); state.sheet = null;
   if (state.stylePreview) { state.stylePreview = false; applyTeamStyle(); }
@@ -9407,9 +9409,16 @@ const actions = {
     const E = state.ped; if (!E) return;
     E.teachPreview = Number(el.dataset.i) || 0; refreshPedTeaching();
   }),
+  'ped-quicklook': coachOnly(() => pedQuickOpen()),
+  'ped-quick-close': coachOnly(() => pedQuickClose()),
+  'ped-quick-play': coachOnly(() => pedQuickPlay()),
+  'ped-quick-slow': coachOnly(() => { const q = state.ped?.quick; if (!q) return; q.slow = !q.slow; pedQuickButtons(); }),
+  'ped-quick-restart': coachOnly(() => pedQuickRestart()),
+  'ped-quick-phase': coachOnly(el => pedQuickPhase(Number(el.dataset.i))),
   'ped-tool': coachOnly(el => { const E = state.ped; E.tool = el.dataset.t; E.drawing = null; E.snapPreview = null; if (E.tool !== 'select') pedSelect(null); refreshPlayEditor(); }),
   'ped-tab': coachOnly(el => {
-    const E = state.ped; E.tab = el.dataset.tab;
+    const E = state.ped; if (E?.quick) pedQuickClose(false);
+    E.tab = el.dataset.tab;
     if (E.tab === 'diagram') pedSetPhase(E.teachPhase);
     if (E.tab === 'teach') refreshPedTeaching();
     $('#ped-words').hidden = E.tab !== 'words'; $('#ped-diagram').hidden = E.tab !== 'diagram'; $('#ped-teach').hidden = E.tab !== 'teach';
@@ -9500,6 +9509,22 @@ const actions = {
     const run = receiverFollowOnRun(d, i, moveId, end);
     if (!run) { toast('Unable to add a safe receiver run from this location.'); return; }
     pedSnap(); d.moves.push(run); pedSelect({ k: 'mv', i: d.moves.length - 1 }); refreshPlayEditor();
+  }),
+  'ped-defender-run': coachOnly(() => {
+    const E = state.ped, d = E && pedCur(E), sel = E?.sel;
+    if (!d || E.tool !== 'select' || !sel || !['df', 'mk'].includes(sel.k)) return;
+    const key = sel.k === 'mk' ? 'marker' : 'defender:' + sel.i;
+    const point = sel.k === 'mk' ? d.defence?.marker : d.defence?.line?.[sel.i];
+    if (!Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite)) return;
+    const end = [point[0], clamp(round1(point[1] + (point[1] > 75 ? -4 : 4)), 0, 80)];
+    let moveId; do { moveId = 'm-' + uid(); } while (d.moves.some(m => m.moveId === moveId));
+    const move = newLinkedMovement(d, { t: 'shift', pts: [point.slice(), end] }, moveId);
+    if (!move || move.actorLinks?.start !== key) {
+      toast('Defender start is ambiguous. Move overlapping defenders apart, then try again.');
+      return;
+    }
+    pedSnap(); d.moves.push(move); pedSelect({ k: 'mv', i: d.moves.length - 1 });
+    E.selH = 1; refreshPlayEditor();
   }),
   'ped-pl': coachOnly(el => {
     const E = state.ped, d = pedCur(E), id = E.sel && E.sel.id, f = el.dataset.f; if (!id) return;
@@ -10034,6 +10059,7 @@ document.addEventListener('input', e => {
     });
   }
   if (k === 'anim-seek') animSeek(e.target.value);
+  if (k === 'ped-quick-seek' && state.sheet === 'play-editor') pedQuickSeek(e.target.value);
   if (k === 'team-positions') refreshTeamSportGuide(e.target.closest('form'));
   if (k === 'msg') state.msgDraft = e.target.value;
   if (k === 'ped-ptitle' && state.ped) { pedCur(state.ped).title = e.target.value; state.ped.dirty = true; }
