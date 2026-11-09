@@ -21,9 +21,28 @@ test('seal and open round trip with a password', async () => {
   const lock = await makeLock('correct horse battery', newSalt(), FAST);
   const file = await seal(sample, lock, 'coach');
   assert.equal(file.role, 'coach');
-  assert.ok(!JSON.stringify(file).includes('Mia'), 'ciphertext must not contain plain text');
+  // A short substring can occur by chance in Base64 ciphertext, so looking
+  // for "Mia" is a flaky and invalid encryption test. Assert the envelope
+  // contains only the expected metadata and the authenticated ciphertext has
+  // the Web Crypto AES-GCM 16-byte tag instead of being Base64-wrapped JSON.
+  assert.deepEqual(Object.keys(file).sort(), ['data', 'format', 'iv', 'kdf', 'role', 'salt', 'version']);
+  assert.deepEqual(Object.keys(file.kdf).sort(), ['iterations', 'name']);
+  const plainBytes = new TextEncoder().encode(JSON.stringify(sample));
+  assert.equal(fromB64(file.data).length, plainBytes.length + 16, 'AES-GCM ciphertext must carry its 128-bit authentication tag');
+  assert.notEqual(file.data, toB64(plainBytes), 'payload must not be Base64 plaintext');
   const { value } = await openFile(file, 'correct horse battery', 'coach');
   assert.deepEqual(value, sample);
+});
+
+test('Base64-wrapped unencrypted JSON is not accepted as authenticated ciphertext', async () => {
+  const lock = await makeLock('synthetic test password', newSalt(), FAST);
+  const file = await seal(sample, lock, 'coach');
+  const unencrypted = toB64(new TextEncoder().encode(JSON.stringify(sample)));
+  await assert.rejects(
+    openFile({ ...file, data: unencrypted }, 'synthetic test password', 'coach'),
+    e => e.code === 'WRONG',
+    'even plausible metadata cannot make raw JSON pass AES-GCM authentication'
+  );
 });
 
 test('the wrong password is rejected', async () => {
