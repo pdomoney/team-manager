@@ -42,3 +42,14 @@ Coach: select current club/team and active role → Tactics → Plays → find S
 - Remaining B4 gates: owner review of Watch density during active playback and resize, editor Fit/pan behaviour, then broad Step Out and legacy editing workflow; defer unrelated touch redesign.
 - B5: planned, not implemented or accepted.
 - E5 animation, E6 defence logic and optional Option C tactical studio: deferred until an actually usable B2/B3 experience is owner-accepted.
+
+## 9 November 2026 | B4 completed in merged source; B5 qualification underway
+
+This section updates the older B4.8 entry above without rewriting historical status.
+
+- **B4.8:** Watch viewer refinement #187 merged; mobile Watch density #188 merged. Related editor gestures and accepted touch limitation from B4.4 remain.
+- **B4.10:** Desktop Learn artwork density #189 merged. The original browser failure from an undefined local phase view was corrected and qualified on the same PR before merge.
+- **B4.11:** Desktop Teach empty/populated layout #190 merged. Phone Teach remains stacked.
+- **B4.12:** Mobile Advanced Diagram artwork/hit-zone separation #191 merged at `a9b5b5cbdb2e20fd793d63867c4bb3e8502f1ec5`. Owner explicitly reported **PR merged and mobile visuals accepted**. This does not prove a full cross-device release or physical Safari automated test.
+- **B5:** source qualification in progress. See [the B5 qualification matrix](option-b-b5-cross-device-qualification.md). A test-only PR adds one continuous coach/edit/save/reload/player path at phone/tablet/desktop Chromium widths and focused Linux WebKit coverage. B5 is not complete until exact-head Node/Chromium/WebKit, main post-merge qualification, published build/source verification and owner real-device journey acceptance are separately recorded.
+- **Deferred:** E5 animation enhancements, E6 defender logic and Option C tactical studio remain unapproved scope. Do not confuse B5 qualification with authorising them.
