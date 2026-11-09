@@ -90,7 +90,8 @@ export function validateFormationProfile(profile) {
       profile.attackingSlots.length !== profile.maxOnField) codes.push('formation-slots-incomplete');
     if (!Array.isArray(profile.applicableRuleSetIds) ||
       profile.applicableRuleSetIds.length === 0) codes.push('ruleset-review-pending');
-    if (!object(profile.actions) || profile.actions.permitted.length === 0)
+    if (!object(profile.actions) || !Array.isArray(profile.actions.permitted) ||
+      profile.actions.permitted.length === 0)
       codes.push('actions-review-pending');
   }
   return frozenResult(codes.length ? 'concept-only' : profile.status, [...new Set(codes)], profile);
