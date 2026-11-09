@@ -31,6 +31,7 @@ import { previewSelectionNudge, applySelectionNudge } from './play-editor-precis
 import { previewBendInsertion, insertMovementBend, canRemoveMovementBend, removeMovementBend } from './play-editor-bends.js';
 import { editorArtworkScale } from './play-editor-art-scale.js';
 import { watchArtworkScale } from './play-watch-art-scale.js';
+import { learnArtworkScale } from './play-learn-art-scale.js';
 import { captureEditorPointer, cancelEditorPointer } from './play-editor-pointer.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
@@ -1446,7 +1447,7 @@ function render() {
   state.lastView[g.id] = state.tab;
   document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
   v.innerHTML = subNav(g) + (['home', 'people'].includes(state.tab) ? '' : seasonBanner()) + VIEWS[state.tab]();
-  if (state.tab === 'plays' && state.playId) syncWatchArtwork();
+  if (state.tab === 'plays' && state.playId) { syncWatchArtwork(); syncLearnArtwork(); }
   if (state.tab === 'field' || state.tab === 'matchday') bindField();
   fitSubnav();
   if(state.tab==='home')restoreHomeScopeScroll(v,previousHomeScroll);
@@ -3240,7 +3241,9 @@ function playSVG(play, side, opts = {}) {
   const g = playGeom(play, side), fr = playFrame(g, opts), { X, Y, k, H } = fr, id = `p${++svgSeq}`;
   const thumb = !!opts.thumb, words = !thumb, annotations = words && !opts.study, F = fieldDims(V.team.field);
   const watchArt = !!(opts.anim && Number.isFinite(opts.watchArtScale));
-  const art = opts.editor ? (opts.editorArtScale || 1) : watchArt ? opts.watchArtScale : 1;
+  const learnArt = !!(opts.study && Number.isFinite(opts.learnArtScale));
+  const scaledArt = !!opts.editor || watchArt || learnArt;
+  const art = opts.editor ? (opts.editorArtScale || 1) : watchArt ? opts.watchArtScale : learnArt ? opts.learnArtScale : 1;
   const actorHit = opts.editor ? '<circle class="ped-actor-hit" r="15"/>' : '';
   const studyCodes = new Set(opts.studyCodes || []);
   const spotlightIds = Object.keys(g.codes).filter(k => studyCodes.has(g.codes[k]));
@@ -3251,7 +3254,7 @@ function playSVG(play, side, opts = {}) {
   const XY = p => [X(p[0]), Y(p[1])];
   // field: the tint runs to the picture's edge wherever the field carries on past it
   const L = fr.x0 <= 0 ? X(0) : 0, R = fr.x1 >= 50 ? X(50) : PW, T = fr.y0 <= 0 ? Y(0) : 0, B = fr.y1 >= 80 ? Y(80) : H;
-  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="pf${thumb ? ' thumb' : ''}${opts.editor ? ' editor' : ''}${opts.study ? ' study' : ''}${watchArt ? ' watch-art' : ''}" viewBox="0 0 ${PW} ${H}" data-x0="${fr.x0}" data-y0="${fr.y0}" data-k="${k}" data-top="${fr.top}" ${opts.editor ? `data-art-scale="${art}" style="--ped-art-scale:${art}"` : watchArt ? `data-watch-art-scale="${art}" style="--watch-art-scale:${art}"` : ''} role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
+  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="pf${thumb ? ' thumb' : ''}${opts.editor ? ' editor' : ''}${opts.study ? ' study' : ''}${watchArt ? ' watch-art' : ''}${learnArt ? ' learn-art' : ''}" viewBox="0 0 ${PW} ${H}" data-x0="${fr.x0}" data-y0="${fr.y0}" data-k="${k}" data-top="${fr.top}" ${opts.editor ? `data-art-scale="${art}" style="--ped-art-scale:${art}"` : watchArt ? `data-watch-art-scale="${art}" style="--watch-art-scale:${art}"` : learnArt ? `data-learn-art-scale="${art}" style="--learn-art-scale:${art}"` : ''} role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
   const aw = (thumb ? 22 : 8) * art, ak = (thumb ? 24 : 10) * art;
   s += `<defs><marker id="${id}-g" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${aw}" markerHeight="${aw}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker><marker id="${id}-b" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${ak}" markerHeight="${ak}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah key"/></marker><marker id="${id}-r" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${aw}" markerHeight="${aw}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah shift"/></marker></defs>`;
   s += `<rect class="pf-turf" x="${L}" y="${T}" width="${R - L}" height="${B - T}"/>`;
@@ -3276,8 +3279,8 @@ function playSVG(play, side, opts = {}) {
   }
   // defence
   const defs = g.line.map((p, i) => ({ p, i })).filter(d => opts.editor || fr.shows(d.p));
-  defs.forEach(({ p, i }) => { s += `<g class="dfg" data-df="${i}" transform="translate(${X(p[0])} ${Y(p[1])})${(opts.editor || watchArt) ? ` scale(${art})` : ''}"><circle class="df" r="${dr}"/>${actorHit}</g>`; });
-  if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${X(g.marker[0])} ${Y(g.marker[1])})${(opts.editor || watchArt) ? ` scale(${art})` : ''}"><circle class="df mk" r="${dr}"/>${actorHit}</g>`;
+  defs.forEach(({ p, i }) => { s += `<g class="dfg" data-df="${i}" transform="translate(${X(p[0])} ${Y(p[1])})${scaledArt ? ` scale(${art})` : ''}"><circle class="df" r="${dr}"/>${actorHit}</g>`; });
+  if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${X(g.marker[0])} ${Y(g.marker[1])})${scaledArt ? ` scale(${art})` : ''}"><circle class="df mk" r="${dr}"/>${actorHit}</g>`;
   if (annotations && defs.length) {
     const text = g.notes.line ? g.notes.line.text : 'Their line, 7 m back';
     const ly = Math.min(...defs.map(d => Y(d.p[1]))) - (dr + 9) * art;
@@ -3301,7 +3304,7 @@ function playSVG(play, side, opts = {}) {
     const tag = g.tags[pid], cls = ['pl', g.focus.includes(pid) && 'focus', g.ghost.includes(pid) && 'ghost', !opts.editor && !busy(pid) && 'idle'].filter(Boolean).join(' ');
     const studyClass = opts.study && spotlightIds.length ? (spotlightIds.includes(pid) ? ' study-target' : ' study-soft') : '';
     const code = g.codes[pid] ?? pid;
-    return `<g class="plg${studyClass}" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})${(opts.editor || watchArt) ? ` scale(${art})` : ''}"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}${actorHit}</g>`;
+    return `<g class="plg${studyClass}" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})${scaledArt ? ` scale(${art})` : ''}"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}${actorHit}</g>`;
   };
   shown.filter(([pid]) => g.ghost.includes(pid)).forEach(e => { s += player(e); });
   g.moves.forEach((m, i) => {
@@ -3379,14 +3382,19 @@ function studySequence(p, side) {
   const mirrored = side !== (p.side || 'right');
   return studyCards(p, playSteps(p, side), t => mirrored ? mirrorText(t, textPairs(p)) : String(t ?? ''));
 }
-function studyFigure(p, side, cards) {
+function studyBoardSVG(p, side, cards, artScale) {
   const item = cards[state.studyIndex], v = phaseView(p, item.phase);
   const geom = playGeom(v, side), codes = [...new Set(Object.values(geom.codes))].filter(Boolean);
   const roles = state.studyRole !== 'all' ? [state.studyRole]
     : item.roles.length ? item.roles.map(r => side !== (p.side || 'right') ? (setPairs(getSet(p.set))[r] || swapSlot(r)) : r)
       : cueRoles(item.text, codes);
+  return playSVG(v, side, { study: true, studyCodes: roles, studyMoves: item.moves,
+    ...(Number.isFinite(artScale) ? { learnArtScale: artScale } : {}) });
+}
+function studyFigure(p, side, cards) {
+  const item = cards[state.studyIndex];
   return `<div class="play-board-field">
-      ${playSVG(v, side, { study: true, studyCodes: roles, studyMoves: item.moves })}
+      ${studyBoardSVG(p, side, cards)}
     </div>
     <nav class="study-step-rail" aria-label="Choose a teaching step">
       <span class="study-step-label">Steps</span>
@@ -3483,6 +3491,22 @@ function viewPlay(p) {
     ${coach ? `<div class="btn-row"><button class="btn" data-act="play-transfer" data-id="${esc(p.id)}">Adapt to another sport</button><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
     </aside></div>`;
+}
+// Learn retains the established phone diagram; desktop badges and movement
+// ink stop growing with the diagram's displayed width. Rebuild only the SVG,
+// keeping the focused teaching step, cue, controls and information rail intact.
+function syncLearnArtwork() {
+  if (state.tab !== 'plays' || !state.playId || state.playMode !== 'learn') return;
+  const board = document.querySelector('#play-fig .play-board-field');
+  const svg = board?.querySelector('svg.pf.study');
+  if (!svg) return;
+  const width = svg.getBoundingClientRect().width;
+  if (!Number.isFinite(width) || width <= 0) return;
+  const scale = learnArtworkScale(width, PW, PR);
+  if (Math.abs(Number(svg.dataset.learnArtScale || 1) - scale) < .005) return;
+  const play = playById(state.playId);
+  if (!play) return;
+  svg.outerHTML = studyBoardSVG(play, state.playSide, studySequence(play, state.playSide), scale);
 }
 // Watch keeps the full play's field geometry. Only the presentation-size
 // symbols/lines/text are counter-scaled to the visible board width. Never
@@ -9790,7 +9814,7 @@ window.matchMedia('(min-width: 900px)').addEventListener('change', () => {
 });
 window.addEventListener('resize', () => {
   if (state.tab === 'plays' && state.playId)
-    requestAnimationFrame(() => syncWatchArtwork(true));
+    requestAnimationFrame(() => { syncWatchArtwork(true); syncLearnArtwork(); });
   // Browser zoom, rotation and split-window resize should recalculate Fit
   // without rewriting a diagram or changing a deliberately manual zoom.
   const E = state.sheet === 'play-editor' && state.ped;
