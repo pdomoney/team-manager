@@ -50,7 +50,7 @@ with sync_playwright() as p:
 
         # Form field edits are not committed until Save but Quick Look must see them.
         setup=pg.locator('details.ped-setup')
-        if not setup.get_attribute('open'): setup.locator('summary').click()
+        if setup.get_attribute('open') is None: setup.locator('summary').click()
         pg.locator('#sheet form.ped [name=name]').fill('Unsaved Step Out coaching preview')
         pg.locator('[data-act=ped-quicklook]').click()
         preview=pg.locator('#ped-quicklook')
