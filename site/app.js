@@ -29,7 +29,7 @@ import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMove
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
 import { previewBendInsertion, insertMovementBend, canRemoveMovementBend, removeMovementBend } from './play-editor-bends.js';
-import { editorArtworkScale } from './play-editor-art-scale.js';
+import { editorArtworkScale, editorInteractionScale } from './play-editor-art-scale.js';
 import { watchArtworkScale } from './play-watch-art-scale.js';
 import { learnArtworkScale } from './play-learn-art-scale.js';
 import { captureEditorPointer, cancelEditorPointer } from './play-editor-pointer.js';
@@ -3244,7 +3244,9 @@ function playSVG(play, side, opts = {}) {
   const learnArt = !!(opts.study && Number.isFinite(opts.learnArtScale));
   const scaledArt = !!opts.editor || watchArt || learnArt;
   const art = opts.editor ? (opts.editorArtScale || 1) : watchArt ? opts.watchArtScale : learnArt ? opts.learnArtScale : 1;
-  const actorHit = opts.editor ? '<circle class="ped-actor-hit" r="15"/>' : '';
+  // A smaller mobile badge must not shrink its transparent pointer target.
+  const editorHitRadius = opts.editor ? (15 * (opts.editorHitScale || art) / art).toFixed(2) : '';
+  const actorHit = opts.editor ? `<circle class="ped-actor-hit" r="${editorHitRadius}"/>` : '';
   const studyCodes = new Set(opts.studyCodes || []);
   const spotlightIds = Object.keys(g.codes).filter(k => studyCodes.has(g.codes[k]));
   const studyMoves = Array.isArray(opts.studyMoves) ? opts.studyMoves : [];
@@ -3254,7 +3256,7 @@ function playSVG(play, side, opts = {}) {
   const XY = p => [X(p[0]), Y(p[1])];
   // field: the tint runs to the picture's edge wherever the field carries on past it
   const L = fr.x0 <= 0 ? X(0) : 0, R = fr.x1 >= 50 ? X(50) : PW, T = fr.y0 <= 0 ? Y(0) : 0, B = fr.y1 >= 80 ? Y(80) : H;
-  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="pf${thumb ? ' thumb' : ''}${opts.editor ? ' editor' : ''}${opts.study ? ' study' : ''}${watchArt ? ' watch-art' : ''}${learnArt ? ' learn-art' : ''}" viewBox="0 0 ${PW} ${H}" data-x0="${fr.x0}" data-y0="${fr.y0}" data-k="${k}" data-top="${fr.top}" ${opts.editor ? `data-art-scale="${art}" style="--ped-art-scale:${art}"` : watchArt ? `data-watch-art-scale="${art}" style="--watch-art-scale:${art}"` : learnArt ? `data-learn-art-scale="${art}" style="--learn-art-scale:${art}"` : ''} role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
+  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="pf${thumb ? ' thumb' : ''}${opts.editor ? ' editor' : ''}${opts.study ? ' study' : ''}${watchArt ? ' watch-art' : ''}${learnArt ? ' learn-art' : ''}" viewBox="0 0 ${PW} ${H}" data-x0="${fr.x0}" data-y0="${fr.y0}" data-k="${k}" data-top="${fr.top}" ${opts.editor ? `data-art-scale="${art}" style="--ped-art-scale:${art};--ped-hit-scale:${opts.editorHitScale || art}"` : watchArt ? `data-watch-art-scale="${art}" style="--watch-art-scale:${art}"` : learnArt ? `data-learn-art-scale="${art}" style="--learn-art-scale:${art}"` : ''} role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
   const aw = (thumb ? 22 : 8) * art, ak = (thumb ? 24 : 10) * art;
   s += `<defs><marker id="${id}-g" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${aw}" markerHeight="${aw}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker><marker id="${id}-b" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${ak}" markerHeight="${ak}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah key"/></marker><marker id="${id}-r" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${aw}" markerHeight="${aw}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah shift"/></marker></defs>`;
   s += `<rect class="pf-turf" x="${L}" y="${T}" width="${R - L}" height="${B - T}"/>`;
@@ -4034,7 +4036,7 @@ function pedNearest(E, p, kind, r) {
 const pedNoteKey = sel => sel.k === 'pl' ? sel.id : sel.k === 'mk' ? 'marker' : 'd' + sel.i;
 
 function pedOverlay(E, fr) {
-  const { X, Y, H } = fr, d = pedCur(E), f = pedFrame(E), art = E.artScale || 1;
+  const { X, Y, H } = fr, d = pedCur(E), f = pedFrame(E), art = E.artScale || 1, hit = E.hitScale || art;
   if (E.placing) return '';
   const fx0 = X(f.x0), fx1 = X(f.x1), fy0 = Y(f.y0), fy1 = Y(f.y1);
   let s = `<path class="ped-dim" fill-rule="evenodd" d="M0 0H${PW}V${H}H0Z M${fx0} ${fy0}V${fy1}H${fx1}V${fy0}Z"/>`;
@@ -4049,8 +4051,8 @@ function pedOverlay(E, fr) {
   if (sel && sel.k === 'mv' && d.moves[sel.i]) {
     const m = d.moves[sel.i], pts = m.pts.map(p => [X(p[0]), Y(p[1])]);
     s += `<path class="ped-glow" d="${pathD(pts, m.curve)}"/>`;
-    pts.slice(1).forEach((q, j) => { const a = pts[j]; s += `<g class="ped-add" data-hadd="${j}" transform="translate(${((a[0] + q[0]) / 2).toFixed(1)} ${((a[1] + q[1]) / 2).toFixed(1)}) scale(${art})"><circle r="8"/><path d="M-4 0H4M0 -4V4"/><circle class="ped-handle-hit" r="15"/></g>`; });
-    pts.forEach((q, j) => { s += `<circle class="ped-h${j === 0 ? ' start' : ''}${E.selH === j ? ' on' : ''}" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${8 * art}"/><circle class="ped-handle-hit" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${15 * art}"/>`; });
+    pts.slice(1).forEach((q, j) => { const a = pts[j]; s += `<g class="ped-add" data-hadd="${j}" transform="translate(${((a[0] + q[0]) / 2).toFixed(1)} ${((a[1] + q[1]) / 2).toFixed(1)}) scale(${art})"><circle r="8"/><path d="M-4 0H4M0 -4V4"/><circle class="ped-handle-hit" r="${(15 * hit / art).toFixed(2)}"/></g>`; });
+    pts.forEach((q, j) => { s += `<circle class="ped-h${j === 0 ? ' start' : ''}${E.selH === j ? ' on' : ''}" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${8 * art}"/><circle class="ped-handle-hit" data-h="${j}" cx="${q[0]}" cy="${q[1]}" r="${15 * hit}"/>`; });
   }
   const ring = (p, r) => `<circle class="ped-ring" cx="${X(p[0])}" cy="${Y(p[1])}" r="${r * art}"/>`;
   if (sel && sel.k === 'pl' && d.players[sel.id]) s += ring(d.players[sel.id], PR + 5);
@@ -4149,7 +4151,9 @@ function refreshPedField() {
     // Use the real workspace width, including a collapsed/expanded inspector.
     // Fit may change zoom during this call, in which case we render again.
     E.artScale = editorArtworkScale(E.zoom, box.clientWidth, PW, PR);
+    E.hitScale = editorInteractionScale(E.zoom, box.clientWidth, PW, PR);
     box.innerHTML = playSVG(pedView(E), 'right', { editor: true, editorArtScale: E.artScale,
+      editorHitScale: E.hitScale,
       svgId: 'ped-svg', viewport: pedViewport(E), overlay: fr => pedOverlay(E, fr) });
     return box.querySelector('svg');
   };
@@ -9819,12 +9823,16 @@ window.addEventListener('resize', () => {
   // Browser zoom, rotation and split-window resize should recalculate Fit
   // without rewriting a diagram or changing a deliberately manual zoom.
   const E = state.sheet === 'play-editor' && state.ped;
-  if (!E || E.zoomMode !== 'fit') return;
+  if (!E) return;
   requestAnimationFrame(() => {
-    if (state.ped !== E || state.sheet !== 'play-editor' || E.zoomMode !== 'fit') return;
+    if (state.ped !== E || state.sheet !== 'play-editor') return;
+    // Even manual zoom needs the mobile artwork/hit density recalculated
+    // on phone rotation; keep the operator's exact manual zoom value.
     refreshPedField();
-    const output = $('#ped-zoom-value');
-    if (output) output.textContent = 'Fit · ' + Math.round(E.zoom * 100) + '%';
+    if (E.zoomMode === 'fit') {
+      const output = $('#ped-zoom-value');
+      if (output) output.textContent = 'Fit · ' + Math.round(E.zoom * 100) + '%';
+    }
   });
 });
 document.addEventListener('keydown', e => {
