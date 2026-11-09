@@ -3929,7 +3929,6 @@ function openPlayEditor(play) {
     <div id="ped-diagram" class="ped-diagram">
       <div class="ped-phases" id="ped-phases"></div>
       <div class="seg ped-tools" id="ped-tools" role="group" aria-label="Tool"></div>
-      <p id="ped-defender-help" class="ped-defender-help hint" hidden>Defender run: drag from a defender or marker to its destination. Or choose Select, tap a defender and use Add defender run.</p>
       <div class="ped-main">
         <div class="ped-under" role="toolbar" aria-label="Canvas view controls">
           <button type="button" class="btn sm" data-act="ped-undo">Undo</button>
@@ -3942,6 +3941,7 @@ function openPlayEditor(play) {
           <button type="button" class="btn sm" data-act="ped-whole">Show whole field</button>
           <button type="button" class="btn sm" data-act="ped-inspector" aria-expanded="true" aria-controls="ped-properties">Properties</button>
         </div>
+        <p id="ped-defender-help" class="ped-defender-help hint" hidden>Defender run: drag from a defender or marker to its destination. Or choose Select, tap a defender and use Add defender run.</p>
         <div id="ped-precision" class="ped-precision" aria-live="polite" hidden></div>
         <div id="ped-link-warning" class="ped-link-warning" role="status" aria-live="polite" hidden></div>
         <div class="play-card ped-card play-presentation"><div class="play-board-field"><div id="ped-field"></div></div></div>
