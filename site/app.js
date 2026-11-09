@@ -30,6 +30,7 @@ import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
 import { previewBendInsertion, insertMovementBend, canRemoveMovementBend, removeMovementBend } from './play-editor-bends.js';
 import { editorArtworkScale } from './play-editor-art-scale.js';
+import { watchArtworkScale } from './play-watch-art-scale.js';
 import { captureEditorPointer, cancelEditorPointer } from './play-editor-pointer.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
@@ -1445,6 +1446,7 @@ function render() {
   state.lastView[g.id] = state.tab;
   document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
   v.innerHTML = subNav(g) + (['home', 'people'].includes(state.tab) ? '' : seasonBanner()) + VIEWS[state.tab]();
+  if (state.tab === 'plays' && state.playId && state.playMode === 'watch') syncWatchArtwork();
   if (state.tab === 'field' || state.tab === 'matchday') bindField();
   fitSubnav();
   if(state.tab==='home')restoreHomeScopeScroll(v,previousHomeScroll);
@@ -3237,7 +3239,8 @@ let svgSeq = 0;
 function playSVG(play, side, opts = {}) {
   const g = playGeom(play, side), fr = playFrame(g, opts), { X, Y, k, H } = fr, id = `p${++svgSeq}`;
   const thumb = !!opts.thumb, words = !thumb, annotations = words && !opts.study, F = fieldDims(V.team.field);
-  const art = opts.editor ? (opts.editorArtScale || 1) : 1;
+  const watchArt = !!(opts.anim && Number.isFinite(opts.watchArtScale));
+  const art = opts.editor ? (opts.editorArtScale || 1) : watchArt ? opts.watchArtScale : 1;
   const actorHit = opts.editor ? '<circle class="ped-actor-hit" r="15"/>' : '';
   const studyCodes = new Set(opts.studyCodes || []);
   const spotlightIds = Object.keys(g.codes).filter(k => studyCodes.has(g.codes[k]));
@@ -3248,7 +3251,7 @@ function playSVG(play, side, opts = {}) {
   const XY = p => [X(p[0]), Y(p[1])];
   // field: the tint runs to the picture's edge wherever the field carries on past it
   const L = fr.x0 <= 0 ? X(0) : 0, R = fr.x1 >= 50 ? X(50) : PW, T = fr.y0 <= 0 ? Y(0) : 0, B = fr.y1 >= 80 ? Y(80) : H;
-  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="pf${thumb ? ' thumb' : ''}${opts.editor ? ' editor' : ''}${opts.study ? ' study' : ''}" viewBox="0 0 ${PW} ${H}" data-x0="${fr.x0}" data-y0="${fr.y0}" data-k="${k}" data-top="${fr.top}" ${opts.editor ? `data-art-scale="${art}" style="--ped-art-scale:${art}"` : ''} role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
+  let s = `<svg ${opts.svgId ? `id="${opts.svgId}"` : ''} class="pf${thumb ? ' thumb' : ''}${opts.editor ? ' editor' : ''}${opts.study ? ' study' : ''}${watchArt ? ' watch-art' : ''}" viewBox="0 0 ${PW} ${H}" data-x0="${fr.x0}" data-y0="${fr.y0}" data-k="${k}" data-top="${fr.top}" ${opts.editor ? `data-art-scale="${art}" style="--ped-art-scale:${art}"` : watchArt ? `data-watch-art-scale="${art}" style="--watch-art-scale:${art}"` : ''} role="img" aria-label="${esc(play.name || 'Play')}, attacking ${side}">`;
   const aw = (thumb ? 22 : 8) * art, ak = (thumb ? 24 : 10) * art;
   s += `<defs><marker id="${id}-g" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${aw}" markerHeight="${aw}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker><marker id="${id}-b" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${ak}" markerHeight="${ak}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah key"/></marker><marker id="${id}-r" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="${aw}" markerHeight="${aw}" orient="auto"><path d="M0 0L10 5L0 10z" class="ah shift"/></marker></defs>`;
   s += `<rect class="pf-turf" x="${L}" y="${T}" width="${R - L}" height="${B - T}"/>`;
@@ -3273,8 +3276,8 @@ function playSVG(play, side, opts = {}) {
   }
   // defence
   const defs = g.line.map((p, i) => ({ p, i })).filter(d => opts.editor || fr.shows(d.p));
-  defs.forEach(({ p, i }) => { s += `<g class="dfg" data-df="${i}" transform="translate(${X(p[0])} ${Y(p[1])})${opts.editor ? ` scale(${art})` : ''}"><circle class="df" r="${dr}"/>${actorHit}</g>`; });
-  if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${X(g.marker[0])} ${Y(g.marker[1])})${opts.editor ? ` scale(${art})` : ''}"><circle class="df mk" r="${dr}"/>${actorHit}</g>`;
+  defs.forEach(({ p, i }) => { s += `<g class="dfg" data-df="${i}" transform="translate(${X(p[0])} ${Y(p[1])})${(opts.editor || watchArt) ? ` scale(${art})` : ''}"><circle class="df" r="${dr}"/>${actorHit}</g>`; });
+  if (g.marker) s += `<g class="dfg" data-mk="1" transform="translate(${X(g.marker[0])} ${Y(g.marker[1])})${(opts.editor || watchArt) ? ` scale(${art})` : ''}"><circle class="df mk" r="${dr}"/>${actorHit}</g>`;
   if (annotations && defs.length) {
     const text = g.notes.line ? g.notes.line.text : 'Their line, 7 m back';
     const ly = Math.min(...defs.map(d => Y(d.p[1]))) - (dr + 9) * art;
@@ -3298,7 +3301,7 @@ function playSVG(play, side, opts = {}) {
     const tag = g.tags[pid], cls = ['pl', g.focus.includes(pid) && 'focus', g.ghost.includes(pid) && 'ghost', !opts.editor && !busy(pid) && 'idle'].filter(Boolean).join(' ');
     const studyClass = opts.study && spotlightIds.length ? (spotlightIds.includes(pid) ? ' study-target' : ' study-soft') : '';
     const code = g.codes[pid] ?? pid;
-    return `<g class="plg${studyClass}" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})${opts.editor ? ` scale(${art})` : ''}"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}${actorHit}</g>`;
+    return `<g class="plg${studyClass}" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})${(opts.editor || watchArt) ? ` scale(${art})` : ''}"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}${actorHit}</g>`;
   };
   shown.filter(([pid]) => g.ghost.includes(pid)).forEach(e => { s += player(e); });
   g.moves.forEach((m, i) => {
@@ -3480,6 +3483,29 @@ function viewPlay(p) {
     ${coach ? `<div class="btn-row"><button class="btn" data-act="play-transfer" data-id="${esc(p.id)}">Adapt to another sport</button><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
     </aside></div>`;
+}
+// Watch keeps the full play's field geometry. Only the presentation-size
+// symbols/lines/text are counter-scaled to the visible board width. Never
+// rebuild the entire player-facing page or reset its animation/seek controls.
+function syncWatchArtwork(restoreFrame = false) {
+  if (state.tab !== 'plays' || state.playMode !== 'watch' || !state.playId) return;
+  const board = document.querySelector('#play-fig .play-board-field');
+  const svg = board?.querySelector('svg.pf');
+  if (!svg) return;
+  const width = svg.getBoundingClientRect().width;
+  if (!Number.isFinite(width) || width <= 0) return;
+  const scale = watchArtworkScale(width, PW, PR);
+  const previous = Number(svg.dataset.watchArtScale || 1);
+  if (Math.abs(previous - scale) < 0.005) return;
+  const play = playById(state.playId);
+  if (!play) return;
+  svg.outerHTML = playSVG(phaseView(play, state.playPhase), state.playSide,
+    { anim: true, watchArtScale: scale });
+  const next = board.querySelector('svg.pf');
+  if (anim.playing) next?.classList.add('animating');
+  const key = `${play.id}/${state.playSide}/${state.playPhase}`;
+  if (restoreFrame && next && anim.plan && anim.planFor === key)
+    animFrame(next, anim.plan, anim.t);
 }
 function playFigure(p, side, i) {
   const view = phaseView(p, i), n = phaseCount(p), title = phaseTitle(p, i, side);
@@ -3690,15 +3716,17 @@ const arcAt = (keys, t) => {
 };
 function animFrame(svg, plan, t) {
   const d = svg.dataset, k = +d.k, X = x => (PPAD + (x - +d.x0) * k).toFixed(1), Y = y => (+d.top + (y - +d.y0) * k).toFixed(1);
+  const art = svg.classList.contains('watch-art') ? (+d.watchArtScale || 1) : 1;
+  const glyphScale = art === 1 ? '' : ` scale(${art})`;
   const at = {};
   Object.entries(plan.paths).forEach(([id, P]) => {
     const q = at[id] = pointAt(P.pts, arcAt(P.keys, t)), el = svg.querySelector(`[data-pl="${id}"]`);
-    if (el) el.setAttribute('transform', `translate(${X(q[0])} ${Y(q[1])})`);
+    if (el) el.setAttribute('transform', `translate(${X(q[0])} ${Y(q[1])})${glyphScale}`);
   });
   plan.shifts.forEach(s => {
     const el = svg.querySelector(s.who === 'mk' ? '[data-mk]' : `[data-df="${s.who}"]`); if (!el) return;
     const q = pointAt(s.pts, s.len * clamp((t - s.t0) / (s.t1 - s.t0), 0, 1));
-    el.setAttribute('transform', `translate(${X(q[0])} ${Y(q[1])})`);
+    el.setAttribute('transform', `translate(${X(q[0])} ${Y(q[1])})${glyphScale}`);
   });
   const ball = svg.querySelector('.ball'); if (!ball) return;
   const fly = plan.passes.find(p => t >= p.t0 && t < p.t1);
@@ -3709,8 +3737,8 @@ function animFrame(svg, plan, t) {
     if (who && at[who]) b = [at[who][0], at[who][1]];
   }
   if (!b) { ball.setAttribute('transform', 'translate(-40 -40)'); return; }
-  const off = fly ? 0 : 9;   // carried in the right hand
-  ball.setAttribute('transform', `translate(${(+X(b[0]) + off).toFixed(1)} ${(+Y(b[1]) - off).toFixed(1)})`);
+  const off = fly ? 0 : 9 * art;   // carried beside the scaled badge
+  ball.setAttribute('transform', `translate(${(+X(b[0]) + off).toFixed(1)} ${(+Y(b[1]) - off).toFixed(1)})${glyphScale}`);
 }
 function animStop(keepDone) {
   if (anim.raf) cancelAnimationFrame(anim.raf);
@@ -3745,9 +3773,9 @@ function animShowPhase(p, i) {
   // phase. Only the phase board/controls change; the side notes are untouched.
   const header = fig.querySelector('.play-board-header')?.outerHTML || '';
   fig.innerHTML = header + playFigure(p, state.playSide, i);
-  const svg = fig.querySelector('svg');
   anim.plan = planPhase(playGeom(phaseView(p, i), state.playSide)); anim.t = 0;
-  return svg;
+  syncWatchArtwork();
+  return fig.querySelector('svg');
 }
 function animStart() {
   const p = playById(state.playId); if (!p) return;
@@ -9750,6 +9778,8 @@ window.matchMedia('(min-width: 900px)').addEventListener('change', () => {
   if(S.role)render();
 });
 window.addEventListener('resize', () => {
+  if (state.tab === 'plays' && state.playMode === 'watch' && state.playId)
+    requestAnimationFrame(() => syncWatchArtwork(true));
   // Browser zoom, rotation and split-window resize should recalculate Fit
   // without rewriting a diagram or changing a deliberately manual zoom.
   const E = state.sheet === 'play-editor' && state.ped;
