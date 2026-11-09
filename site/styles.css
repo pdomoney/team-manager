@@ -3755,3 +3755,43 @@ body.persona-mode .top{background:var(--turf)}
     line-height:1.15;
   }
 }
+
+
+/* E1/E2 closure: Teach's selected, empty and save-error states use the same
+   dark tactical language. Keep the diagram, coach role and saved data intact. */
+#sheet .play-editor-workspace .teach-empty-state{
+  padding:12px 14px;
+  border:1px dashed #8195A2;
+  border-radius:10px;
+  background:#26313C;
+  color:#E4ECF0;
+  line-height:1.5;
+}
+#sheet .play-editor-workspace .teach-action [data-act="teach-preview"][aria-pressed="true"]{
+  background:#F1C775;
+  color:#17212B;
+  border-color:#937944;
+  font-weight:700;
+}
+#sheet .play-editor-workspace .teach-action.is-invalid{
+  border-color:#F3AAB1;
+  box-shadow:inset 3px 0 #F3AAB1;
+}
+#sheet .play-editor-workspace .teach-inline-error{
+  padding:8px 10px;
+  margin:-4px 0 12px;
+  background:#4A2830;
+  border:1px solid #F3AAB1;
+  border-radius:8px;
+  color:#FFDEE0;
+  font-weight:600;
+  font-size:13px;
+  line-height:1.4;
+}
+#sheet .play-editor-workspace .teach-action textarea[aria-invalid="true"]{
+  border:2px solid #B61E34;
+}
+#sheet .play-editor-workspace .teach-action [data-act="teach-preview"]:focus-visible{
+  outline:3px solid #F1C775;
+  outline-offset:3px;
+}
