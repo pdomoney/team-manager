@@ -70,8 +70,13 @@ export function inspectPlayGraphCompatibility(input) {
             ...base, representation: 'legacy-geometry', resolution: 'unresolved-legacy',
             start: null, end: null, issues: []
           };
-          if (object(move) && move.linkVersion === 1 && verified) return {
-            ...base, representation: 'linked-v1', resolution: 'explicit-local',
+          // The E4.4 audit checks geometry/link integrity but deliberately
+          // does not approve every possible future movement type. Only the
+          // three current tactical movement kinds can enter this projection.
+          const supported = object(move) && ['run', 'pass', 'shift'].includes(move.t);
+          if (supported && move.linkVersion === 1 && verified) return {
+            ...base, representation: 'linked-v1',
+            resolution: Object.keys(move.actorLinks).length ? 'explicit-local' : 'field-only',
             moveId: verified.moveId,
             start: linkedEnd(move, 'start', move.pts[0]),
             end: linkedEnd(move, 'end', move.pts.at(-1)),
@@ -82,7 +87,9 @@ export function inspectPlayGraphCompatibility(input) {
               ? 'invalid-v1' : 'unsupported-or-invalid',
             resolution: 'unresolved',
             start: null, end: null,
-            issues: relevant.length ? relevant : ['unrecognised-movement'] };
+            issues: !supported && object(move) && move.linkVersion === 1
+              ? ['unsupported-movement-type', ...relevant]
+              : relevant.length ? relevant : ['unrecognised-movement'] };
         });
       if (audit.status === 'invalid') issues.push({
         code: 'invalid-phase-links', phaseIndex,
