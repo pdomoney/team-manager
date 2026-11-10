@@ -25,7 +25,7 @@ import { GitHub, repoFromLocation } from './github.js';
 import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
-import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassReceiver, receiverFollowOnRun } from './play-actor-links.js';
+import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassPasser, assignPassReceiver, receiverFollowOnRun } from './play-actor-links.js';
 import { coachPlayConnectionNotice } from './play-link-warning.js';
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
@@ -4179,7 +4179,10 @@ function pedPanel(E) {
   const sides = side => `<label class="field-l"><span>Where the words go</span><select data-change="ped-side">${PED_SIDES.map(([v, l]) => `<option value="${v}" ${v === side ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
   if (sel && sel.k === 'mv' && d.moves[sel.i]) {
     const m = d.moves[sel.i], bend = E.selH > 0 && E.selH < m.pts.length - 1;
-    const receiverControls = m.t === 'pass' && m.linkVersion === 1 ? `<div class="ped-sub">Pass receiver</div>
+    const receiverControls = m.t === 'pass' && m.linkVersion === 1 ? `<div class="ped-sub">Pass from</div>
+      <div class="btn-row" role="group" aria-label="Choose pass origin">${Object.keys(d.players).map(id => `<button type="button" class="btn sm${m.actorLinks?.start === 'player:' + id ? ' on' : ''}" data-act="ped-passer" data-player="${esc(id)}" aria-pressed="${m.actorLinks?.start === 'player:' + id}">${esc(whoOf(E.draft, id))}</button>`).join('')}</div>
+      <p class="hint">Choose who passes. The pass start moves to that diagram player. This does not set pass timing or ball possession.</p>
+      <div class="ped-sub">Pass receiver</div>
       <div class="btn-row" role="group" aria-label="Choose pass receiver">${Object.keys(d.players).map(id => `<button type="button" class="btn sm${m.actorLinks?.end === 'player:' + id ? ' on' : ''}" data-act="ped-receiver" data-player="${esc(id)}" aria-pressed="${m.actorLinks?.end === 'player:' + id}">${esc(whoOf(E.draft, id))}</button>`).join('')}</div>
       <div class="btn-row" style="margin-top:8px"><button type="button" class="btn sm" data-act="ped-receiver-run" ${m.actorLinks?.end ? '' : 'disabled'}>Add receiver run</button></div>
       <p class="hint">Select the player who catches the pass. Add receiver run creates an editable short run from that player; it does not set catch timing or possession.</p>` : '';
@@ -9574,6 +9577,20 @@ const actions = {
     pedSnap();
     if (f === 'unbend') { m.pts.splice(E.selH, 1); E.selH = null; }
     else { if (m[f]) delete m[f]; else m[f] = true; E[f] = !!m[f]; }
+    refreshPlayEditor();
+  }),
+  'ped-passer': coachOnly(el => {
+    const E = state.ped, d = E && pedCur(E), i = E?.sel?.k === 'mv' ? E.sel.i : -1;
+    if (!d || i < 0 || d.moves[i]?.t !== 'pass' || d.moves[i]?.linkVersion !== 1) return;
+    const player = el.dataset.player;
+    if (!Object.hasOwn(d.players, player) ||
+        d.moves[i].actorLinks?.start === 'player:' + player) return;
+    pedSnap();
+    if (!assignPassPasser(d, i, player)) {
+      pedUndo();
+      toast('Passer is ambiguous. Move the overlapping players apart first.');
+      return;
+    }
     refreshPlayEditor();
   }),
   'ped-receiver': coachOnly(el => {
