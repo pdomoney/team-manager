@@ -1,0 +1,28 @@
+# Play Engine 2.0 | E4.9 explicit defender/marker run origin
+
+**Status:** Source candidate under review, not merged, published or sporting approved. 10 November 2026 AEDT.  
+**Accepted Team Manager baseline:** `main` `e67c5530f0ebdde9c7066f4b504d37b5f87463a4`, owner-merged [PR #206](https://github.com/pdomoney/team-manager/pull/206). Same-SHA [Tests #42762963674](https://github.com/pdomoney/team-manager/actions/runs/42762963674) SUCCESS: Node 827/827, Chromium 3,724/3,724 across 99 suites, Linux WebKit 32/32; [Publish #42762963513](https://github.com/pdomoney/team-manager/actions/runs/42762963513) SUCCESS. Owner reports published, not separate physical Safari or visual acceptance for #206.  
+**Walking Comet framework:** `main` `cf557fb14a90e0f15a6de37d6a5ea002eff04ca3`, guidance read during this continuing chat and unchanged. Product README and source (app, actor links, diagnostics, editor/browser tests, publishing workflow) inspected. No root `AGENTS.md`, local `docs/PRODUCT_IDENTITY.md` or `docs/DEVELOPMENT_PROFILE.md` exists in that exact source.  
+**Programme:** [Issue #166](https://github.com/pdomoney/team-manager/issues/166). E3 local sporting rules and full formation sign-offs remain deferred and OPEN.
+
+## Source-supported workflow gap
+
+E4.6–E4.8 have explicit **Pass from**, **Run from**, **Run ends at**, free field starts/ends and clear actor links for version-1 attacking movement lines. A coach can also select a defender or marker and choose **Add defender run**, creating an attached `t:'shift'`. But once a defender path is moved or its start becomes disconnected, the selected shift's movement-properties panel has **no explicit control to reconnect it to the correct defender or marker**. The coach must manually drag a handle onto a small actor target; this is particularly difficult on mobile and is inconsistent with the now-accepted attack controls.
+
+Representative journey: In the existing Oztag teaching Advanced Diagram, the coach selects an explicitly versioned defender shift. **Defender run from → Defender 1** aligns the first point and attaches it to that tactical defender; **Marker** deliberately switches that origin. **Leave defender start on field** removes only that start reference, leaving all coordinates unchanged. Moving a connected defender then changes just attached endpoints. Undo and Cancel behave as before.
+
+## Bounded implementation
+
+- `site/play-actor-links.js`: new `assignDefenderOrigin(phase, moveIndex, actorKey)` and `freeDefenderOrigin(phase, moveIndex)`, only for a new version-1 `t:'shift'` with two or more valid, in-bounds points and no invalid end relationship. Accepts a uniquely located `defender:<index>` or `marker` diagram actor; no registered player identity. Repositions **only** `pts[0]` and `actorLinks.start`, preserving movement's bend points and free field destination, all other moves, passes and phases. Disconnection deletes only the explicit start link without changing geometry. Unknown/missing/overlapping actors, future and legacy versions, non-shifts, malformed coordinates or invalid link shapes fail closed with no mutation.
+- `site/app.js`: only coach Advanced Diagram, only when a version-1 defender shift is selected, displays accessible **Defender run from** actor choices, selected `aria-pressed`, and **Leave defender start on field** (disabled when not linked). Uses normal `pedSnap`, Undo and refresh, with actionable overlap warning. Reuses the established dark properties board, no new modal, database or navigation. The copy expressly says this is geometric authoring, not a defensive AI decision or play timing.
+- `test/play-defender-origin.test.js`: seven synthetic tests: unique defender and marker origins, precise movement following after JSON save/reload, free start remaining fixed, overlap fail-close, invalid actor/type/geometry, rejected legacy/future/malformed moves and unchanged E0 schema-4 golden, no inferred timing or possession.
+- `test/browser/play_e4_defender_origin.py`: 390px and 1280px interactive Chromium coach journey; previous legacy shift is unaffected; version-1 shift gets defender/marker controls, selected actor, free start and two undo stages; actual Undo center hit target must remain tappable; Cancel proves the original Step Out and all saved workspace data are intact, player preview has no coach controls.
+
+## Preserved contracts and gates
+
+- No sport-specific Rugby League/League Tag formation, legal rugby rule, real child/player association, event/possession timeline, defensive branch, physical field validation or E3 owner sporting approval. Defender indices are *phase-local diagram slots*. Stable cross-phase actor identity and the complete E4 graph remain unfinished.
+- Historical `moves[].pts` and Oztag eight-slot Step In/Step Out IDs stay unchanged; no conversion to `linkVersion:1` on read, save or display. E4.4 diagnostics remain read-only and E4.5 broken-link warnings continue to reflect actual source.
+- Schema 4, coach/player permission distinction, explicit Home team picker, Snap On default, precision touch controls, renderer zoom, Quick Look and shared play library remain unchanged.
+- Source qualification requires exact-head Node `npm test`, full established Chromium structured suite and pinned Linux WebKit B5. Published Pages assets, physical Safari/VoiceOver, and owner visual acceptance are distinct checks. PR is not automatically merged, installed or deployed.
+
+**One next action:** Review/merge this PR only when exact-head CI succeeds and the **Defender run from** and **Leave defender start on field** controls look and behave correctly on a phone and desktop. Retain E3 sporting approval and the full E4 graph checkboxes as OPEN.
