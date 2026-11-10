@@ -14,9 +14,10 @@ test('E3.2 references are uniquely identified, read-only, source-backed, never f
   assert.deepEqual(FORMATION_FORMAT_REFERENCES.map(r => r.id), [
     'oztag-eight-reference',
     'rugby-league-international-13-reference',
-    'rugby-league-junior-6-12-local-review'
+    'rugby-league-junior-6-12-local-review',
+    'league-tag-local-format-review'
   ]);
-  assert.equal(new Set(FORMATION_FORMAT_REFERENCES.map(r => r.id)).size, 3);
+  assert.equal(new Set(FORMATION_FORMAT_REFERENCES.map(r => r.id)).size, 4);
   assert.ok(Object.isFrozen(FORMATION_FORMAT_REFERENCES));
   for (const ref of FORMATION_FORMAT_REFERENCES) {
     assert.equal(ref.referenceVersion, 1);
@@ -73,6 +74,19 @@ test('E3.2 junior 6–12 refuses guessed participants, formation slots and unive
   assert.equal(result.reason, 'local-format-unverified');
   assert.equal(result.profile, null);
   assert.equal(ref.maxOnField, null, 'junior count remains unprovided until grade and league review');
+});
+
+
+test('E3.3 League Tag has a governing reference but no fabricated universal player count or tactical slots', () => {
+  const ref = formationFormatReference('league-tag-local-format-review');
+  assert.equal(ref.sport, 'League tag');
+  assert.equal(ref.maxOnField, null);
+  assert.equal(ref.formationReviewed, false);
+  assert.match(ref.source.url, /other-laws-of-the-game/);
+  const out = conceptProfileForFormatReference(ref.id);
+  assert.equal(out.reason, 'local-format-unverified');
+  assert.equal(out.profile, null);
+  assert.throws(() => { ref.maxOnField = 13; }, TypeError);
 });
 
 test('E3.2 absent, forged and wrong-sport reference cannot become another sport profile', () => {
