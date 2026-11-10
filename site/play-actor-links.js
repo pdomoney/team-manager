@@ -119,6 +119,54 @@ export function detachMovementActors(move) {
 }
 
 
+// E4.9: coach chooses which defensive diagram slot owns a NEW version-1
+// defender movement. These are synthetic tactical slots, never personnel or
+// a verified defensive tactic. Its last point remains a free field coordinate.
+function editableDefenderShift(phase, moveIndex) {
+  if (!Number.isInteger(moveIndex) || moveIndex < 0) return null;
+  const move = phase?.moves?.[moveIndex];
+  if (move?.linkVersion !== 1 || move.t !== 'shift' ||
+      !move.actorLinks || typeof move.actorLinks !== 'object' ||
+      Array.isArray(move.actorLinks) ||
+      Object.hasOwn(move.actorLinks, 'end') ||
+      !Array.isArray(move.pts) || move.pts.length < 2 ||
+      !move.pts.every(p => point(p) &&
+        p[0] >= 0 && p[0] <= 50 && p[1] >= 0 && p[1] <= 80)) return null;
+  return move;
+}
+
+// Only the selected uniquely located defender/marker may become the author
+// of this shift. Never infer ownership from freehand proximity or a player.
+export function assignDefenderOrigin(phase, moveIndex, actorKey) {
+  const move = editableDefenderShift(phase, moveIndex);
+  if (!move || typeof actorKey !== 'string' ||
+      actorKey !== 'marker' && !/^defender:(0|[1-9][0-9]*)$/.test(actorKey))
+    return false;
+  const actor = diagramActors(phase).find(a => a.key === actorKey);
+  const target = actor?.position;
+  if (!point(target) || target[0] < 0 || target[0] > 50 ||
+      target[1] < 0 || target[1] > 80 ||
+      actorAtEndpoint(phase, target, 'defence') !== actorKey) return false;
+  move.pts[0] = target.slice();
+  move.actorLinks = { ...move.actorLinks, start: actorKey };
+  return true;
+}
+
+// A deliberately independent defender-line start must retain its coordinate
+// after removing the explicit reference and after subsequent defender drags.
+export function freeDefenderOrigin(phase, moveIndex) {
+  const move = editableDefenderShift(phase, moveIndex);
+  if (!move || !Object.hasOwn(move.actorLinks, 'start') ||
+      typeof move.actorLinks.start !== 'string' ||
+      move.actorLinks.start !== 'marker' &&
+        !/^defender:(0|[1-9][0-9]*)$/.test(move.actorLinks.start))
+    return false;
+  const next = { ...move.actorLinks };
+  delete next.start;
+  move.actorLinks = next;
+  return true;
+}
+
 // E4.7: a run may start at one explicitly chosen diagram actor OR at a
 // deliberate free field point. Only new version-1 run movements can change.
 // Actor keys are drawing slots, not registered people, and no ball event is

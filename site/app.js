@@ -25,7 +25,7 @@ import { GitHub, repoFromLocation } from './github.js';
 import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
-import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassPasser, assignPassReceiver, receiverFollowOnRun, assignRunOrigin, freeRunOrigin, assignRunEndpoint, freeRunEndpoint } from './play-actor-links.js';
+import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassPasser, assignPassReceiver, receiverFollowOnRun, assignRunOrigin, freeRunOrigin, assignRunEndpoint, freeRunEndpoint, assignDefenderOrigin, freeDefenderOrigin } from './play-actor-links.js';
 import { coachPlayConnectionNotice } from './play-link-warning.js';
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
@@ -4194,11 +4194,18 @@ function pedPanel(E) {
       <div class="btn-row" role="group" aria-label="Choose run endpoint">${Object.keys(d.players).map(id => `<button type="button" class="btn sm${m.actorLinks?.end === 'player:' + id ? ' on' : ''}" data-act="ped-run-end" data-player="${esc(id)}" aria-pressed="${m.actorLinks?.end === 'player:' + id}">${esc(whoOf(E.draft, id))}</button>`).join('')}</div>
       <div class="btn-row"><button type="button" class="btn sm" data-act="ped-run-free-end" ${m.actorLinks?.end ? '' : 'disabled'}>Leave end on field</button></div>
       <p class="hint">The run can finish at a diagram actor's position or at a fixed field point. This shows where the line ends, not a catch, collision or timed event.</p>` : '';
+    const defenceSlots = (d.defence?.line || []).map((p, i) => ({ key: 'defender:' + i, label: 'Defender ' + (i + 1) }))
+      .concat(Array.isArray(d.defence?.marker) ? [{ key: 'marker', label: 'Marker' }] : []);
+    const defenderControls = m.t === 'shift' && m.linkVersion === 1 ? `<div class="ped-sub">Defender run from</div>
+      <div class="btn-row" role="group" aria-label="Choose defender run origin">${defenceSlots.map(slot => `<button type="button" class="btn sm${m.actorLinks?.start === slot.key ? ' on' : ''}" data-act="ped-defender-origin" data-actor="${esc(slot.key)}" aria-pressed="${m.actorLinks?.start === slot.key}">${esc(slot.label)}</button>`).join('')}</div>
+      <div class="btn-row"><button type="button" class="btn sm" data-act="ped-defender-free-start" ${m.actorLinks?.start ? '' : 'disabled'}>Leave defender start on field</button></div>
+      <p class="hint">Choose the defender or marker whose movement begins here. It keeps the destination and bends. A free start remains fixed on the field. This does not choose a defensive response or timing.</p>` : '';
     return `<div class="ped-h3">${MOVE_KINDS[m.t] || m.t}${m.key ? ', a key move' : ''}</div>
       <div class="seg ped-types" role="group" aria-label="Line type">${PED_DRAW.map(t => `<button type="button" data-act="ped-mv-type" data-t="${t}" aria-pressed="${m.t === t}">${PED_NAMES[t]}</button>`).join('')}</div>
       <div class="btn-row">${m.t !== 'shift' ? btn('ped-mv', 'Key move (blue)', m.key, 'data-f="key"') : ''}${btn('ped-mv', 'Curved', m.curve, 'data-f="curve"')}${m.t === 'pass' || m.t === 'kick' ? btn('ped-mv', 'Option', m.opt, 'data-f="opt"') : ''}${bend ? btn('ped-mv', 'Remove this bend', false, 'data-f="unbend"') : ''}${del('Delete line')}</div>
       ${receiverControls}
       ${runOriginControls}
+      ${defenderControls}
       <p class="hint">Drag the round handles to move the start, the end or a bend. Drag a small + to add a bend. Drag the line itself to move all of it.${m.t === 'pass' || m.t === 'kick' ? ' An Option pass is drawn lighter and left out when the play is animated.' : ''}</p>`;
   }
   if (sel && ['pl', 'df', 'mk'].includes(sel.k)) {
@@ -9586,6 +9593,27 @@ const actions = {
     pedSnap();
     if (f === 'unbend') { m.pts.splice(E.selH, 1); E.selH = null; }
     else { if (m[f]) delete m[f]; else m[f] = true; E[f] = !!m[f]; }
+    refreshPlayEditor();
+  }),
+  'ped-defender-origin': coachOnly(el => {
+    const E = state.ped, d = E && pedCur(E), i = E?.sel?.k === 'mv' ? E.sel.i : -1;
+    if (!d || i < 0 || d.moves[i]?.t !== 'shift' || d.moves[i]?.linkVersion !== 1) return;
+    const actor = el.dataset.actor;
+    if (!actor || d.moves[i].actorLinks?.start === actor) return;
+    pedSnap();
+    if (!assignDefenderOrigin(d, i, actor)) {
+      pedUndo();
+      toast('Defender start is ambiguous. Move overlapping defenders or markers apart first.');
+      return;
+    }
+    refreshPlayEditor();
+  }),
+  'ped-defender-free-start': coachOnly(() => {
+    const E = state.ped, d = E && pedCur(E), i = E?.sel?.k === 'mv' ? E.sel.i : -1;
+    if (!d || i < 0 || d.moves[i]?.t !== 'shift' || d.moves[i]?.linkVersion !== 1 ||
+        !d.moves[i].actorLinks?.start) return;
+    pedSnap();
+    if (!freeDefenderOrigin(d, i)) { pedUndo(); return; }
     refreshPlayEditor();
   }),
   'ped-run-origin': coachOnly(el => {
