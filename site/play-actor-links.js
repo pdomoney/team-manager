@@ -119,6 +119,29 @@ export function detachMovementActors(move) {
 }
 
 
+// E4.6: repair the authored sender of a NEW explicit pass in the coach editor.
+// The selected diagram slot (not a roster player) becomes the pass origin.
+// Repositioning the start handle is deliberate and visible. It does NOT infer
+// when the pass leaves a preceding run or whether the actor has possession.
+// Legacy unversioned paths and unsupported future link shapes are untouched.
+export function assignPassPasser(phase, moveIndex, playerId) {
+  if (!Number.isInteger(moveIndex) || moveIndex < 0 ||
+      typeof playerId !== 'string' ||
+      !phase?.players || !Object.hasOwn(phase.players, playerId)) return false;
+  const move = phase?.moves?.[moveIndex], target = phase.players[playerId];
+  if (move?.linkVersion !== 1 || move.t !== 'pass' ||
+      !move.actorLinks || typeof move.actorLinks !== 'object' ||
+      Array.isArray(move.actorLinks) ||
+      !Array.isArray(move.pts) || move.pts.length < 2 ||
+      !move.pts.every(point) || !point(target) ||
+      target[0] < 0 || target[0] > 50 ||
+      target[1] < 0 || target[1] > 80 ||
+      actorAtEndpoint(phase, target, 'player') !== 'player:' + playerId) return false;
+  move.pts[0] = target.slice();
+  move.actorLinks = { ...move.actorLinks, start: 'player:' + playerId };
+  return true;
+}
+
 // Explicit E4.3 coach decision: a receiver is chosen by the diagram slot ID.
 // Only an E4.2+ movement can be changed; historical play geometry is untouched.
 export function assignPassReceiver(phase, moveIndex, playerId) {
