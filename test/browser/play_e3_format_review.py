@@ -33,6 +33,9 @@ with sync_playwright() as p:
         pg.locator('#sheet [name=competition]').fill('Fictional test league')
         pg.locator('#sheet [name=grade]').fill('Open')
         pg.locator('#sheet [name=season]').fill('2026')
+        pg.locator('#sheet [name=rulesEdition]').fill('2026 fictional edition')
+        pg.locator('#sheet [name=localSourceUrl]').fill('https://example.org/rules?token=DO_NOT_COPY')
+        pg.locator('#sheet [name=formatNotes]').fill('Reviewer must confirm actual field and roles.')
         pg.locator('#sheet [data-form=play-format-review] button[type=submit]').click()
         outcome=pg.locator('#sheet .sport-format-result')
         brief=pg.locator('#sheet #sport-format-brief')
@@ -47,6 +50,16 @@ with sync_playwright() as p:
                   '2026' in brief.input_value() and
                   'No formation' in brief.input_value(),
                   f'[{width}] source link and honest reviewer brief are available without saving')
+        checks.ok(pg.locator('#sheet .e34-evidence-checklist li').count()==6 and
+                  pg.locator('#sheet .e34-evidence-checklist li').filter(has_text='Input supplied').count()==3 and
+                  pg.locator('#sheet .e34-evidence-checklist li').filter(has_text='Not approved').count()==3 and
+                  '2026 fictional edition' in brief.input_value() and
+                  'https://example.org/rules' in brief.input_value() and
+                  'token=DO_NOT_COPY' not in brief.input_value() and
+                  'No local rules independently verified' in brief.input_value(),
+                  f'[{width}] E3.4 source evidence is visible but never implies sporting approval')
+        checks.ok(pg.evaluate("""() => JSON.stringify(window.__team.data.plays.find(p=>p.id==='quickie-out'))""")==snapshot,
+                  f'[{width}] local evidence fields cannot persist in play')
         checks.ok(pg.evaluate("""() => JSON.stringify(window.__team.data.plays.find(p=>p.id==='quickie-out'))""")==snapshot and
                   pg.evaluate("""() => JSON.stringify({
                     clubs:window.__team.ws.clubs.map(c=>c.id),
@@ -55,8 +68,21 @@ with sync_playwright() as p:
                   })""")==baseline,
                   f'[{width}] format review cannot write play, clubs, teams or shared library')
         pg.locator('#sheet [data-act=play-format-change]').click()
-        checks.ok(form.is_visible() and pg.locator('#sheet [name=grade]').input_value()=='',
-                  f'[{width}] opening another review does not implicitly store local competition')
+        checks.ok(form.is_visible() and pg.locator('#sheet [name=grade]').input_value()=='' and
+                  pg.locator('#sheet [name=rulesEdition]').input_value()=='' and
+                  pg.locator('#sheet [name=localSourceUrl]').input_value()=='',
+                  f'[{width}] opening another review does not persist competition or evidence')
+        pg.locator('#sheet [name=referenceId]').select_option('oztag-eight-reference')
+        pg.locator('#sheet [name=competition]').fill('fictional league')
+        pg.locator('#sheet [name=grade]').fill('open')
+        pg.locator('#sheet [name=season]').fill('2026')
+        pg.locator('#sheet [name=rulesEdition]').fill('2026')
+        pg.locator('#sheet [name=localSourceUrl]').fill('http://127.0.0.1/internal')
+        pg.locator('#sheet [data-form=play-format-review] button[type=submit]').click()
+        checks.ok(pg.locator('#sheet [role=alert]').count()==1 and
+                  'local-source-url-invalid' in pg.locator('#sheet #sport-format-brief').input_value() and
+                  'http://127.0.0.1' not in pg.locator('#sheet #sport-format-brief').input_value(),
+                  f'[{width}] unsafe local source URL is rejected without being copied')
         pg.locator('#sheet [data-act=close-sheet]').last.click()
         checks.ok(pg.locator('[data-act=play-edit]').is_visible() and
                   pg.locator('#play-fig .play-board-field svg.pf').count()==1,
