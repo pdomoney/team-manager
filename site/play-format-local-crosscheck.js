@@ -2,6 +2,7 @@
 // A public national rules link and a coach-supplied local URL do not certify
 // a club's applicable grade rules, pitch dimensions or tactical formation.
 import { formationFormatReference } from './play-formation-references.js';
+import { localRulesEvidenceUrl } from './play-format-evidence.js';
 
 export const E34_RECONCILIATION_VERSION = 1;
 const freeze = Object.freeze;
@@ -45,10 +46,12 @@ const specific = freeze({
 // a local browser can give itself, especially in password-free test mode.
 export function sportingRulesCrosscheck(review, evidence) {
   const ref = formationFormatReference(review?.referenceId);
-  const valid = !!ref && !!review?.source &&
+  const detail = ref ? specific[ref.id] : null;
+  const valid = !!ref && !!detail && !!review?.source &&
     review.source.url === ref.source.url &&
     review.source.title === ref.source.title &&
     review.teamSport === ref.sport &&
+    review.sourceSport === review.teamSport &&
     review.status === 'concept-only' && review.matchReady === false &&
     evidence?.status === 'candidate-only' &&
     evidence.matchReady === false && evidence.canEnableProfile === false &&
@@ -68,11 +71,11 @@ export function sportingRulesCrosscheck(review, evidence) {
     version:E34_RECONCILIATION_VERSION,
     status:'independent-review-pending',applicable:true,verified:false,
     canEnableProfile:false,matchReady:false,reason:'local-competition-review-pending',
-    referenceId:ref.id,title:specific[ref.id].title,
-    sourceUrl:ref.source.url,focus:specific[ref.id].focus,
+    referenceId:ref.id,title:detail.title,
+    sourceUrl:ref.source.url,focus:detail.focus,
     // The URL below was *entered*, not retrieved or verified; never use it as
     // an official rule or evidence of compliance.
-    localSourceUrl:text(evidence.localSourceUrl,500),
+    localSourceUrl:localRulesEvidenceUrl(evidence.localSourceUrl),
     questions:freeze(questions)
   });
 }
