@@ -101,7 +101,7 @@ export function inspectPlayGraphCompatibility(input) {
     const all = records.flatMap(x => x.movements);
     return deepFreeze({
       projectionVersion: 1,
-      status: issues.length ? 'invalid'
+      status: issues.length || all.some(x => x.resolution === 'unresolved') ? 'invalid'
         : all.some(x => x.representation === 'legacy-geometry') ? 'mixed-or-legacy'
           : all.length ? 'v1-only' : 'empty',
       sourceJson, sourceWasExactText, phases: records, issues,
