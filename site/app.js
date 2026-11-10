@@ -35,7 +35,8 @@ import { watchArtworkScale } from './play-watch-art-scale.js';
 import { learnArtworkScale } from './play-learn-art-scale.js';
 import { captureEditorPointer, cancelEditorPointer } from './play-editor-pointer.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
-import { sportFormatReviewOptions, coachSportFormatReview, sportFormatReviewBrief } from './play-format-review.js';
+import { sportFormatReviewOptions, coachSportFormatReview } from './play-format-review.js';
+import { assessE34RulesEvidence, e34EvidenceBrief } from './play-format-evidence.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
 import { playTeachingCompatibility } from './p08-play-compatibility.js';
 import { libraryCopyReview, libraryOrigin } from './p08-library-provenance.js';
@@ -3593,13 +3594,16 @@ function openSportFormatChoices(p) {
     </select><small>References are official rules entry points, not approved formations. Local overrides may apply.</small></label>
     <label class="field-l"><span>Local league or competition</span><input name="competition" maxlength="140" placeholder="Exact competition or local league"></label>
     <label class="field-l"><span>Grade / age group</span><input name="grade" maxlength="80" placeholder="e.g. Under 12 or open age"></label>
-    <label class="field-l"><span>Season / applicable rule edition</span><input name="season" maxlength="40" placeholder="e.g. 2026"></label>
-    <p class="hint">These inputs are not saved to the team, play, Rules pack or server. You can copy a review brief for a sporting-domain reviewer.</p>
+    <label class="field-l"><span>Season</span><input name="season" maxlength="40" placeholder="e.g. 2026"></label>
+    <label class="field-l"><span>Applicable national/local rules edition (for verification)</span><input name="rulesEdition" maxlength="80" placeholder="e.g. 2026 national laws + local amendment"></label>
+    <label class="field-l"><span>Public local league rules source URL</span><input name="localSourceUrl" type="url" inputmode="url" maxlength="500" placeholder="https://…"></label>
+    <label class="field-l"><span>Formation details for the sporting reviewer (unverified)</span><textarea name="formatNotes" rows="3" maxlength="500" placeholder="Specify the formation and field questions to verify; do not enter player or member details."></textarea></label>
+    <p class="hint">E3.4 compares source inputs with the required independent approvals. A public URL and edition are unverified until an authorised sporting reviewer confirms them. All inputs remain on this screen unless you explicitly copy a review brief. No team, play, Rules pack or player records are saved.</p>
     <button type="submit" class="btn primary block">Review format and remaining approvals</button>
   </form>` : `<p class="note" role="status">No reviewed format reference is available for ${esc(sport)}. This play remains an illustrative teaching concept. Do not reuse a different sport's profile.</p>`}`, 'sport-format-review');
 }
-function openSportFormatResult(p, review) {
-  const brief = sportFormatReviewBrief(review);
+function openSportFormatResult(p, review, evidence) {
+  const brief = e34EvidenceBrief(review, evidence);
   const labels = {
     'unsupported-team-sport': 'The current team sport has no source-backed format reference.',
     'reference-required': 'Choose an exact rules reference.',
@@ -3620,6 +3624,10 @@ function openSportFormatResult(p, review) {
       <p>On-field reference: ${review.source.maxOnField === null ? 'Local format review required' : esc(String(review.source.maxOnField)) + ' maximum. This is not a verified formation shape.'}</p>` : `<p role="status">No applicable source was selected or the source was incompatible with the active sport.</p>`}
     <h4>Review still required</h4>
     <ul>${review.issues.map(code => `<li>${esc(labels[code] || 'Sporting review required.')}</li>`).join('')}</ul>
+    <h4>E3.4 source and sporting-approval checkpoints</h4>
+    <ul class="e34-evidence-checklist">${evidence.stages.map(stage => `<li><span class="pill neutral">${stage.provided ? 'Input supplied' : 'Not approved'}</span> ${esc(stage.label)}</li>`).join('')}</ul>
+    <p class="hint">Inputs supplied: ${evidence.suppliedCount} of ${evidence.stages.length} checkpoints. This is a review-preparation count, not sporting approval or a match-ready percentage.</p>
+    ${evidence.missing.includes('local-source-url-invalid') ? '<p role="alert">The local source URL must be a public HTTPS address without credentials, private network hosts or query tokens. No invalid link is included in the review brief.</p>' : ''}
     <label class="field-l"><span>Copyable review brief (not saved)</span>
       <textarea id="sport-format-brief" readonly rows="11">${esc(brief)}</textarea>
     </label>
@@ -11172,7 +11180,11 @@ document.addEventListener('submit', async e => {
       referenceId: str('referenceId'), competition: str('competition'),
       grade: str('grade'), season: str('season')
     });
-    openSportFormatResult(p, review);
+    const evidence = assessE34RulesEvidence(review, {
+      rulesEdition: str('rulesEdition'), localSourceUrl: str('localSourceUrl'),
+      formatNotes: str('formatNotes')
+    });
+    openSportFormatResult(p, review, evidence);
     return;
   }
   if (kind === 'transfer-choose') {
