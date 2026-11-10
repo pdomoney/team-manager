@@ -3633,7 +3633,7 @@ function openSportFormatResult(p, review, evidence) {
     ${crosscheck.applicable ? `<details class="e34-local-checks">
       <summary>Questions for the local sporting reviewer (${crosscheck.questions.length} checks)</summary>
       <p class="hint"><strong>${esc(crosscheck.title)}:</strong> ${esc(crosscheck.focus)}</p>
-      <p class="hint">National governing reference: <a href="${esc(crosscheck.sourceUrl)}" target="_blank" rel="noopener noreferrer">View governing rules</a>. ${crosscheck.localSourceUrl ? 'The local source address was entered by the coach and has not been independently verified.' : 'No local league source has been supplied.'}</p>
+      <p class="hint">Use the governing rules link above to check the source. ${crosscheck.localSourceUrl ? 'The local source address was entered by the coach and has not been independently verified.' : 'No local league source has been supplied.'}</p>
       <ol>${crosscheck.questions.map(q => `<li><strong>${esc(q.title)} (pending)</strong><p>${esc(q.question)}</p></li>`).join('')}</ol>
       <p class="hint">No item is verified by completing this form. An authorised sporting reviewer must confirm the exact rules and formation separately.</p>
     </details>` : '<p class="hint" role="status">Sport-specific review questions are unavailable until a valid, matching governing reference is selected.</p>'}
