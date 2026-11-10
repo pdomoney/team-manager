@@ -162,6 +162,37 @@ export function freeRunOrigin(phase, moveIndex) {
   return true;
 }
 
+// E4.8: a version-1 teaching run can finish at another diagram actor or at
+// a deliberate field point. This is geometry, NOT a collision, catch, legal
+// move, match lineup or movement timing decision. Legacy runs stay unchanged.
+export function assignRunEndpoint(phase, moveIndex, playerId) {
+  const move = editableRun(phase, moveIndex);
+  if (!move || typeof playerId !== 'string' || !phase?.players ||
+      !Object.hasOwn(phase.players, playerId)) return false;
+  const target = phase.players[playerId];
+  if (!point(target) || target[0] < 0 || target[0] > 50 ||
+      target[1] < 0 || target[1] > 80 ||
+      actorAtEndpoint(phase, target, 'player') !== 'player:' + playerId ||
+      Math.hypot(target[0] - move.pts[0][0], target[1] - move.pts[0][1]) < 1)
+    return false;
+  move.pts[move.pts.length - 1] = target.slice();
+  move.actorLinks = { ...move.actorLinks, end: 'player:' + playerId };
+  return true;
+}
+
+// Keep a run's end coordinates exactly where the coach placed them; detach
+// only the end reference so subsequent actor drags will not move the point.
+export function freeRunEndpoint(phase, moveIndex) {
+  const move = editableRun(phase, moveIndex);
+  if (!move || !Object.hasOwn(move.actorLinks, 'end') ||
+      typeof move.actorLinks.end !== 'string' ||
+      !move.actorLinks.end.startsWith('player:')) return false;
+  const next = { ...move.actorLinks };
+  delete next.end;
+  move.actorLinks = next;
+  return true;
+}
+
 // E4.6: repair the authored sender of a NEW explicit pass in the coach editor.
 // The selected diagram slot (not a roster player) becomes the pass origin.
 // Repositioning the start handle is deliberate and visible. It does NOT infer
