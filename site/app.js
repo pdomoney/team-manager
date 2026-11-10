@@ -25,7 +25,7 @@ import { GitHub, repoFromLocation } from './github.js';
 import { loadGitHubSettings, saveGitHubSettings } from './github-settings.js';
 import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
-import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassPasser, assignPassReceiver, receiverFollowOnRun, assignRunOrigin, freeRunOrigin } from './play-actor-links.js';
+import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassPasser, assignPassReceiver, receiverFollowOnRun, assignRunOrigin, freeRunOrigin, assignRunEndpoint, freeRunEndpoint } from './play-actor-links.js';
 import { coachPlayConnectionNotice } from './play-link-warning.js';
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
@@ -4189,7 +4189,11 @@ function pedPanel(E) {
     const runOriginControls = m.t === 'run' && m.linkVersion === 1 ? `<div class="ped-sub">Run from</div>
       <div class="btn-row" role="group" aria-label="Choose run origin">${Object.keys(d.players).map(id => `<button type="button" class="btn sm${m.actorLinks?.start === 'player:' + id ? ' on' : ''}" data-act="ped-run-origin" data-player="${esc(id)}" aria-pressed="${m.actorLinks?.start === 'player:' + id}">${esc(whoOf(E.draft, id))}</button>`).join('')}</div>
       <div class="btn-row"><button type="button" class="btn sm" data-act="ped-run-free-start" ${m.actorLinks?.start ? '' : 'disabled'}>Leave start on field</button></div>
-      <p class="hint">Attach the start to a diagram player so it follows them, or leave it at an independent field point. Changing the start keeps the end and bends. This does not claim possession or run timing.</p>` : '';
+      <p class="hint">Attach the start to a diagram player so it follows them, or leave it at an independent field point. Changing the start keeps the end and bends. This does not claim possession or run timing.</p>
+      <div class="ped-sub">Run ends at</div>
+      <div class="btn-row" role="group" aria-label="Choose run endpoint">${Object.keys(d.players).map(id => `<button type="button" class="btn sm${m.actorLinks?.end === 'player:' + id ? ' on' : ''}" data-act="ped-run-end" data-player="${esc(id)}" aria-pressed="${m.actorLinks?.end === 'player:' + id}">${esc(whoOf(E.draft, id))}</button>`).join('')}</div>
+      <div class="btn-row"><button type="button" class="btn sm" data-act="ped-run-free-end" ${m.actorLinks?.end ? '' : 'disabled'}>Leave end on field</button></div>
+      <p class="hint">The run can finish at a diagram actor's position or at a fixed field point. This shows where the line ends, not a catch, collision or timed event.</p>` : '';
     return `<div class="ped-h3">${MOVE_KINDS[m.t] || m.t}${m.key ? ', a key move' : ''}</div>
       <div class="seg ped-types" role="group" aria-label="Line type">${PED_DRAW.map(t => `<button type="button" data-act="ped-mv-type" data-t="${t}" aria-pressed="${m.t === t}">${PED_NAMES[t]}</button>`).join('')}</div>
       <div class="btn-row">${m.t !== 'shift' ? btn('ped-mv', 'Key move (blue)', m.key, 'data-f="key"') : ''}${btn('ped-mv', 'Curved', m.curve, 'data-f="curve"')}${m.t === 'pass' || m.t === 'kick' ? btn('ped-mv', 'Option', m.opt, 'data-f="opt"') : ''}${bend ? btn('ped-mv', 'Remove this bend', false, 'data-f="unbend"') : ''}${del('Delete line')}</div>
@@ -9604,6 +9608,28 @@ const actions = {
         !d.moves[i].actorLinks?.start) return;
     pedSnap();
     if (!freeRunOrigin(d, i)) { pedUndo(); return; }
+    refreshPlayEditor();
+  }),
+  'ped-run-end': coachOnly(el => {
+    const E = state.ped, d = E && pedCur(E), i = E?.sel?.k === 'mv' ? E.sel.i : -1;
+    if (!d || i < 0 || d.moves[i]?.t !== 'run' || d.moves[i]?.linkVersion !== 1) return;
+    const player = el.dataset.player;
+    if (!Object.hasOwn(d.players, player) ||
+        d.moves[i].actorLinks?.end === 'player:' + player) return;
+    pedSnap();
+    if (!assignRunEndpoint(d, i, player)) {
+      pedUndo();
+      toast('Run endpoint is ambiguous or too close to the start. Choose another position.');
+      return;
+    }
+    refreshPlayEditor();
+  }),
+  'ped-run-free-end': coachOnly(() => {
+    const E = state.ped, d = E && pedCur(E), i = E?.sel?.k === 'mv' ? E.sel.i : -1;
+    if (!d || i < 0 || d.moves[i]?.t !== 'run' || d.moves[i]?.linkVersion !== 1 ||
+        !d.moves[i].actorLinks?.end) return;
+    pedSnap();
+    if (!freeRunEndpoint(d, i)) { pedUndo(); return; }
     refreshPlayEditor();
   }),
   'ped-passer': coachOnly(el => {
