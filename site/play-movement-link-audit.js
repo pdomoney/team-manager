@@ -180,7 +180,9 @@ export function inspectPlayPhaseContinuity(play, declarations = []) {
     const mapping = new Map(assertions.map(x => [x.fromActor, x.toActor]));
     const observations = left.actors.map(actor => {
       const mapped = mapping.get(actor.key);
-      const other = mapped ? right.actors.find(x => x.key === mapped)
+      // A conflicting mapping has no selected destination. Do not display
+      // the last declaration as if it won merely because Map overwrote it.
+      const other = conflict ? null : mapped ? right.actors.find(x => x.key === mapped)
         : right.actors.find(x => x.key === actor.key);
       const status = damaged ? 'blocked-invalid-phase'
         : conflict ? 'ambiguous'
