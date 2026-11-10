@@ -3846,3 +3846,38 @@ body.persona-mode .top{background:var(--turf)}
 #sheet .sport-format-result .btn-row .btn{
   min-height:44px;
 }
+
+
+/* E3.4.4 reviewer handoff: secondary, compact and keyboard navigable.
+   No evidence badge here conveys approval or a match-ready lineup. */
+#sheet .sport-format-result .e34-local-checks{
+  margin:14px 0;
+  padding:10px 12px;
+  border:1px solid #6B8694;
+  border-radius:10px;
+  background:#26313C;
+  color:#E4ECF0;
+}
+#sheet .sport-format-result .e34-local-checks summary{
+  cursor:pointer;
+  font-weight:600;
+  min-height:40px;
+  align-content:center;
+}
+#sheet .sport-format-result .e34-local-checks summary:focus-visible{
+  outline:3px solid #F1C775;
+  outline-offset:3px;
+}
+#sheet .sport-format-result .e34-local-checks ol{
+  padding-left:22px;
+  margin:10px 0;
+}
+#sheet .sport-format-result .e34-local-checks li{
+  margin:0 0 10px;
+}
+#sheet .sport-format-result .e34-local-checks li p{
+  margin:4px 0;
+}
+#sheet .sport-format-result .e34-local-checks a{
+  color:#B7E6FA;
+}

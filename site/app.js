@@ -37,6 +37,7 @@ import { captureEditorPointer, cancelEditorPointer } from './play-editor-pointer
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportFormatReviewOptions, coachSportFormatReview } from './play-format-review.js';
 import { assessE34RulesEvidence, e34EvidenceBrief } from './play-format-evidence.js';
+import { sportingRulesCrosscheck, sportingRulesCrosscheckBrief } from './play-format-local-crosscheck.js';
 import { sportCapabilities } from './p08-sport-capabilities.js';
 import { playTeachingCompatibility } from './p08-play-compatibility.js';
 import { libraryCopyReview, libraryOrigin } from './p08-library-provenance.js';
@@ -3603,7 +3604,8 @@ function openSportFormatChoices(p) {
   </form>` : `<p class="note" role="status">No reviewed format reference is available for ${esc(sport)}. This play remains an illustrative teaching concept. Do not reuse a different sport's profile.</p>`}`, 'sport-format-review');
 }
 function openSportFormatResult(p, review, evidence) {
-  const brief = e34EvidenceBrief(review, evidence);
+  const crosscheck = sportingRulesCrosscheck(review, evidence);
+  const brief = e34EvidenceBrief(review, evidence) + (crosscheck.applicable ? '\n\n' + sportingRulesCrosscheckBrief(crosscheck) : '');
   const labels = {
     'unsupported-team-sport': 'The current team sport has no source-backed format reference.',
     'reference-required': 'Choose an exact rules reference.',
@@ -3628,6 +3630,13 @@ function openSportFormatResult(p, review, evidence) {
     <ul class="e34-evidence-checklist">${evidence.stages.map(stage => `<li><span class="pill neutral">${stage.provided ? 'Input supplied' : 'Not approved'}</span> ${esc(stage.label)}</li>`).join('')}</ul>
     <p class="hint">Inputs supplied: ${evidence.suppliedCount} of ${evidence.stages.length} checkpoints. This is a review-preparation count, not sporting approval or a match-ready percentage.</p>
     ${evidence.missing.includes('local-source-url-invalid') ? '<p role="alert">The local source URL must be a public HTTPS address without credentials, private network hosts or query tokens. No invalid link is included in the review brief.</p>' : ''}
+    ${crosscheck.applicable ? `<details class="e34-local-checks">
+      <summary>Questions for the local sporting reviewer (${crosscheck.questions.length} checks)</summary>
+      <p class="hint"><strong>${esc(crosscheck.title)}:</strong> ${esc(crosscheck.focus)}</p>
+      <p class="hint">Use the governing rules link above to check the source. ${crosscheck.localSourceUrl ? 'The local source address was entered by the coach and has not been independently verified.' : 'No local league source has been supplied.'}</p>
+      <ol>${crosscheck.questions.map(q => `<li><strong>${esc(q.title)} (pending)</strong><p>${esc(q.question)}</p></li>`).join('')}</ol>
+      <p class="hint">No item is verified by completing this form. An authorised sporting reviewer must confirm the exact rules and formation separately.</p>
+    </details>` : '<p class="hint" role="status">Sport-specific review questions are unavailable until a valid, matching governing reference is selected.</p>'}
     <label class="field-l"><span>Copyable review brief (not saved)</span>
       <textarea id="sport-format-brief" readonly rows="11">${esc(brief)}</textarea>
     </label>
