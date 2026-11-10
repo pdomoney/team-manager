@@ -79,7 +79,19 @@ test('E4.11 detached V1 run endpoints stay deliberate free field points', () => 
   assert.equal(graph.status, 'v1-only');
   assert.deepEqual(graph.phases[0].movements[1].start,
     { status: 'free-field-point', point: [25, 28] });
-  assert.equal(graph.phases[0].movements[1].resolution, 'explicit-local');
+  assert.equal(graph.phases[0].movements[1].resolution, 'field-only');
+});
+
+test('E4.11 unknown V1 movement type is unresolved even if its actor links look valid', () => {
+  const p = modern();
+  p.moves[0].t = 'teleport';
+  const before = JSON.stringify(p);
+  const graph = inspectPlayGraphCompatibility(p);
+  assert.equal(graph.phases[0].movements[0].representation, 'invalid-v1');
+  assert.equal(graph.phases[0].movements[0].resolution, 'unresolved');
+  assert.ok(graph.phases[0].movements[0].issues.includes('unsupported-movement-type'));
+  assert.equal(graph.phases[0].movements[0].start, null);
+  assert.equal(JSON.stringify(p), before);
 });
 
 test('E4.11 immutable projection cannot modify the original workspace or saved play', () => {
