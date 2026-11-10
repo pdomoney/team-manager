@@ -79,11 +79,7 @@ with sync_playwright() as p:
         }""")
         checks.ok(restored=='player:LR',f'[{width}] Undo restores precise V1 actor link')
         pg.locator('[data-act=ped-undo]').click()
-        checks.ok(pg.evaluate("""() => {
-          const d=window.__team.state.ped.draft;
-          return JSON.stringify(d.moves.at(-1)) === window.__unused;
-        }""") is False and
-                  pg.evaluate("JSON.stringify(window.__team.state.ped.draft.moves.at(-1))")==first['move'],
+        checks.ok(pg.evaluate("JSON.stringify(window.__team.state.ped.draft.moves.at(-1))")==first['move'],
                   f'[{width}] two Undos return exact first-phase movement bytes')
 
         # Reopen a second-phase edit using its own phase-local control.
