@@ -28,7 +28,6 @@ with sync_playwright() as p:
           const keys=Object.keys(d.players);
           const start='LM', receiver='RM';
           const alternate=keys.find(k => k!==start && k!==receiver &&
-            d.players.every === undefined &&
             !keys.some(j => j!==k &&
               Math.hypot(d.players[k][0]-d.players[j][0],
                 d.players[k][1]-d.players[j][1])<0.4));
