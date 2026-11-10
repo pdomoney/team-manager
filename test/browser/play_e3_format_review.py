@@ -50,6 +50,20 @@ with sync_playwright() as p:
                   '2026' in brief.input_value() and
                   'No formation' in brief.input_value(),
                   f'[{width}] source link and honest reviewer brief are available without saving')
+        checks.ok(pg.locator('#sheet details.e34-local-checks > summary').count()==1 and
+                  'sporting reviewer' in pg.locator('#sheet details.e34-local-checks > summary').inner_text().lower(),
+                  f'[{width}] real format-specific local rules questions are available without clutter')
+        pg.locator('#sheet details.e34-local-checks > summary').click()
+        checks.ok(pg.locator('#sheet details.e34-local-checks').get_attribute('open') is not None and
+                  pg.locator('#sheet details.e34-local-checks li').count()==6 and
+                  'Oztag eight-on-field reference' in pg.locator('#sheet details.e34-local-checks').inner_text() and
+                  'not been independently verified' in pg.locator('#sheet details.e34-local-checks').inner_text(),
+                  f'[{width}] expanded review contains six source-backed questions and no approved formation')
+        checks.ok('E3.4.4 SPORT-SPECIFIC LOCAL RULES RECONCILIATION' in brief.input_value() and
+                  '[PENDING]' in brief.input_value() and
+                  'Under 13–15' not in brief.input_value() and
+                  'No reviewer verification recorded' in brief.input_value(),
+                  f'[{width}] copied Oztag brief contains appropriate local questions without cross-code guidance')
         checks.ok(pg.locator('#sheet .e34-evidence-checklist li').count()==6 and
                   pg.locator('#sheet .e34-evidence-checklist li').filter(has_text='Input supplied').count()==3 and
                   pg.locator('#sheet .e34-evidence-checklist li').filter(has_text='Not approved').count()==3 and
