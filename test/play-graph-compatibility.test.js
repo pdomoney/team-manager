@@ -87,6 +87,7 @@ test('E4.11 unknown V1 movement type is unresolved even if its actor links look 
   p.moves[0].t = 'teleport';
   const before = JSON.stringify(p);
   const graph = inspectPlayGraphCompatibility(p);
+  assert.equal(graph.status, 'invalid');
   assert.equal(graph.phases[0].movements[0].representation, 'invalid-v1');
   assert.equal(graph.phases[0].movements[0].resolution, 'unresolved');
   assert.ok(graph.phases[0].movements[0].issues.includes('unsupported-movement-type'));
