@@ -75,6 +75,8 @@ test('E4.10 conflicts and ambiguous many-to-one declarations fail closed', () =>
   assert.equal(report.boundaries[0].status, 'ambiguous');
   assert.ok(report.issues.some(x => x.code === 'ambiguous-continuity-declarations'));
   assert.ok(report.boundaries[0].observations.every(x => x.status === 'ambiguous'));
+  assert.ok(report.boundaries[0].observations.filter(x => x.fromActor)
+    .every(x => x.toActor === null), 'conflicts must not select a destination');
   assert.equal(JSON.stringify(p), before);
 });
 
