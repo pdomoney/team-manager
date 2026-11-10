@@ -119,6 +119,49 @@ export function detachMovementActors(move) {
 }
 
 
+// E4.7: a run may start at one explicitly chosen diagram actor OR at a
+// deliberate free field point. Only new version-1 run movements can change.
+// Actor keys are drawing slots, not registered people, and no ball event is
+// inferred by reanchoring a run.
+function editableRun(phase, moveIndex) {
+  if (!Number.isInteger(moveIndex) || moveIndex < 0) return null;
+  const move = phase?.moves?.[moveIndex];
+  if (move?.linkVersion !== 1 || move.t !== 'run' ||
+      !move.actorLinks || typeof move.actorLinks !== 'object' ||
+      Array.isArray(move.actorLinks) || !Array.isArray(move.pts) ||
+      move.pts.length < 2 || !move.pts.every(p =>
+        point(p) && p[0] >= 0 && p[0] <= 50 && p[1] >= 0 && p[1] <= 80)) return null;
+  return move;
+}
+
+// Select the run's start actor; preserve bends, end, end link and other moves.
+// Overlapping actors fail closed instead of silently choosing a different one.
+export function assignRunOrigin(phase, moveIndex, playerId) {
+  const move = editableRun(phase, moveIndex);
+  if (!move || typeof playerId !== 'string' || !phase?.players ||
+      !Object.hasOwn(phase.players, playerId)) return false;
+  const target = phase.players[playerId];
+  if (!point(target) || target[0] < 0 || target[0] > 50 ||
+      target[1] < 0 || target[1] > 80 ||
+      actorAtEndpoint(phase, target, 'player') !== 'player:' + playerId) return false;
+  move.pts[0] = target.slice();
+  move.actorLinks = { ...move.actorLinks, start: 'player:' + playerId };
+  return true;
+}
+
+// A deliberate field start has its OWN coordinates. Remove only the explicit
+// start link; never snap/rebind it automatically on subsequent actor drags.
+export function freeRunOrigin(phase, moveIndex) {
+  const move = editableRun(phase, moveIndex);
+  if (!move || !Object.hasOwn(move.actorLinks, 'start') ||
+      typeof move.actorLinks.start !== 'string' ||
+      !move.actorLinks.start.startsWith('player:')) return false;
+  const links = { ...move.actorLinks };
+  delete links.start;
+  move.actorLinks = links;
+  return true;
+}
+
 // E4.6: repair the authored sender of a NEW explicit pass in the coach editor.
 // The selected diagram slot (not a roster player) becomes the pass origin.
 // Repositioning the start handle is deliberate and visible. It does NOT infer
