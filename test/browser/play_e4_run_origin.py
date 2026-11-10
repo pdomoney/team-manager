@@ -68,7 +68,16 @@ with sync_playwright() as p:
         }""")
         checks.ok(not detached['start'] and detached['pts']==attached['pts'] and free.is_disabled(),
                   f'[{width}] leave start on field removes only the relationship, never moves coordinates')
-        pg.locator('[data-act=ped-undo]').click()
+        undo=pg.locator('[data-act=ped-undo]')
+        undo.scroll_into_view_if_needed()
+        tapTarget=pg.evaluate("""() => {
+          const b=document.querySelector('[data-act="ped-undo"]');
+          const r=b.getBoundingClientRect();
+          return document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)?.closest('[data-act="ped-undo"]')===b;
+        }""")
+        checks.ok(tapTarget,
+                  f'[{width}] Undo stays physically tappable above the precision palette')
+        undo.click()
         restored=pg.evaluate("""() => {
           const m=window.__team.state.ped.draft.moves.at(-1);
           return {link:m.actorLinks.start,pts:m.pts.map(p=>[...p])};
