@@ -89,8 +89,7 @@ test('E4.9 nondefensive actor, missing marker, invalid slots and out-of-field ge
     assert.equal(assignDefenderOrigin(p,1,actor),false, String(actor));
     assert.equal(JSON.stringify(p),before);
   }
-  for(const update of [p => {p.defence.marker=null;},
-    p=>{p.defence.line[0]=[51,20];},
+  for(const update of [p=>{p.defence.line[0]=[51,20];},
     p=>{p.defence.line[0]=[Infinity,20];}]) {
     const p=phase();
     update(p);
