@@ -49,7 +49,8 @@ with sync_playwright() as p:
                   f'[{width}] picker states phase-local endpoint, not person identity')
         first=pg.evaluate("""() => {
           const d=window.__team.state.ped.draft;
-          return {move:JSON.stringify(d.moves.at(-1)),phase2:JSON.stringify(d.phases[0])};
+          return {move:JSON.stringify(d.moves.at(-1)),phase2:JSON.stringify(d.phases[0]),
+            rm:[...d.players.RM]};
         }""")
         control.select_option('player:LR')
         attached=pg.evaluate("""() => {
@@ -58,7 +59,7 @@ with sync_playwright() as p:
             lr:[...d.players.LR],phase2:JSON.stringify(d.phases[0])};
         }""")
         checks.ok(attached['actor']=='player:LR' and
-                  attached['pts']==[[25,28],[28,32],attached['lr']] and
+                  attached['pts']==[first['rm'],[28,32],attached['lr']] and
                   attached['phase2']==first['phase2'],
                   f'[{width}] explicit run end connects within phase 1, retaining bend/phase 2')
         checks.ok('Attached' in pg.locator('#ped-precision').inner_text() and
