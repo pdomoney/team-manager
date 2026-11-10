@@ -49,11 +49,11 @@ For Issue #166 track six E3 subphases, each treated as one milestone for a simpl
 | E3.1 structural profile validator | 100% |  |  |
 | E3.2 governing references | 100% |  |  |
 | E3.3 coach format review | 100% |  |  |
-| E3.4 local rules / actual approved formation | 0% accepted until additional approval; source evidence proposed | Evidence intake + fail-closed tests in this PR | Exact local format, independent rule and formation review, owner acceptance |
+| E3.4 local rules / actual approved formation | 33.3% accepted (2/6 preliminary checkpoints from prior merged E3.2/E3.3) | Third checkpoint, safe edition/local source intake, in this PR; approval still open | Exact local format, independent rule and formation review, owner acceptance |
 | E3.5 selected real profile editor integration | 0% |  | Requires E3.4 real accepted profile |
 | E3.6 compatibility + sporting/visual device acceptance | 0% |  | Requires E3.5 + owner/device acceptance |
 
-Merged/accepted **E3: 3 of 6 milestones = 50%**. This is not a claim that half of code complexity or sporting readiness has been delivered. E3.4's evidence intake can be separately counted as **3 of 6 evidence gates supplied in a complete synthetic packet (50% prepared, 0% sporting/owner-approved)** after tests pass. Do not silently mark 4–6 completed when the user submits a URL or a name. In PR review, report accepted-main and PR-source progress separately; after merge, update the subphase tracking without reweighting history.
+Merged/accepted **E3 overall: 55.6%**, calculated as `(3 completed subphases + 2/6 accepted E3.4 preliminary checkpoints) / 6 equally weighted E3 subphases`. This is a checklist ratio, **not** a claim about code complexity or sporting readiness. Once this source PR passes, merges and is owner-accepted, E3.4 becomes **3/6 = 50%** and overall E3 **58.3%**. The synthetic packet can demonstrate three inputs, but **0/3 independent sporting/owner approvals**. Do not silently mark 4–6 completed when the user submits a URL or a name. In PR review, report accepted-main and PR-source progress separately; after merge, update the subphase tracking without reweighting history.
 
 ## Qualification and next owner action
 
