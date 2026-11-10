@@ -3881,3 +3881,12 @@ body.persona-mode .top{background:var(--turf)}
 #sheet .sport-format-result .e34-local-checks a{
   color:#B7E6FA;
 }
+
+
+/* E4.7: a tall selected-run inspector can compress the 390px editor stage.
+   Keep the existing view/Undo toolbar tappable above the floating precision
+   palette when they overlap, without resizing the field or moving actors. */
+#sheet .play-editor-workspace #ped-diagram .ped-under{
+  position:relative;
+  z-index:6;
+}
