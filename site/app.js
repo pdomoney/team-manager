@@ -35,6 +35,7 @@ import { editorArtworkScale, editorInteractionScale } from './play-editor-art-sc
 import { watchArtworkScale } from './play-watch-art-scale.js';
 import { learnArtworkScale } from './play-learn-art-scale.js';
 import { captureEditorPointer, cancelEditorPointer, captureEditorPointerContext, matchesEditorPointerContext } from './play-editor-pointer.js';
+import { beginsEditorPointerDrag } from './play-editor-drag-intent.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportFormatReviewOptions, coachSportFormatReview } from './play-format-review.js';
 import { assessE34RulesEvidence, e34EvidenceBrief } from './play-format-evidence.js';
@@ -4793,6 +4794,7 @@ function bindPlayEditor() {
     if (!before) { pointerIds.delete(e.pointerId); return; }
     E.lockView = pedViewport(E);
     drag = { p0: p, moved: false, tap: t, pointerId: e.pointerId,
+      origin: { x: e.clientX, y: e.clientY, pointerType: e.pointerType },
       before, scrollLeft: card?.scrollLeft || 0, scrollTop: card?.scrollTop || 0 };
     if (E.placing) {
       drag.context = captureEditorPointerContext(E);
@@ -4853,7 +4855,10 @@ function bindPlayEditor() {
     if (drag.kind === 'placing') return;
     const p = toMetres(e), d = pedCur(E);
     if (!drag.moved) {
-      if (dist(p, drag.p0) < 0.6) return;
+      // A field-unit threshold becomes a different physical movement at
+      // Fit and 200% zoom. Use a pointer-specific CSS-pixel intent threshold
+      // so a small finger wobble cannot detach a V1 connected path.
+      if (!beginsEditorPointerDrag(drag.origin, e.clientX, e.clientY)) return;
       drag.moved = true;
       if (!['draw', 'label', 'none'].includes(drag.kind)) {
         pedSnap();
