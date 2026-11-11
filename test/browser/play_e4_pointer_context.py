@@ -136,6 +136,34 @@ with sync_playwright() as p:
             JSON.stringify(E.draft)===window.__e4122Source;
         }"""),f'[{width}] handle switch aborts stale touch pointer, no cross-handle edit')
 
+        # Zoom while a finger is held changes the viewport. The unfinished
+        # stroke must be rolled back before the screen coordinate mapping
+        # changes, but the requested zoom setting must still take effect.
+        pg.evaluate("""() => window.__e4122Stream('#ped-field svg [data-pl="LM"]','touch',66)""")
+        pg.evaluate("window.__e4122Move()")
+        oldZoom=pg.evaluate('window.__team.state.ped.zoom')
+        pg.locator('[data-act=ped-zoom-in]').click()
+        pg.evaluate("window.__e4122End()")
+        checks.ok(pg.evaluate('window.__team.state.ped.zoom')>oldZoom and
+                  pg.evaluate("""() => {
+                    const E=window.__team.state.ped;
+                    return JSON.stringify(E.draft)===window.__e4122Source &&
+                      E.undo.length===0 && E.lockView===null;
+                  }"""),
+                  f'[{width}] zoom aborts active touch drag without losing viewport choice')
+
+        # Undo during a dragging pen cancels that unfinished stroke first.
+        # It cannot leave a half-drawn line or consume older completed history.
+        pg.evaluate("""() => window.__e4122Stream('#ped-field svg [data-pl="LM"]','pen',67)""")
+        pg.evaluate("window.__e4122Move()")
+        pg.locator('[data-act=ped-undo]').click()
+        pg.evaluate("window.__e4122End()")
+        checks.ok(pg.evaluate("""() => {
+          const E=window.__team.state.ped;
+          return JSON.stringify(E.draft)===window.__e4122Source &&
+            E.undo.length===0 && E.lockView===null;
+        }"""),f'[{width}] Undo cancels incomplete pen gesture before committed edit')
+
         # Gesture handler remains usable after cancellation, not locked out.
         pg.evaluate("""() => window.__e4122Stream('#ped-field svg [data-pl="LM"]','touch',65)""")
         pg.evaluate("window.__e4122Move()")
