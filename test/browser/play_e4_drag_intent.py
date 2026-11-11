@@ -105,8 +105,36 @@ with sync_playwright() as p:
                 E.undo.length===0 &&
                 JSON.stringify(E.draft)===window.__e4123Original;
             }"""),f'[{width}/{mode}] touch selects connected Start handle without unlinking')
+            # Default Snap-On can return a short intentional drag to its
+            # original actor when the zoom makes that movement <0.65 field
+            # units. Returning to identical geometry must not leave Undo.
             pg.evaluate("""([sel,typ,delta,id]) =>
               window.__e4123Pointer(sel,typ,delta,id)""",[h,'touch',24,93])
+            snapped=pg.evaluate("""() => {
+              const E=window.__team.state.ped,m=E.draft.moves.at(-1);
+              return {changed:JSON.stringify(E.draft)!==window.__e4123Original,
+                undo:E.undo.length,dirty:E.dirty,
+                other:JSON.stringify(E.draft.phases[0]),
+                end:m.actorLinks.end,start:m.actorLinks.start};
+            }""")
+            checks.ok(snapped['other']==pg.evaluate('window.__e4123Other') and
+                      snapped['end']=='player:RM' and
+                      (snapped['undo']==1 if snapped['changed'] else
+                       snapped['undo']==0 and snapped['dirty'] is False and
+                       snapped['start']=='player:LM'),
+                      f'[{width}/{mode}] Snap-On drag either edits once or leaves clean V1 links: {snapped!r}')
+            if snapped['changed']:
+                pg.locator('[data-act=ped-undo]').click()
+            checks.ok(pg.evaluate('JSON.stringify(window.__team.state.ped.draft)')==initial,
+                      f'[{width}/{mode}] Snap-On drag or Undo returns the original path')
+
+            # Disable snap explicitly for the genuine free endpoint move,
+            # so this remains a positive control even at 200% desktop zoom.
+            pg.locator('[data-act=ped-snap]').click()
+            checks.ok(pg.locator('[data-act=ped-snap]').get_attribute('aria-pressed')=='false',
+                      f'[{width}/{mode}] coach can disable Snap for precise free movement')
+            pg.evaluate("""([sel,typ,delta,id]) =>
+              window.__e4123Pointer(sel,typ,delta,id)""",[h,'touch',24,94])
             handle=pg.evaluate("""() => {
               const E=window.__team.state.ped,m=E.draft.moves.at(-1);
               return {changed:JSON.stringify(E.draft)!==window.__e4123Original,
@@ -116,10 +144,13 @@ with sync_playwright() as p:
             checks.ok(handle['changed'] and handle['undo']==1 and
                       handle['other']==pg.evaluate('window.__e4123Other') and
                       handle['end']=='player:RM',
-                      f'[{width}/{mode}] deliberate Start-handle drag retains opposite actor and phase')
+                      f'[{width}/{mode}] Snap-Off Start movement retains opposite link and phase: {handle!r}')
             pg.locator('[data-act=ped-undo]').click()
             checks.ok(pg.evaluate('JSON.stringify(window.__team.state.ped.draft)')==initial,
-                      f'[{width}/{mode}] Undo restores handle movement and attached origin')
+                      f'[{width}/{mode}] Undo restores free handle movement and attached origin')
+            pg.locator('[data-act=ped-snap]').click()
+            checks.ok(pg.locator('[data-act=ped-snap]').get_attribute('aria-pressed')=='true',
+                      f'[{width}/{mode}] Snap-On default is restored for the next edit')
         checks.ok(pg.evaluate("""() => JSON.stringify(
           window.__team.data.plays.find(x=>x.id==='quickie-out')
         )""")==stored,f'[{width}] changing draft never touches stored Step Out')
