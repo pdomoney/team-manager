@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { captureEditorPointer, cancelEditorPointer } from '../site/play-editor-pointer.js';
+import { captureEditorPointer, cancelEditorPointer, settleUnchangedEditorPointer } from '../site/play-editor-pointer.js';
 
 const editor = () => ({
   draft: {
@@ -60,4 +60,41 @@ test('invalid snapshot is a no-op, never wipes a working editor', () => {
   assert.equal(cancelEditorPointer(e, { draft: '{}', undo: null }), false);
   assert.deepEqual(e, before);
   assert.equal(captureEditorPointer({ draft: {}, undo: null }), null);
+});
+
+test('E4.12.3 returning a snapped V1 handle to the same actor removes only the phantom Undo', () => {
+  const e=editor(), original=structuredClone(e), before=captureEditorPointer(e);
+  e.undo.push({ draft: JSON.stringify(e.draft) });
+  e.draft.moves[0].pts[0] = [15.4, 30];
+  e.draft.moves[0].pts[0] = [15, 30]; // existing Snap On returned to LM
+  e.dirty = true;
+  assert.equal(settleUnchangedEditorPointer(e, before), true);
+  assert.deepEqual(e.undo, original.undo);
+  assert.equal(e.dirty, original.dirty);
+  assert.deepEqual(e.draft.moves[0].actorLinks, original.draft.moves[0].actorLinks);
+});
+
+test('E4.12.3 an actual endpoint edit retains its Undo and previous dirty state', () => {
+  const e=editor(), before=captureEditorPointer(e);
+  e.undo.push({ draft: JSON.stringify(e.draft) });
+  e.draft.moves[0].pts[0] = [17, 31];
+  e.draft.moves[0].actorLinks = { end: 'player:RM' };
+  e.dirty = true;
+  assert.equal(settleUnchangedEditorPointer(e, before), false);
+  assert.equal(e.undo.length, 2);
+  assert.equal(e.dirty, true);
+  assert.deepEqual(e.draft.moves[0].pts[0], [17, 31]);
+});
+
+test('E4.12.3 after existing edits, a snap-back keeps prior Undo history and dirty state', () => {
+  const e=editor();
+  e.undo.push({ draft: '{"earlier":true}' }); e.dirty=true;
+  const before=captureEditorPointer(e), snapshot=JSON.stringify(e.draft);
+  e.undo.push({ draft: snapshot });
+  e.draft.moves[0].pts[0] = [15.4, 30];
+  e.draft.moves[0].pts[0] = [15, 30];
+  assert.equal(settleUnchangedEditorPointer(e, before), true);
+  assert.deepEqual(e.undo, before.undo);
+  assert.equal(e.dirty, true);
+  assert.equal(settleUnchangedEditorPointer(e, null), false);
 });

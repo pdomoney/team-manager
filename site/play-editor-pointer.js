@@ -59,3 +59,18 @@ export function matchesEditorPointerContext(editor, context) {
     JSON.stringify(editor.sel ?? null) === context.selection &&
     (editor.selH ?? null) === context.handle;
 }
+
+/** Release a gesture's phantom Undo if snapping returns the entire draft to
+ *  its exact pre-pointer state. Never discard earlier completed edits. */
+export function settleUnchangedEditorPointer(editor, before) {
+  if (!editor || !before || typeof before.draft !== 'string' ||
+      !Array.isArray(before.undo)) return false;
+  try {
+    if (JSON.stringify(editor.draft) !== before.draft) return false;
+  } catch {
+    return false;
+  }
+  editor.undo = before.undo.slice();
+  editor.dirty = before.dirty;
+  return true;
+}
