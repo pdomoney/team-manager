@@ -11,9 +11,10 @@ The select tool currently calls `dist(p, drag.p0) < 0.6` to determine whether a 
 ## Change
 
 - New pure helper `site/play-editor-drag-intent.js` uses initial/current **client pixel** distance: 8px touch, 5px pen, 3px mouse/unknown pointer. Invalid positions fail closed. This threshold is not saved or a sporting field measurement.
+- `site/play-editor-pointer.js` and the editor's pointer-release path restore the pre-gesture Undo/dirty state **only when the final draft is byte-identical** to the pre-gesture snapshot. This covers a Snap-On short drag returned to the same actor; it preserves prior completed Undo entries and never discards actual edits.
 - `site/app.js`: capture pointer's client origin; use this helper only where the existing **non-pan, non-phase-placement** drag activation was previously in field units. The existing pointer-context guard, pointer cancellation, snap, Undo, zoom rendering, 8-slot legacy diagram, `moves[].pts`, V1 metadata and user-role checks remain unchanged.
-- `test/play-editor-drag-intent.test.js`: 4 Node tests for threshold boundaries, negative and diagonal movements, zoom independence and malformed input.
-- `test/browser/play_e4_drag_intent.py`: actual synthetic mouse, touch and pen events through the live coach editor at 390px and 1280px, each at Fit and manual zoom. Verify jitter selects without moving/detaching, deliberate line/body movement frees V1 actor references as designed, deliberate handle movement preserves opposite reference and phase data, Undo restores links and geometry, Cancel preserves saved Step Out, player preview remains read-only.
+- `test/play-editor-drag-intent.test.js`: 4 Node tests for threshold boundaries, negative and diagonal movements, zoom independence and malformed input; `test/play-editor-pointer.test.js` adds 3 tests for no-op snap-back, real changes and pre-existing dirty/Undo history.
+- `test/browser/play_e4_drag_intent.py`: actual synthetic mouse, touch and pen events through the live coach editor at 390px and 1280px, each at Fit and manual zoom. Verify jitter selects without moving/detaching, deliberate line/body movement frees V1 actor references as designed, **Snap-On** may return the handle to an actor with no net edit/no phantom Undo, **Snap-Off** allows deliberate free handle movement while preserving the opposite reference, Undo restores links and geometry, Cancel preserves saved Step Out, player preview remains read-only.
 
 ## Boundaries and qualification
 
