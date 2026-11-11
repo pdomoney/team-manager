@@ -3890,3 +3890,34 @@ body.persona-mode .top{background:var(--turf)}
   position:relative;
   z-index:6;
 }
+
+
+/* E4.12: keep the selected endpoint connection available when the phone
+   inspector is collapsed, without expanding the canvas or zooming icons. */
+#sheet .play-editor-workspace #ped-diagram .ped-precision-link{
+  display:inline-flex;
+  align-items:center;
+  flex:0 1 auto;
+  flex-wrap:wrap;
+  gap:4px 6px;
+  min-width:0;
+  max-width:100%;
+  font-size:12px;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision-link label{
+  white-space:nowrap;
+  font-size:12px;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision-link select{
+  width:clamp(112px,22vw,158px);
+  max-width:100%;
+  min-height:40px;
+  margin:0;
+  padding:6px;
+  font-size:13px;
+}
+#sheet .play-editor-workspace #ped-diagram .ped-precision-link-note{
+  font-size:11px;
+  color:var(--muted);
+  white-space:nowrap;
+}

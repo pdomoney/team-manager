@@ -28,6 +28,7 @@ import { studyCards, cueRoles } from './play-study.js';
 import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassPasser, assignPassReceiver, receiverFollowOnRun, assignRunOrigin, freeRunOrigin, assignRunEndpoint, freeRunEndpoint, assignDefenderOrigin, freeDefenderOrigin } from './play-actor-links.js';
 import { coachPlayConnectionNotice } from './play-link-warning.js';
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
+import { connectedPathEndpoint, previewConnectedPathChange, changeConnectedPathEndpoint } from './play-connected-path-edit.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
 import { previewBendInsertion, insertMovementBend, canRemoveMovementBend, removeMovementBend } from './play-editor-bends.js';
 import { editorArtworkScale, editorInteractionScale } from './play-editor-art-scale.js';
@@ -4534,10 +4535,21 @@ function refreshPedPrecision(E) {
   const canInsert = isLine && selected && !!previewBendInsertion(d, sel.i, h);
   const canRemove = isLine && selected && canRemoveMovementBend(d, sel.i, h);
   const step = Number(E.precisionStep) || 0.5;
+  const connection = isLine && selected ? connectedPathEndpoint(d, sel.i, h) : null;
+  const connectionUI = connection ? `<span class="ped-precision-link" role="group" aria-label="Phase ${E.phase + 1} ${connection.endpoint} connection">
+      <label for="ped-connection-choice">${connection.endpoint === 'start' ? 'Start' : 'End'} link</label>
+      <select id="ped-connection-choice" data-change="ped-connect-point" aria-label="Phase ${E.phase + 1} ${connection.endpoint} actor connection">
+        <option value="" ${!connection.actorKey ? 'selected' : ''} ${line.t === 'pass' ? 'disabled' : ''}>${line.t === 'pass' ? 'Choose player' : 'Free field point'}</option>
+        ${connection.choices.map(option => `<option value="${esc(option.key)}" ${option.key === connection.actorKey ? 'selected' : ''} ${option.disabled ? 'disabled' : ''}>${esc(option.key.startsWith('player:') ? whoOf(E.draft, option.name) || option.name : option.name)}</option>`).join('')}
+      </select>
+      ${connection.status === 'needs-repair' ? '<button type="button" class="btn sm" data-act="ped-connect-repair">Repair link</button>' : ''}
+      <span class="ped-precision-link-note" role="status">${connection.status === 'linked' ? 'Attached' : connection.status === 'needs-repair' ? 'Needs repair' : connection.status === 'free-field' ? 'Free' : 'Unresolved'} · Phase ${E.phase + 1} only</span>
+    </span>` : '';
   const buttons = [['up', '↑', 0, -1], ['left', '←', -1, 0], ['right', '→', 1, 0], ['down', '↓', 0, 1]]
     .map(([name, glyph, dx, dy]) => `<button class="btn sm" type="button" data-act="ped-precision-nudge" data-dx="${dx}" data-dy="${dy}" aria-label="Nudge ${esc(label)} ${name} ${step} diagram units" ${!selected ? 'disabled' : ''}>${glyph}</button>`).join('');
   bar.innerHTML = `<strong class="ped-precision-title">${esc(label)}${isLine && selected ? ' · point ' + (h + 1) : ''}</strong>
     ${handleOptions}
+    ${connectionUI}
     ${isLine ? `<span class="ped-precision-bends" role="group" aria-label="Edit movement bends">
       <button type="button" class="btn sm" data-act="ped-precision-add-bend" ${canInsert ? '' : 'disabled'}>+ Bend</button>
       <button type="button" class="btn sm" data-act="ped-precision-remove-bend" ${canRemove ? '' : 'disabled'}>Remove bend</button>
@@ -4550,6 +4562,25 @@ function refreshPedPrecision(E) {
     </select></label>`;
   const pointRail = bar.querySelector('.ped-precision-points');
   if (pointRail) pointRail.scrollLeft = priorPointScroll;
+}
+// A one-tap/keyboard replacement for dragging a tiny endpoint on a zoomed
+// board. The phase-local preview must succeed BEFORE the undo snapshot.
+function pedChangeConnection(actorKey) {
+  const E = state.ped;
+  if (!isCoach() || !E || E.tool !== 'select' || E.placing || E.sel?.k !== 'mv') return false;
+  const d = pedCur(E), i = E.sel.i, h = E.selH;
+  if (!previewConnectedPathChange(d, i, h, actorKey)) {
+    toast('Connection unchanged. Check overlapping actors or choose another endpoint.');
+    refreshPedPrecision(E);
+    return false;
+  }
+  pedSnap();
+  if (!changeConnectedPathEndpoint(d, i, h, actorKey)) {
+    pedUndo();
+    return false;
+  }
+  refreshPlayEditor();
+  return true;
 }
 function pedNudgeSelected(dx, dy) {
   const E = state.ped;
@@ -9562,6 +9593,11 @@ const actions = {
     refreshPlayEditor();
     $('#ped-field')?.focus({ preventScroll: true });
   }),
+  'ped-connect-repair': coachOnly(() => {
+    const E = state.ped, d = E && pedCur(E);
+    const link = E?.sel?.k === 'mv' ? connectedPathEndpoint(d, E.sel.i, E.selH) : null;
+    if (link?.status === 'needs-repair') pedChangeConnection(link.actorKey);
+  }),
   'ped-precision-nudge': coachOnly(el => {
     const E = state.ped, step = Number(E?.precisionStep) || 0.5;
     const dx = Number(el.dataset.dx), dy = Number(el.dataset.dy);
@@ -10388,6 +10424,10 @@ document.addEventListener('change', e => {
   if (k === 'msg-session') { state.msgSession = e.target.value; state.msgDraft = buildTemplate(state.msgTpl); render(); }
   if (k === 'post-notice') state.postNotice = e.target.checked;
   if (k === 'ped-list' && state.ped) { pedSetList(e.target.value); refreshPlayEditor(); toast(`Showing ${getSet(e.target.value).name} labels`); }
+  if (k === 'ped-connect-point' && state.ped && isCoach()) {
+    pedChangeConnection(e.target.value);
+    return;
+  }
   if (k === 'ped-precision-step' && state.ped) {
     const next = Number(e.target.value);
     if (![0.5, 1, 2].includes(next)) return;
