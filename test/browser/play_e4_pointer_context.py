@@ -131,10 +131,11 @@ with sync_playwright() as p:
         pg.evaluate("window.__e4122End()")
         checks.ok(pg.evaluate("""() => {
           const E=window.__team.state.ped;
-          return E.phase===1 && E.tool==='select' && E.sel===null &&
-            E.selH===null && E.undo.length===0 &&
+          return E.phase===1 && E.tool==='select' &&
+            E.sel?.k==='mv' && E.sel.i===0 && E.selH===1 &&
+            E.undo.length===0 && E.lockView===null &&
             JSON.stringify(E.draft)===window.__e4122Source;
-        }"""),f'[{width}] handle switch aborts stale touch pointer, no cross-handle edit')
+        }"""),f'[{width}] handle switch aborts old touch while honoring new End selection')
 
         # Zoom while a finger is held changes the viewport. The unfinished
         # stroke must be rolled back before the screen coordinate mapping
