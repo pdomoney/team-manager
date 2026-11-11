@@ -36,6 +36,7 @@ import { watchArtworkScale } from './play-watch-art-scale.js';
 import { learnArtworkScale } from './play-learn-art-scale.js';
 import { captureEditorPointer, cancelEditorPointer, captureEditorPointerContext, matchesEditorPointerContext, settleUnchangedEditorPointer } from './play-editor-pointer.js';
 import { beginsEditorPointerDrag } from './play-editor-drag-intent.js';
+import { nearestEditorHandle } from './play-editor-handle-hit.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportFormatReviewOptions, coachSportFormatReview } from './play-format-review.js';
 import { assessE34RulesEvidence, e34EvidenceBrief } from './play-format-evidence.js';
@@ -4804,9 +4805,22 @@ function bindPlayEditor() {
       return;
     }
     const h = hit('[data-h]'), add = hit('[data-hadd]'), fe = hit('[data-fe]'), fb = hit('[data-fb]');
-    if (E.sel && E.sel.k === 'mv' && d.moves[E.sel.i] && (h || add)) {
+    // WebKit touch may target the topmost overlapping endpoint hit circle,
+    // not the nearest actual handle. Resolve from CSS-pixel centres only when
+    // the hit was already a movement handle; never infer actor identity.
+    const handleIndex = h ? nearestEditorHandle(
+      [...s.querySelectorAll('circle.ped-handle-hit[data-h]')].map(circle => {
+        const r = circle.getBoundingClientRect();
+        return { index: Number(circle.dataset.h), x: r.left + r.width / 2,
+          y: r.top + r.height / 2, radius: Math.min(r.width, r.height) / 2 };
+      }), e.clientX, e.clientY) : null;
+    if (h && handleIndex === null && E.sel?.k === 'mv') {
+      // Truly indistinguishable endpoints stay unselected rather than
+      // silently changing a line; Start/End remain in the precision toolbar.
+      drag.kind = 'none';
+    } else if (E.sel && E.sel.k === 'mv' && d.moves[E.sel.i] && (add || handleIndex !== null)) {
       if (add) { pedSnap(); const j = +add.dataset.hadd + 1; d.moves[E.sel.i].pts.splice(j, 0, p); E.selH = j; Object.assign(drag, { kind: 'handle', j, moved: true }); }
-      else { E.selH = +h.dataset.h; Object.assign(drag, { kind: 'handle', j: E.selH }); }
+      else { E.selH = handleIndex; Object.assign(drag, { kind: 'handle', j: E.selH }); }
       refreshPlayEditor();
     } else if (E.tool === 'pan') {
       const card = box.closest('.ped-card');
