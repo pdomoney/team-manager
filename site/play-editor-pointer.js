@@ -36,3 +36,26 @@ export function cancelEditorPointer(editor, before) {
   editor.canvasPositioned = before.canvasPositioned;
   return true;
 }
+
+
+// E4.12.2: a pointer belongs to the exact editor, phase, tool and selected
+// tactical handle where it started. A second tap on an out-of-stage control
+// must not resume that old gesture against another phase or path.
+export function captureEditorPointerContext(editor) {
+  if (!editor || !Number.isInteger(editor.phase) ||
+      typeof editor.tool !== 'string') return null;
+  return {
+    editor,
+    phase: editor.phase,
+    tool: editor.tool,
+    selection: JSON.stringify(editor.sel ?? null),
+    handle: editor.selH ?? null
+  };
+}
+
+export function matchesEditorPointerContext(editor, context) {
+  return !!editor && !!context && editor === context.editor &&
+    editor.phase === context.phase && editor.tool === context.tool &&
+    JSON.stringify(editor.sel ?? null) === context.selection &&
+    (editor.selH ?? null) === context.handle;
+}
