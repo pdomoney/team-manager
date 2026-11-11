@@ -116,7 +116,16 @@ with sync_playwright() as p:
           return d.phases[0].moves[0].actorLinks.start==='player:RM';
         }"""),f'[{width}] phase 2 Undo restores its original actor')
 
-        # Re-select a stale link in place instead of requiring an exact touch drag.
+        # Undo intentionally clears the selected point handle. The coach
+        # must select Start again before asking to repair its V1 connection.
+        checks.ok(pg.evaluate('window.__team.state.ped.selH') is None,
+                  f'[{width}] Undo clears the active movement handle')
+        start=pg.locator('#ped-precision [data-act=ped-precision-handle][data-j="0"]')
+        start.click()
+        checks.ok(start.get_attribute('aria-pressed')=='true' and
+                  pg.evaluate('window.__team.state.ped.selH')==0,
+                  f'[{width}] coach reselects Start in compact toolbar after Undo')
+        # Simulate a pre-existing stale V1 endpoint without mutating saved play.
         pg.evaluate("""() => {
           const E=window.__team.state.ped;
           E.draft.phases[0].moves[0].pts[0]=[24,30];
