@@ -4855,7 +4855,14 @@ function bindPlayEditor() {
     if (!drag.moved) {
       if (dist(p, drag.p0) < 0.6) return;
       drag.moved = true;
-      if (!['draw', 'label', 'none'].includes(drag.kind)) pedSnap();
+      if (!['draw', 'label', 'none'].includes(drag.kind)) {
+        pedSnap();
+        // The precision toolbar may not be redrawn during a pointermove.
+        // As soon as there is an active undo snapshot, let Undo cancel this
+        // unfinished touch/pen drag without waiting for another UI refresh.
+        const undoButton = $('[data-act="ped-undo"]');
+        if (undoButton) undoButton.disabled = false;
+      }
     }
     const dx = p[0] - drag.p0[0], dy = p[1] - drag.p0[1];
     const shift = q => [clamp(round1(q[0] + dx), 0, 50), clamp(round1(q[1] + dy), 0, 80)];
