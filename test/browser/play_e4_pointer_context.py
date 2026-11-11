@@ -72,7 +72,7 @@ with sync_playwright() as p:
           const E=window.__team.state.ped;
           return E.phase===1 && E.tool==='select' && E.sel===null &&
             E.selH===null && JSON.stringify(E.draft)===window.__e4122Source &&
-            E.undo.length===0 && E.stableViewport===null;
+            E.undo.length===0 && E.lockView===null;
         }"""),f'[{width}] phase switch cancels touch drag with no orphan line or Undo')
         checks.ok(pg.evaluate("""() => JSON.stringify(
           window.__team.state.ped.draft.phases[0])===window.__e4122PhaseTwo
