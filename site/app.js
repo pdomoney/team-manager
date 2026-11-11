@@ -34,7 +34,7 @@ import { previewBendInsertion, insertMovementBend, canRemoveMovementBend, remove
 import { editorArtworkScale, editorInteractionScale } from './play-editor-art-scale.js';
 import { watchArtworkScale } from './play-watch-art-scale.js';
 import { learnArtworkScale } from './play-learn-art-scale.js';
-import { captureEditorPointer, cancelEditorPointer } from './play-editor-pointer.js';
+import { captureEditorPointer, cancelEditorPointer, captureEditorPointerContext, matchesEditorPointerContext } from './play-editor-pointer.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportFormatReviewOptions, coachSportFormatReview } from './play-format-review.js';
 import { assessE34RulesEvidence, e34EvidenceBrief } from './play-format-evidence.js';
@@ -4710,7 +4710,23 @@ function bindPlayEditor() {
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     if (!E || !k) return;
     try { box.releasePointerCapture(k.pointerId); } catch (err) { /* already released */ }
+    // A different editor instance may have opened while this pointer was
+    // captured. Never restore its draft into the new editor.
+    if (E !== k.context?.editor) return;
+    const contextChanged = !matchesEditorPointerContext(E, k.context);
+    const switchedPhase = E.phase !== k.context.phase;
     cancelEditorPointer(E, k.before);
+    if (contextChanged) {
+      // Old phase/handle selection does not belong in the newly selected
+      // phase or tool. A canceled gesture is not an inferred cross-phase edit.
+      E.sel = null;
+      E.selH = null;
+      E.drawing = null;
+      if (switchedPhase) {
+        E.stableViewport = null;
+        E.canvasPositioned = false;
+      }
+    }
     snapStatus(null);
     refreshPlayEditor();
     const card = box.closest('.ped-card');
@@ -4766,6 +4782,7 @@ function bindPlayEditor() {
     drag = { p0: p, moved: false, tap: t, pointerId: e.pointerId,
       before, scrollLeft: card?.scrollLeft || 0, scrollTop: card?.scrollTop || 0 };
     if (E.placing) {
+      drag.context = captureEditorPointerContext(E);
       drag.kind = 'placing'; // Commit the phase on release, not on a canceled tap.
       try { box.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
       e.preventDefault();
@@ -4803,12 +4820,18 @@ function bindPlayEditor() {
       refreshPlayEditor();
       if (E.tool === 'select' && E.sel) box.focus({ preventScroll: true });
     }
+    // Selection may have been set on this pointerdown (actor or handle).
+    drag.context = captureEditorPointerContext(E);
     try { box.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
     e.preventDefault();
   });
   box.addEventListener('pointermove', e => {
     const E = state.ped;
     if (!drag || !E || multiPointerBlocked || e.pointerId !== drag.pointerId) return;
+    if (!matchesEditorPointerContext(E, drag.context)) {
+      abortGesture();
+      return;
+    }
     if (drag.kind === 'pan') {
       const card = box.closest('.ped-card');
       if (card) { card.scrollLeft = drag.scrollLeft - (e.clientX - drag.clientX); card.scrollTop = drag.scrollTop - (e.clientY - drag.clientY); }
@@ -4853,6 +4876,10 @@ function bindPlayEditor() {
       return;
     }
     if (!drag || drag.pointerId !== e.pointerId) return;
+    if (!matchesEditorPointerContext(state.ped, drag.context)) {
+      abortGesture();
+      return;
+    }
     const E = state.ped, k = drag; drag = null;
     snapStatus(null);
     try { box.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
