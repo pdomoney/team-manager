@@ -30,6 +30,27 @@ def touchscreen_tap(pg, locator):
     pg.touchscreen.tap(x, y)
     return hit
 
+def touch_endpoint(pg, point_index):
+    """Use the field when visible; use its *existing* precision control when
+    the floating palette physically covers the endpoint at manual zoom.
+    This is a real touchscreen tap in either route, not a synthetic click.
+    """
+    field = pg.locator(
+        '#ped-field svg circle.ped-handle-hit[data-h="' + str(point_index) + '"]')
+    field.scroll_into_view_if_needed()
+    rect = field.bounding_box()
+    if rect is None:
+        raise RuntimeError('No bounds for endpoint ' + str(point_index))
+    x, y = rect['x'] + rect['width'] / 2, rect['y'] + rect['height'] / 2
+    covered = pg.evaluate("""([x,y]) => !!document.elementFromPoint(x,y)
+      ?.closest?.('#ped-precision')""", [x, y])
+    if covered:
+        button = pg.locator(
+            '#ped-precision [data-act=ped-precision-handle][data-j="' +
+            str(point_index) + '"]')
+        return {'route': 'precision', 'hit': touchscreen_tap(pg, button)}
+    return {'route': 'field', 'hit': touchscreen_tap(pg, field)}
+
 with sync_playwright() as p:
     browser = getattr(p, engine).launch()
     for width in (390, 1280):
@@ -84,8 +105,10 @@ with sync_playwright() as p:
             checks.ok(snapshot['draft'] == pg.evaluate('window.__e4124Initial') and
                       pg.evaluate('window.__team.state.ped.undo.length') == 0,
                       f'[{engine}/{width}/{mode}] starting point is an unchanged tactical draft')
-            start = pg.locator('#ped-field svg circle.ped-handle-hit[data-h="0"]')
-            touch_hit = touchscreen_tap(pg, start)
+            start_route = touch_endpoint(pg, 0)
+            if mode == 'fit':
+                checks.ok(start_route['route'] == 'field',
+                          f'[{engine}/{width}] Fit Start is directly touchable on drawing field')
             tapped = pg.evaluate("""() => {
               const E=window.__team.state.ped,m=E.draft.moves.at(-1);
               return {selection:E.sel?.k,handle:E.selH,
@@ -97,10 +120,12 @@ with sync_playwright() as p:
                       tapped['unchanged'] is True and tapped['undo'] == 0 and
                       tapped['dirty'] is False and tapped['phase'] == snapshot['phase'] and
                       tapped['links'] == '{"start":"player:LM","end":"player:RM"}',
-                      f'[{engine}/{width}/{mode}] browser-generated touch selects Start without moving or unlinking: state={tapped!r} touchTarget={touch_hit!r}')
+                      f'[{engine}/{width}/{mode}] browser-generated touch selects Start without moving or unlinking: state={tapped!r} tap={start_route!r}')
 
-            end = pg.locator('#ped-field svg circle.ped-handle-hit[data-h="2"]')
-            touchscreen_tap(pg, end)
+            end_route = touch_endpoint(pg, 2)
+            if mode == 'fit':
+                checks.ok(end_route['route'] == 'field',
+                          f'[{engine}/{width}] Fit End is directly touchable on drawing field')
             checks.ok(pg.evaluate("""() => {
               const E=window.__team.state.ped;
               return E.sel?.k==='mv' && E.selH===2 &&
