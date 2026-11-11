@@ -19,8 +19,16 @@ def touchscreen_tap(pg, locator):
     bounds = locator.bounding_box()
     if bounds is None:
         raise RuntimeError('Touch endpoint has no visible bounds')
-    pg.touchscreen.tap(bounds['x'] + bounds['width'] / 2,
-                       bounds['y'] + bounds['height'] / 2)
+    x, y = bounds['x'] + bounds['width'] / 2, bounds['y'] + bounds['height'] / 2
+    hit = pg.evaluate("""([x,y]) => {
+      const el=document.elementFromPoint(x,y), h=el?.closest?.('[data-h]');
+      return {tag:el?.tagName || null,
+        handle:h?.getAttribute('data-h') ?? null,
+        add:el?.closest?.('[data-hadd]')?.getAttribute('data-hadd') ?? null,
+        className:el?.getAttribute('class') || null};
+    }""", [x,y])
+    pg.touchscreen.tap(x, y)
+    return hit
 
 with sync_playwright() as p:
     browser = getattr(p, engine).launch()
@@ -77,19 +85,19 @@ with sync_playwright() as p:
                       pg.evaluate('window.__team.state.ped.undo.length') == 0,
                       f'[{engine}/{width}/{mode}] starting point is an unchanged tactical draft')
             start = pg.locator('#ped-field svg circle.ped-handle-hit[data-h="0"]')
-            touchscreen_tap(pg, start)
+            touch_hit = touchscreen_tap(pg, start)
             tapped = pg.evaluate("""() => {
               const E=window.__team.state.ped,m=E.draft.moves.at(-1);
               return {selection:E.sel?.k,handle:E.selH,
-                draft:JSON.stringify(E.draft),undo:E.undo.length,dirty:E.dirty,
-                links:JSON.stringify(m.actorLinks),
-                phase:E.phase};
+                unchanged:JSON.stringify(E.draft)===window.__e4124Initial,
+                undo:E.undo.length,dirty:E.dirty,
+                links:JSON.stringify(m.actorLinks),phase:E.phase};
             }""")
             checks.ok(tapped['selection'] == 'mv' and tapped['handle'] == 0 and
-                      tapped['draft'] == snapshot['draft'] and tapped['undo'] == 0 and
+                      tapped['unchanged'] is True and tapped['undo'] == 0 and
                       tapped['dirty'] is False and tapped['phase'] == snapshot['phase'] and
                       tapped['links'] == '{"start":"player:LM","end":"player:RM"}',
-                      f'[{engine}/{width}/{mode}] browser-generated touch selects Start without moving or unlinking: {tapped!r}')
+                      f'[{engine}/{width}/{mode}] browser-generated touch selects Start without moving or unlinking: state={tapped!r} touchTarget={touch_hit!r}')
 
             end = pg.locator('#ped-field svg circle.ped-handle-hit[data-h="2"]')
             touchscreen_tap(pg, end)
