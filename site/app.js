@@ -4631,6 +4631,7 @@ function refreshPlayEditor() {
 }
 function pedResizeCanvas(delta) {
   const E = state.ped, card = $('#ped-field')?.closest('.ped-card'); if (!E || !card) return;
+  E.cancelPointerGesture?.(); // zoom must not remap a finger's active drawing coordinates
   const before = E.zoom || 1, after = clamp(Math.round((before + delta) * 100) / 100, 0.1, 3);
   if (after === before) return;
   // Keep the same relative centre when resizing, never alter field coordinates.
@@ -4644,7 +4645,9 @@ function pedSyncTitle() {
   const E = state.ped, t = $('#ped-ptitle'); if (E && t) t.value = pedCur(E).title || '';
 }
 function pedSetPhase(i) {
-  const E = state.ped; E.phase = clamp(i, 0, E.draft.phases.length); E.stableViewport = null; E.canvasPositioned = false; E.snapPreview = null;
+  const E = state.ped;
+  E.cancelPointerGesture?.(); // a touch must not follow into a new phase
+  E.phase = clamp(i, 0, E.draft.phases.length); E.stableViewport = null; E.canvasPositioned = false; E.snapPreview = null;
   E.teachPhase = Math.min(E.teachPhase || 0, E.draft.phases.length); E.placing = false; pedSelect(null); E.drawing = null;
   pedSyncTitle(); refreshPlayEditor();
 }
@@ -4659,7 +4662,9 @@ function pedAddPhase(at) {
   const t = $('#ped-ptitle'); if (t) t.focus();
 }
 function pedUndo() {
-  const E = state.ped; if (!E || !E.undo.length) return;
+  const E = state.ped;
+  if (E?.cancelPointerGesture?.()) return; // first Undo cancels an unfinished gesture
+  if (!E || !E.undo.length) return;
   const step = E.undo.pop();
   E.draft = JSON.parse(step.draft); E.selH = null; E.drawing = null; E.textSnap = false;
   // A complete undo returns the play to its original draft; ordinary form
@@ -4734,6 +4739,14 @@ function bindPlayEditor() {
       card.scrollLeft = k.scrollLeft;
       card.scrollTop = k.scrollTop;
     }
+  };
+  // The controls outside the SVG can be tapped by another finger or a pen
+  // while this stage still owns a pointer. Roll back the unfinished gesture
+  // synchronously before switching tool, phase, zoom, or selected handle.
+  state.ped.cancelPointerGesture = () => {
+    if (!drag) return false;
+    abortGesture();
+    return true;
   };
   const snapStatus = (position, kind) => {
     const el = $('#ped-snap-status'), E = state.ped;
@@ -9578,9 +9591,9 @@ const actions = {
   'ped-quick-slow': coachOnly(() => { const q = state.ped?.quick; if (!q) return; q.slow = !q.slow; pedQuickButtons(); }),
   'ped-quick-restart': coachOnly(() => pedQuickRestart()),
   'ped-quick-phase': coachOnly(el => pedQuickPhase(Number(el.dataset.i))),
-  'ped-tool': coachOnly(el => { const E = state.ped; E.tool = el.dataset.t; E.drawing = null; E.snapPreview = null; if (E.tool !== 'select') pedSelect(null); refreshPlayEditor(); }),
+  'ped-tool': coachOnly(el => { const E = state.ped; E.cancelPointerGesture?.(); E.tool = el.dataset.t; E.drawing = null; E.snapPreview = null; if (E.tool !== 'select') pedSelect(null); refreshPlayEditor(); }),
   'ped-tab': coachOnly(el => {
-    const E = state.ped; if (E?.quick) pedQuickClose(false);
+    const E = state.ped; E.cancelPointerGesture?.(); if (E?.quick) pedQuickClose(false);
     E.tab = el.dataset.tab;
     if (E.tab === 'diagram') pedSetPhase(E.teachPhase);
     if (E.tab === 'teach') refreshPedTeaching();
@@ -9591,7 +9604,9 @@ const actions = {
   'ped-cancel': coachOnly(() => requestCloseSheet()),
   'ped-undo': coachOnly(() => pedUndo()),
   'ped-precision-handle': coachOnly(el => {
-    const E = state.ped, d = E && pedCur(E), i = E?.sel?.k === 'mv' ? E.sel.i : -1;
+    const E = state.ped;
+    E?.cancelPointerGesture?.();
+    const d = E && pedCur(E), i = E?.sel?.k === 'mv' ? E.sel.i : -1;
     const j = Number(el.dataset.j);
     if (!d?.moves?.[i]?.pts?.[j] || !Number.isInteger(j)) return;
     E.selH = j; refreshPlayEditor();
@@ -9639,10 +9654,10 @@ const actions = {
     const E = state.ped; if (!E.phase || !confirm(`Delete phase ${E.phase + 1}?`)) return;
     pedSnap(); E.draft.phases.splice(E.phase - 1, 1); pedSetPhase(E.phase - 1);
   }),
-  'ped-whole': coachOnly(() => { state.ped.whole = !state.ped.whole; state.ped.stableViewport = null; state.ped.canvasPositioned = false; refreshPlayEditor(); }),
-  'ped-snap': coachOnly(() => { state.ped.snapEnabled = !state.ped.snapEnabled; state.ped.snapPreview = null; refreshPlayEditor(); }),
-  'ped-fit': coachOnly(() => { state.ped.zoomMode = 'fit'; state.ped.canvasPositioned = false; refreshPlayEditor(); }),
-  'ped-inspector': coachOnly(() => { const E = state.ped; E.inspectorOpen = !E.inspectorOpen; E.canvasPositioned = false; refreshPlayEditor(); }),
+  'ped-whole': coachOnly(() => { state.ped.cancelPointerGesture?.(); state.ped.whole = !state.ped.whole; state.ped.stableViewport = null; state.ped.canvasPositioned = false; refreshPlayEditor(); }),
+  'ped-snap': coachOnly(() => { state.ped.cancelPointerGesture?.(); state.ped.snapEnabled = !state.ped.snapEnabled; state.ped.snapPreview = null; refreshPlayEditor(); }),
+  'ped-fit': coachOnly(() => { state.ped.cancelPointerGesture?.(); state.ped.zoomMode = 'fit'; state.ped.canvasPositioned = false; refreshPlayEditor(); }),
+  'ped-inspector': coachOnly(() => { const E = state.ped; E.cancelPointerGesture?.(); E.inspectorOpen = !E.inspectorOpen; E.canvasPositioned = false; refreshPlayEditor(); }),
   'ped-zoom-in': coachOnly(() => pedResizeCanvas(0.15)),
   'ped-zoom-out': coachOnly(() => pedResizeCanvas(-0.15)),
   'ped-del': coachOnly(() => pedDelete()),
