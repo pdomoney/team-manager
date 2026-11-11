@@ -75,3 +75,9 @@ jobs:
         env:
           B5_BROWSER_ENGINE: webkit
         run: python3 test/browser/play_b5_cross_device.py
+      - name: E4.12 connected-path precision and touch input on WebKit
+        env:
+          E412_GESTURE_ENGINE: webkit
+        run: |
+          python3 test/browser/play_e4_drag_intent.py
+          python3 test/browser/play_e4_touch_input.py
