@@ -1,14 +1,19 @@
-# E4.12.3: actual editor pointer events at Fit and manual zoom.
-# Synthetic Chromium touch, pen and mouse; not a physical Safari/stylus claim.
+# E4.12.4: qualify existing E4.12.3 editor pointer gestures on Chromium AND
+# Linux WebKit. Synthetic touch/pen/mouse, not physical Safari/stylus evidence.
+import os
 import sys
 from harness import *
 from playwright.sync_api import sync_playwright
+
+engine=os.environ.get('E412_GESTURE_ENGINE', 'chromium').lower()
+if engine not in ('chromium','webkit'):
+    raise SystemExit('Unsupported E412_GESTURE_ENGINE: ' + engine)
 
 build()
 srv,url=serve()
 checks,errors=Check(),[]
 with sync_playwright() as p:
-    browser=p.chromium.launch()
+    browser=getattr(p,engine).launch()
     for width in (390,1280):
         ctx,pg,_=page(browser,url+'#home',width=width,height=850,errors=errors)
         pg.get_by_text('Load a sample squad').click()
