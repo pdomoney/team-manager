@@ -155,15 +155,20 @@ with sync_playwright() as p:
 
         # Undo during a dragging pen cancels that unfinished stroke first.
         # It cannot leave a half-drawn line or consume older completed history.
+        checks.ok(pg.locator('[data-act=ped-undo]').is_disabled(),
+                  f'[{width}] Undo disabled with no committed action before pen gesture')
         pg.evaluate("""() => window.__e4122Stream('#ped-field svg [data-pl="LM"]','pen',67)""")
         pg.evaluate("window.__e4122Move()")
+        checks.ok(pg.locator('[data-act=ped-undo]').is_enabled(),
+                  f'[{width}] Undo becomes available during pending pen edit')
         pg.locator('[data-act=ped-undo]').click()
         pg.evaluate("window.__e4122End()")
         checks.ok(pg.evaluate("""() => {
           const E=window.__team.state.ped;
           return JSON.stringify(E.draft)===window.__e4122Source &&
             E.undo.length===0 && E.lockView===null;
-        }"""),f'[{width}] Undo cancels incomplete pen gesture before committed edit')
+        }""") and pg.locator('[data-act=ped-undo]').is_disabled(),
+                  f'[{width}] Undo cancels incomplete pen gesture with no phantom history')
 
         # Gesture handler remains usable after cancellation, not locked out.
         pg.evaluate("""() => window.__e4122Stream('#ped-field svg [data-pl="LM"]','touch',65)""")
