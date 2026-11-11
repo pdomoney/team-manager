@@ -34,7 +34,7 @@ import { previewBendInsertion, insertMovementBend, canRemoveMovementBend, remove
 import { editorArtworkScale, editorInteractionScale } from './play-editor-art-scale.js';
 import { watchArtworkScale } from './play-watch-art-scale.js';
 import { learnArtworkScale } from './play-learn-art-scale.js';
-import { captureEditorPointer, cancelEditorPointer, captureEditorPointerContext, matchesEditorPointerContext } from './play-editor-pointer.js';
+import { captureEditorPointer, cancelEditorPointer, captureEditorPointerContext, matchesEditorPointerContext, settleUnchangedEditorPointer } from './play-editor-pointer.js';
 import { beginsEditorPointerDrag } from './play-editor-drag-intent.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportFormatReviewOptions, coachSportFormatReview } from './play-format-review.js';
@@ -4937,6 +4937,10 @@ function bindPlayEditor() {
         rebindMovementEndpoint(d, E.sel.i, k.j);
       }
     }
+    // Snap-On may return a moved handle to its original actor, leaving
+    // the saved diagram byte-identical. Such a tap/drag is no edit: do not
+    // create a misleading Undo entry or dirty marker.
+    if (k.moved) settleUnchangedEditorPointer(E, k.before);
     E.lockView = null;
     refreshPlayEditor();
   };
