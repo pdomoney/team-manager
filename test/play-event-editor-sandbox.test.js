@@ -39,7 +39,7 @@ test('E5.3.2b timing sandbox is a sibling of the existing save form', () => {
     assert.equal(details.children.length, 1);
     assert.equal(details.children[0].textContent, 'Event timing (draft)');
     assert.match(panel.children[1].textContent, /Saving the play does not include these events/);
-    assert.equal(panel.children[3].tagName, undefined); // fake DOM independent of browser tags
+    assert.equal(panel.children[5].tagName, undefined); // fake DOM independent of browser tags
     assert.equal(controller.getHistory().present.events.length, 0);
     controller.destroy();
     assert.equal(panel.removed, true);
