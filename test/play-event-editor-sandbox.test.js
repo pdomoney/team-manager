@@ -26,14 +26,18 @@ test('E5.3.2b timing sandbox is a sibling of the existing save form', () => {
   try {
     let panel;
     const top = fakeElement();
+    const details = fakeElement();
+    details.prepend = (...children) => { details.children.unshift(...children); };
     const form = {
-      querySelector: selector => selector === '.ped-topline' ? top : null,
+      querySelector: selector => selector === '.ped-topline' ? top : selector === '#ped-words' ? details : null,
       after: value => { panel = value; }
     };
     const controller = attachCoachTimelineSandbox(form, { canCoachEdit: () => true });
     assert.ok(controller);
     assert.equal(panel.hidden, true);
-    assert.equal(top.children.length, 1);
+    assert.equal(top.children.length, 0);
+    assert.equal(details.children.length, 1);
+    assert.equal(details.children[0].textContent, 'Event timing (draft)');
     assert.match(panel.children[1].textContent, /Saving the play does not include these events/);
     assert.equal(panel.children[3].tagName, undefined); // fake DOM independent of browser tags
     assert.equal(controller.getHistory().present.events.length, 0);
