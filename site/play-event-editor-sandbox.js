@@ -34,7 +34,9 @@ export function attachCoachTimelineSandbox(playForm, { canCoachEdit } = {}) {
   panel.append(heading, note, status, mapping, mappingList, timingRoot);
   // The play form remains untouched; these independent forms cannot submit it.
   playForm.after(panel);
-  playForm.querySelector('.ped-topline')?.append(trigger);
+  // Keep the fixed-height diagram workspace and Fit geometry unchanged.
+  // The optional sandbox is launched from Play details, not the top toolbar.
+  playForm.querySelector('#ped-words')?.prepend(trigger);
   let history = createTimelineDraft().history;
   let controls = null;
   const refresh = () => {
