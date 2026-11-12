@@ -95,7 +95,9 @@ export function attachCoachTimelineSandbox(playForm, { canCoachEdit, getPlayDraf
     const phaseIndex = Number(values.get('phaseIndex'));
     const actorId = String(values.get('actorId') || '');
     const slotKey = String(values.get('slotKey') || '');
-    if (!Number.isSafeInteger(phaseIndex) || phaseIndex < 0 ||
+    const actualSlots = diagramMappingChoices(typeof getPlayDraft === 'function' ? getPlayDraft() : null);
+    const slotExists = actualSlots.some(p => p.phaseIndex === phaseIndex && p.slots.includes(slotKey));
+    if (!slotExists || !Number.isSafeInteger(phaseIndex) || phaseIndex < 0 ||
         !/^[a-zA-Z0-9][a-zA-Z0-9:_-]{0,79}$/.test(actorId) ||
         !/^[a-zA-Z0-9][a-zA-Z0-9:_-]{0,79}$/.test(slotKey)) {
       status.textContent = 'Mapping rejected: invalid actor, phase or slot'; return;
