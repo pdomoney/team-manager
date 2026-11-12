@@ -8125,7 +8125,8 @@ function requestCloseSheet() {
   const E = state.sheet === 'play-editor' && state.ped;
   const form = E && $('#sheet form.ped');
   const fieldsChanged = form && E.initialForm !== JSON.stringify([...new FormData(form).entries()]);
-  if (E && (E.dirty || fieldsChanged) && !confirm('Close without saving the changes to this play?')) return;
+  const timingChanged = E?.timelineController?.getPersistenceState()?.changed === true;
+  if (E && (E.dirty || fieldsChanged || timingChanged) && !confirm('Close without saving the changes to this play?')) return;
   closeSheet();
 }
 function closeSheet() {
