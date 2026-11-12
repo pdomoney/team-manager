@@ -31,7 +31,12 @@ export function preparePlayTimelineSave(play, history, { changed = false } = {})
   if (!play || typeof play !== 'object' || !history?.present ||
       !Array.isArray(history.past) || !Array.isArray(history.future))
     return { status: 'blocked', reason: 'invalid-timeline-history' };
-  if (!changed) return { status: 'unchanged', play };
+  if (!changed) {
+    if (Object.hasOwn(play, 'eventTimeline') &&
+        (!valid(play.eventTimeline) || !compatible(play.eventTimeline, play)))
+      return { status: 'blocked', reason: 'invalid-or-stale-timeline' };
+    return { status: 'unchanged', play };
+  }
   if (!valid(history.present) || !compatible(history.present, play))
     return { status: 'blocked', reason: 'invalid-or-stale-timeline' };
   const next = clone(play);
