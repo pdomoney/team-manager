@@ -27,6 +27,7 @@ import { setupReuseIssue, reuseTeamFields } from './team-setup.js';
 import { studyCards, cueRoles } from './play-study.js';
 import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassPasser, assignPassReceiver, receiverFollowOnRun, assignRunOrigin, freeRunOrigin, assignRunEndpoint, freeRunEndpoint, assignDefenderOrigin, freeDefenderOrigin } from './play-actor-links.js';
 import { coachPlayConnectionNotice } from './play-link-warning.js';
+import { attachCoachTimelineSandbox } from './play-event-editor-sandbox.js';
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { connectedPathEndpoint, previewConnectedPathChange, changeConnectedPathEndpoint } from './play-connected-path-edit.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
@@ -4041,6 +4042,9 @@ function openPlayEditor(play) {
   const form = $('#sheet form.ped');
   state.ped.initialForm = form ? JSON.stringify([...new FormData(form).entries()]) : null;
   bindPlayEditor(); refreshPlayEditor();
+  // Opt-in, unsaved E5 timing workspace. Separate sibling forms avoid changing
+  // the existing Save play contract or legacy play data.
+  if (form && isCoach()) attachCoachTimelineSandbox(form, { canCoachEdit: () => isCoach() && state.sheet === 'play-editor' });
 }
 
 // The phase being edited (phase 1 is the play itself), and how it looks with the rest of the play.
