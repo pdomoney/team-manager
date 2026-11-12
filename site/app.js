@@ -28,6 +28,7 @@ import { studyCards, cueRoles } from './play-study.js';
 import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMovementEndpoint, detachMovementActors, assignPassPasser, assignPassReceiver, receiverFollowOnRun, assignRunOrigin, freeRunOrigin, assignRunEndpoint, freeRunEndpoint, assignDefenderOrigin, freeDefenderOrigin } from './play-actor-links.js';
 import { coachPlayConnectionNotice } from './play-link-warning.js';
 import { attachCoachTimelineSandbox } from './play-event-editor-sandbox.js';
+import { preparePlayTimelineSave } from './play-event-persistence.js';
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { connectedPathEndpoint, previewConnectedPathChange, changeConnectedPathEndpoint } from './play-connected-path-edit.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
@@ -4044,7 +4045,7 @@ function openPlayEditor(play) {
   bindPlayEditor(); refreshPlayEditor();
   // Opt-in, unsaved E5 timing workspace. Separate sibling forms avoid changing
   // the existing Save play contract or legacy play data.
-  if (form && isCoach()) attachCoachTimelineSandbox(form, { canCoachEdit: () => isCoach() && state.sheet === 'play-editor', getPlayDraft: () => state.ped?.draft });
+  if (form && isCoach()) state.ped.timelineController = attachCoachTimelineSandbox(form, { canCoachEdit: () => isCoach() && state.sheet === 'play-editor', getPlayDraft: () => state.ped?.draft });
 }
 
 // The phase being edited (phase 1 is the play itself), and how it looks with the rest of the play.
@@ -11375,6 +11376,13 @@ document.addEventListener('submit', async e => {
     Object.assign(E.draft, { name: str('name'), sport: M.SPORTS.includes(str('playSport')) ? str('playSport') : curSport(), category: str('category') || 'Other', headline: str('headline'), when: str('when'), steps: String(f.get('steps') || '').trim() });
     if (form.querySelector('[name=rules]')) E.draft.rules = f.getAll('rules').map(String);
     if (E.draft.builtin) E.draft.edited = true;   // keep the coach's version when the starter drawings are updated
+    const timing = E.timelineController?.getPersistenceState();
+    if (timing?.status === 'blocked') { toast('Existing event timing is invalid. Play not saved.'); return; }
+    if (timing) {
+      const prepared = preparePlayTimelineSave(E.draft, timing.history, { changed: timing.changed });
+      if (prepared.status === 'blocked') { toast('Event timing needs correction before saving the play.'); return; }
+      if (prepared.status === 'ready') E.draft = prepared.play;
+    }
     M.libMarkEdited(E.draft);                      // and when the library version is updated
     const i = data.plays.findIndex(p => p.id === E.draft.id);
     if (i >= 0) data.plays[i] = E.draft; else data.plays.push(E.draft);

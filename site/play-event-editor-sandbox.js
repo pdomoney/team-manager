@@ -4,6 +4,7 @@ import { createTimelineDraft } from './play-event-draft.js';
 import { mapTimelineActor } from './play-event-actor-mapping.js';
 import { mountCoachTimingControls } from './play-event-timing-controls.js';
 import { diagramMappingChoices } from './play-event-diagram-choices.js';
+import { loadPlayEventDraft } from './play-event-persistence.js';
 
 export function attachCoachTimelineSandbox(playForm, { canCoachEdit, getPlayDraft } = {}) {
   if (!playForm || typeof canCoachEdit !== 'function' || !canCoachEdit())
@@ -20,7 +21,7 @@ export function attachCoachTimelineSandbox(playForm, { canCoachEdit, getPlayDraf
   const heading = document.createElement('h3');
   heading.textContent = 'Event timing sandbox';
   const note = document.createElement('p');
-  note.textContent = 'Experimental, unsaved event script. Closing the play editor discards it. Saving the play does not include these events.';
+  note.textContent = 'Optional event timing. Valid authored events are saved with the play when you select Save play. Playback remains unchanged.';
   const status = document.createElement('p');
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
@@ -47,7 +48,13 @@ export function attachCoachTimelineSandbox(playForm, { canCoachEdit, getPlayDraf
   // Keep the fixed-height diagram workspace and Fit geometry unchanged.
   // The optional sandbox is launched from Play details, not the top toolbar.
   playForm.querySelector('#ped-words')?.prepend(trigger);
-  let history = createTimelineDraft().history;
+  const loaded = loadPlayEventDraft(typeof getPlayDraft === 'function' ? getPlayDraft() : null);
+  let history = loaded.history;
+  let changed = false;
+  if (loaded.status === 'blocked') {
+    trigger.disabled = true;
+    status.textContent = 'Existing timing data is invalid or references missing diagram slots. Play saving is blocked until this is resolved.';
+  }
   const syncChoices = () => {
     const choices = diagramMappingChoices(typeof getPlayDraft === 'function' ? getPlayDraft() : null);
     const previousPhase = Number(phasePicker.value);
@@ -80,7 +87,7 @@ export function attachCoachTimelineSandbox(playForm, { canCoachEdit, getPlayDraf
   const refresh = () => {
     controls?.destroy();
     controls = mountCoachTimingControls(timingRoot, history, {
-      onChange(next) { history = next; }
+      onChange(next) { history = next; changed = true; }
     });
     mappingList.textContent = history.present.actors.map(a =>
       a.actorId + ' (' + a.type + '): ' + a.phases.map(p =>
@@ -111,6 +118,7 @@ export function attachCoachTimelineSandbox(playForm, { canCoachEdit, getPlayDraf
       return;
     }
     history = outcome.history;
+    changed = true;
     status.textContent = 'Mapping updated in unsaved sandbox only.';
     refresh();
   });
@@ -122,6 +130,7 @@ export function attachCoachTimelineSandbox(playForm, { canCoachEdit, getPlayDraf
   });
   return Object.freeze({
     getHistory: () => controls?.getHistory() || history,
+    getPersistenceState: () => ({ status: loaded.status, changed, history: controls?.getHistory() || history }),
     destroy: () => { controls?.destroy(); trigger.remove(); panel.remove(); }
   });
 }
