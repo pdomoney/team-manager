@@ -4044,7 +4044,7 @@ function openPlayEditor(play) {
   bindPlayEditor(); refreshPlayEditor();
   // Opt-in, unsaved E5 timing workspace. Separate sibling forms avoid changing
   // the existing Save play contract or legacy play data.
-  if (form && isCoach()) attachCoachTimelineSandbox(form, { canCoachEdit: () => isCoach() && state.sheet === 'play-editor' });
+  if (form && isCoach()) attachCoachTimelineSandbox(form, { canCoachEdit: () => isCoach() && state.sheet === 'play-editor', getPlayDraft: () => state.ped?.draft });
 }
 
 // The phase being edited (phase 1 is the play itself), and how it looks with the rest of the play.
