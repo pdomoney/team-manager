@@ -3,8 +3,9 @@
 import { createTimelineDraft } from './play-event-draft.js';
 import { mapTimelineActor } from './play-event-actor-mapping.js';
 import { mountCoachTimingControls } from './play-event-timing-controls.js';
+import { diagramMappingChoices } from './play-event-diagram-choices.js';
 
-export function attachCoachTimelineSandbox(playForm, { canCoachEdit } = {}) {
+export function attachCoachTimelineSandbox(playForm, { canCoachEdit, getPlayDraft } = {}) {
   if (!playForm || typeof canCoachEdit !== 'function' || !canCoachEdit())
     return null;
   const trigger = document.createElement('button');
@@ -29,15 +30,52 @@ export function attachCoachTimelineSandbox(playForm, { canCoachEdit } = {}) {
     <label>Phase index (0 is first) <input name="phaseIndex" type="number" min="0" step="1" value="0" required></label>
     <label>Diagram slot key <input name="slotKey" required maxlength="80" pattern="[a-zA-Z0-9][a-zA-Z0-9:_-]*"></label>
     <button type="submit">Assign actor explicitly</button>`;
+  const choiceStatus = document.createElement('p');
+  choiceStatus.textContent = 'Choose an actual diagram slot. Reusing a slot name in another phase does not establish actor identity.';
+  const phasePicker = document.createElement('select');
+  phasePicker.setAttribute('aria-label', 'Choose play phase');
+  const slotPicker = document.createElement('select');
+  slotPicker.setAttribute('aria-label', 'Choose diagram slot');
+  const choiceLabel = document.createElement('label');
+  choiceLabel.textContent = 'Diagram phase and slot: ';
+  choiceLabel.append(phasePicker, slotPicker);
   const mappingList = document.createElement('p');
   const timingRoot = document.createElement('div');
-  panel.append(heading, note, status, mapping, mappingList, timingRoot);
+  panel.append(heading, note, status, choiceStatus, choiceLabel, mapping, mappingList, timingRoot);
   // The play form remains untouched; these independent forms cannot submit it.
   playForm.after(panel);
   // Keep the fixed-height diagram workspace and Fit geometry unchanged.
   // The optional sandbox is launched from Play details, not the top toolbar.
   playForm.querySelector('#ped-words')?.prepend(trigger);
   let history = createTimelineDraft().history;
+  const syncChoices = () => {
+    const choices = diagramMappingChoices(typeof getPlayDraft === 'function' ? getPlayDraft() : null);
+    const previousPhase = Number(phasePicker.value);
+    const selectedPhase = choices.some(p => p.phaseIndex === previousPhase) ? previousPhase : 0;
+    phasePicker.replaceChildren(...choices.map(p => {
+      const option = document.createElement('option');
+      option.value = String(p.phaseIndex);
+      option.textContent = p.phaseIndex === 0 ? 'Initial diagram' : 'Phase ' + (p.phaseIndex + 1);
+      return option;
+    }));
+    phasePicker.value = String(selectedPhase);
+    const slots = choices.find(p => p.phaseIndex === selectedPhase)?.slots || [];
+    slotPicker.replaceChildren(...slots.map(slot => {
+      const option = document.createElement('option');
+      option.value = slot;
+      option.textContent = slot;
+      return option;
+    }));
+    mapping.querySelector('[name="phaseIndex"]').value = String(selectedPhase);
+    mapping.querySelector('[name="slotKey"]').value = slots[0] || '';
+    choiceStatus.textContent = slots.length ?
+      'Select an existing slot, then explicitly assign an actor. Matching labels never imply identity.' :
+      'No diagram slots in this phase. Add a player to the diagram before mapping.';
+  };
+  phasePicker.addEventListener('change', syncChoices);
+  slotPicker.addEventListener('change', () => {
+    mapping.querySelector('[name="slotKey"]').value = slotPicker.value;
+  });
   let controls = null;
   const refresh = () => {
     controls?.destroy();
@@ -78,7 +116,7 @@ export function attachCoachTimelineSandbox(playForm, { canCoachEdit } = {}) {
     if (!canCoachEdit()) return;
     panel.hidden = !panel.hidden;
     trigger.setAttribute('aria-expanded', String(!panel.hidden));
-    if (!panel.hidden && !controls) refresh();
+    if (!panel.hidden) { syncChoices(); if (!controls) refresh(); }
   });
   return Object.freeze({
     getHistory: () => controls?.getHistory() || history,
