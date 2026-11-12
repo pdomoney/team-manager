@@ -74,7 +74,7 @@ test('E5.2 rejects duplicate IDs, ordering collisions and ambiguous actor mappin
 });
 test('E5.2 rejects invalid possession, motion, event references and future errors', () => {
   const a = timeline(); a.events[0].actorId = 'D1'; blocked(a, 'ball-event-needs-attacker');
-  const b = timeline(); b.events[1].actorId = 'RM'; blocked(b, 'release-without-possession');
+  const b = timeline(); b.events[0].actorId = 'RM'; blocked(b, 'release-without-possession');
   const c = timeline(); c.events[4].actorId = 'LM'; blocked(c, 'motion-end-without-start');
   const d = timeline(); d.events[1].receiverId = 'missing'; blocked(d, 'invalid-pass-reference');
   const e = timeline(); e.events.push({ eventId: 'future', atMs: 9000, sequence: 0,
