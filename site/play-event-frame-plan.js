@@ -20,6 +20,7 @@ export function planPlayEventFrame(play, elapsedMs, options = {}) {
   if (!Number.isSafeInteger(time)) return frozen({
     status: 'blocked', reason: 'playback-time-overflow', playbackEnabled: false
   });
+  const time = Math.min(initial.durationMs, projectedTime);
   const snapshot = inspectPlayEventSeek(play, time);
   if (snapshot.status !== 'ready') return frozen({
     status: 'blocked', reason: 'invalid-authored-events', playbackEnabled: false
