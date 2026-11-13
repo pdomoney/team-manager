@@ -16,8 +16,8 @@ export function planPlayEventFrame(play, elapsedMs, options = {}) {
     status: 'unavailable', reason: initial.reason ?? 'invalid-authored-events',
     playbackEnabled: false
   });
-  const time = Math.min(initial.durationMs, startMs + Math.floor(elapsedMs * speed));
-  if (!Number.isSafeInteger(time)) return frozen({
+  const projectedTime = startMs + Math.floor(elapsedMs * speed);
+  if (!Number.isSafeInteger(projectedTime)) return frozen({
     status: 'blocked', reason: 'playback-time-overflow', playbackEnabled: false
   });
   const time = Math.min(initial.durationMs, projectedTime);
