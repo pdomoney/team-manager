@@ -30,6 +30,7 @@ import { coachPlayConnectionNotice } from './play-link-warning.js';
 import { attachCoachTimelineSandbox } from './play-event-editor-sandbox.js';
 import { preparePlayTimelineSave } from './play-event-persistence.js';
 import { inspectPlayEventSeek } from './play-event-readonly-seek.js';
+import { advanceWatchTiming } from './play-watch-timing-clock.js';
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { connectedPathEndpoint, previewConnectedPathChange, changeConnectedPathEndpoint } from './play-connected-path-edit.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
@@ -3453,10 +3454,65 @@ function goStudyStep(index) {
 // E5.4b: read-only authored timing summary. Watch/Learn animation is unchanged.
 // E5.4c: separate read-only event inspection, never drives the legacy animation.
 let timingSeek = { playId: null, atMs: 0 };
+const watchTiming = { raf: 0, playing: false, last: 0, speed: 1 };
+function stopWatchTiming() {
+  if (watchTiming.raf) cancelAnimationFrame(watchTiming.raf);
+  watchTiming.raf = 0;
+  watchTiming.playing = false;
+}
+function watchTimingDisplay(play, atMs) {
+  const frame = advanceWatchTiming(play, atMs, 0);
+  if (frame.mode !== 'authored-preview') { stopWatchTiming(); return false; }
+  timingSeek = { playId: play.id, atMs: frame.atMs };
+  const section = document.querySelector('.play-timing-summary');
+  if (!section) { stopWatchTiming(); return false; }
+  const ball = frame.ball.state === 'held' ? 'Held by ' + frame.ball.actorId
+    : frame.ball.state === 'in-flight' ? 'Pass in flight'
+    : frame.ball.state === 'loose' ? 'Loose ball' : 'Not established';
+  const motion = Object.entries(frame.motion).map(([actor, status]) => actor + ': ' + status).join(', ') || 'No active movement';
+  const label = (selector, value) => {
+    const node = section.querySelector(selector);
+    if (node) node.textContent = value;
+  };
+  label('#event-timing-value', frame.atMs + ' ms');
+  label('#event-timing-ball', 'Ball: ' + ball);
+  label('#event-timing-motion', 'Movement: ' + motion);
+  const slider = section.querySelector('#event-timing-seek');
+  if (slider) slider.value = String(frame.atMs);
+  label('[data-act="watch-timing-play"]', watchTiming.playing ? 'Pause timing' : frame.done ? 'Replay timing' : 'Play timing');
+  return !frame.done;
+}
+function toggleWatchTiming() {
+  const play = playById(state.playId);
+  if (!play || state.playMode !== 'watch') return;
+  if (watchTiming.playing) { stopWatchTiming(); watchTimingDisplay(play, timingSeek.atMs); return; }
+  const initial = advanceWatchTiming(play, 0, 0);
+  if (initial.mode !== 'authored-preview' || !initial.durationMs) return;
+  if (timingSeek.playId !== play.id || timingSeek.atMs >= initial.durationMs) {
+    timingSeek = { playId: play.id, atMs: 0 };
+  }
+  watchTiming.playing = true;
+  watchTiming.last = performance.now();
+  const tick = now => {
+    if (!watchTiming.playing || state.playMode !== 'watch' || state.playId !== play.id) {
+      stopWatchTiming(); return;
+    }
+    const delta = Math.max(0, Math.floor(now - watchTiming.last));
+    watchTiming.last = now;
+    const frame = advanceWatchTiming(play, timingSeek.atMs, delta, watchTiming.speed);
+    if (frame.mode !== 'authored-preview') { stopWatchTiming(); return; }
+    if (!watchTimingDisplay(play, frame.atMs)) {
+      stopWatchTiming(); watchTimingDisplay(play, frame.atMs); return;
+    }
+    watchTiming.raf = requestAnimationFrame(tick);
+  };
+  watchTimingDisplay(play, timingSeek.atMs);
+  watchTiming.raf = requestAnimationFrame(tick);
+}
 function playTimingSummary(play) {
   const initial = inspectPlayEventSeek(play, 0);
   if (initial.status !== 'ready') return '';
-  if (timingSeek.playId !== play.id) timingSeek = { playId: play.id, atMs: 0 };
+  if (timingSeek.playId !== play.id) { stopWatchTiming(); timingSeek = { playId: play.id, atMs: 0 }; }
   const atMs = Math.min(timingSeek.atMs, initial.durationMs);
   const result = inspectPlayEventSeek(play, atMs);
   if (result.status !== 'ready') return '';
@@ -3473,7 +3529,8 @@ function playTimingSummary(play) {
     <input id="event-timing-seek" type="range" min="0" max="${Math.max(0, result.durationMs)}" step="1" value="${atMs}" data-input="event-timing-seek" aria-label="Inspect authored event timeline" ${result.durationMs === 0 ? 'disabled' : ''}>
     <p id="event-timing-ball">Ball: ${esc(ball)}</p>
     <p id="event-timing-motion">Movement: ${esc(motion)}</p>
-    <p class="hint">Read-only event inspection. The existing Watch animation and Learn steps are independent; timed playback is not enabled.</p>
+    ${state.playMode === 'watch' && result.durationMs > 0 ? '<div class="btn-row"><button type="button" class="btn sm" data-act="watch-timing-play">Play timing</button><button type="button" class="btn sm" data-act="watch-timing-slow" aria-pressed="false">Slow timing</button></div>' : ''}
+    <p class="hint">Read-only event timing preview. Existing field animation and Learn steps remain independent.</p>
   </section>`;
 }
 function viewPlay(p) {
@@ -9540,11 +9597,16 @@ const actions = {
     goStudyStep(Number(el.dataset.i));
   },
   'play-phase': el => { const p = playById(state.playId); if (!p) return; animStop(); animShowPhase(p, Number(el.dataset.i)); anim.planFor = null; },
+  'watch-timing-play': () => toggleWatchTiming(),
+  'watch-timing-slow': el => {
+    watchTiming.speed = watchTiming.speed === 1 ? 0.5 : 1;
+    el.setAttribute('aria-pressed', String(watchTiming.speed !== 1));
+  },
   'anim-play': () => animStart(),
   'anim-slow': el => { anim.slow = !anim.slow; el.classList.toggle('on', anim.slow); el.setAttribute('aria-pressed', String(anim.slow)); },
   'anim-restart': () => { animSeek(0); },
-  'play-back': () => { animStop(); state.playId = null; state.playMode = null; render(); window.scrollTo(0, 0); },
-  'play-side': el => { animStop(); state.playSide = el.dataset.side; render(); },
+  'play-back': () => { stopWatchTiming(); animStop(); state.playId = null; state.playMode = null; render(); window.scrollTo(0, 0); },
+  'play-side': el => { stopWatchTiming(); animStop(); state.playSide = el.dataset.side; render(); },
   'play-new': coachOnly(() => openPlayEditor(null)),
   'play-edit': coachOnly(el => { const p = playById(el.dataset.id); if (p) openPlayEditor(p); }),
   'play-dup': coachOnly(el => {
@@ -10371,6 +10433,7 @@ document.addEventListener('input', e => {
     });
   }
   if (k === 'event-timing-seek' && state.tab === 'plays' && state.playId) {
+    stopWatchTiming();
     const play = playById(state.playId);
     if (play) {
       const requested = Number(e.target.value);
