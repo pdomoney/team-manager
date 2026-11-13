@@ -29,6 +29,7 @@ import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMove
 import { coachPlayConnectionNotice } from './play-link-warning.js';
 import { attachCoachTimelineSandbox } from './play-event-editor-sandbox.js';
 import { preparePlayTimelineSave } from './play-event-persistence.js';
+import { inspectPlayEventSeek } from './play-event-readonly-seek.js';
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
 import { connectedPathEndpoint, previewConnectedPathChange, changeConnectedPathEndpoint } from './play-connected-path-edit.js';
 import { previewSelectionNudge, applySelectionNudge } from './play-editor-precision.js';
@@ -3449,6 +3450,17 @@ function goStudyStep(index) {
     active.focus({preventScroll:true});
   }
 }
+// E5.4b: read-only authored timing summary. Watch/Learn animation is unchanged.
+function playTimingSummary(play) {
+  const result = inspectPlayEventSeek(play, 0);
+  if (result.status !== 'ready') return '';
+  const count = play.eventTimeline.events.length;
+  return `<section class="sec play-timing-summary" role="note" aria-label="Coach-authored event timing">
+    <h3 class="play-h">Coach-authored timing</h3>
+    <p>${count} explicit event${count === 1 ? '' : 's'} · ${Math.round(result.durationMs)} ms timeline</p>
+    <p class="hint">Timing is saved for reference. Watch animation and Learn step by step still use the established play presentation; timed playback is not yet enabled.</p>
+  </section>`;
+}
 function viewPlay(p) {
   const side = state.playSide, coach = isCoach(), steps = playSteps(p, side), when = playWhen(p, side);
   const compatibility = teachingContext(p);
@@ -3498,6 +3510,7 @@ function viewPlay(p) {
       ${steps.length ? `<details class="study-details"><summary>Read the full coaching instructions</summary><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></details>` : ''}
     </section>` : `${when ? `<section class="sec play-when-sec"><h3 class="play-h">When to use it</h3><p>${esc(when)}</p></section>` : ''}
     ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}`}
+    ${playTimingSummary(p)}
     ${libBar('plays', p.id, p)}
     ${coach ? `<div class="btn-row"><button class="btn" data-act="play-format-review" data-id="${esc(p.id)}">Review sport format</button><button class="btn" data-act="play-transfer" data-id="${esc(p.id)}">Adapt to another sport</button><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
