@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planPlayEventFrame } from '../site/play-event-frame-plan.js';
 
-const play = { eventTimeline: { version: 1,
+const play = { id: 'p1', players: { LA: {} }, phases: [], eventTimeline: { version: 1,
   actors: [{ actorId: 'a', type: 'attacker', phases: [{ phaseIndex: 0, slotKey: 'LA' }] }],
   events: [
     { eventId: 'e1', atMs: 0, sequence: 0, kind: 'possession-set', actorId: 'a' },
