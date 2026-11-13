@@ -7,7 +7,7 @@ test('E5.4b Watch/Learn timing summary uses the validated read-only adapter', ()
   const helper = app.slice(app.indexOf('function playTimingSummary('), app.indexOf('function viewPlay('));
   assert.match(helper, /inspectPlayEventSeek\(play, 0\)/);
   assert.match(helper, /result\.status !== 'ready'\) return ''/);
-  assert.match(helper, /timed playback is not yet enabled/);
+  assert.match(helper, /timed playback is not enabled/);
   assert.doesNotMatch(helper, /save\(|animFrame\(|anim\.playing/);
 });
 test('E5.4b preserves Watch/Learn viewer modes and animation renderer', () => {
