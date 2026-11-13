@@ -3451,14 +3451,29 @@ function goStudyStep(index) {
   }
 }
 // E5.4b: read-only authored timing summary. Watch/Learn animation is unchanged.
+// E5.4c: separate read-only event inspection, never drives the legacy animation.
+let timingSeek = { playId: null, atMs: 0 };
 function playTimingSummary(play) {
-  const result = inspectPlayEventSeek(play, 0);
+  const initial = inspectPlayEventSeek(play, 0);
+  if (initial.status !== 'ready') return '';
+  if (timingSeek.playId !== play.id) timingSeek = { playId: play.id, atMs: 0 };
+  const atMs = Math.min(timingSeek.atMs, initial.durationMs);
+  const result = inspectPlayEventSeek(play, atMs);
   if (result.status !== 'ready') return '';
   const count = play.eventTimeline.events.length;
-  return `<section class="sec play-timing-summary" role="note" aria-label="Coach-authored event timing">
+  const ball = result.ball.state === 'held'
+    ? 'Held by ' + result.ball.actorId
+    : result.ball.state === 'in-flight' ? 'Pass in flight'
+    : result.ball.state === 'loose' ? 'Loose ball' : 'Not established';
+  const motion = Object.entries(result.motion).map(([actor, status]) => actor + ': ' + status).join(', ') || 'No active movement';
+  return `<section class="sec play-timing-summary" role="region" aria-label="Coach-authored event timing">
     <h3 class="play-h">Coach-authored timing</h3>
-    <p>${count} explicit event${count === 1 ? '' : 's'} · ${Math.round(result.durationMs)} ms timeline</p>
-    <p class="hint">Timing is saved for reference. Watch animation and Learn step by step still use the established play presentation; timed playback is not yet enabled.</p>
+    <p>${count} explicit event${count === 1 ? '' : 's'} · ${result.durationMs} ms timeline</p>
+    <label class="field-l" for="event-timing-seek">Inspect event time: <output id="event-timing-value">${atMs} ms</output></label>
+    <input id="event-timing-seek" type="range" min="0" max="${Math.max(0, result.durationMs)}" step="1" value="${atMs}" data-input="event-timing-seek" aria-label="Inspect authored event timeline" ${result.durationMs === 0 ? 'disabled' : ''}>
+    <p id="event-timing-ball">Ball: ${esc(ball)}</p>
+    <p id="event-timing-motion">Movement: ${esc(motion)}</p>
+    <p class="hint">Read-only event inspection. The existing Watch animation and Learn steps are independent; timed playback is not enabled.</p>
   </section>`;
 }
 function viewPlay(p) {
@@ -10354,6 +10369,28 @@ document.addEventListener('input', e => {
     document.querySelectorAll('#people-source-list [data-people-name]').forEach(row => {
       row.hidden = !!term && !row.dataset.peopleName.includes(term);
     });
+  }
+  if (k === 'event-timing-seek' && state.tab === 'plays' && state.playId) {
+    const play = playById(state.playId);
+    if (play) {
+      const requested = Number(e.target.value);
+      const result = inspectPlayEventSeek(play, requested);
+      if (result.status === 'ready') {
+        timingSeek = { playId: play.id, atMs: requested };
+        const section = e.target.closest('.play-timing-summary');
+        const ball = result.ball.state === 'held'
+          ? 'Held by ' + result.ball.actorId
+          : result.ball.state === 'in-flight' ? 'Pass in flight'
+          : result.ball.state === 'loose' ? 'Loose ball' : 'Not established';
+        const motion = Object.entries(result.motion).map(([actor, status]) => actor + ': ' + status).join(', ') || 'No active movement';
+        const value = section?.querySelector('#event-timing-value');
+        const ballLabel = section?.querySelector('#event-timing-ball');
+        const motionLabel = section?.querySelector('#event-timing-motion');
+        if (value) value.textContent = requested + ' ms';
+        if (ballLabel) ballLabel.textContent = 'Ball: ' + ball;
+        if (motionLabel) motionLabel.textContent = 'Movement: ' + motion;
+      }
+    }
   }
   if (k === 'anim-seek') animSeek(e.target.value);
   if (k === 'ped-quick-seek' && state.sheet === 'play-editor') pedQuickSeek(e.target.value);
