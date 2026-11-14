@@ -80,3 +80,50 @@ test('E5.5: unsupported saved event version cannot be silently removed on unrela
   assert.equal(result.status, 'blocked');
   assert.equal(JSON.stringify(original), before);
 });
+
+test('E5.5 recovery: rollback to a historical play without event timing remains lossless', () => {
+  const baseline = { ...play(), schema: 4, clubId: 'club-a', notes: { cue: 'Original' } };
+  const backup = JSON.stringify(baseline);
+  const edited = preparePlayTimelineSave(baseline, history(), { changed: true });
+  assert.equal(edited.status, 'ready');
+  assert.equal(loadPlayEventDraft(edited.play).status, 'ready');
+  const restored = JSON.parse(backup);
+  const loaded = loadPlayEventDraft(restored);
+  assert.equal(loaded.status, 'empty');
+  const result = preparePlayTimelineSave(restored, loaded.history, { changed: false });
+  assert.equal(result.status, 'unchanged');
+  assert.equal(JSON.stringify(result.play), backup);
+  assert.equal(Object.hasOwn(result.play, 'eventTimeline'), false);
+  assert.equal(JSON.stringify(baseline), backup);
+});
+
+test('E5.5 recovery: malformed timeline remains intact after blocked save and backup restore', () => {
+  const corrupted = { ...play(), schema: 4,
+    eventTimeline: { version: 999, actors: [], events: [], evidence: 'retain' } };
+  const backup = JSON.stringify(corrupted);
+  assert.equal(loadPlayEventDraft(corrupted).status, 'blocked');
+  for (const changed of [false, true]) {
+    const result = preparePlayTimelineSave(corrupted, history(), { changed });
+    assert.equal(result.status, 'blocked');
+    assert.equal(JSON.stringify(corrupted), backup);
+  }
+  const restored = JSON.parse(backup);
+  assert.deepEqual(restored, corrupted);
+  assert.equal(loadPlayEventDraft(restored).status, 'blocked');
+});
+
+test('E5.5 recovery: stale actor mapping does not replace a previously valid saved timeline', () => {
+  const baseline = preparePlayTimelineSave(play(), history(), { changed: true }).play;
+  assert.equal(loadPlayEventDraft(baseline).status, 'ready');
+  const backup = JSON.stringify(baseline);
+  const stale = structuredClone(baseline);
+  stale.players = { B: [3, 4] };
+  const before = JSON.stringify(stale);
+  assert.equal(loadPlayEventDraft(stale).status, 'blocked');
+  assert.equal(preparePlayTimelineSave(stale, history(), { changed: false }).status, 'blocked');
+  assert.equal(preparePlayTimelineSave(stale, history(), { changed: true }).status, 'blocked');
+  assert.equal(JSON.stringify(stale), before);
+  const restored = JSON.parse(backup);
+  assert.equal(loadPlayEventDraft(restored).status, 'ready');
+  assert.equal(JSON.stringify(restored), backup);
+});
