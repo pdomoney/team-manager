@@ -42,3 +42,41 @@ test('invalid saved timeline blocks loading instead of clearing existing data', 
   assert.equal(loadPlayEventDraft(original).status, 'blocked');
   assert.equal(original.eventTimeline.version, 99);
 });
+
+test('E5.5: untouched historical schema-4 play preserves metadata and serialized bytes', () => {
+  const legacy = { ...play(), schema: 4, sport: 'oztag', phases: [{ title: 'Set', moves: [] }],
+    notes: { coach: 'Keep shape' }, customLegacyField: { retained: true } };
+  const before = JSON.stringify(legacy);
+  const loaded = loadPlayEventDraft(legacy);
+  assert.equal(loaded.status, 'empty');
+  const saved = preparePlayTimelineSave(legacy, loaded.history, { changed: false });
+  assert.equal(saved.status, 'unchanged');
+  assert.strictEqual(saved.play, legacy);
+  assert.equal(JSON.stringify(saved.play), before);
+  assert.equal(Object.hasOwn(legacy, 'eventTimeline'), false);
+});
+
+test('E5.5: explicit timing save preserves historical fields and is round-trip stable', () => {
+  const original = { ...play(), schema: 4, clubId: 'club-a', season: '2024',
+    notes: { coaching: 'Preserve this' }, customLegacyField: [1, 2, 3] };
+  const before = JSON.stringify(original);
+  const saved = preparePlayTimelineSave(original, history(), { changed: true });
+  assert.equal(saved.status, 'ready');
+  assert.equal(JSON.stringify(original), before);
+  for (const key of Object.keys(original)) assert.deepEqual(saved.play[key], original[key]);
+  const reopened = loadPlayEventDraft(JSON.parse(JSON.stringify(saved.play)));
+  assert.equal(reopened.status, 'ready');
+  const untouched = preparePlayTimelineSave(saved.play, reopened.history, { changed: false });
+  assert.equal(untouched.status, 'unchanged');
+  assert.equal(JSON.stringify(untouched.play), JSON.stringify(saved.play));
+});
+
+test('E5.5: unsupported saved event version cannot be silently removed on unrelated save', () => {
+  const original = { ...play(), schema: 4, eventTimeline: { version: 999, actors: [], events: [] } };
+  const before = JSON.stringify(original);
+  const loaded = loadPlayEventDraft(original);
+  assert.equal(loaded.status, 'blocked');
+  const result = preparePlayTimelineSave(original, history(), { changed: false });
+  assert.equal(result.status, 'blocked');
+  assert.equal(JSON.stringify(original), before);
+});
