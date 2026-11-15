@@ -37,6 +37,13 @@ test('M1.2 only appears on the operational pages, never Home, play editor, match
   }
 });
 
+test('M1.2 preserves the Owner workspace for custom teams outside fictional fixture assignments', () => {
+  const custom = managementWorkingContext({ ...input, team: { id: 'local-owned-team', name: 'Local team' },
+    session: { ...session, role: 'personal_owner', label: 'Owner', allowedTeams: [] } });
+  assert.equal(custom.teamId, 'local-owned-team');
+  assert.equal(custom.roleLabel, 'Owner');
+});
+
 test('M1.2 never leaks working context to participants or an unassigned fictional group', () => {
   for (const role of ['player', 'guardian', 'helper', 'staff', 'none']) {
     assert.equal(managementWorkingContext({ ...input, session: { ...session, role } }), null, role);
