@@ -4,11 +4,11 @@ This file records **future product proposals**, not accepted implementation or m
 
 ## Team management programme (15 November 2026)
 
-The owner directed development back to everyday management after accepting play E5. M1.1 is the first scoped implementation; M2–M8 remain proposed, not accepted migration authority. Keep the Home team picker, five-section navigation, explicit QA role/group selection, current encrypted data, roster, fixtures and Tactics journeys.
+The owner directed development back to everyday management after accepting play E5. M1.1 was merged and published at `b448ded`; M1.2 is the next scoped change. M2–M8 remain proposed, not accepted migration authority. Keep the Home team picker, five-section navigation, explicit QA role/group selection, current encrypted data, roster, fixtures and Tactics journeys.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| M1 | Selected-team management workspace, context UX, role/device acceptance | M1.1 PR candidate |
+| M1 | Selected-team management workspace, context UX, role/device acceptance | M1.1 merged/published; M1.2 PR candidate |
 | M2 | Player intake, guardian reviews, registration and season lifecycle | Proposed |
 | M3 | Coach/Manager training, availability and team selection approvals | Proposed |
 | M4 | Sport-scoped Match Day roster, staff, result and publication authority | Proposed; rule-gated |
@@ -17,7 +17,9 @@ The owner directed development back to everyday management after accepting play 
 | M7 | Actionable team and club management reports | Proposed |
 | M8 | Real individual identity, server-enforced grants and recovery | Deferred; #55 decision required |
 
-**M1.1 check:** Home displays a read-only squad and next-match reply snapshot plus existing management-page shortcuts only for an explicitly selected team. No club-wide summary masquerades as team data; Player/guardian never receives this private management view; fictional Manager receives only role-permitted routes. No new write, login, schema, fixture authority or data publishing workflow.
+**M1.1 completed:** Home displays a read-only squad and next-match reply snapshot plus existing management-page shortcuts only for an explicitly selected team. No club-wide summary masquerades as team data; Player/guardian never receives this private management view; fictional Manager receives only role-permitted routes.
+
+**M1.2 candidate:** Compact working context appears on existing operational pages. It identifies the exact working team, club, selected season and fictional role/group, explicitly marks historical or test roles, and routes to Home for team selection. Match Day and the play engine stay untouched; player/guardian and unassigned roles receive no management strip. The native Crew team-versus-club filter remains the scope authority. No new permission, write, login, schema, fixture authority or data publishing workflow.
 
 Existing issues #154, #131, #34, #35 and #31 remain open until independently qualified. **Plays:** E5 accepted, E6–E8 and Option C deferred; preserve all existing tactics behaviour.
 
