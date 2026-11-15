@@ -99,6 +99,7 @@ import { clubNameKey, managedClubCandidates, clubLinkPreview, applyClubDirectory
 import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-badges.js';
 import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
 import * as M from './model.js';
+import { selectedTeamManagement } from './management-home.js';
 import { localPeopleNamespace, localPeopleReviewView, acceptLocalPeopleLink, undoLocalPeopleLink } from './people-ui.js';
 import { prepareStaffSourceIds } from './staff-source-ids.js';
 import { REPORTED_RELATIONSHIPS, recordGuardianReview, amendGuardianReview } from './guardian-reviews.js';
@@ -1851,6 +1852,43 @@ function nativeHomeWorkspace(session) {
     teams:allowed.filter(t=>t.id!==current.id),
     clubs:(ws.clubs||[]).filter(c=>allowed.some(t=>t.team?.clubId===c.id))};
 }
+// M1.1 stays within the existing Home selection and navigation. The section
+// disappears on cross-club overview and for player/guardian or other scoped QA
+// roles; no new edit action or synthetic access grant is introduced.
+function homeManagementWorkspace(hv) {
+  const session = nativePersona();
+  if (session && !['personal_owner', 'team_coach', 'team_manager'].includes(session.role)) return '';
+  const summary = selectedTeamManagement(hv, data);
+  if (!summary) return '';
+
+  const routes = [
+    { tab: 'squad', label: 'Squad' },
+    { tab: nativeRoleAllows('training') ? 'training' : 'agenda',
+      label: nativeRoleAllows('training') ? 'Training' : 'Schedule' },
+    { tab: 'matches', label: 'Matches' },
+    { tab: 'crew', label: 'Match staff' }
+  ].filter(r => nativeRoleAllows(r.tab));
+  const m = summary.nextMatch;
+  const replyText = !m ? 'No upcoming scheduled match' :
+    !m.eligibleCount ? 'No available squad members to record replies for' :
+    m.unanswered ? m.unanswered + ' availability ' + (m.unanswered === 1 ? 'reply' : 'replies') + ' not recorded' :
+    'All ' + m.eligibleCount + ' availability replies recorded';
+  const matchText = m
+    ? '<span class="management-home-match">Next match: <strong>' + esc(m.title) +
+      '</strong> · ' + esc(fmtDay(m.date)) + (m.start ? ', ' + esc(fmtTime(m.start)) : ', time TBC') +
+      ' · ' + esc(replyText) + '</span>'
+    : '<span class="management-home-match">' + replyText + '</span>';
+  return '<section class="management-home" data-management-team="' + esc(summary.teamId) +
+    '" aria-label="Team management for ' + esc(summary.teamName) + '">' +
+    '<div class="management-home-heading"><h2>Team management</h2>' +
+    '<p class="muted small">' + esc(summary.teamName) + ' · ' + esc(summary.seasonName) + '</p></div>' +
+    '<div class="management-home-body"><p class="management-home-summary"><strong>' +
+    summary.squadCount + ' players in squad</strong>' + matchText + '</p>' +
+    '<div class="management-home-links" role="group" aria-label="Selected team management pages">' +
+    routes.map(r => '<button type="button" data-act="tab" data-tab="' + r.tab +
+      '" aria-label="Open ' + esc(r.label) + ' for ' + esc(summary.teamName) +
+      '">' + esc(r.label) + '</button>').join('') + '</div></div></section>';
+}
 function viewHome() {
   const who=nativePersona();
   // Published player accounts do not have a coach workspace. Their original
@@ -1876,7 +1914,7 @@ function viewHome() {
     homeSpotlight(hv)+live+homeUpcoming(hv);
   const right=homeActionList(hv)+(hv.insight?homeInsight(hv):'')+
     (one?homeNotices(3):'');
-  return `${renderHomeProfilePicker()}${homeSelector(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
+  return `${renderHomeProfilePicker()}${homeSelector(hv)}${homeManagementWorkspace(hv)}<div class="cols home-cols"><div class="col">${left}</div><div class="col">${right}</div></div>`;
 }
 // Players see their own team only: what's next, the next two weeks, notices and where help is needed.
 function playerHome() {
