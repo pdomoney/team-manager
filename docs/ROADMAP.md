@@ -2,7 +2,28 @@
 
 This file records **future product proposals**, not accepted implementation or migration authority. The current product remains a multi-club/team/season coach/player application, using its original accepted role and group boundaries.
 
-## Current approved direction: Option B play workspace
+## Team management programme (15 November 2026)
+
+The owner directed development back to everyday management after accepting play E5. M1.1 is the first scoped implementation; M2–M8 remain proposed, not accepted migration authority. Keep the Home team picker, five-section navigation, explicit QA role/group selection, current encrypted data, roster, fixtures and Tactics journeys.
+
+| Phase | Scope | Status |
+| --- | --- | --- |
+| M1 | Selected-team management workspace, context UX, role/device acceptance | M1.1 PR candidate |
+| M2 | Player intake, guardian reviews, registration and season lifecycle | Proposed |
+| M3 | Coach/Manager training, availability and team selection approvals | Proposed |
+| M4 | Sport-scoped Match Day roster, staff, result and publication authority | Proposed; rule-gated |
+| M5 | Club and volunteer administration, appointments and qualification evidence | Proposed |
+| M6 | Scheduling conflicts, notices, targeted communications and reminders | Proposed |
+| M7 | Actionable team and club management reports | Proposed |
+| M8 | Real individual identity, server-enforced grants and recovery | Deferred; #55 decision required |
+
+**M1.1 check:** Home displays a read-only squad and next-match reply snapshot plus existing management-page shortcuts only for an explicitly selected team. No club-wide summary masquerades as team data; Player/guardian never receives this private management view; fictional Manager receives only role-permitted routes. No new write, login, schema, fixture authority or data publishing workflow.
+
+Existing issues #154, #131, #34, #35 and #31 remain open until independently qualified. **Plays:** E5 accepted, E6–E8 and Option C deferred; preserve all existing tactics behaviour.
+
+---
+
+## Prior direction: Option B play workspace
 
 Owner decision (8 November 2026): favour a dedicated diagram-first viewing experience and a purpose-built coach editing workspace, without requiring browser zoom. See [Option B phased programme](architecture/option-b-play-workspace-programme.md) and [Play Engine 2.0 #166](https://github.com/pdomoney/team-manager/issues/166).
 
