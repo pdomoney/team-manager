@@ -37,6 +37,11 @@ export function preparePlayTimelineSave(play, history, { changed = false } = {})
       return { status: 'blocked', reason: 'invalid-or-stale-timeline' };
     return { status: 'unchanged', play };
   }
+  // An invalid existing timeline must never be replaced by a newly edited draft.
+  // Preserve the original record for explicit recovery from a known-good copy.
+  if (Object.hasOwn(play, 'eventTimeline') &&
+      (!valid(play.eventTimeline) || !compatible(play.eventTimeline, play)))
+    return { status: 'blocked', reason: 'invalid-or-stale-timeline' };
   if (!valid(history.present) || !compatible(history.present, play))
     return { status: 'blocked', reason: 'invalid-or-stale-timeline' };
   const next = clone(play);
