@@ -14,9 +14,13 @@ export function managementWorkingContext({
 } = {}) {
   if (!coachView || !OPERATIONAL_PAGES.has(tab) || !team?.id) return null;
   if (session) {
-    if (PARTICIPANT_ROLES.has(session.role) ||
-        !Array.isArray(session.allowedTeams) ||
-        !session.allowedTeams.some(t => teamKey(t?.id) === teamKey(team.id))) return null;
+    if (PARTICIPANT_ROLES.has(session.role)) return null;
+    // The personal Owner's existing workspace includes user-created teams,
+    // not only the fixed fictional fixture assignments. Other roles must
+    // still match an explicit assigned team.
+    if (session.role !== 'personal_owner' &&
+        (!Array.isArray(session.allowedTeams) ||
+         !session.allowedTeams.some(t => teamKey(t?.id) === teamKey(team.id)))) return null;
   }
   return {
     teamId: String(team.id),
