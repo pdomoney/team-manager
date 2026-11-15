@@ -1856,6 +1856,8 @@ function nativeHomeWorkspace(session) {
 // disappears on cross-club overview and for player/guardian or other scoped QA
 // roles; no new edit action or synthetic access grant is introduced.
 function homeManagementWorkspace(hv) {
+  // Past-season views remain deliberately read-only; do not offer active-team shortcuts there.
+  if (readOnlyView()) return '';
   const session = nativePersona();
   if (session && !['personal_owner', 'team_coach', 'team_manager'].includes(session.role)) return '';
   const summary = selectedTeamManagement(hv, data);
