@@ -1423,7 +1423,7 @@ function workingContextStrip() {
   });
   if (!summary) return '';
   const scope = state.tab === 'crew' ?
-    ((session && session.role !== 'personal_owner' ? state.nativeHomeScope : homePref())?.kind === 'team'
+    (isHomeTeamCrewScope(session && session.role !== 'personal_owner' ? state.nativeHomeScope : homePref(), data)
       ? 'Team staff view' : 'Club staff view') : '';
   const details = [
     summary.roleLabel,
