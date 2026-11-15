@@ -12,6 +12,9 @@ with sync_playwright() as p:
         pg.click('#home-profile-button')
         pg.click('#home-profile-panel [data-profile=qa-09]')
         pg.locator('#view .scope-club[data-id=qa-rangers]').click()
+        # Keep this synthetic scheduled fixture in the future: the real UI correctly
+        # hides Manager reply actions after a fixture's date has passed.
+        pg.evaluate("window.__team.data.matches[0].date = '2099-01-01'")
         pg.evaluate(act,['tab',{'tab':'matches'}])
         match_id=pg.evaluate("window.__team.data.matches[0].id")
         before=pg.evaluate("JSON.stringify(window.__team.data)")
