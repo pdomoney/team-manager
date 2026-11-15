@@ -100,6 +100,7 @@ import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-ba
 import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
 import * as M from './model.js';
 import { selectedTeamManagement } from './management-home.js';
+import { managementWorkingContext } from './management-context.js';
 import { localPeopleNamespace, localPeopleReviewView, acceptLocalPeopleLink, undoLocalPeopleLink } from './people-ui.js';
 import { prepareStaffSourceIds } from './staff-source-ids.js';
 import { REPORTED_RELATIONSHIPS, recordGuardianReview, amendGuardianReview } from './guardian-reviews.js';
@@ -1406,6 +1407,42 @@ function renderQaScreen() {
     '<p class="hint">No edits, invitations, password operations, sensitive-person access or publication are available in this simulated view. Real team and account roles require the future server-enforced authorisation work (#55).</p></section>';
   document.title='Test persona · '+x.roleLabel+' · Team Manager';
 }
+// M1.2: working role, team and season remain visible outside Home.
+// The button only opens Home, where the existing team selector and fictional
+// role/group picker retain all selection authority.
+function workingContextStrip() {
+  const session = nativePersona();
+  const summary = managementWorkingContext({
+    tab: state.tab,
+    coachView: isCoach(),
+    team: { id: data.id, name: V.team.name || data.team.name },
+    clubName: curClub()?.name || '',
+    seasonName: V.viewSeason?.name || V.season?.name || '',
+    historical: !!V.readOnly,
+    session
+  });
+  if (!summary) return '';
+  const scope = state.tab === 'crew' ?
+    ((session && session.role !== 'personal_owner' ? state.nativeHomeScope : homePref())?.kind === 'team'
+      ? 'Team staff view' : 'Club staff view') : '';
+  const details = [
+    summary.roleLabel,
+    summary.groupLabel,
+    summary.seasonName,
+    scope,
+    summary.historical ? 'Past season, read-only' : '',
+    summary.fictional ? 'Fictional test profile' : ''
+  ].filter(Boolean);
+  return '<section class="working-context" aria-label="Current working context" data-working-team="' +
+    esc(summary.teamId) + '">' +
+    '<div class="working-context-copy">' +
+    '<span class="working-context-kicker">Working context</span>' +
+    '<span class="working-context-team"><strong>' + esc(summary.teamName) + '</strong>' +
+    (summary.clubName ? '<span class="working-context-club"> · ' + esc(summary.clubName) + '</span>' : '') + '</span>' +
+    '<span class="working-context-meta">' + details.map(esc).join(' · ') + '</span></div>' +
+    '<button type="button" class="working-context-home" data-act="tab" data-tab="home" aria-label="Go to Home to choose a team">Teams on Home</button>' +
+    '</section>';
+}
 function render() {
   animStop();
   if (!S.role) return renderLock();
@@ -1457,7 +1494,7 @@ function render() {
       .filter(cls=>v.querySelector('.'+cls)?.open) : [];
   state.lastView[g.id] = state.tab;
   document.title = `${viewLabel(state.tab)} · ${V.team.name || 'Team Manager'}`;
-  v.innerHTML = subNav(g) + (['home', 'people'].includes(state.tab) ? '' : seasonBanner()) + VIEWS[state.tab]();
+  v.innerHTML = subNav(g) + (['home', 'people'].includes(state.tab) ? '' : seasonBanner()) + workingContextStrip() + VIEWS[state.tab]();
   if (state.tab === 'plays' && state.playId) { syncWatchArtwork(); syncLearnArtwork(); }
   if (state.tab === 'field' || state.tab === 'matchday') bindField();
   fitSubnav();
