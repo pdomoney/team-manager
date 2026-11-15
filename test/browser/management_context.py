@@ -62,7 +62,7 @@ with sync_playwright() as p:
         manager_id = pg.evaluate('window.__team.data.id')
         checks.ok(manager.count() == 1
                   and manager.get_attribute('data-working-team') == manager_id
-                  and 'Team manager' in manager.inner_text()
+                  and 'Manager' in manager.inner_text()
                   and 'Fictional test profile' in manager.inner_text()
                   and 'Coach workspace' not in manager.inner_text(),
                   f'[{width}] manager sees assigned fictional role and exact team, not Owner role')
