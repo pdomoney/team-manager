@@ -1,8 +1,10 @@
 # Team Manager privacy decision register
 
-**Status:** Open questionnaire. **TM-PR-001 through TM-PR-003 answered; 15 questions remain unanswered. All three responses are pending review.** No supplier selection, verified legal entity/controller allocation, guardian policy, legal approval, or authority for production personal-data processing has been recorded. Created 17 November 2026, based on `main` `0f1b34617a905c6e051b1f1866d87a558870ef51`.
+**Status:** Open questionnaire. **TM-PR-001 through TM-PR-004 answered; 14 questions remain unanswered. All four responses are pending review.** No supplier selection, verified legal entity/controller allocation, guardian policy, legal approval, or authority for production personal-data processing has been recorded. Created 17 November 2026, based on `main` `0f1b34617a905c6e051b1f1866d87a558870ef51`.
 
 **Canonical structured register:** [`config/privacy-decision-register.json`](../../config/privacy-decision-register.json).
+
+**Player field inventory:** [`config/privacy-player-field-inventory.json`](../../config/privacy-player-field-inventory.json). Contains proposed field requirements only, with **no actual personal records** and no approved production collection.
 
 ## Current recorded answers
 
@@ -11,10 +13,28 @@
 | TM-PR-001 | First team **includes players under 18** (owner-confirmed, 17 November 2026) | **Answered, pending review** | Keep junior account, verified guardian, age transition, privacy notice and safeguarding decisions open. No real junior records or access can be processed until separate approvals. |
 | TM-PR-002 | **Platform-led policy responsibility.** The platform decides privacy/data controls and will lead breach reporting; Team Managers and clubs may be required to collect and provide information (owner-confirmed, 17 November 2026). | **Answered, pending review** | Formalise the actual accountable legal entity, delegated team/club duties, incident escalation, controller/processor agreements and notification procedures. Neither this preference nor an in-app designation discharges applicable statutory obligations. |
 | TM-PR-003 | **Registration email, proposed Sign in with Apple/Google, emergency contacts and associated adult accounts** for the initial team. Each under-18 player needs a verified linked guardian account; adult players may opt into a linked account (owner-confirmed, 17 November 2026). | **Answered, pending review** | Account links must never imply legal guardian authority or blanket data access. Confirm verification, adult consent/withdrawal, identity-provider privacy and email relay handling, emergency access purpose and what each linked adult may actually see. |
+| TM-PR-004 | **Proposed mandatory:** full name, date of birth, phone number, residential address and photo. **Proposed optional:** social media accounts, other clubs, other sports, profession, education level and education institution (owner-confirmed, 17 November 2026). | **Answered, pending review** | See the separate field inventory for machine-readable field identifiers. Mandatory fields require necessity/minimisation justification, particularly for juniors. Optional profile information is not permission to market to children or publicly reveal a school, photo, address or handle. |
 
-TM-PR-004 through TM-PR-018 remain unanswered. TM-PR-004 data-category minimisation, TM-PR-005 child login model, TM-PR-006 guardian verification and TM-PR-007 sensitive/emergency data policy remain distinct questions; this broad scope decision does not approve those details. Recorded policy direction is not a verified legal-controller allocation, provider contract, completed privacy review or release approval.
+TM-PR-005 through TM-PR-018 remain unanswered. TM-PR-004 identifies the owner's requested fields, but the purpose, necessity and lawful collection for each field remain unapproved. TM-PR-005 child sign-in, TM-PR-006 guardian verification, TM-PR-007 emergency/sensitive data, TM-PR-008 field-by-role visibility, TM-PR-009 marketing permissions/notices and TM-PR-013 retention remain separate questions. In particular, a junior may not have a personal phone, and a residential address or identifying photo may not be necessary for every role or age group. Recorded policy direction is not a verified legal-controller allocation, provider contract, completed privacy review or release approval.
 
 **Breach notification note:** The OAIC's NDB guidance allows affected entities to coordinate assessment and notification, but each covered entity holding relevant personal information must be able to demonstrate its own compliance. The platform may coordinate and submit notices under an agreed arrangement; an assignment in Team Manager cannot remove a club's or association's independent legal duties where they apply. See [OAIC: NDB scheme and multi-entity responsibility](https://www.oaic.gov.au/privacy/notifiable-data-breaches/preventing-preparing-for-and-responding-to-data-breaches/data-breach-preparation-and-response/part-4-notifiable-data-breach-ndb-scheme).
+
+## Initial player-field collection policy (pending independent review)
+
+| Owner proposes mandatory | Owner proposes optional |
+| --- | --- |
+| Full name | Social media accounts |
+| Date of birth | Other clubs |
+| Phone number | Other sports |
+| Residential address | Profession |
+| Profile photo | Education level |
+| | Education institution |
+
+Registration email, email/Apple/Google sign-in options, emergency contacts and linked guardian accounts are recorded under TM-PR-003. These should not be silently duplicated or interpreted as consent to share more data.
+
+**No player profile field is approved for actual collection merely because it is marked mandatory.** For each field, the platform must decide why it is needed, which participants it applies to, any alternate route for juniors, how to secure it, which exact roles can access it, when it is deleted and whether a less intrusive substitute is possible. Any child photo, precise residential address or education/school name needs particular protection against public discovery, broad team exports and unnecessary sharing.
+
+The six optional fields are **profile proposals, not promotional consent**. Do not make them required for registration, infer consent from completion, preselect marketing opt-in, share social handles or school affiliation to other teams, or use them for profiling/direct marketing without a separate lawful-purpose, age-appropriate permissions and withdrawal decision.
 
 ## Purpose and provenance
 
