@@ -12,8 +12,16 @@ const grant=(accountId,role,teamId='comets-u16')=>({
   validFrom:'2026-11-15T00:00:00Z',expiresAt:'2026-12-15T00:00:00Z'
 });
 const resource=(id,type='team',teamId='comets-u16',other={})=>({
-  id,type,teamId,status:'active',classification:'routine',minorData:false,...other
+  id,type,teamId,status:'active',classification:'routine',minorData:false,version:0,...other
 });
+const commandFor=action=>{
+  const base={mutationId:'synthetic-mutation-000001',expectedVersion:0};
+  if(action==='availability.reply')return {...base,response:'yes'};
+  if(action==='duty.reply')return {...base,response:'yes'};
+  if(action==='play.publish')return {...base,revisionId:'draft-rev1'};
+  return ['schedule.edit','roster.edit','play.draft.edit','duty.assign'].includes(action)
+    ? {...base,command:{change:'fictional'}} : {};
+};
 function world(){
   const state={
     accountId:'acct-coach',
@@ -29,7 +37,7 @@ function world(){
       ['comets-u16',resource('comets-u16')],
       ['rangers-u16',resource('rangers-u16','team','rangers-u16')],
       ['published',resource('published','play','comets-u16',{publicationState:'published',publishedRevisionId:'rev1'})],
-      ['draft',resource('draft','play','comets-u16',{publicationState:'draft'})],
+      ['draft',resource('draft','play','comets-u16',{publicationState:'draft',draftRevisionId:'draft-rev1'})],
       ['other-play',resource('other-play','play','rangers-u16',{publicationState:'published',publishedRevisionId:'rev1'})],
       ['reply-player',resource('reply-player','availability','comets-u16',{personId:'person-player'})],
       ['reply-other',resource('reply-other','availability','comets-u16',{personId:'person-different'})],
@@ -51,7 +59,7 @@ function world(){
     duties:new Map([
       ['person-volunteer:duty-vol',{id:'duty-vol',teamId:'comets-u16',personId:'person-volunteer',status:'assigned',approvedBy:'manager'}]
     ]),
-    audited:[],executed:[],fail:'',trace:[]
+    audited:[],executed:[],reserved:new Set(),fail:'',trace:[]
   };
   const adapter={
     async transaction(fn){
@@ -63,6 +71,20 @@ function world(){
         async loadPersonLink(accountId){state.trace.push('link');return state.links.get(accountId);},
         async loadParticipation(personId,teamId){state.trace.push('participation');return state.participations.get(personId+':'+teamId);},
         async loadDuty(personId,dutyId){state.trace.push('duty');return state.duties.get(personId+':'+dutyId);},
+        async validateActionPayload(record){
+          state.trace.push('command');
+          if(state.fail==='command-throw')throw Error('PRIVATE-COMMAND');
+          return state.fail==='command-false'?false:!!record?.payload;
+        },
+        async reserveMutation(record){
+          state.trace.push('reserve');
+          if(state.fail==='reserve-throw')throw Error('PRIVATE-RESERVATION');
+          if(state.fail==='reserve-false')return false;
+          const key=[record.accountId,record.teamId,record.mutationId].join(':');
+          if(state.reserved.has(key))return false;
+          state.reserved.add(key);
+          return true;
+        },
         async auditDecision(record){
           state.trace.push('audit');
           if(state.fail==='audit')throw Error('PRIVATE-AUDIT');
@@ -84,17 +106,19 @@ function world(){
       // whenever the callback rejects. A real storage adapter must implement
       // this atomically, which these synthetic tests cannot independently prove.
       const auditStart=state.audited.length,executeStart=state.executed.length;
+      const reservedStart=new Set(state.reserved);
       try{return await fn(tx);}
       catch(error){
         state.audited.splice(auditStart);
         state.executed.splice(executeStart);
+        state.reserved=reservedStart;
         throw error;
       }
     },
     clock:()=>NOW
   };
   const boundary=createFirstTeamServerBoundary(adapter);
-  const ask=(token,role,action,resourceId,teamId='comets-u16',payload={})=>
+  const ask=(token,role,action,resourceId,teamId='comets-u16',payload=commandFor(action))=>
     boundary.run({token,activeRole:role,activeTeamId:teamId,action,resourceId,payload});
   return {state,adapter,boundary,ask};
 }
