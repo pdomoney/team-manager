@@ -810,6 +810,9 @@ function nativeRoleAllows(tab){
 function syncNativePersonaTeam(){
  if(!DEV_SANDBOX)return;
  const session=nativePersona();if(!session)return;
+ // Intake-stage filters are transient to one role/group and must not persist
+ // across an explicit fictional profile/context switch.
+ state.squadIntakeFilter=null;
  // The selected group is authoritative. An individual can have multiple
  // grants with the same role; don't snap a newly selected context back to the
  // first team found anywhere in that role's portfolio.
@@ -7223,6 +7226,9 @@ function switchTeam(id,{keepHomeScope=false,selectHomeTeam=false}={}) {
   // separate P12 test registry. Never repurpose a P12 grant or grant access.
   pickTeam(id);
   state.correcting=null;
+  // The intake review is scoped to the current selection, never carried into
+  // another team's working context (even when returning to a prior team).
+  state.squadIntakeFilter=null;
   // Do not overwrite the Platform Owner's saved Home selection when testing
   // another person's club/team portfolio on this device.
   if(!session||session.role==='personal_owner'){
