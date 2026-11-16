@@ -886,6 +886,11 @@ function nativeTeamPlacementAccess(p){
 function nativePersonaAllowedAction(name,el){
  const session=nativePersona();if(!session)return true;
  if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load','home-scope','close-sheet'].includes(name))return true;
+ if(name==='roster-intake-filter'){
+   const review=activeRosterIntakeReview();
+   return !!review&&el?.closest('.roster-intake')?.dataset.teamId===review.teamId&&
+     INTAKE_STAGES.some(s=>s.id===el?.dataset?.filter);
+ }
  if(name==='team-placement-open')
    return nativeTeamPlacementAccess(playerById(el?.dataset?.id));
  if(name==='manager-fixture-open')
@@ -2057,9 +2062,9 @@ function squadIntakePanel(review) {
 }
 function viewSquad() {
   const P = V.players;
-  const active=nativePersona();
+  const active=nativePersona(),intake=activeRosterIntakeReview();
   const fullEdit=isCoach()&&(!active||['personal_owner','team_coach'].includes(active.role));
-  const teamDecisionHint=active&&['team_coach','team_manager','club_admin'].includes(active.role)
+  const teamDecisionHint=!intake&&active&&['team_coach','team_manager','club_admin'].includes(active.role)
     ? '<p class="hint">Team nomination and approval are separate from club registration, fees, competition eligibility and medical clearance. No official verification has been performed here.</p>':'';
   if (!P.length) return fullEdit
     ? `<section class="empty"><h3>No players yet</h3><p>Add players one by one, or paste a whole list from a spreadsheet or the team chat.</p>
@@ -2070,7 +2075,7 @@ function viewSquad() {
   const chip = (k, l) => `<button class="chip" data-act="squad-filter" data-f="${k}" aria-pressed="${state.squadFilter === k}">${l} (${cnt[k]})</button>`;
   return `<div class="sec-h"><h2>Squad</h2>${fullEdit ? `<button class="btn primary sm" data-act="squad-add" aria-haspopup="dialog">${icon('plus', 18)}Add</button>` : ''}</div>
     ${teamDecisionHint}
-    ${squadIntakePanel(activeRosterIntakeReview())}
+    ${squadIntakePanel(intake)}
     <input type="text" placeholder="Search players" aria-label="Search players" data-input="squad-search" value="${esc(state.squadSearch)}" style="margin-bottom:10px">
     <div class="chips">${chip('all', 'All')}${chip('F', 'Female')}${chip('M', 'Male')}${fullEdit ? chip('out', 'Injured / unavailable') : ''}</div>
     <div id="squad-list">${squadList()}</div>
