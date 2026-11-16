@@ -29,6 +29,12 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.equal(field.retention,'undecided',field.key);
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
+  const readAccess=register.decisions.find(x=>x.id==='TM-PR-008');
+  assert.equal(readAccess.status,'answered-pending-review');
+  assert.equal(readAccess.productionAccessAuthorised,false);
+  assert.equal(readAccess.reviewState,'not-reviewed');
+  assert.deepEqual(readAccess.proposedReadAccess.map(x=>x.role),
+    ['appointed-team-manager','club-admin']);
   const safety=register.decisions.find(x=>x.id==='TM-PR-007');
   assert.equal(safety.status,'answered-pending-review');
   assert.equal(safety.collectionApproved,false);
@@ -47,7 +53,7 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
   assert.equal(junior.status,'answered-pending-review');
   assert.equal(junior.reviewState,'not-reviewed');
   assert.equal(junior.responseCode,'junior-own-login-guardian-contact-candidate');
-  for(const id of ['TM-PR-008','TM-PR-009','TM-PR-013']){
+  for(const id of ['TM-PR-009','TM-PR-013']){
     assert.equal(register.decisions.find(x=>x.id===id).status,'unanswered',id);
   }
 });
