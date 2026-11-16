@@ -51,7 +51,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 5);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 6);
   const collection = file.decisions.find(row => row.id === 'TM-PR-004');
   assert.equal(collection.status, 'answered-pending-review');
   assert.equal(collection.responseCode, 'requires-detailed-policy');
@@ -60,13 +60,20 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'unanswered',
     'marketing consent/notice is not implied by optional marketing fields');
+  const guardianVerifier=file.decisions.find(row => row.id === 'TM-PR-006');
+  assert.equal(guardianVerifier.status,'answered-pending-review');
+  assert.equal(guardianVerifier.responseCode,'requires-detailed-policy');
+  assert.match(guardianVerifier.responseSummary,/Team manager/);
+  assert.match(guardianVerifier.clarificationNeeded,/appointed human Team Manager role or the platform operator/);
+  assert.equal(guardianVerifier.reviewState,'not-reviewed');
+  assert.equal(guardianVerifier.reviewEvidenceRef,null);
   const junior = file.decisions.find(row => row.id === 'TM-PR-005');
   assert.equal(junior.responseCode,'junior-own-login-guardian-contact-candidate');
   assert.equal(junior.status,'answered-pending-review');
   assert.equal(junior.reviewState,'not-reviewed');
   assert.equal(junior.reviewEvidenceRef,null);
   assert.equal(junior.applicable,'yes');
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status,'unanswered',
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status,'answered-pending-review',
     'guardian verification and consent remain undecided');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-008').status,'unanswered',
     'guardian access visibility is not conferred by candidate details');
@@ -92,9 +99,9 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     'collection is not approved by supplying the requested field list');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review',
     'own junior login was explicitly chosen but not independently approved');
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status, 'unanswered',
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status, 'answered-pending-review',
     'guardian verification, activation and child consent are still open');
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status, 'unanswered',
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status, 'answered-pending-review',
     'verified guardian authority and adult linkage remain separate decisions');
   const platformResponsibility = file.decisions.find(row => row.id === 'TM-PR-002');
   assert.equal(platformResponsibility.status, 'answered-pending-review');
@@ -110,7 +117,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(firstTeamAges.applicable, 'yes');
   assert.equal(firstTeamAges.reviewState, 'not-reviewed');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status, 'unanswered');
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status, 'answered-pending-review');
 });
 
 test('owner answer alone never becomes reviewed or production-authorised', () => {
