@@ -8,8 +8,8 @@ The owner directed development back to everyday management after accepting play 
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| M1 | Selected-team management workspace, context UX, role/device acceptance | M1.1 merged/published; M1.2 merged/published, exact-main final tests pending; M1.3 qualification PR candidate |
-| M2 | Player intake, guardian reviews, registration and season lifecycle | Proposed |
+| M1 | Selected-team management workspace, context UX, role/device acceptance | M1.1–M1.3 merged/published, exact-main Node/Chromium/WebKit PASS through #248; physical Safari/VoiceOver and owner review pending |
+| M2 | Player intake, guardian reviews, registration and season lifecycle | M2.1 fictional roster intake review PR candidate; M2.2–M2.5 queued or decision-gated |
 | M3 | Coach/Manager training, availability and team selection approvals | Proposed |
 | M4 | Sport-scoped Match Day roster, staff, result and publication authority | Proposed; rule-gated |
 | M5 | Club and volunteer administration, appointments and qualification evidence | Proposed |
@@ -22,6 +22,20 @@ The owner directed development back to everyday management after accepting play 
 **M1.2 merged:** Compact working context appears on existing operational pages. It identifies the exact working team, club, selected season and fictional role/group, explicitly marks historical or test roles, and routes to Home for team selection. Match Day and the play engine stay untouched; player/guardian and unassigned roles receive no management strip. The native Crew team-versus-club filter remains the scope authority. No new permission, write, login, schema, fixture authority or data publishing workflow.
 
 **M1.3 qualification candidate:** The [M1.3 role/team/device acceptance plan](acceptance/m1-3-team-role-device.md) and `test/browser/m1_3_role_team_device.py` exercise the original Home team picker and header, allowed cross-club selection, Matches/Squad/Training navigation, role-specific negative paths, 390px/820px/1280px breakpoints and live viewport resizing. Owner, Coach, Manager, Player, Guardian and an explicit multi-role switch are covered using only fictional P12 data. Automated Chromium evidence, macOS/iOS Safari, keyboard/VoiceOver and owner acceptance remain separate; never treat UI filters as production grants.
+
+**M1 actual release evidence (16 November 2026):** PR #248 merged at `cccd0891ba8eb194243a9cf9ee5f7fe047e5eeb8`; [post-merge Tests](https://github.com/pdomoney/team-manager/actions/runs/43809172347) and [Publish](https://github.com/pdomoney/team-manager/actions/runs/43809172316) PASS. M1.3 role/team/viewport Chromium 72/72 PASS. This is automated engineering qualification, not physical Safari or owner UX acceptance.
+
+### M2 | Player and squad lifecycle (five workstreams)
+
+| Slice | Outcome | Current gate |
+| --- | --- | --- |
+| **M2.1** Team placement intake review | Native Squad shows existing team-only nomination, awaiting approval, approved and withdrawn stages with exact-team filters for fictional Coach/Manager; Club Admin can review only | Source PR candidate; merge, post-merge and owner UI acceptance outstanding |
+| **M2.2** Player intake completeness and reported guardian linkage | Identify missing squad fields and review reported relationships without claiming verified guardian authority or creating accounts | Not started; preserve existing player/person and guardian review models |
+| **M2.3** Registration and financial evidence lifecycle | Club registration/Registrar and external provider confirmations strictly separate from Coach/Manager team approval | Design/authority gate: D17 grace-period rules, verifiable provider evidence, D21 retention and D23 finance roles |
+| **M2.4** Season move/transfer lifecycle | New-season choices, safe withdrawal and cross-team history with explicit approvals, no automatic inherited eligibility | Not started; migration/backups require separate authority |
+| **M2.5** Recovery and real-device acceptance | Negative role/club tests, exact-data preservation, genuine iPhone/macOS Safari and restore | Not started; source tests do not prove physical-device or individual identity |
+
+**Progress accounting:** five equal roadmap slices (20% each) for planning. M2.1 is a source candidate, not accepted completion. Do not advance the programme percentage on tests alone. No new backend, real identity, external registration, child data, payments or match eligibility is authorised by M2.1. Keep M3–M8 and play E6–E8 deferred as shown below.
 
 Existing issues #154, #131, #34, #35 and #31 remain open until independently qualified. **Plays:** E5 accepted, E6–E8 and Option C deferred; preserve all existing tactics behaviour.
 

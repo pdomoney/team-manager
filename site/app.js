@@ -80,6 +80,7 @@ import { matchRosterReadiness } from './matchday-roster-readiness.js';
 import { rosterRecordReview } from './matchday-roster-review.js';
 import { matchReplyRosterScope } from './matchday-season-rsvp.js';
 import { teamPlacementStatus,recordTeamPlacement } from './team-placement-decisions.js';
+import { INTAKE_STAGES,rosterIntakeReview,rosterIntakeMatches } from './roster-intake-review.js';
 import { matchArrivalGate } from './matchday-arrival-gate.js';
 import { matchPreparationSummary } from './matchday-preparation.js';
 import { crewCoverageSummary } from './p06-crew-summary.js';
@@ -357,7 +358,7 @@ let V = null;         // what the current screen shows (set in render)
 let gh = { autoPublish: true, ...repoFromLocation(), ...loadGitHubSettings(store, sessionStore) };
 
 const state = {
-  tab: 'home', squadFilter: 'all', squadSearch: '', showPast: false,
+  tab: 'home', squadFilter: 'all', squadSearch: '', squadIntakeFilter: null, showPast: false,
   msgEvent: null, msgRef: '', askSent: null, pending: null, conflict: null, lastView: {}, reportRange: 'season',
   lineupId: null, moveMode: false, msgTpl: 'reminder', msgSession: null, msgDraft: null, postNotice: true,
   layers: { zones: true, channels: true, ...(readJson('tm-field-layers') || {}) },
@@ -885,6 +886,11 @@ function nativeTeamPlacementAccess(p){
 function nativePersonaAllowedAction(name,el){
  const session=nativePersona();if(!session)return true;
  if(['desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','tab','nav','native-persona-load','home-scope','close-sheet'].includes(name))return true;
+ if(name==='roster-intake-filter'){
+   const review=activeRosterIntakeReview();
+   return !!review&&el?.closest('.roster-intake')?.dataset.teamId===review.teamId&&
+     INTAKE_STAGES.some(s=>s.id===el?.dataset?.filter);
+ }
  if(name==='team-placement-open')
    return nativeTeamPlacementAccess(playerById(el?.dataset?.id));
  if(name==='manager-fixture-open')
@@ -2022,11 +2028,43 @@ function teamPlacementForm(p,action){
    <button type="submit" class="btn primary block">${label}</button>
  </form>`;
 }
+// M2.1 is a review of existing fictional team placement events, not registration.
+// Do not display it in genuine shared-password mode, a past season, or to a
+// Player/Guardian. Exact selected role and team stay authoritative.
+function activeRosterIntakeReview() {
+  const session=nativePersona();
+  if(!DEV_SANDBOX||!S.trial||!isCoach()||readOnlyView()||
+     !session||!['team_coach','team_manager','club_admin'].includes(session.role)||
+     session.context?.kind!=='access'||session.context.status!=='active'||
+     nativeTeamId(session.team?.id)!==data.id||
+     !session.allowedTeams.some(t=>nativeTeamId(t.id)===data.id))return null;
+  return rosterIntakeReview(data,V.players);
+}
+function squadIntakeStage(review) {
+  const selected=state.squadIntakeFilter;
+  return review&&selected?.teamId===review.teamId&&
+    INTAKE_STAGES.some(s=>s.id===selected.id)?selected.id:'all';
+}
+function squadIntakePanel(review) {
+  if(!review)return '';
+  const selected=squadIntakeStage(review);
+  const stages=INTAKE_STAGES.filter(s=>s.id!=='unresolved'||review.counts.unresolved);
+  return '<section class="roster-intake" aria-label="Team intake review" data-team-id="'+esc(review.teamId)+'">'+
+    '<div class="roster-intake-head"><strong>Team intake</strong>'+
+    '<span class="muted small">'+review.counts['not-nominated']+' to nominate · '+
+    review.counts.nominated+' awaiting team approval</span></div>'+
+    '<div class="chips roster-intake-stages" role="group" aria-label="Filter squad by team placement stage">'+
+    stages.map(s=>'<button type="button" class="chip" data-act="roster-intake-filter" data-filter="'+s.id+
+      '" aria-pressed="'+(selected===s.id)+'">'+esc(s.label)+' ('+review.counts[s.id]+')</button>').join('')+'</div>'+
+    '<p class="hint">Team decision history only. Registration, fees and competition eligibility are not verified here.</p>'+
+    '<output id="roster-intake-selection" class="sr-only" role="status" aria-live="polite"></output>'+
+    '</section>';
+}
 function viewSquad() {
   const P = V.players;
-  const active=nativePersona();
+  const active=nativePersona(),intake=activeRosterIntakeReview();
   const fullEdit=isCoach()&&(!active||['personal_owner','team_coach'].includes(active.role));
-  const teamDecisionHint=active&&['team_coach','team_manager','club_admin'].includes(active.role)
+  const teamDecisionHint=!intake&&active&&['team_coach','team_manager','club_admin'].includes(active.role)
     ? '<p class="hint">Team nomination and approval are separate from club registration, fees, competition eligibility and medical clearance. No official verification has been performed here.</p>':'';
   if (!P.length) return fullEdit
     ? `<section class="empty"><h3>No players yet</h3><p>Add players one by one, or paste a whole list from a spreadsheet or the team chat.</p>
@@ -2037,6 +2075,7 @@ function viewSquad() {
   const chip = (k, l) => `<button class="chip" data-act="squad-filter" data-f="${k}" aria-pressed="${state.squadFilter === k}">${l} (${cnt[k]})</button>`;
   return `<div class="sec-h"><h2>Squad</h2>${fullEdit ? `<button class="btn primary sm" data-act="squad-add" aria-haspopup="dialog">${icon('plus', 18)}Add</button>` : ''}</div>
     ${teamDecisionHint}
+    ${squadIntakePanel(intake)}
     <input type="text" placeholder="Search players" aria-label="Search players" data-input="squad-search" value="${esc(state.squadSearch)}" style="margin-bottom:10px">
     <div class="chips">${chip('all', 'All')}${chip('F', 'Female')}${chip('M', 'Male')}${fullEdit ? chip('out', 'Injured / unavailable') : ''}</div>
     <div id="squad-list">${squadList()}</div>
@@ -2044,7 +2083,9 @@ function viewSquad() {
 }
 function squadList() {
   const q = state.squadSearch.trim().toLowerCase();
+  const review=activeRosterIntakeReview(),stage=squadIntakeStage(review);
   const list = sortedPlayers().filter(p => {
+    if(review&&!rosterIntakeMatches(review,p.id,stage))return false;
     if (state.squadFilter === 'F' && p.gender !== 'F') return false;
     if (state.squadFilter === 'M' && p.gender !== 'M') return false;
     if (state.squadFilter === 'out' && (!p.status || p.status === 'available')) return false;
@@ -9106,6 +9147,21 @@ const actions = {
     save(); closeSheet(); render(); toast(`${p.name} removed`);
   }),
   'squad-filter': el => { state.squadFilter = el.dataset.f; render(); },
+  'roster-intake-filter': el => {
+    const review=activeRosterIntakeReview();
+    const id=el.dataset.filter;
+    if(!review||!INTAKE_STAGES.some(s=>s.id===id)||
+       el.closest('.roster-intake')?.dataset.teamId!==review.teamId)return;
+    state.squadIntakeFilter={teamId:review.teamId,id};
+    // Update the selected stage and rows without rerendering the whole page,
+    // retaining keyboard focus and the existing Home/team context.
+    document.querySelectorAll('#view .roster-intake [data-act=roster-intake-filter]')
+      .forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.filter===id)));
+    const list=$('#squad-list');if(list)list.innerHTML=squadList();
+    const label=INTAKE_STAGES.find(s=>s.id===id)?.label||'All';
+    const output=$('#roster-intake-selection');
+    if(output)output.textContent=review.counts[id]+' players in '+label.toLowerCase();
+  },
   'wa-player': coachOnly(el => { const p = playerById(el.dataset.id); if (!p || !p.phone) return; sendWa(`Hi ${firstName(p)}, `, { to: p.name, phone: p.phone, ref: 'player:' + p.id }); }),
 
   'train-view': el => goTo({ agenda: 'agenda', schedule: 'training', matches: 'matches', attendance: 'attendance' }[el.dataset.v] || 'agenda', false),
