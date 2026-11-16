@@ -61,7 +61,12 @@ with sync_playwright() as p:
         checks.ok(pg.locator('#sheet form[data-form=player]').count()==1
                   and pg.locator(f'#sheet form[data-form=player] input[name=id]').get_attribute('value')==pid,
                   f'[{width}] detail review opens original exact-player Coach form')
-        pg.locator('#sheet [data-act=close-sheet]').first.click()
+        # Use the visible, keyboard-accessible header Close control. The first
+        # close-sheet element is the backdrop behind the dialog and may be
+        # occluded by the dialog body at different viewport sizes.
+        pg.locator('#sheet .panel-head button[data-act=close-sheet]').click()
+        checks.ok(pg.locator('#sheet').is_hidden(),
+                  f'[{width}] player editor closes through its visible Close button')
         checks.ok(pg.evaluate('JSON.stringify(window.__team.data.players)')==before,
                   f'[{width}] cancel does not write player detail changes')
         checks.ok(not pg.evaluate('document.documentElement.scrollWidth > innerWidth+1'),
