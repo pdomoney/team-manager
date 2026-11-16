@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "kind": "first-team-cloud-live-release",
+  "description": "SOURCE-ONLY blocked first-team cloud go-live ledger. No provider approved, real backend, identities, junior records or installed cloud release. Never commit production evidence, credentials or personal data here.",
+  "candidate": {
+    "sourceSha": null,
+    "installedSha": null,
+    "runtime": "static-pages-only"
+  },
+  "ownerDecision": {
+    "status": "pending",
+    "provider": null,
+    "plan": null,
+    "region": null,
+    "controller": null,
+    "launchMode": "undecided",
+    "dataScope": "synthetic-only",
+    "minorDataPolicy": "undecided",
+    "ownerApprovalRef": null,
+    "providerCostRef": null,
+    "retentionDeletionRef": null,
+    "privacyNoticeRef": null,
+    "minorDataDecisionRef": null
+  },
+  "serverSecurity": {
+    "environment": "NO_BACKEND",
+    "automatedCasesPassed": 0,
+    "automatedCasesFailed": 0,
+    "manualHistoricalRiskAccepted": false,
+    "independentlyReviewed": false,
+    "reportRef": null,
+    "independentReviewRef": null,
+    "sourceSha": null
+  },
+  "deviceEvidence": {
+    "iphoneSafari": null,
+    "macosSafari": null,
+    "voiceOver": null,
+    "twoDeviceRecovery": null
+  },
+  "gates": {
+    "L0_OWNER_AND_DATA_POLICY": {
+      "status": "pending"
+    },
+    "L1_ISOLATED_SERVER_AND_IDENTITY": {
+      "status": "pending"
+    },
+    "L2_EXACT_TEAM_WORKFLOW": {
+      "status": "pending"
+    },
+    "L3_REAL_SERVER_SECURITY": {
+      "status": "pending"
+    },
+    "L4_BACKUP_ROLLBACK_AND_STAGING": {
+      "status": "pending"
+    },
+    "L5_PHYSICAL_SAFARI_AND_RECOVERY": {
+      "status": "pending"
+    },
+    "L6_OWNER_LIVE_RELEASE_ACCEPTANCE": {
+      "status": "pending"
+    }
+  }
+}

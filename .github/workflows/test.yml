@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
-    paths: ['src/**', 'test/**', 'site/**']
+    paths: ['src/**', 'test/**', 'site/**', 'scripts/check-first-team-cloud-release.mjs', 'config/first-team-cloud-release-evidence.json']
 
 jobs:
   test:
@@ -15,6 +15,8 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+      - name: Confirm first-team cloud release ledger remains safely blocked
+        run: node scripts/check-first-team-cloud-release.mjs --assert-source-blocked
 
   browser:
     # Playwright 1.55.0 cannot install Chromium on GitHub's Ubuntu 26.04 image.

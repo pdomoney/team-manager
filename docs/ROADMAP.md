@@ -9,7 +9,7 @@ The owner directed development back to everyday management after accepting play 
 | Phase | Scope | Status |
 | --- | --- | --- |
 | M1 | Selected-team management workspace, context UX, role/device acceptance | M1.1–M1.3 merged/published, exact-main Node/Chromium/WebKit PASS through #248; physical Safari/VoiceOver and owner review pending |
-| M2 | Player intake, guardian reviews, registration and season lifecycle | M2.1 PRs #249/#250 merged/published, exact-main Node/Chromium/WebKit PASS; M2.2 Coach-only review PR candidate; M2.3–M2.5 queued/decision-gated |
+| M2 | Player intake, guardian reviews, registration and season lifecycle | M2.1 and M2.2 PRs #249–#251 merged/published, exact-main Node/Chromium/WebKit PASS; M2.3–M2.5 queued/decision-gated |
 | M3 | Coach/Manager training, availability and team selection approvals | Proposed |
 | M4 | Sport-scoped Match Day roster, staff, result and publication authority | Proposed; rule-gated |
 | M5 | Club and volunteer administration, appointments and qualification evidence | Proposed |
@@ -30,12 +30,16 @@ The owner directed development back to everyday management after accepting play 
 | Slice | Outcome | Current gate |
 | --- | --- | --- |
 | **M2.1** Team placement intake review | Native Squad shows existing team-only nomination, awaiting approval, approved and withdrawn stages with exact-team filters for fictional Coach/Manager; Club Admin can review only | PRs #249/#250 merged, exact-main Tests #43817019133 PASS (Chromium 4091/4091; Node/WebKit PASS), Pages #43817019186 PASS; actual Safari/owner acceptance pending |
-| **M2.2** Player intake completeness and reported guardian linkage | Coach-only collapsed Squad detail suggestions and reported relationship review counts, using existing player/person records | Source branch candidate, not merged; exact-head CI/owner acceptance outstanding |
+| **M2.2** Player intake completeness and reported guardian linkage | Coach-only collapsed Squad detail suggestions and reported relationship review counts, using existing player/person records | PR #251 merged on main `09bd859e26eda2b5fc8594f1cef67cd489a420ff`; post-merge [Tests #43821487027](https://github.com/pdomoney/team-manager/actions/runs/43821487027) and [Publish #43821487151](https://github.com/pdomoney/team-manager/actions/runs/43821487151) PASS (Node/Chromium/WebKit). Physical Safari and owner acceptance separate |
 | **M2.3** Registration and financial evidence lifecycle | Club registration/Registrar and external provider confirmations strictly separate from Coach/Manager team approval | Design/authority gate: D17 grace-period rules, verifiable provider evidence, D21 retention and D23 finance roles |
 | **M2.4** Season move/transfer lifecycle | New-season choices, safe withdrawal and cross-team history with explicit approvals, no automatic inherited eligibility | Not started; migration/backups require separate authority |
 | **M2.5** Recovery and real-device acceptance | Negative role/club tests, exact-data preservation, genuine iPhone/macOS Safari and restore | Not started; source tests do not prove physical-device or individual identity |
 
-**Progress accounting:** five equal roadmap slices (20% each) for planning. M2.1 is automatically release-qualified at the exact merged commit (20%); actual Safari and owner acceptance remain open. M2.2 is source-only and not merged. Do not advance the release-qualified percentage on source implementation or Pages publication alone. No new backend, real identity, external registration, child data, payments or match eligibility is authorised by M2.1. Keep M3–M8 and play E6–E8 deferred as shown below.
+**Progress accounting:** five equal roadmap slices (20% each). M2.1 and M2.2 are merged, published and have passing exact-main automated tests: **2/5 = 40% engineering qualified, 60% remaining**. Actual Safari and separate owner acceptance are not inferred from CI. M2.3–M2.5 remain decision-gated, and this percentage is not cloud-production readiness. No new backend, individual identity, real registration/finance status, junior records, payments or match eligibility is authorised by M2.1/M2.2. Keep M3–M8 and play E6–E8 deferred.
+
+### First-team cloud launch by 29 November 2026 (priority, conditional)
+
+The product owner requires a first-team cloud release ahead of Sunday 29 November. [Issue #252](https://github.com/pdomoney/team-manager/issues/252) defines **L0–L6, currently 0/7 = 0% release qualified**. GitHub Pages already publishes the static frontend; this is not production individual identity or server-side tenancy. [The L0 source-only fail-closed preflight](operations/first-team-cloud-release.md) can check completeness of sanitised evidence but does not select a vendor, create real server access or verify referenced evidence. Owner decisions under [#55](https://github.com/pdomoney/team-manager/issues/55) and D21 are required before provisioning or migration. Hold actual junior/medical data and unverified guardian links until separately approved. The narrow one-team pilot supersedes unrelated M2.3–M8 sequencing for the deadline without cancelling those future roadmap items.
 
 Existing issues #154, #131, #34, #35 and #31 remain open until independently qualified. **Plays:** E5 accepted, E6–E8 and Option C deferred; preserve all existing tactics behaviour.
 
