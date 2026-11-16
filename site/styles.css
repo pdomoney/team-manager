@@ -185,7 +185,8 @@ main{max-width:720px;margin:0 auto;padding:16px}
 .roster-intake .hint{margin:6px 0 0}
 /* M2.2: optional player details remain tucked away until a Coach asks. */
 .squad-record-review{border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:0 12px;margin:10px 0 14px}
-.squad-record-review summary{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;cursor:pointer;min-height:44px;padding:8px 0}
+.squad-record-review summary{display:list-item;cursor:pointer;min-height:44px;padding:10px 0;line-height:24px}
+.squad-record-review summary .muted{margin-left:10px}
 .squad-record-review summary strong{font-size:15px}
 .squad-record-review .hint{margin:7px 0 12px}
 .squad-record-item{gap:10px}
