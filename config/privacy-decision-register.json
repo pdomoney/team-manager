@@ -23,17 +23,17 @@
         "adults-only",
         "includes-under-18s"
       ],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "includes-under-18s",
+      "responseSummary": "The first live team will include players under 18. Guardian, safeguarding and child-account details remain undecided.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-001",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes"
     },
     {
       "id": "TM-PR-002",
