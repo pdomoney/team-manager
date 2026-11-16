@@ -51,7 +51,19 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 2);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 3);
+  const initialScope = file.decisions.find(row => row.id === 'TM-PR-003');
+  assert.equal(initialScope.status, 'answered-pending-review');
+  assert.equal(initialScope.responseCode,
+    'one-team-operations-with-registration-emergency-and-linked-accounts');
+  assert.equal(initialScope.reviewState,'not-reviewed');
+  assert.equal(initialScope.reviewEvidenceRef,null);
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-004').status, 'unanswered',
+    'data minimisation and field-level authority must still be decided');
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'unanswered',
+    'guardian association does not decide whether minors can sign in directly');
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status, 'unanswered',
+    'verified guardian authority and adult linkage remain separate decisions');
   const platformResponsibility = file.decisions.find(row => row.id === 'TM-PR-002');
   assert.equal(platformResponsibility.status, 'answered-pending-review');
   assert.equal(platformResponsibility.responseCode, 'platform-operator');
