@@ -183,6 +183,15 @@ main{max-width:720px;margin:0 auto;padding:16px}
 .roster-intake .chips{margin-bottom:3px}
 .roster-intake .chip{min-height:44px}
 .roster-intake .hint{margin:6px 0 0}
+/* M2.2: optional player details remain tucked away until a Coach asks. */
+.squad-record-review{border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:0 12px;margin:10px 0 14px}
+.squad-record-review summary{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;cursor:pointer;min-height:44px;padding:8px 0}
+.squad-record-review summary strong{font-size:15px}
+.squad-record-review .hint{margin:7px 0 12px}
+.squad-record-item{gap:10px}
+.squad-record-item .grow{min-width:0}
+.squad-record-item .btn{min-height:44px;flex:none}
+
 
 .seg{display:flex;background:#E5E9E3;border-radius:10px;padding:3px;margin-bottom:14px}
 .seg button{flex:1;appearance:none;border:0;background:none;padding:8px;border-radius:8px;font-weight:600;cursor:pointer;min-height:40px;color:var(--muted)}
