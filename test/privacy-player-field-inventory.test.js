@@ -29,7 +29,11 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.equal(field.retention,'undecided',field.key);
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
-  for(const id of ['TM-PR-005','TM-PR-006','TM-PR-007','TM-PR-008','TM-PR-009','TM-PR-013']){
+  const junior=register.decisions.find(x=>x.id==='TM-PR-005');
+  assert.equal(junior.status,'answered-pending-review');
+  assert.equal(junior.reviewState,'not-reviewed');
+  assert.equal(junior.responseCode,'junior-own-login-guardian-contact-candidate');
+  for(const id of ['TM-PR-006','TM-PR-007','TM-PR-008','TM-PR-009','TM-PR-013']){
     assert.equal(register.decisions.find(x=>x.id===id).status,'unanswered',id);
   }
 });
