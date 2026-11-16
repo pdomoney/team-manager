@@ -34,7 +34,6 @@ const bounded=(row,at)=>{
     (from===null||at>=from)&&(to===null||at<to);
 };
 const deny=code=>Object.freeze({allowed:false,code});
-const yes=()=>Object.freeze({allowed:true,code:'permitted'});
 const validGrant=(g,identity,role,teamId,at)=>obj(g)&&
   g.accountId===identity.accountId&&g.role===role&&g.scopeType==='team'&&
   g.scopeId===teamId&&g.policyVersion===FIRST_TEAM_SERVER_POLICY_VERSION&&
@@ -133,19 +132,27 @@ export function createFirstTeamServerBoundary({transaction,clock=()=>new Date().
           // All action implementation, schema validation, row filtering and
           // optimistic version checks remain obligations of the trusted adapter.
           // No implicit permission to export, browse raw rows or issue signed URLs.
-          await tx.auditDecision({
+          // Both the audit and operation must report an explicit acknowledgement
+          // from inside the same rollback-capable transaction. Undefined, false,
+          // or an error-shaped return is never evidence that a write/read succeeded.
+          // Throw, rather than return DENY here, so a real transaction must roll
+          // back all preceding audit and operation writes before answering the caller.
+          const auditAccepted=await tx.auditDecision({
             accountId:identity.accountId,action:request.action,
             resourceType:action.type,resourceId:resource.id,
             teamId:resource.teamId,role:request.activeRole,
             decision:'ALLOW',at:new Date(at).toISOString()
           });
-          const value=await tx.executeAuthorized({
+          if(auditAccepted!==true)throw new Error('audit-not-acknowledged');
+          const result=await tx.executeAuthorized({
             accountId:identity.accountId,personId,
             action:request.action,resourceId:resource.id,
             teamId:resource.teamId,role:request.activeRole,
             payload:request.payload||{}
           });
-          return Object.freeze({allowed:true,code:'permitted',value});
+          if(!obj(result)||result.success!==true)
+            throw new Error('operation-not-acknowledged');
+          return Object.freeze({allowed:true,code:'permitted',value:result});
         });
       }catch{
         // An unavailable or unsafe provider MUST NOT return success or leak a
