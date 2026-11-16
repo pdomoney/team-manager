@@ -51,15 +51,31 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 8);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 9);
   const collection = file.decisions.find(row => row.id === 'TM-PR-004');
   assert.equal(collection.status, 'answered-pending-review');
   assert.equal(collection.responseCode, 'requires-detailed-policy');
   assert.equal(collection.applicable, 'yes');
   assert.equal(collection.reviewState, 'not-reviewed');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'unanswered',
-    'marketing consent/notice is not implied by optional marketing fields');
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'answered-pending-review',
+    'owner now specified separate optional marketing choice; no production consent was obtained');
+  const marketing=file.decisions.find(row=>row.id==='TM-PR-009');
+  assert.equal(marketing.status,'answered-pending-review');
+  assert.equal(marketing.responseCode,'requires-detailed-policy');
+  assert.equal(marketing.reviewState,'not-reviewed');
+  assert.equal(marketing.reviewEvidenceRef,null);
+  assert.equal(marketing.proposedConsentExperience.privacyNoticeAcknowledgement,'required-at-account-acceptance');
+  assert.equal(marketing.proposedConsentExperience.marketingConsent,'separate-explicit-opt-in-at-acceptance');
+  assert.equal(marketing.proposedConsentExperience.marketingDefault,false);
+  assert.equal(marketing.proposedConsentExperience.marketingRequiredForParticipation,false);
+  assert.equal(marketing.proposedConsentExperience.manageMarketingConsent,'account-settings');
+  assert.equal(marketing.proposedConsentExperience.withdrawalSupported,true);
+  assert.equal(marketing.proposedConsentExperience.withdrawalShouldStopFutureMarketing,true);
+  assert.equal(marketing.proposedConsentExperience.minorAndGuardianRules,'pending-age-appropriate-privacy-review');
+  assert.equal(marketing.proposedConsentExperience.operationalNoticesSeparateFromMarketing,true);
+  assert.equal(marketing.proposedConsentExperience.productionUseAuthorised,false);
+  assert.equal(file.decisions.find(row=>row.id==='TM-PR-013').status,'unanswered');
   const access=file.decisions.find(row=>row.id==='TM-PR-008');
   assert.equal(access.status,'answered-pending-review');
   assert.equal(access.responseCode,'requires-detailed-policy');
@@ -85,7 +101,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.ok(safetyScope.excludedFromInitialScope.includes(category),category);
   }
   assert.equal(safetyScope.reviewState,'not-reviewed');
-  for(const id of ['TM-PR-009','TM-PR-013'])
+  for(const id of ['TM-PR-013'])
     assert.equal(file.decisions.find(r=>r.id===id).status,'unanswered',id+' remains unapproved');
   const guardianVerifier=file.decisions.find(row => row.id === 'TM-PR-006');
   assert.equal(guardianVerifier.status,'answered-pending-review');
@@ -112,7 +128,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     'guardian verification and consent remain undecided');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-008').status,'answered-pending-review',
     'guardian access visibility is not conferred by candidate details');
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status,'unanswered',
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status,'answered-pending-review',
     'minor-specific notices and consent remain undecided');
   const initialScope = file.decisions.find(row => row.id === 'TM-PR-003');
   assert.equal(initialScope.status, 'answered-pending-review');

@@ -29,6 +29,13 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.equal(field.retention,'undecided',field.key);
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
+  const marketing=register.decisions.find(x=>x.id==='TM-PR-009');
+  assert.equal(marketing.status,'answered-pending-review');
+  assert.equal(marketing.proposedConsentExperience.marketingDefault,false);
+  assert.equal(marketing.proposedConsentExperience.marketingRequiredForParticipation,false);
+  assert.equal(marketing.proposedConsentExperience.withdrawalSupported,true);
+  assert.equal(marketing.proposedConsentExperience.productionUseAuthorised,false);
+  assert.equal(marketing.reviewState,'not-reviewed');
   const readAccess=register.decisions.find(x=>x.id==='TM-PR-008');
   assert.equal(readAccess.status,'answered-pending-review');
   assert.equal(readAccess.productionAccessAuthorised,false);
@@ -53,7 +60,7 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
   assert.equal(junior.status,'answered-pending-review');
   assert.equal(junior.reviewState,'not-reviewed');
   assert.equal(junior.responseCode,'junior-own-login-guardian-contact-candidate');
-  for(const id of ['TM-PR-009','TM-PR-013']){
+  for(const id of ['TM-PR-013']){
     assert.equal(register.decisions.find(x=>x.id===id).status,'unanswered',id);
   }
 });
