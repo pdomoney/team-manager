@@ -2,7 +2,10 @@
 // Not imported by site/, not a hosted API, not proof that an identity provider,
 // database transaction, row policy, child consent or data controller has been approved.
 // The future provider adapter must cryptographically verify every session and run
-// all resource/grant reads, audit and action in one rollback-capable transaction.
+// all resource/grant reads, mutation reservation, audit and action in one
+// rollback-capable transaction.
+
+import {validateFirstTeamActionPayload} from './first-team-action-contract.js';
 
 const ACTIONS = Object.freeze({
   'schedule.read': Object.freeze({type:'team', roles:['team_coach','team_assistant','team_manager','team_player']}),
@@ -69,13 +72,17 @@ export function createFirstTeamServerBoundary({transaction,clock=()=>new Date().
   return Object.freeze({
     async run(request){
       if(!validRequest(request))return deny('invalid-request');
+      const actionPayload=validateFirstTeamActionPayload(
+        request.action,request.payload||{});
+      if(!actionPayload)return deny('invalid-action-payload');
       const at=instant(clock());
       if(at===null)return deny('invalid-server-clock');
       try{
         return await transaction(async tx=>{
           if(!obj(tx)||[
             'verifySession','loadResource','loadGrants','loadPersonLink',
-            'loadParticipation','loadDuty','auditDecision','executeAuthorized'
+            'loadParticipation','loadDuty','auditDecision','executeAuthorized',
+            'validateActionPayload','reserveMutation'
           ].some(name=>typeof tx[name]!=='function'))return deny('missing-trusted-adapter');
 
           // verifySession must validate signature/issuer/audience/expiry AND fetch
@@ -102,6 +109,17 @@ export function createFirstTeamServerBoundary({transaction,clock=()=>new Date().
             return deny('unpublished-play');
           if(request.action.startsWith('play.draft.')||request.action==='play.publish'){
             if(resource.publicationState!=='draft')return deny('not-a-draft');
+          }
+          if(actionPayload.kind==='write'){
+            // Optimistic freshness is checked against a trusted resource row
+            // before an idempotency reservation. The real adapter must also
+            // enforce this version atomically at the eventual database write.
+            if(!Number.isSafeInteger(resource.version)||
+               resource.version!==actionPayload.payload.expectedVersion)
+              return deny('stale-resource-version');
+            if(request.action==='play.publish'&&
+               resource.draftRevisionId!==actionPayload.payload.revisionId)
+              return deny('stale-play-revision');
           }
 
           const grants=await tx.loadGrants(identity.accountId);
@@ -132,6 +150,25 @@ export function createFirstTeamServerBoundary({transaction,clock=()=>new Date().
           // All action implementation, schema validation, row filtering and
           // optimistic version checks remain obligations of the trusted adapter.
           // No implicit permission to export, browse raw rows or issue signed URLs.
+          // Provider-specific command fields need an independent schema check.
+          // Reservation, audit and execution must share the same DB transaction,
+          // so a fault or rejected replay cannot partially commit a mutation.
+          if(actionPayload.kind==='write'){
+            const validCommand=await tx.validateActionPayload({
+              accountId:identity.accountId,personId,
+              action:request.action,teamId:resource.teamId,
+              resourceId:resource.id,payload:actionPayload.payload
+            });
+            if(validCommand!==true)return deny('invalid-domain-command');
+            const reserved=await tx.reserveMutation({
+              accountId:identity.accountId,teamId:resource.teamId,
+              action:request.action,resourceId:resource.id,
+              mutationId:actionPayload.payload.mutationId,
+              expectedVersion:actionPayload.payload.expectedVersion
+            });
+            if(reserved!==true)throw new Error('replayed-or-unreserved-mutation');
+          }
+
           // Both the audit and operation must report an explicit acknowledgement
           // from inside the same rollback-capable transaction. Undefined, false,
           // or an error-shaped return is never evidence that a write/read succeeded.
@@ -148,7 +185,7 @@ export function createFirstTeamServerBoundary({transaction,clock=()=>new Date().
             accountId:identity.accountId,personId,
             action:request.action,resourceId:resource.id,
             teamId:resource.teamId,role:request.activeRole,
-            payload:request.payload||{}
+            payload:actionPayload.payload
           });
           if(!obj(result)||result.success!==true)
             throw new Error('operation-not-acknowledged');
