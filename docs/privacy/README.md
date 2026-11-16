@@ -1,6 +1,6 @@
 # Team Manager privacy decision register
 
-**Status:** Open questionnaire. **TM-PR-001 answered (under-18s included), pending review; 17 questions remain unanswered.** No supplier selection, controller determination, guardian policy, legal approval, or authority for production personal-data processing has been recorded. Created 17 November 2026, based on `main` `0f1b34617a905c6e051b1f1866d87a558870ef51`.
+**Status:** Open questionnaire. **TM-PR-001 and TM-PR-002 answered; 16 questions remain unanswered. Both responses are pending review.** No supplier selection, verified legal entity/controller allocation, guardian policy, legal approval, or authority for production personal-data processing has been recorded. Created 17 November 2026, based on `main` `0f1b34617a905c6e051b1f1866d87a558870ef51`.
 
 **Canonical structured register:** [`config/privacy-decision-register.json`](../../config/privacy-decision-register.json).
 
@@ -9,8 +9,11 @@
 | ID | Owner response | Status | Practical consequence |
 | --- | --- | --- | --- |
 | TM-PR-001 | First team **includes players under 18** (owner-confirmed, 17 November 2026) | **Answered, pending review** | Keep junior account, verified guardian, age transition, privacy notice and safeguarding decisions open. No real junior records or access can be processed until separate approvals. |
+| TM-PR-002 | **Platform-led policy responsibility.** The platform decides privacy/data controls and will lead breach reporting; Team Managers and clubs may be required to collect and provide information (owner-confirmed, 17 November 2026). | **Answered, pending review** | Formalise the actual accountable legal entity, delegated team/club duties, incident escalation, controller/processor agreements and notification procedures. Neither this preference nor an in-app designation discharges applicable statutory obligations. |
 
-TM-PR-002 through TM-PR-018 remain unanswered. A response is not controller, legal, privacy, provider or release approval.
+TM-PR-003 through TM-PR-018 remain unanswered. Recorded policy direction is not a verified legal-controller allocation, provider contract, completed privacy review or release approval.
+
+**Breach notification note:** The OAIC's NDB guidance allows affected entities to coordinate assessment and notification, but each covered entity holding relevant personal information must be able to demonstrate its own compliance. The platform may coordinate and submit notices under an agreed arrangement; an assignment in Team Manager cannot remove a club's or association's independent legal duties where they apply. See [OAIC: NDB scheme and multi-entity responsibility](https://www.oaic.gov.au/privacy/notifiable-data-breaches/preventing-preparing-for-and-responding-to-data-breaches/data-breach-preparation-and-response/part-4-notifiable-data-breach-ndb-scheme).
 
 ## Purpose and provenance
 
