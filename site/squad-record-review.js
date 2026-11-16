@@ -30,7 +30,7 @@ export function squadRecordReview(team,visiblePlayers,reportedReviews=null) {
     const p=byId.get(id);
     const suggestions=[];
     if(!str(p.name))suggestions.push(names.name);
-    if(!str(p.number))suggestions.push(names.number);
+    if(!str(p.number == null ? '' : String(p.number)))suggestions.push(names.number);
     if(!list(p.positions).some(x=>str(x)))suggestions.push(names.positions);
     if(suggestions.length)items.push(Object.freeze({
       id,name:str(p.name)||'Unnamed player',
