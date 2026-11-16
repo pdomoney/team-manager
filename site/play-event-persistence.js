@@ -48,3 +48,28 @@ export function preparePlayTimelineSave(play, history, { changed = false } = {})
   next.eventTimeline = clone(history.present);
   return { status: 'ready', play: next };
 }
+
+
+// A player-facing encrypted team file needs the coach's authored E5 event
+// timing to reproduce Watch/Learn. This is a *data projection*, not permission
+// enforcement or a decision that a play is approved for publication.
+// Retain only explicitly defined play-local event fields: future/custom fields,
+// person records, arbitrary coach annotations and draft history must not leak.
+// Unsupported or stale timelines stay in the coach's source unchanged.
+export function publishedPlayEventTimeline(play) {
+  if (!play || !Object.hasOwn(play, 'eventTimeline') ||
+      !valid(play.eventTimeline) || !compatible(play.eventTimeline, play)) return null;
+  const timeline = play.eventTimeline;
+  const actors = timeline.actors.map(a => ({
+    actorId: a.actorId, type: a.type,
+    phases: a.phases.map(p => ({ phaseIndex: p.phaseIndex, slotKey: p.slotKey }))
+  }));
+  const events = timeline.events.map(e => ({
+    eventId: e.eventId, atMs: e.atMs, sequence: e.sequence,
+    kind: e.kind, actorId: e.actorId,
+    ...(e.movementId !== undefined ? { movementId: e.movementId } : {}),
+    ...(e.receiverId !== undefined ? { receiverId: e.receiverId } : {})
+  }));
+  const out = { version: 1, actors, events };
+  return valid(out) ? out : null;
+}

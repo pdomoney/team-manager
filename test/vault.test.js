@@ -193,3 +193,85 @@ test('coach-only tactical adaptation notes never enter player copies', () => {
   assert.ok(!('transferNotes' in out.plays[0]));
   assert.equal(out.plays[0].moves.length,1);
 });
+
+
+// L1: existing published team-view delivery must include the approved E5
+// authored timing but never its arbitrary coach-only source metadata.
+function fictionalE5Play() {
+  return {
+    id:'p-timed',name:'Step across',sport:'Oztag',
+    players:{ A:[25,46], B:[30,46] },
+    moves:[{t:'pass',pts:[[25,46],[30,46]]}],
+    phases:[{title:'Second phase', players:{A:[25,44],B:[30,44]},moves:[]}],
+    study:[{title:'Move',text:'Pass to B',moves:[0],roles:['A']}],
+    coachDraft:'PRIVATE-COACH-DRAFT',
+    eventTimeline:{
+      version:1,
+      actors:[
+        {actorId:'runner',type:'attacker',phases:[{phaseIndex:0,slotKey:'A'}],coachIdentity:'PRIVATE-REGISTERED-PLAYER'},
+        {actorId:'receiver',type:'attacker',phases:[{phaseIndex:0,slotKey:'B'}],privateContact:'PRIVATE-CONTACT'}
+      ],
+      events:[
+        {eventId:'hold',kind:'possession-set',atMs:0,sequence:0,actorId:'runner',privateNote:'PRIVATE-HEALTH-NOTE'},
+        {eventId:'pass',kind:'pass-release',atMs:500,sequence:0,actorId:'runner',movementId:'pass-1',receiverId:'receiver'},
+        {eventId:'catch',kind:'catch',atMs:900,sequence:0,actorId:'receiver',movementId:'pass-1'}
+      ],
+      staffContact:'PRIVATE-TRAINER-MOBILE'
+    }
+  };
+}
+test('L1: player projection preserves E5 diagram, phases, study and authored timing, not staff metadata',()=>{
+  const play=fictionalE5Play();
+  const old=JSON.stringify(play);
+  const v=teamView({...sample,plays:[play]});
+  assert.deepEqual(v.plays[0].moves,play.moves);
+  assert.deepEqual(v.plays[0].phases,play.phases);
+  assert.deepEqual(v.plays[0].study,play.study);
+  assert.deepEqual(v.plays[0].eventTimeline,{
+    version:1,
+    actors:[
+      {actorId:'runner',type:'attacker',phases:[{phaseIndex:0,slotKey:'A'}]},
+      {actorId:'receiver',type:'attacker',phases:[{phaseIndex:0,slotKey:'B'}]}
+    ],
+    events:[
+      {eventId:'hold',atMs:0,sequence:0,kind:'possession-set',actorId:'runner'},
+      {eventId:'pass',atMs:500,sequence:0,kind:'pass-release',actorId:'runner',movementId:'pass-1',receiverId:'receiver'},
+      {eventId:'catch',atMs:900,sequence:0,kind:'catch',actorId:'receiver',movementId:'pass-1'}
+    ]
+  });
+  for(const secret of [
+    'PRIVATE-COACH-DRAFT','PRIVATE-REGISTERED-PLAYER','PRIVATE-CONTACT',
+    'PRIVATE-HEALTH-NOTE','PRIVATE-TRAINER-MOBILE','coachIdentity','privateNote','staffContact'
+  ]) assert.ok(!JSON.stringify(v).includes(secret),'leaked '+secret);
+  assert.equal(JSON.stringify(play),old,'the existing coach-authored play must not change');
+});
+test('L1: unsupported, incompatible or stale E5 timelines never enter published player file',()=>{
+  const base=fictionalE5Play();
+  for(const broken of [
+    {...base,eventTimeline:{...base.eventTimeline,version:99}},
+    {...base,players:{Z:[25,46]}},
+    {...base,eventTimeline:{...base.eventTimeline,events:[{eventId:'bad',kind:'catch',atMs:0,sequence:0,actorId:'receiver',movementId:'pass-1'}]}}
+  ]){
+    const before=JSON.stringify(broken);
+    const published=teamView({...sample,plays:[broken]}).plays[0];
+    assert.equal(Object.hasOwn(published,'eventTimeline'),false);
+    assert.deepEqual(published.moves,broken.moves,'legacy diagram remains viewable');
+    assert.equal(JSON.stringify(broken),before,'invalid coach source is preserved');
+  }
+});
+test('L1: legacy plays without E5 timeline keep the existing player projection unchanged',()=>{
+  const original={id:'p-old',name:'Old play',moves:[],phases:[{title:'Later',moves:[]}]};
+  const out=teamView({...sample,plays:[original]});
+  assert.deepEqual(out.plays[0],original);
+  assert.equal(Object.hasOwn(out.plays[0],'eventTimeline'),false);
+});
+test('L1: sealed team file roundtrips safe E5 timing without widening access to coach source',async()=>{
+  const source=fictionalE5Play();
+  const projected=teamView({...sample,plays:[source]});
+  const locked=await makeLock('synthetic-timed-team',newSalt(),FAST);
+  const file=await seal(projected,locked,'team');
+  const {value}=await openFile(file,'synthetic-timed-team','team');
+  assert.deepEqual(value.plays[0].eventTimeline,projected.plays[0].eventTimeline);
+  assert.ok(!JSON.stringify(value).includes('PRIVATE-HEALTH-NOTE'));
+  assert.ok(!JSON.stringify(value).includes('PRIVATE-COACH-DRAFT'));
+});
