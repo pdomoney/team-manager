@@ -51,7 +51,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 7);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 8);
   const collection = file.decisions.find(row => row.id === 'TM-PR-004');
   assert.equal(collection.status, 'answered-pending-review');
   assert.equal(collection.responseCode, 'requires-detailed-policy');
@@ -60,6 +60,22 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'unanswered',
     'marketing consent/notice is not implied by optional marketing fields');
+  const access=file.decisions.find(row=>row.id==='TM-PR-008');
+  assert.equal(access.status,'answered-pending-review');
+  assert.equal(access.responseCode,'requires-detailed-policy');
+  assert.equal(access.reviewState,'not-reviewed');
+  assert.equal(access.reviewEvidenceRef,null);
+  assert.equal(access.productionAccessAuthorised,false);
+  assert.equal(access.roleVerificationRequired,true);
+  assert.deepEqual(access.proposedReadAccess,[
+    {role:'appointed-team-manager',scope:'explicitly-assigned-team',
+      dataCategories:['player-personal-details','emergency-contact-details']},
+    {role:'club-admin',scope:'explicitly-administered-club',
+      dataCategories:['player-personal-details','emergency-contact-details']}
+  ]);
+  for(const missing of ['record-editing','coach-trainer-emergency-access',
+    'verified-guardian-access','platform-operator-support-access','download-and-export'])
+    assert.ok(access.openPermissions.includes(missing),missing);
   const safetyScope=file.decisions.find(row=>row.id==='TM-PR-007');
   assert.equal(safetyScope.status,'answered-pending-review');
   assert.equal(safetyScope.responseCode,'emergency-contact-minimum-subject-to-separate-policy');
@@ -69,7 +85,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.ok(safetyScope.excludedFromInitialScope.includes(category),category);
   }
   assert.equal(safetyScope.reviewState,'not-reviewed');
-  for(const id of ['TM-PR-008','TM-PR-009','TM-PR-013'])
+  for(const id of ['TM-PR-009','TM-PR-013'])
     assert.equal(file.decisions.find(r=>r.id===id).status,'unanswered',id+' remains unapproved');
   const guardianVerifier=file.decisions.find(row => row.id === 'TM-PR-006');
   assert.equal(guardianVerifier.status,'answered-pending-review');
@@ -94,7 +110,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(junior.applicable,'yes');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status,'answered-pending-review',
     'guardian verification and consent remain undecided');
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-008').status,'unanswered',
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-008').status,'answered-pending-review',
     'guardian access visibility is not conferred by candidate details');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status,'unanswered',
     'minor-specific notices and consent remain undecided');
