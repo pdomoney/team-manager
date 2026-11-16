@@ -63,8 +63,16 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   const guardianVerifier=file.decisions.find(row => row.id === 'TM-PR-006');
   assert.equal(guardianVerifier.status,'answered-pending-review');
   assert.equal(guardianVerifier.responseCode,'requires-detailed-policy');
-  assert.match(guardianVerifier.responseSummary,/Team manager/);
-  assert.match(guardianVerifier.clarificationNeeded,/appointed human Team Manager role or the platform operator/);
+  assert.match(guardianVerifier.responseSummary,/appointed Manager/);
+  assert.equal(guardianVerifier.verifyingActor,'appointed-team-manager');
+  assert.equal(guardianVerifier.clarificationNeeded,undefined);
+  assert.equal(guardianVerifier.clarificationResolvedOn,'2026-11-17');
+  assert.equal(guardianVerifier.clarificationEvidenceRef,
+    'owner-conversation:2026-11-17:TM-PR-006-appointed-manager');
+  assert.equal(guardianVerifier.revisionHistory.length,1);
+  assert.match(guardianVerifier.revisionHistory[0].clarificationNeeded,/appointed human Team Manager role or the platform operator/);
+  assert.equal(guardianVerifier.revisionHistory[0].clarifiedBy,
+    guardianVerifier.clarificationEvidenceRef);
   assert.equal(guardianVerifier.reviewState,'not-reviewed');
   assert.equal(guardianVerifier.reviewEvidenceRef,null);
   const junior = file.decisions.find(row => row.id === 'TM-PR-005');
