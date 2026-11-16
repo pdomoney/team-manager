@@ -10,6 +10,16 @@ export const FIRST_TEAM_GATES=Object.freeze([
   'L5_PHYSICAL_SAFARI_AND_RECOVERY',
   'L6_OWNER_LIVE_RELEASE_ACCEPTANCE'
 ]);
+export const FIRST_TEAM_JOURNEYS=Object.freeze([
+  'COACH_MANAGER_EXACT_TEAM',
+  'PLAYER_OWN_AVAILABILITY',
+  'PLAYER_PUBLISHED_PLAY_VIEW',
+  'VOLUNTEER_OWN_DUTIES',
+  'VOLUNTEER_OWN_RESPONSE',
+  'COACH_PLAY_EDIT_PUBLISH',
+  'PLAY_E5_LOSSLESS_RECOVERY',
+  'REVOKED_FOREIGN_TEAM_DENIAL'
+]);
 const SHA=/^[0-9a-f]{40}$/;
 const REF=/^(?:docs\/[a-zA-Z0-9._/-]+\.md|evidence-ref:[a-zA-Z0-9._/-]+|https:\/\/github\.com\/pdomoney\/team-manager\/(?:actions\/runs\/\d+|issues\/\d+|pull\/\d+|commit\/[0-9a-f]{40}))$/;
 const validRef=x=>typeof x==='string'&&x.length<=240&&REF.test(x);
@@ -27,6 +37,18 @@ const labels=Object.freeze({
   L6_OWNER_LIVE_RELEASE_ACCEPTANCE:'Owner-controlled live cutover and installed verification'
 });
 export const FIRST_TEAM_LABELS=labels;
+const journeyLabels=Object.freeze({
+  COACH_MANAGER_EXACT_TEAM:'Coach/Manager exact-team roster, training and fixture workflow',
+  PLAYER_OWN_AVAILABILITY:'Player or approved guardian own-team RSVP only',
+  PLAYER_PUBLISHED_PLAY_VIEW:'Player can view/animate published play, never unpublished drafts',
+  VOLUNTEER_OWN_DUTIES:'Assigned volunteer/fixture duty only; no inferred digital role',
+  VOLUNTEER_OWN_RESPONSE:'Assigned volunteer task response, not another person or team',
+  COACH_PLAY_EDIT_PUBLISH:'Authorised Coach edits and publishes E5 play; no Player/volunteer write',
+  PLAY_E5_LOSSLESS_RECOVERY:'Legacy and E5 paths, timing, diagrams, instructions restore losslessly',
+  REVOKED_FOREIGN_TEAM_DENIAL:'Foreign/revoked/stale-offline/direct play URL and protected data deny'
+});
+export const FIRST_TEAM_JOURNEY_LABELS=journeyLabels;
+
 
 export function evaluateFirstTeamCloudRelease(e){
   const blockers=[],gates=e?.gates||{},owner=e?.ownerDecision||{},candidate=e?.candidate||{};
@@ -45,8 +67,13 @@ export function evaluateFirstTeamCloudRelease(e){
   if(owner.status!=='approved') blockers.push('Owner has not explicitly approved the live release scope');
   for(const field of ['provider','plan','region','controller'])
     if(!filled(owner[field])) blockers.push('Owner decision missing '+field);
-  if(!['coach-private','coach-manager-private'].includes(owner.launchMode))
-    blockers.push('No approved narrow first-team launch mode');
+  if(owner.launchMode!=='team-participants-private')
+    blockers.push('First-team release must include Coach/Manager, Player, Volunteer and Plays journeys');
+  if(!['adult','includes-minors'].includes(owner.firstTeamAgeGroup))
+    blockers.push('First-team player age group and guardian rules undecided');
+  if(owner.firstTeamAgeGroup==='includes-minors'&&
+    (owner.minorDataPolicy!=='specifically-approved'||!validRef(owner.guardianAccessEvidenceRef)))
+    blockers.push('Minor participation requires separate verified guardian/privacy policy and evidence');
   if(owner.dataScope!=='approved-limited-real')
     blockers.push('Synthetic-only or unapproved private/player data cannot be called a live-team release');
   if(!['excluded','specifically-approved'].includes(owner.minorDataPolicy))
@@ -62,6 +89,17 @@ export function evaluateFirstTeamCloudRelease(e){
   const devices=e?.deviceEvidence||{};
   for(const name of ['iphoneSafari','macosSafari','voiceOver','twoDeviceRecovery'])
     if(!validRef(devices[name])) blockers.push('No independent physical-device evidence for '+name);
+  const journeys=e?.launchJourneys||{};
+  for(const id of Object.keys(journeys))
+    if(!FIRST_TEAM_JOURNEYS.includes(id))blockers.push('Unknown first-team journey '+id);
+  let journeysCompleted=0;
+  for(const id of FIRST_TEAM_JOURNEYS){
+    const proof=journeys[id]||{};
+    if(proof.status==='passed'&&validSha(sha)&&proof.testedSha===sha&&
+      date(proof.observedOn)&&validRef(proof.evidenceRef)){
+      journeysCompleted++;
+    }else blockers.push(id+': '+journeyLabels[id]+' not independently verified');
+  }
   for(const id of FIRST_TEAM_GATES){
     const record=gates[id]||{};
     if(record.status==='passed'&&validSha(sha)&&record.testedSha===sha&&
@@ -77,6 +115,7 @@ export function evaluateFirstTeamCloudRelease(e){
   return {
     ready:blockers.length===0&&completed===FIRST_TEAM_GATES.length,
     completed,total:FIRST_TEAM_GATES.length,remaining:FIRST_TEAM_GATES.length-completed,
+    journeysCompleted,journeysTotal:FIRST_TEAM_JOURNEYS.length,
     blockers,sourceSha:validSha(sha)?sha:null,
     runtime:candidate.runtime||'static-pages-only'
   };

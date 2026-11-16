@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {evaluateFirstTeamCloudRelease,FIRST_TEAM_GATES} from '../src/first-team-cloud-release.js';
+import {evaluateFirstTeamCloudRelease,FIRST_TEAM_GATES,FIRST_TEAM_JOURNEYS} from '../src/first-team-cloud-release.js';
 
 const ledger=JSON.parse(readFileSync(new URL('../config/first-team-cloud-release-evidence.json',import.meta.url),'utf8'));
 const clone=()=>structuredClone(ledger);
@@ -16,8 +16,9 @@ function syntheticComplete(){
   e.ownerDecision={
     status:'approved',provider:'Fictional Provider',plan:'Synthetic Plan',
     region:'Test Australian Region',controller:'Fictional Club',
-    launchMode:'coach-manager-private',dataScope:'approved-limited-real',
-    minorDataPolicy:'excluded',ownerApprovalRef:proof,
+    launchMode:'team-participants-private',dataScope:'approved-limited-real',
+    firstTeamAgeGroup:'adult',minorDataPolicy:'excluded',guardianAccessEvidenceRef:null,
+    ownerApprovalRef:proof,
     providerCostRef:proof,retentionDeletionRef:proof,
     privacyNoticeRef:proof,minorDataDecisionRef:proof
   };
@@ -31,6 +32,8 @@ function syntheticComplete(){
   };
   for(const id of FIRST_TEAM_GATES)
     e.gates[id]={status:'passed',testedSha:SHA,observedOn:'2026-11-27',evidenceRef:proof};
+  for(const id of FIRST_TEAM_JOURNEYS)
+    e.launchJourneys[id]={status:'passed',testedSha:SHA,observedOn:'2026-11-27',evidenceRef:proof};
   return e;
 }
 const evaluate=evaluateFirstTeamCloudRelease;
@@ -40,6 +43,8 @@ test('committed first-team ledger is explicitly blocked: no identity, provider, 
   assert.equal(ledger.ownerDecision.status,'pending');
   assert.equal(ledger.serverSecurity.environment,'NO_BACKEND');
   assert.deepEqual(Object.keys(ledger.gates),FIRST_TEAM_GATES);
+  assert.deepEqual(Object.keys(ledger.launchJourneys),FIRST_TEAM_JOURNEYS);
+  assert.ok(FIRST_TEAM_JOURNEYS.every(id=>ledger.launchJourneys[id].status==='pending'));
   assert.ok(FIRST_TEAM_GATES.every(id=>ledger.gates[id].status==='pending'));
   assert.deepEqual({completed:evaluate(ledger).completed,total:evaluate(ledger).total}, {completed:0,total:7});
   assert.equal(evaluate(ledger).ready,false);
@@ -48,6 +53,7 @@ test('a structurally complete fabricated fixture tests evaluator logic but not e
   const synthetic=syntheticComplete();
   assert.equal(evaluate(synthetic).ready,true);
   assert.equal(evaluate(synthetic).completed,7);
+  assert.equal(evaluate(synthetic).journeysCompleted,8);
   assert.equal(evaluate(ledger).ready,false);
 });
 test('successful GitHub Pages alone cannot qualify even with seven claimed passing gates',()=>{
@@ -60,6 +66,7 @@ test('unauthorised supplier choice, payment, data scope and child policy always 
   for(const [key,value] of [
     ['status','pending'],['provider',null],['plan',null],['region',null],
     ['controller',null],['launchMode','public-self-service'],
+    ['launchMode','coach-manager-private'],['firstTeamAgeGroup','undecided'],
     ['dataScope','synthetic-only'],['minorDataPolicy','undecided'],
     ['ownerApprovalRef',null],['providerCostRef','unsafe?token=value'],
     ['retentionDeletionRef',null],['privacyNoticeRef',null],
@@ -68,6 +75,43 @@ test('unauthorised supplier choice, payment, data scope and child policy always 
     const e=syntheticComplete();e.ownerDecision[key]=value;
     assert.equal(evaluate(e).ready,false,key);
   }
+});
+test('first-team release requires all eight Player, Volunteer and E5 Plays journeys',()=>{
+  assert.equal(FIRST_TEAM_JOURNEYS.length,8);
+  for(const id of FIRST_TEAM_JOURNEYS){
+    for(const state of ['pending','waived','missing']){
+      const e=syntheticComplete();
+      if(state==='missing')delete e.launchJourneys[id];
+      else e.launchJourneys[id]={status:state};
+      const result=evaluate(e);
+      assert.equal(result.ready,false,id+' '+state);
+      assert.ok(result.blockers.some(s=>s.startsWith(id+':')));
+    }
+    const stale=syntheticComplete();
+    stale.launchJourneys[id].testedSha=OTHER;
+    assert.equal(evaluate(stale).ready,false,id+' stale source');
+    const noProof=syntheticComplete();
+    noProof.launchJourneys[id].evidenceRef='https://example.org/protected?access=token';
+    assert.equal(evaluate(noProof).ready,false,id+' unsafe evidence');
+  }
+  const unknown=syntheticComplete();unknown.launchJourneys.UNKNOWN={status:'passed'};
+  assert.equal(evaluate(unknown).ready,false);
+  assert.ok(evaluate(unknown).blockers.some(s=>s.includes('Unknown first-team journey')));
+});
+test('including minors requires independently accepted guardian and privacy evidence',()=>{
+  const denied=syntheticComplete();
+  denied.ownerDecision.firstTeamAgeGroup='includes-minors';
+  assert.equal(evaluate(denied).ready,false);
+  assert.ok(evaluate(denied).blockers.some(s=>s.includes('guardian/privacy')));
+  const partly=syntheticComplete();partly.ownerDecision.firstTeamAgeGroup='includes-minors';
+  partly.ownerDecision.minorDataPolicy='specifically-approved';
+  assert.equal(evaluate(partly).ready,false);
+  const fictional=syntheticComplete();fictional.ownerDecision.firstTeamAgeGroup='includes-minors';
+  fictional.ownerDecision.minorDataPolicy='specifically-approved';
+  fictional.ownerDecision.guardianAccessEvidenceRef=proof;
+  assert.equal(evaluate(fictional).ready,true);
+  fictional.ownerDecision.guardianAccessEvidenceRef='https://third-party.example/secret';
+  assert.equal(evaluate(fictional).ready,false);
 });
 test('mock P13C results, missing real security review or historical exposure risk block release',()=>{
   for(const [key,value] of [
