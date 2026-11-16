@@ -176,6 +176,14 @@ main{max-width:720px;margin:0 auto;padding:16px}
 .chips::-webkit-scrollbar{display:none}
 .chip{appearance:none;border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;white-space:nowrap;cursor:pointer;min-height:40px}
 .chip[aria-pressed="true"]{background:var(--pitch);border-color:var(--pitch);color:#fff}
+/* M2.1 fictional team intake: compact and secondary to the Squad itself. */
+.roster-intake{border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:12px;margin:10px 0 14px}
+.roster-intake-head{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin-bottom:8px}
+.roster-intake-head strong{font-size:15px}
+.roster-intake .chips{margin-bottom:3px}
+.roster-intake .chip{min-height:44px}
+.roster-intake .hint{margin:6px 0 0}
+
 .seg{display:flex;background:#E5E9E3;border-radius:10px;padding:3px;margin-bottom:14px}
 .seg button{flex:1;appearance:none;border:0;background:none;padding:8px;border-radius:8px;font-weight:600;cursor:pointer;min-height:40px;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
