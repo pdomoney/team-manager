@@ -101,8 +101,19 @@ with sync_playwright() as p:
     ctx1.set_offline(False); d1.wait_for_timeout(300)
     c.ok('Offline' not in d1.inner_text('#status'), 'status clears when back online')
     d1.evaluate(act, ['publish', {}]); wait_pub(d1)
-    ctx3.set_offline(True); pl2.evaluate(act, ['refresh', {}]); pl2.wait_for_timeout(800)
-    c.ok('copy saved on this phone' in pl2.inner_text('#toast') and not pl2.is_hidden('#status'), 'player offline: shown the saved copy')
+    # A cache fallback also decrypts the saved file. A fixed 800ms delay can
+    # assert before PBKDF2/openPlayer has finished on a busy CI runner.
+    # Keep the real offline/cache/status checks, wait for the result instead.
+    previous_player_copy = pl2.evaluate('JSON.stringify(window.__team.teamData)')
+    ctx3.set_offline(True)
+    pl2.wait_for_function('navigator.onLine === false', timeout=5000)
+    pl2.evaluate(act, ['refresh', {}])
+    pl2.wait_for_function("""() => window.__team.S.fromCache === true &&
+        document.querySelector('#toast').textContent.includes('copy saved on this phone')""", timeout=20000)
+    c.ok('copy saved on this phone' in pl2.inner_text('#toast')
+         and not pl2.is_hidden('#status')
+         and pl2.evaluate('JSON.stringify(window.__team.teamData)') == previous_player_copy,
+         'player offline: saved copy is retained and shown')
     ctx3.set_offline(False)
     # Archive U16: its players' file comes off the site; restoring brings it back
     d1.evaluate(act, ['teams', {}]); d1.click(f'[data-act=team-archive][data-id="{u16}"]'); d1.wait_for_timeout(100)

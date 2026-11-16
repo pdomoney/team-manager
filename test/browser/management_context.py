@@ -20,7 +20,8 @@ with sync_playwright() as p:
         pg.locator('#view .management-home [data-tab=squad]').click()
         context = pg.locator('#view .working-context[data-working-team=team1]')
         checks.ok(context.count() == 1
-                  and 'Coach workspace' in context.inner_text()
+                  and 'Owner' in context.inner_text()
+                  and 'Fictional test profile' in context.inner_text()
                   and 'Working context' in context.inner_text(),
                   f'[{width}] squad shows exact current coach team and working role')
         checks.ok(context.locator('[data-act=tab][data-tab=home]').count() == 1
