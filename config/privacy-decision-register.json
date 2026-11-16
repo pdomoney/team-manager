@@ -68,11 +68,12 @@
         "one-team-scheduling-and-plays-only",
         "one-team-full-management-with-restricted-personal-data",
         "other-requires-review",
-        "one-team-operations-with-registration-emergency-and-linked-accounts"
+        "one-team-operations-with-registration-emergency-and-linked-accounts",
+        "one-team-operations-with-registration-emergency-and-guardian-candidates"
       ],
       "status": "answered-pending-review",
-      "responseCode": "one-team-operations-with-registration-emergency-and-linked-accounts",
-      "responseSummary": "Initial team operations include registration email, proposed Apple/Google account sign-in, emergency contact details and linked guardian accounts for every under-18 player. Adult players may approve an optional linked account. Verification, permissions and data handling remain separate decisions.",
+      "responseCode": "one-team-operations-with-registration-emergency-and-guardian-candidates",
+      "responseSummary": "Initial scope: registration email, proposed Apple/Google sign-in, emergency contacts, guardian contact candidates for all under-18s, and optional adult-approved linked accounts. Under-18 players have their own sign-in; active guardian accounts are not mandatory. Clarified by TM-PR-005.",
       "respondedOn": "2026-11-17",
       "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-003",
       "reviewState": "not-reviewed",
@@ -80,7 +81,19 @@
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "yes"
+      "applicable": "yes",
+      "revisionHistory": [
+        {
+          "responseCode": "one-team-operations-with-registration-emergency-and-linked-accounts",
+          "responseSummary": "Initial team operations include registration email, proposed Apple/Google account sign-in, emergency contact details and linked guardian accounts for every under-18 player. Adult players may approve an optional linked account. Verification, permissions and data handling remain separate decisions.",
+          "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-003",
+          "recordedOn": "2026-11-17",
+          "clarifiedBy": "TM-PR-005",
+          "reason": "Owner clarified that under-18 guardian details are recorded as a potential account, not an account that must be activated."
+        }
+      ],
+      "clarifiedByDecisionId": "TM-PR-005",
+      "clarificationEvidenceRef": "owner-conversation:2026-11-17:TM-PR-005"
     },
     {
       "id": "TM-PR-004",
@@ -108,19 +121,20 @@
       "allowedValues": [
         "guardian-managed-without-child-login",
         "limited-child-login-subject-to-special-review",
-        "exclude-minor-personal-data-until-approved"
+        "exclude-minor-personal-data-until-approved",
+        "junior-own-login-guardian-contact-candidate"
       ],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "junior-own-login-guardian-contact-candidate",
+      "responseSummary": "Under-18 players should have their own accounts. Guardian details should be recorded as potential account contacts, but an active guardian account is not required. Activation may be requested later; verification, consent, permitted access and safeguarding remain undecided.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-005",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes"
     },
     {
       "id": "TM-PR-006",
