@@ -1,7 +1,7 @@
 // Inspect only sanitised release evidence. This makes NO network or provider calls.
 // The committed ledger must remain blocked; actual sign-off arrives via stdin.
 import {readFileSync} from 'node:fs';
-import {evaluateFirstTeamCloudRelease,FIRST_TEAM_GATES} from '../src/first-team-cloud-release.js';
+import {evaluateFirstTeamCloudRelease,FIRST_TEAM_GATES,FIRST_TEAM_JOURNEYS} from '../src/first-team-cloud-release.js';
 const args=process.argv.slice(2);
 if(args.length>1||!['','--stdin','--assert-source-blocked'].includes(args[0]||'')){
   console.error('Use no arguments, --stdin or --assert-source-blocked. File paths and private backups are rejected.');
@@ -26,11 +26,15 @@ if(args.length>1||!['','--stdin','--assert-source-blocked'].includes(args[0]||''
         parsed.candidate?.installedSha===null&&
         parsed.ownerDecision?.status==='pending'&&
         parsed.ownerDecision?.dataScope==='synthetic-only'&&
+        parsed.ownerDecision?.firstTeamAgeGroup==='undecided'&&
+        parsed.ownerDecision?.guardianAccessEvidenceRef===null&&
         parsed.serverSecurity?.environment==='NO_BACKEND'&&
         parsed.serverSecurity?.automatedCasesPassed===0&&
         parsed.serverSecurity?.independentlyReviewed===false&&
         FIRST_TEAM_GATES.every(id=>g[id]?.status==='pending')&&
-        Object.keys(g).length===FIRST_TEAM_GATES.length;
+        Object.keys(g).length===FIRST_TEAM_GATES.length&&
+        FIRST_TEAM_JOURNEYS.every(id=>parsed.launchJourneys?.[id]?.status==='pending')&&
+        Object.keys(parsed.launchJourneys||{}).length===FIRST_TEAM_JOURNEYS.length;
       if(!safe)process.exitCode=1;
     }else if(!outcome.ready)process.exitCode=1;
   }catch{
