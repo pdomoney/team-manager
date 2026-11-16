@@ -47,8 +47,11 @@ with sync_playwright() as p:
         owner_star = working_team(pg)
         checks.ok(owner_star != 'team1'
                   and pg.evaluate('window.__team.data.team.clubId') == 'qa-stars'
-                  and pg.locator('#view .management-home').count() == 1,
-                  f'[{width}] switching Owner club updates active team, not merely banner')
+                  and pg.locator('#view .management-home').count() == 0,
+                  f'[{width}] Owner club overview activates a working team without assuming team-only shortcuts')
+        pg.locator(f'#view .scope-team[data-id="{owner_star}"]').click()
+        checks.ok(pg.locator(f'#view .management-home[data-management-team="{owner_star}"]').count() == 1,
+                  f'[{width}] explicitly choosing Stars team enables exact-team shortcuts')
         pg.locator('#view .management-home [data-tab=matches]').click()
         checks.ok(pg.locator(f'#view .working-context[data-working-team="{owner_star}"]').count() == 1
                   and in_width(pg),
@@ -65,6 +68,7 @@ with sync_playwright() as p:
                   and pg.evaluate('window.__team.state.qaContext')
                   == 'grant:team_coach:team:qa-stars-open',
                   f'[{width}] Coach club change selects exact approved team grant')
+        pg.locator('#view .scope-team[data-id=qastarsopen]').click()
         pg.locator('#view .management-home [data-tab=training]').click()
         checks.ok(pg.locator('#view .working-context[data-working-team=qastarsopen]').count() == 1
                   and pg.locator('#team-title .t-name').inner_text()
