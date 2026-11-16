@@ -144,7 +144,7 @@
       "allowedValues": [],
       "status": "answered-pending-review",
       "responseCode": "requires-detailed-policy",
-      "responseSummary": "Owner nominated 'Team manager' to verify guardian account requests. Whether this means the appointed team Manager role or the Team Manager platform operator needs clarification. Proof of authority, independent checks, audit and withdrawal are not yet specified.",
+      "responseSummary": "The team's appointed Manager verifies requested guardian relationships and account activations. Guardian candidate records grant no access. Evidence standards, independent checks, disputes, audit, revocation and age-specific consent remain to be defined and independently reviewed.",
       "respondedOn": "2026-11-17",
       "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-006",
       "reviewState": "not-reviewed",
@@ -153,7 +153,20 @@
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
       "applicable": "yes",
-      "clarificationNeeded": "Confirm whether 'Team manager' means the appointed human Team Manager role or the platform operator, and who independently validates the relationship before activation."
+      "revisionHistory": [
+        {
+          "responseCode": "requires-detailed-policy",
+          "responseSummary": "Owner nominated 'Team manager' to verify guardian account requests. Whether this means the appointed team Manager role or the Team Manager platform operator needs clarification. Proof of authority, independent checks, audit and withdrawal are not yet specified.",
+          "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-006",
+          "recordedOn": "2026-11-17",
+          "clarificationNeeded": "Confirm whether 'Team manager' means the appointed human Team Manager role or the platform operator, and who independently validates the relationship before activation.",
+          "clarifiedBy": "owner-conversation:2026-11-17:TM-PR-006-appointed-manager",
+          "reason": "Owner confirmed the appointed team Manager, not the platform operator, is the intended verifier."
+        }
+      ],
+      "verifyingActor": "appointed-team-manager",
+      "clarificationResolvedOn": "2026-11-17",
+      "clarificationEvidenceRef": "owner-conversation:2026-11-17:TM-PR-006-appointed-manager"
     },
     {
       "id": "TM-PR-007",
