@@ -306,3 +306,67 @@ test('an adapter without mandatory transactional methods fails closed',async()=>
     activeTeamId:'comets-u16',activeRole:'team_coach'
   }),{allowed:false,code:'missing-trusted-adapter'});
 });
+
+
+test('player reply, volunteer duty and Coach play publish reject stale versions and stale drafts',async()=>{
+  for(const [token,role,action,id] of [
+    ['player','team_player','availability.reply','reply-player'],
+    ['volunteer','team_volunteer','duty.reply','duty-vol'],
+    ['coach','team_coach','play.publish','draft']
+  ]){
+    const {state,ask}=world();
+    state.resources.get(id).version=2;
+    assert.equal((await ask(token,role,action,id)).code,'stale-resource-version');
+    assert.equal(state.executed.length,0);
+    assert.equal(state.reserved.size,0);
+  }
+  const {state,ask}=world();
+  state.resources.get('draft').draftRevisionId='newer-revision';
+  assert.equal((await ask('coach','team_coach','play.publish','draft')).code,'stale-play-revision');
+  assert.equal(state.executed.length,0);
+});
+test('duplicate mutation IDs fail closed on replay, even with an active session and grant',async()=>{
+  const {state,ask}=world();
+  assert.equal((await ask('player','team_player','availability.reply','reply-player')).allowed,true);
+  const second=await ask('player','team_player','availability.reply','reply-player');
+  assert.deepEqual(second,{allowed:false,code:'trusted-backend-failure'});
+  assert.equal(state.executed.length,1);
+  assert.equal(state.audited.length,1);
+  assert.equal(state.reserved.size,1);
+  assert.equal((await ask('player','team_player','availability.reply','reply-player',
+    'comets-u16',{mutationId:'synthetic-mutation-000002',expectedVersion:0,response:'maybe'})).allowed,true);
+  assert.equal(state.executed.length,2);
+  assert.equal(state.reserved.size,2);
+  // A real DB adapter must advance version in the same transaction. This fake
+  // retains version 0 deliberately to isolate the idempotency check from CAS.
+});
+test('bad command, failed reservation or missing audit never commits a replay marker',async()=>{
+  for(const fail of ['command-false','command-throw','reserve-false','reserve-throw',
+    'audit-no-ack','audit-false','execute-no-ack','execute-error']){
+    const {state,ask}=world();state.fail=fail;
+    const result=await ask('volunteer','team_volunteer','duty.reply','duty-vol');
+    assert.equal(result.allowed,false,fail);
+    assert.equal(state.executed.length,0,fail);
+    assert.equal(state.audited.length,0,fail);
+    assert.equal(state.reserved.size,0,fail);
+    state.fail='';
+    assert.equal((await ask('volunteer','team_volunteer','duty.reply','duty-vol')).allowed,true,
+      'a failed attempt should not consume its idempotency key: '+fail);
+  }
+});
+test('unknown or forged action fields are denied before a transaction starts',async()=>{
+  const {state,boundary}=world();
+  const base={token:'player',activeRole:'team_player',activeTeamId:'comets-u16',
+    action:'availability.reply',resourceId:'reply-player',
+    payload:{mutationId:'synthetic-mutation-000001',expectedVersion:0,response:'yes'}};
+  for(const request of [
+    {...base,payload:{...base.payload,personId:'person-other'}},
+    {...base,payload:{...base.payload,guardianPermission:true}},
+    {...base,payload:{...base.payload,response:'medical-leave'}},
+    {...base,payload:{...base.payload,mutationId:'bad?'}},
+    {...base,payload:{...base.payload,expectedVersion:-1}},
+    {...base,payload:{...base.payload,role:'team_coach'}},
+    {...base,payload:{...base.payload,teamId:'rangers-u16'}}
+  ])assert.equal((await boundary.run(request)).code,'invalid-action-payload');
+  assert.equal(state.trace.length,0);
+});
