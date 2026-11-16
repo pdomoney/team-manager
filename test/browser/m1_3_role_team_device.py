@@ -76,11 +76,17 @@ with sync_playwright() as p:
                   f'[{width}] Coach Training keeps selected Stars team and header')
         opposite = 1280 if width < 900 else 390
         pg.set_viewport_size({'width': opposite, 'height': 860})
+        # Wait for the actual browser resize/layout boundary, not a fixed sleep.
+        # Keep team/role/page continuity and no-overflow as independent checks,
+        # so any genuine responsive regression remains visible.
+        pg.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
         checks.ok(working_team(pg) == 'qastarsopen'
                   and pg.evaluate('window.__team.state.tab') == 'training'
-                  and pg.locator('#view .working-context[data-working-team=qastarsopen]').count() == 1
-                  and in_width(pg),
-                  f'[{width}->{opposite}] resizing does not change Coach team, role or page')
+                  and pg.locator('#view .working-context[data-working-team=qastarsopen]').count() == 1,
+                  f'[{width}->{opposite}] resize preserves exact Coach team and working page')
+        widths=pg.evaluate('({scroll:document.documentElement.scrollWidth,inner:innerWidth})')
+        checks.ok(in_width(pg),
+                  f'[{width}->{opposite}] responsive page does not overflow: {widths}')
         pg.set_viewport_size({'width': width, 'height': 860})
 
         # Manager: team permissions without Coach-only tactics or cross-club access.
