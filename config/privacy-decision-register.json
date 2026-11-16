@@ -88,17 +88,17 @@
       "question": "Permitted initial categories of personal information; a category inventory and necessity test are required",
       "answerType": "review",
       "allowedValues": [],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "requires-detailed-policy",
+      "responseSummary": "Mandatory player details requested: full name, date of birth, phone, residential address and photo. Optional marketing-profile fields: social media accounts, other clubs/sports, profession, education level and institution. Field-level purpose, child safeguards and marketing consent require review.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-004",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes"
     },
     {
       "id": "TM-PR-005",
