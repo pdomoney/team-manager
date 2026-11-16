@@ -2071,7 +2071,10 @@ function squadRecordReviewPanel(){
   if(!isCoach()||readOnlyView()||!data||data.archived||
      s&&!['personal_owner','team_coach'].includes(s.role)||
      s&&s.role==='team_coach'&&
-       !s.allowedTeams.some(t=>nativeTeamId(t.id)===data.id))return '';
+       (s.context?.kind!=='access'||s.context?.status!=='active'||
+        s.context?.group?.type!=='team'||
+        nativeTeamId(s.context.group.id)!==data.id||
+        nativeTeamId(s.team?.id)!==data.id))return '';
   const namespace=peopleScope();
   const people=namespace?localPeopleReviewView(ws,namespace):null;
   const ledger=people&&!people.error?people.guardianLedger?.reviews:null;
