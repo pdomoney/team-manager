@@ -66,8 +66,10 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     'one-team-operations-with-registration-emergency-and-linked-accounts');
   assert.equal(initialScope.reviewState,'not-reviewed');
   assert.equal(initialScope.reviewEvidenceRef,null);
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-004').status, 'unanswered',
-    'data minimisation and field-level authority must still be decided');
+  assert.equal(collection.status, 'answered-pending-review',
+    'field preferences are recorded, but minimisation and field-level approval are still open');
+  assert.equal(collection.reviewEvidenceRef, null,
+    'collection is not approved by supplying the requested field list');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'unanswered',
     'guardian association does not decide whether minors can sign in directly');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status, 'unanswered',
