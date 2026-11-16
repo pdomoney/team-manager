@@ -212,17 +212,47 @@
       "question": "Who may view which personal-data categories, including player self, coach, manager, volunteer, guardian and operator",
       "answerType": "review",
       "allowedValues": [],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "requires-detailed-policy",
+      "responseSummary": "Owner supports read access to player personal details and emergency contact information for appointed Team Managers and Club Admins. Limit access to their authorised team or club. Editing, exports, other roles and emergency-use conditions remain undecided and require separate review.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-008",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes",
+      "proposedReadAccess": [
+        {
+          "role": "appointed-team-manager",
+          "scope": "explicitly-assigned-team",
+          "dataCategories": [
+            "player-personal-details",
+            "emergency-contact-details"
+          ]
+        },
+        {
+          "role": "club-admin",
+          "scope": "explicitly-administered-club",
+          "dataCategories": [
+            "player-personal-details",
+            "emergency-contact-details"
+          ]
+        }
+      ],
+      "productionAccessAuthorised": false,
+      "roleVerificationRequired": true,
+      "openPermissions": [
+        "read-by-field-and-purpose",
+        "record-editing",
+        "coach-trainer-emergency-access",
+        "player-self-access",
+        "verified-guardian-access",
+        "platform-operator-support-access",
+        "download-and-export",
+        "audit-and-revocation"
+      ]
     },
     {
       "id": "TM-PR-009",
