@@ -1,8 +1,16 @@
 # Team Manager privacy decision register
 
-**Status:** Open questionnaire. **No new owner answers, supplier selection, legal approval, or authority for production personal-data processing has been recorded.** Created 17 November 2026, based on `main` `0f1b34617a905c6e051b1f1866d87a558870ef51`.
+**Status:** Open questionnaire. **TM-PR-001 answered (under-18s included), pending review; 17 questions remain unanswered.** No supplier selection, controller determination, guardian policy, legal approval, or authority for production personal-data processing has been recorded. Created 17 November 2026, based on `main` `0f1b34617a905c6e051b1f1866d87a558870ef51`.
 
 **Canonical structured register:** [`config/privacy-decision-register.json`](../../config/privacy-decision-register.json).
+
+## Current recorded answers
+
+| ID | Owner response | Status | Practical consequence |
+| --- | --- | --- | --- |
+| TM-PR-001 | First team **includes players under 18** (owner-confirmed, 17 November 2026) | **Answered, pending review** | Keep junior account, verified guardian, age transition, privacy notice and safeguarding decisions open. No real junior records or access can be processed until separate approvals. |
+
+TM-PR-002 through TM-PR-018 remain unanswered. A response is not controller, legal, privacy, provider or release approval.
 
 ## Purpose and provenance
 
