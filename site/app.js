@@ -1421,6 +1421,9 @@ function renderQaScreen() {
 // The button only opens Home, where the existing team selector and fictional
 // role/group picker retain all selection authority.
 function workingContextStrip() {
+  // Published players have a decrypted team view, not a coach workspace.
+  // Guard before reading data.id: this strip must never break their Home or offline refresh.
+  if (!isCoach() || !data || !V?.team) return '';
   const session = nativePersona();
   const summary = managementWorkingContext({
     tab: state.tab,

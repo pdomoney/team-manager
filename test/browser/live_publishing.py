@@ -50,6 +50,12 @@ with sync_playwright() as p:
     c.ok(len(u16pass) >= 15 and u16pass != 'team password one', 'second team got its own password')
     # Players: the U16 invite link opens only U16; the first team's password opens only the first team
     ctx2, pl = device(b, github=False); pl.goto(url + f'#join={b64u(u16pass)}.{u16}'); pl.wait_for_function('window.__team.teamData', timeout=20000)
+    # The published-player app must render, not merely decrypt data successfully.
+    # M1.2's coach context used to dereference data.id when no coach copy existed.
+    pl.wait_for_selector('#view .scope.single', timeout=10000)
+    c.ok(pl.locator('#view .working-context').count() == 0 and
+         pl.locator('#view .scope.single').count() == 1,
+         'invite player sees their real Home without a coach working-context strip')
     names = pl.evaluate("window.__team.teamData.players.map(p => p.name)")
     c.ok(names == ['Ava Young'], f'U16 link opens U16 only: {names}')
     c.ok('Mia' not in json.dumps(pl.evaluate("window.__team.teamData")), 'no other team’s data on a U16 phone')
@@ -58,6 +64,10 @@ with sync_playwright() as p:
     c.ok(pl2.evaluate("window.__team.teamData.team.name") == 'Under 16s', 'typed U16 password finds the U16 file')
     pl2.evaluate(act, ['sign-out', {}]); pl2.wait_for_selector('input[name=password]')
     pl2.fill('input[name=password]', 'team password one'); pl2.click('button[type=submit]'); pl2.wait_for_function('window.__team.teamData', timeout=30000)
+    pl2.wait_for_selector('#view .scope.single', timeout=10000)
+    c.ok(pl2.locator('#view .working-context').count() == 0 and
+         pl2.locator('#view .scope.single').count() == 1,
+         'password player Home renders with no coach-only working context')
     c.ok(pl2.evaluate("window.__team.teamData.team.name") == 'DragonTag Mixed 20s' and pl2.evaluate("window.__team.teamData.players.length") == 16, 'first team password opens the first team')
     c.ok(pl2.evaluate("JSON.stringify(window.__team.teamData).includes('Rachel')") is False, 'no helper names in the players’ copy')
     # Device 2: the coach on a laptop signs in from GitHub
@@ -137,8 +147,10 @@ with sync_playwright() as p:
         raise AssertionError('OFFLINE_CACHE_DIAGNOSTIC: '+json.dumps(diagnostic)) from None
     c.ok('copy saved on this phone' in pl2.inner_text('#toast')
          and not pl2.is_hidden('#status')
-         and pl2.evaluate('JSON.stringify(window.__team.teamData)') == previous_player_copy,
-         'player offline: saved copy is retained and shown')
+         and pl2.evaluate('JSON.stringify(window.__team.teamData)') == previous_player_copy
+         and pl2.locator('#view .scope.single').count() == 1
+         and pl2.locator('#view .working-context').count() == 0,
+         'player offline: saved copy and player Home remain usable without coach context')
     ctx3.set_offline(False)
     # Archive U16: its players' file comes off the site; restoring brings it back
     d1.evaluate(act, ['teams', {}]); d1.click(f'[data-act=team-archive][data-id="{u16}"]'); d1.wait_for_timeout(100)
