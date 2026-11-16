@@ -29,6 +29,14 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.equal(field.retention,'undecided',field.key);
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
+  const lifecycle=register.decisions.find(x=>x.id==='TM-PR-013');
+  assert.equal(lifecycle.status,'answered-pending-review');
+  assert.equal(lifecycle.proposedLifecycle.membershipEnds,'mark-inactive');
+  assert.equal(lifecycle.proposedLifecycle.inactivePeriodMonths,12);
+  assert.equal(lifecycle.proposedLifecycle.afterInactivePeriod,'archive');
+  assert.equal(lifecycle.proposedLifecycle.automaticRecordDeletion,false);
+  assert.equal(lifecycle.proposedLifecycle.productionLifecycleAuthorised,false);
+  assert.equal(lifecycle.reviewState,'not-reviewed');
   const sharing=register.decisions.find(x=>x.id==='TM-PR-012');
   assert.equal(sharing.status,'answered-pending-review');
   assert.equal(sharing.reviewState,'not-reviewed');
@@ -81,7 +89,7 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
   assert.equal(junior.status,'answered-pending-review');
   assert.equal(junior.reviewState,'not-reviewed');
   assert.equal(junior.responseCode,'junior-own-login-guardian-contact-candidate');
-  for(const id of ['TM-PR-013']){
+  for(const id of ['TM-PR-014','TM-PR-015']){
     assert.equal(register.decisions.find(x=>x.id===id).status,'unanswered',id);
   }
 });

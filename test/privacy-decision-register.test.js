@@ -51,7 +51,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 12);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 13);
   const collection = file.decisions.find(row => row.id === 'TM-PR-004');
   assert.equal(collection.status, 'answered-pending-review');
   assert.equal(collection.responseCode, 'requires-detailed-policy');
@@ -60,6 +60,23 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'answered-pending-review',
     'owner now specified separate optional marketing choice; no production consent was obtained');
+  const lifecycle=file.decisions.find(row=>row.id==='TM-PR-013');
+  assert.equal(lifecycle.status,'answered-pending-review');
+  assert.equal(lifecycle.responseCode,'requires-detailed-policy');
+  assert.equal(lifecycle.reviewState,'not-reviewed');
+  assert.equal(lifecycle.reviewEvidenceRef,null);
+  assert.equal(lifecycle.proposedLifecycle.membershipEnds,'mark-inactive');
+  assert.equal(lifecycle.proposedLifecycle.inactivePeriodMonths,12);
+  assert.equal(lifecycle.proposedLifecycle.afterInactivePeriod,'archive');
+  assert.equal(lifecycle.proposedLifecycle.automaticRecordDeletion,false);
+  assert.equal(lifecycle.proposedLifecycle.archivedRecordAccess,'restricted-subject-to-role-and-purpose-review');
+  assert.equal(lifecycle.proposedLifecycle.personalDataRetentionAfterArchive,'undecided-subject-to-minimisation-and-law');
+  assert.equal(lifecycle.proposedLifecycle.emergencyContactRetentionAfterDeparture,'undecided-separate-review');
+  assert.equal(lifecycle.proposedLifecycle.individualDeletionRequestHandling,'pending-TM-PR-014');
+  assert.equal(lifecycle.proposedLifecycle.backupAndSecureErasureHandling,'pending-TM-PR-015');
+  assert.equal(lifecycle.proposedLifecycle.productionLifecycleAuthorised,false);
+  assert.equal(file.decisions.find(x=>x.id==='TM-PR-014').status,'unanswered');
+  assert.equal(file.decisions.find(x=>x.id==='TM-PR-015').status,'unanswered');
   const sharing=file.decisions.find(row=>row.id==='TM-PR-012');
   assert.equal(sharing.status,'answered-pending-review');
   assert.equal(sharing.responseCode,'requires-detailed-policy');
@@ -75,7 +92,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.deepEqual(sharing.proposedSharingPolicy.individualFieldsApproved,[]);
   assert.deepEqual(sharing.proposedSharingPolicy.messagingChannelsApproved,[]);
   assert.equal(sharing.proposedSharingPolicy.separateLegalAndPrivacyReviewRequired,true);
-  assert.equal(file.decisions.find(row=>row.id==='TM-PR-013').status,'unanswered');
+  assert.equal(file.decisions.find(row=>row.id==='TM-PR-013').status,'answered-pending-review');
   const crossBorder=file.decisions.find(row=>row.id==='TM-PR-011');
   assert.equal(crossBorder.status,'answered-pending-review');
   assert.equal(crossBorder.responseCode,
@@ -108,7 +125,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.deepEqual(provider.providerDecision.candidateProviders,
     ['supabase-postgresql','firebase','australian-hosted-postgresql-with-api']);
   assert.equal(file.decisions.find(row=>row.id==='TM-PR-011').status,'answered-pending-review');
-  assert.equal(file.decisions.find(row=>row.id==='TM-PR-013').status,'unanswered');
+  assert.equal(file.decisions.find(row=>row.id==='TM-PR-013').status,'answered-pending-review');
   const marketing=file.decisions.find(row=>row.id==='TM-PR-009');
   assert.equal(marketing.status,'answered-pending-review');
   assert.equal(marketing.responseCode,'requires-detailed-policy');
@@ -124,7 +141,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(marketing.proposedConsentExperience.minorAndGuardianRules,'pending-age-appropriate-privacy-review');
   assert.equal(marketing.proposedConsentExperience.operationalNoticesSeparateFromMarketing,true);
   assert.equal(marketing.proposedConsentExperience.productionUseAuthorised,false);
-  assert.equal(file.decisions.find(row=>row.id==='TM-PR-013').status,'unanswered');
+  assert.equal(file.decisions.find(row=>row.id==='TM-PR-013').status,'answered-pending-review');
   const access=file.decisions.find(row=>row.id==='TM-PR-008');
   assert.equal(access.status,'answered-pending-review');
   assert.equal(access.responseCode,'requires-detailed-policy');
@@ -150,7 +167,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.ok(safetyScope.excludedFromInitialScope.includes(category),category);
   }
   assert.equal(safetyScope.reviewState,'not-reviewed');
-  for(const id of ['TM-PR-013'])
+  for(const id of ['TM-PR-014','TM-PR-015'])
     assert.equal(file.decisions.find(r=>r.id===id).status,'unanswered',id+' remains unapproved');
   const guardianVerifier=file.decisions.find(row => row.id === 'TM-PR-006');
   assert.equal(guardianVerifier.status,'answered-pending-review');
