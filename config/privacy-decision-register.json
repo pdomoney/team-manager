@@ -300,17 +300,41 @@
       "question": "Selected identity/database supplier, plan, primary hosting location and owner of service agreement",
       "answerType": "review",
       "allowedValues": [],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "requires-detailed-policy",
+      "responseSummary": "Owner prefers to keep the backend and identity provider under evaluation until costs, security and privacy are reviewed. No provider, hosting plan, region, supplier contract, subscription or migration is selected or approved.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-010",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes",
+      "providerDecision": {
+        "selectionStatus": "deferred-pending-evaluation",
+        "selectedProvider": null,
+        "selectedPlan": null,
+        "selectedPrimaryRegion": null,
+        "commercialOwner": null,
+        "candidateProviders": [
+          "supabase-postgresql",
+          "firebase",
+          "australian-hosted-postgresql-with-api"
+        ],
+        "requiredReviews": [
+          "total-cost-and-budget",
+          "security-and-multitenant-access",
+          "privacy-and-processor-contract",
+          "primary-and-subprocessor-geography",
+          "minor-guardian-data-safeguards",
+          "backup-recovery-and-exit"
+        ],
+        "procurementAuthorised": false,
+        "provisioningAuthorised": false,
+        "personalDataMigrationAuthorised": false,
+        "productionProcessingAuthorised": false
+      }
     },
     {
       "id": "TM-PR-011",

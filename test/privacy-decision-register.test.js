@@ -51,7 +51,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 9);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 10);
   const collection = file.decisions.find(row => row.id === 'TM-PR-004');
   assert.equal(collection.status, 'answered-pending-review');
   assert.equal(collection.responseCode, 'requires-detailed-policy');
@@ -60,6 +60,21 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'answered-pending-review',
     'owner now specified separate optional marketing choice; no production consent was obtained');
+  const provider=file.decisions.find(row=>row.id==='TM-PR-010');
+  assert.equal(provider.status,'answered-pending-review');
+  assert.equal(provider.responseCode,'requires-detailed-policy');
+  assert.equal(provider.reviewState,'not-reviewed');
+  assert.equal(provider.reviewEvidenceRef,null);
+  assert.equal(provider.providerDecision.selectionStatus,'deferred-pending-evaluation');
+  for(const key of ['selectedProvider','selectedPlan','selectedPrimaryRegion','commercialOwner'])
+    assert.equal(provider.providerDecision[key],null,key);
+  for(const key of ['procurementAuthorised','provisioningAuthorised',
+    'personalDataMigrationAuthorised','productionProcessingAuthorised'])
+    assert.equal(provider.providerDecision[key],false,key);
+  assert.deepEqual(provider.providerDecision.candidateProviders,
+    ['supabase-postgresql','firebase','australian-hosted-postgresql-with-api']);
+  assert.equal(file.decisions.find(row=>row.id==='TM-PR-011').status,'unanswered');
+  assert.equal(file.decisions.find(row=>row.id==='TM-PR-013').status,'unanswered');
   const marketing=file.decisions.find(row=>row.id==='TM-PR-009');
   assert.equal(marketing.status,'answered-pending-review');
   assert.equal(marketing.responseCode,'requires-detailed-policy');

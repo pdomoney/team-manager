@@ -29,6 +29,12 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.equal(field.retention,'undecided',field.key);
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
+  const provider=register.decisions.find(x=>x.id==='TM-PR-010');
+  assert.equal(provider.status,'answered-pending-review');
+  assert.equal(provider.providerDecision.selectionStatus,'deferred-pending-evaluation');
+  assert.equal(provider.providerDecision.selectedProvider,null);
+  assert.equal(provider.providerDecision.productionProcessingAuthorised,false);
+  assert.equal(register.decisions.find(x=>x.id==='TM-PR-011').status,'unanswered');
   const marketing=register.decisions.find(x=>x.id==='TM-PR-009');
   assert.equal(marketing.status,'answered-pending-review');
   assert.equal(marketing.proposedConsentExperience.marketingDefault,false);
