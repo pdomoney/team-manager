@@ -178,17 +178,33 @@
         "emergency-contact-minimum-subject-to-separate-policy",
         "specific-sensitive-categories-subject-to-separate-review"
       ],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "emergency-contact-minimum-subject-to-separate-policy",
+      "responseSummary": "The initial release collects emergency contact details only, subject to privacy and access rules. Do not collect medical conditions, allergies, injuries, concussion history or return-to-play restrictions in this release. Health/safeguarding data requires a future separate approval.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-007",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes",
+      "proposedInitialScope": [
+        "emergency-contact-details"
+      ],
+      "excludedFromInitialScope": [
+        "allergies",
+        "medical-conditions",
+        "injury-history",
+        "concussion-history",
+        "return-to-play-restrictions",
+        "clinical-records",
+        "safeguarding-case-records"
+      ],
+      "collectionApproved": false,
+      "accessPolicyDecisionRef": "TM-PR-008",
+      "noticeAndConsentDecisionRef": "TM-PR-009",
+      "retentionDecisionRef": "TM-PR-013"
     },
     {
       "id": "TM-PR-008",
