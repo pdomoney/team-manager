@@ -460,7 +460,9 @@ async function fetchTeamFile(name = 'team.enc.json') {
   try {
     const f = await fetchSite(name);
     if (f) store.set(cacheKey(name), JSON.stringify(f));
-    S.fromCache = false;
+    // An offline response can come from the browser's own cached site data.
+    // Never label it as a live update while the device reports no connection.
+    S.fromCache = !online();
     return f;
   } catch (e) {
     const cached = readJson(cacheKey(name)); // keeps the app usable with no reception at the ground
@@ -9027,7 +9029,7 @@ const actions = {
   },
   'lock-mode': el => { state.lockMode = el.dataset.mode; state.lockMsg = ''; renderLock(); },
   'refresh': async () => {
-    try { await openPlayer(S.teamLock, false, S.teamFile); closeSheet(); render(); toast(S.fromCache ? 'No connection. Showing the copy saved on this phone.' : 'Up to date'); }
+    try { await openPlayer(S.teamLock, false, S.teamFile); closeSheet(); render(); toast((!online() || S.fromCache) ? 'No connection. Showing the copy saved on this phone.' : 'Up to date'); }
     catch (e) { if (e.code === 'WRONG') { toast('The team password has changed. Ask your coach for the new one.'); setTimeout(signOutNow, 1800); } else toast(e.message || "Couldn't check for updates"); }
   },
   'sign-out': () => {
