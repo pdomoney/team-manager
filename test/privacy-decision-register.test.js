@@ -51,21 +51,41 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 4);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 5);
   const collection = file.decisions.find(row => row.id === 'TM-PR-004');
   assert.equal(collection.status, 'answered-pending-review');
   assert.equal(collection.responseCode, 'requires-detailed-policy');
   assert.equal(collection.applicable, 'yes');
   assert.equal(collection.reviewState, 'not-reviewed');
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'unanswered');
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'unanswered',
     'marketing consent/notice is not implied by optional marketing fields');
+  const junior = file.decisions.find(row => row.id === 'TM-PR-005');
+  assert.equal(junior.responseCode,'junior-own-login-guardian-contact-candidate');
+  assert.equal(junior.status,'answered-pending-review');
+  assert.equal(junior.reviewState,'not-reviewed');
+  assert.equal(junior.reviewEvidenceRef,null);
+  assert.equal(junior.applicable,'yes');
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status,'unanswered',
+    'guardian verification and consent remain undecided');
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-008').status,'unanswered',
+    'guardian access visibility is not conferred by candidate details');
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status,'unanswered',
+    'minor-specific notices and consent remain undecided');
   const initialScope = file.decisions.find(row => row.id === 'TM-PR-003');
   assert.equal(initialScope.status, 'answered-pending-review');
   assert.equal(initialScope.responseCode,
-    'one-team-operations-with-registration-emergency-and-linked-accounts');
+    'one-team-operations-with-registration-emergency-and-guardian-candidates');
   assert.equal(initialScope.reviewState,'not-reviewed');
   assert.equal(initialScope.reviewEvidenceRef,null);
+  assert.equal(initialScope.clarifiedByDecisionId,'TM-PR-005');
+  assert.equal(initialScope.revisionHistory?.length,1);
+  assert.equal(initialScope.revisionHistory[0].responseCode,
+    'one-team-operations-with-registration-emergency-and-linked-accounts');
+  assert.equal(initialScope.revisionHistory[0].clarifiedBy,'TM-PR-005');
+  assert.equal(initialScope.revisionHistory[0].responseEvidenceRef,
+    'owner-conversation:2026-11-17:TM-PR-003');
+
   assert.equal(collection.status, 'answered-pending-review',
     'field preferences are recorded, but minimisation and field-level approval are still open');
   assert.equal(collection.reviewEvidenceRef, null,
@@ -87,7 +107,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(firstTeamAges.responseCode, 'includes-under-18s');
   assert.equal(firstTeamAges.applicable, 'yes');
   assert.equal(firstTeamAges.reviewState, 'not-reviewed');
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'unanswered');
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status, 'unanswered');
 });
 
