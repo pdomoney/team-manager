@@ -29,6 +29,15 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.equal(field.retention,'undecided',field.key);
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
+  const rights=register.decisions.find(x=>x.id==='TM-PR-014');
+  assert.equal(rights.status,'answered-pending-review');
+  assert.equal(rights.reviewState,'not-reviewed');
+  assert.deepEqual(rights.proposedRightsWorkflow.playerSelfEditableFields,
+    ['contact-email','mobile-phone','residential-address']);
+  assert.equal(rights.proposedRightsWorkflow.teamOrClubRecordRequestsOwner,'team-manager-platform-operator');
+  assert.equal(rights.proposedRightsWorkflow.accountEmailChangeRequiresVerification,true);
+  assert.equal(rights.proposedRightsWorkflow.deletionRequestProcess,'pending-detailed-policy');
+  assert.equal(rights.proposedRightsWorkflow.productionRightsWorkflowAuthorised,false);
   const lifecycle=register.decisions.find(x=>x.id==='TM-PR-013');
   assert.equal(lifecycle.status,'answered-pending-review');
   assert.equal(lifecycle.proposedLifecycle.membershipEnds,'mark-inactive');
@@ -89,7 +98,7 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
   assert.equal(junior.status,'answered-pending-review');
   assert.equal(junior.reviewState,'not-reviewed');
   assert.equal(junior.responseCode,'junior-own-login-guardian-contact-candidate');
-  for(const id of ['TM-PR-014','TM-PR-015']){
+  for(const id of ['TM-PR-015','TM-PR-016']){
     assert.equal(register.decisions.find(x=>x.id===id).status,'unanswered',id);
   }
 });

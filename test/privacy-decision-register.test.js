@@ -51,7 +51,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 13);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 14);
   const collection = file.decisions.find(row => row.id === 'TM-PR-004');
   assert.equal(collection.status, 'answered-pending-review');
   assert.equal(collection.responseCode, 'requires-detailed-policy');
@@ -60,6 +60,24 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'answered-pending-review',
     'owner now specified separate optional marketing choice; no production consent was obtained');
+  const rights=file.decisions.find(row=>row.id==='TM-PR-014');
+  assert.equal(rights.status,'answered-pending-review');
+  assert.equal(rights.responseCode,'requires-detailed-policy');
+  assert.equal(rights.reviewState,'not-reviewed');
+  assert.equal(rights.reviewEvidenceRef,null);
+  assert.equal(rights.proposedRightsWorkflow.teamOrClubRecordRequestsOwner,'team-manager-platform-operator');
+  assert.equal(rights.proposedRightsWorkflow.playerProfileContactCorrectionActor,'authenticated-player-self');
+  assert.deepEqual(rights.proposedRightsWorkflow.playerSelfEditableFields,
+    ['contact-email','mobile-phone','residential-address']);
+  assert.equal(rights.proposedRightsWorkflow.accountEmailChangeRequiresVerification,true);
+  assert.equal(rights.proposedRightsWorkflow.profileCorrectionShouldNotAlterTeamOrClubRecordsWithoutReview,true);
+  assert.equal(rights.proposedRightsWorkflow.teamOrClubRequestsRequireIdentityAndScopeVerification,true);
+  assert.equal(rights.proposedRightsWorkflow.guardianRequestsForMinors,'pending-policy');
+  assert.equal(rights.proposedRightsWorkflow.accessAndCopyRequestProcess,'pending-detailed-policy');
+  assert.equal(rights.proposedRightsWorkflow.portabilityAndExportProcess,'pending-detailed-policy');
+  assert.equal(rights.proposedRightsWorkflow.deletionRequestProcess,'pending-detailed-policy');
+  assert.equal(rights.proposedRightsWorkflow.productionRightsWorkflowAuthorised,false);
+  assert.equal(file.decisions.find(x=>x.id==='TM-PR-015').status,'unanswered');
   const lifecycle=file.decisions.find(row=>row.id==='TM-PR-013');
   assert.equal(lifecycle.status,'answered-pending-review');
   assert.equal(lifecycle.responseCode,'requires-detailed-policy');
@@ -75,7 +93,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(lifecycle.proposedLifecycle.individualDeletionRequestHandling,'pending-TM-PR-014');
   assert.equal(lifecycle.proposedLifecycle.backupAndSecureErasureHandling,'pending-TM-PR-015');
   assert.equal(lifecycle.proposedLifecycle.productionLifecycleAuthorised,false);
-  assert.equal(file.decisions.find(x=>x.id==='TM-PR-014').status,'unanswered');
+  assert.equal(file.decisions.find(x=>x.id==='TM-PR-014').status,'answered-pending-review');
   assert.equal(file.decisions.find(x=>x.id==='TM-PR-015').status,'unanswered');
   const sharing=file.decisions.find(row=>row.id==='TM-PR-012');
   assert.equal(sharing.status,'answered-pending-review');
@@ -167,7 +185,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.ok(safetyScope.excludedFromInitialScope.includes(category),category);
   }
   assert.equal(safetyScope.reviewState,'not-reviewed');
-  for(const id of ['TM-PR-014','TM-PR-015'])
+  for(const id of ['TM-PR-015','TM-PR-016'])
     assert.equal(file.decisions.find(r=>r.id===id).status,'unanswered',id+' remains unapproved');
   const guardianVerifier=file.decisions.find(row => row.id === 'TM-PR-006');
   assert.equal(guardianVerifier.status,'answered-pending-review');

@@ -461,17 +461,37 @@
       "question": "Access, correction, portability and deletion request responsibilities, verification and response procedure",
       "answerType": "review",
       "allowedValues": [],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "requires-detailed-policy",
+      "responseSummary": "Platform operator owns requests involving team- or club-related records. Players may correct their own profile contact details, including email, mobile phone and residential address. Account-email verification, rights requests, deletion/exports and junior/guardian handling require separate policy.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-014",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes",
+      "proposedRightsWorkflow": {
+        "teamOrClubRecordRequestsOwner": "team-manager-platform-operator",
+        "playerProfileContactCorrectionActor": "authenticated-player-self",
+        "playerSelfEditableFields": [
+          "contact-email",
+          "mobile-phone",
+          "residential-address"
+        ],
+        "accountEmailChangeRequiresVerification": true,
+        "profileCorrectionShouldNotAlterTeamOrClubRecordsWithoutReview": true,
+        "teamOrClubRequestsRequireIdentityAndScopeVerification": true,
+        "teamAndClubAdminsMaySupplyEvidence": "pending-role-policy",
+        "guardianRequestsForMinors": "pending-policy",
+        "accessAndCopyRequestProcess": "pending-detailed-policy",
+        "portabilityAndExportProcess": "pending-detailed-policy",
+        "deletionRequestProcess": "pending-detailed-policy",
+        "retentionAndLegalHoldReconciliation": "pending-TM-PR-013-review",
+        "sensitiveAuditAndChangeHistory": "required-before-live-use",
+        "productionRightsWorkflowAuthorised": false
+      }
     },
     {
       "id": "TM-PR-015",
