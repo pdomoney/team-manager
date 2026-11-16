@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "first-team-cloud-live-release",
-  "description": "SOURCE-ONLY blocked first-team cloud go-live ledger. No provider approved, real backend, identities, junior records or installed cloud release. Never commit production evidence, credentials or personal data here.",
+  "description": "SOURCE-ONLY blocked one-team release. Players, volunteers and E5 plays are required. No production identity, vendor, minor/guardian policy or data. No credentials, records or fabricated approvals.",
   "candidate": {
     "sourceSha": null,
     "installedSha": null,
@@ -20,7 +20,9 @@
     "providerCostRef": null,
     "retentionDeletionRef": null,
     "privacyNoticeRef": null,
-    "minorDataDecisionRef": null
+    "minorDataDecisionRef": null,
+    "firstTeamAgeGroup": "undecided",
+    "guardianAccessEvidenceRef": null
   },
   "serverSecurity": {
     "environment": "NO_BACKEND",
@@ -58,6 +60,32 @@
       "status": "pending"
     },
     "L6_OWNER_LIVE_RELEASE_ACCEPTANCE": {
+      "status": "pending"
+    }
+  },
+  "launchJourneys": {
+    "COACH_MANAGER_EXACT_TEAM": {
+      "status": "pending"
+    },
+    "PLAYER_OWN_AVAILABILITY": {
+      "status": "pending"
+    },
+    "PLAYER_PUBLISHED_PLAY_VIEW": {
+      "status": "pending"
+    },
+    "VOLUNTEER_OWN_DUTIES": {
+      "status": "pending"
+    },
+    "VOLUNTEER_OWN_RESPONSE": {
+      "status": "pending"
+    },
+    "COACH_PLAY_EDIT_PUBLISH": {
+      "status": "pending"
+    },
+    "PLAY_E5_LOSSLESS_RECOVERY": {
+      "status": "pending"
+    },
+    "REVOKED_FOREIGN_TEAM_DENIAL": {
       "status": "pending"
     }
   }
