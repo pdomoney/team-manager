@@ -33,7 +33,10 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
   assert.equal(guardian.status,'answered-pending-review');
   assert.equal(guardian.reviewState,'not-reviewed');
   assert.equal(guardian.responseCode,'requires-detailed-policy');
-  assert.ok(guardian.clarificationNeeded);
+  assert.equal(guardian.verifyingActor,'appointed-team-manager');
+  assert.equal(guardian.clarificationNeeded,undefined);
+  assert.equal(guardian.revisionHistory?.length,1);
+  assert.equal(guardian.reviewEvidenceRef,null);
   const junior=register.decisions.find(x=>x.id==='TM-PR-005');
   assert.equal(junior.status,'answered-pending-review');
   assert.equal(junior.reviewState,'not-reviewed');
