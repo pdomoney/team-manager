@@ -29,12 +29,18 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.equal(field.retention,'undecided',field.key);
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
+  const international=register.decisions.find(x=>x.id==='TM-PR-011');
+  assert.equal(international.residencyPolicy.australiaPreferred,true);
+  assert.equal(international.residencyPolicy.australiaMandatory,false);
+  assert.equal(international.residencyPolicy.regulatoryExemptionAssumed,false);
+  assert.equal(international.residencyPolicy.productionCrossBorderTransferAuthorised,false);
+  assert.equal(international.reviewState,'not-reviewed');
   const provider=register.decisions.find(x=>x.id==='TM-PR-010');
   assert.equal(provider.status,'answered-pending-review');
   assert.equal(provider.providerDecision.selectionStatus,'deferred-pending-evaluation');
   assert.equal(provider.providerDecision.selectedProvider,null);
   assert.equal(provider.providerDecision.productionProcessingAuthorised,false);
-  assert.equal(register.decisions.find(x=>x.id==='TM-PR-011').status,'unanswered');
+  assert.equal(register.decisions.find(x=>x.id==='TM-PR-011').status,'answered-pending-review');
   const marketing=register.decisions.find(x=>x.id==='TM-PR-009');
   assert.equal(marketing.status,'answered-pending-review');
   assert.equal(marketing.proposedConsentExperience.marketingDefault,false);

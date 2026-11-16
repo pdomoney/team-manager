@@ -344,19 +344,34 @@
       "allowedValues": [
         "all-processing-in-australia-required",
         "primary-data-australian-with-reviewed-overseas-services",
-        "requires-assessment"
+        "requires-assessment",
+        "international-permitted-australia-preferred-with-reviewed-processors"
       ],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "international-permitted-australia-preferred-with-reviewed-processors",
+      "responseSummary": "Australian hosting and processing should be prioritised but are not mandatory. International storage and processing are permitted as a product preference, subject to provider, security and privacy assessments and any applicable cross-border obligations. No supplier or jurisdiction is approved.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-011",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes",
+      "residencyPolicy": {
+        "australiaPreferred": true,
+        "australiaMandatory": false,
+        "internationalHostingPermittedInPrinciple": true,
+        "internationalProcessingPermittedInPrinciple": true,
+        "selectedHostingCountry": null,
+        "selectedProcessingCountries": [],
+        "crossBorderPrivacyAndSecurityReviewRequired": true,
+        "providerAndSubprocessorsReviewRequired": true,
+        "childrenAndGuardianSafeguardsRequired": true,
+        "productionCrossBorderTransferAuthorised": false,
+        "productionPersonalDataProcessingAuthorised": false,
+        "regulatoryExemptionAssumed": false
+      }
     },
     {
       "id": "TM-PR-012",
