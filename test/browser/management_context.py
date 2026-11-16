@@ -19,11 +19,16 @@ with sync_playwright() as p:
         pg.locator('#view .scope-team[data-id=team1]').click()
         pg.locator('#view .management-home [data-tab=squad]').click()
         context = pg.locator('#view .working-context[data-working-team=team1]')
+        # The default sandbox coach is not yet a selected P12 fictional Owner.
+        # CSS uppercases the visual kicker; assert its source text separately.
+        base_role = pg.evaluate('window.__team.state.qaPersona')
         checks.ok(context.count() == 1
-                  and 'Owner' in context.inner_text()
-                  and 'Fictional test profile' in context.inner_text()
-                  and 'Working context' in context.inner_text(),
-                  f'[{width}] squad shows exact current coach team and working role')
+                  and context.locator('.working-context-kicker').text_content().strip() == 'Working context'
+                  and ('Coach workspace' in context.inner_text() if base_role != 'p12'
+                       else 'Fictional test profile' in context.inner_text())
+                  and context.locator('.working-context-team strong').text_content().strip()
+                  == pg.evaluate('window.__team.data.team.name'),
+                  f'[{width}] squad identifies actual coach/team without assuming a fictional Owner')
         checks.ok(context.locator('[data-act=tab][data-tab=home]').count() == 1
                   and context.locator('.working-context-home').evaluate(
                       '(el)=>el.getBoundingClientRect().height >= 44')

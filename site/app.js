@@ -457,10 +457,20 @@ async function fetchSite(name) {
 }
 const cacheKey = name => name === 'team.enc.json' ? KEYS.teamCache : `${KEYS.teamCache}:${name}`;
 async function fetchTeamFile(name = 'team.enc.json') {
+  // Prefer the exact team's already-encrypted device copy when offline.
+  // Attempting an unnecessary network fetch first can behave differently with
+  // browser HTTP caches, leaving a player waiting at the ground. A missing
+  // local copy still follows the existing fetch/error path.
+  if (!online()) {
+    const cached = readJson(cacheKey(name));
+    if (cached && isSealed(cached)) { S.fromCache = true; return cached; }
+  }
   try {
     const f = await fetchSite(name);
     if (f) store.set(cacheKey(name), JSON.stringify(f));
-    S.fromCache = false;
+    // An offline response can come from the browser's own cached site data.
+    // Never label it as a live update while the device reports no connection.
+    S.fromCache = !online();
     return f;
   } catch (e) {
     const cached = readJson(cacheKey(name)); // keeps the app usable with no reception at the ground
@@ -9027,7 +9037,7 @@ const actions = {
   },
   'lock-mode': el => { state.lockMode = el.dataset.mode; state.lockMsg = ''; renderLock(); },
   'refresh': async () => {
-    try { await openPlayer(S.teamLock, false, S.teamFile); closeSheet(); render(); toast(S.fromCache ? 'No connection. Showing the copy saved on this phone.' : 'Up to date'); }
+    try { await openPlayer(S.teamLock, false, S.teamFile); closeSheet(); render(); toast((!online() || S.fromCache) ? 'No connection. Showing the copy saved on this phone.' : 'Up to date'); }
     catch (e) { if (e.code === 'WRONG') { toast('The team password has changed. Ask your coach for the new one.'); setTimeout(signOutNow, 1800); } else toast(e.message || "Couldn't check for updates"); }
   },
   'sign-out': () => {

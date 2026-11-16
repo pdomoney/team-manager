@@ -1,5 +1,5 @@
 import sys, json, base64; from harness import *; from ghmock import GitHubMock
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 build(); srv, url = serve(); gh = GitHubMock()
 c = Check(); errs = []
 act = "([a, ds]) => { const b = document.createElement('button'); b.dataset.act = a; Object.assign(b.dataset, ds || {}); document.body.appendChild(b); b.click(); b.remove(); }"
@@ -105,11 +105,36 @@ with sync_playwright() as p:
     # assert before PBKDF2/openPlayer has finished on a busy CI runner.
     # Keep the real offline/cache/status checks, wait for the result instead.
     previous_player_copy = pl2.evaluate('JSON.stringify(window.__team.teamData)')
+    # Prove that the exact team's encrypted device copy exists before going offline,
+    # without exposing its ciphertext or a private player record in test output.
+    cached = pl2.evaluate("""() => {
+        const file = window.__team.S.teamFile;
+        const key = file === 'team.enc.json' ? 'tm-team-file' : 'tm-team-file:' + file;
+        try {
+            const saved = JSON.parse(localStorage.getItem(key) || 'null');
+            return !!(saved && saved.role === 'team' && saved.data && saved.iv && saved.salt);
+        } catch (_) { return false; }
+    }""")
+    c.ok(cached, 'encrypted exact-team device copy exists before offline refresh')
     ctx3.set_offline(True)
     pl2.wait_for_function('navigator.onLine === false', timeout=5000)
     pl2.evaluate(act, ['refresh', {}])
-    pl2.wait_for_function("""() => window.__team.S.fromCache === true &&
-        document.querySelector('#toast').textContent.includes('copy saved on this phone')""", timeout=20000)
+    try:
+        pl2.wait_for_function("""() => window.__team.S.fromCache === true &&
+            document.querySelector('#toast').textContent.includes('copy saved on this phone')""", timeout=20000)
+    except PlaywrightTimeoutError:
+        # Boolean-only cache evidence; do not log team records, keys or passwords.
+        diagnostic = pl2.evaluate("""() => ({
+            online: navigator.onLine,
+            fromCache: window.__team.S.fromCache,
+            role: window.__team.S.role,
+            teamFilePresent: !!window.__team.S.teamFile,
+            primaryCachePresent: !!localStorage.getItem('tm-team-file'),
+            toastText: document.querySelector('#toast').textContent.slice(0,120),
+            statusText: document.querySelector('#status').textContent.slice(0,120),
+            statusHidden: document.querySelector('#status').hidden
+        })""")
+        raise AssertionError('OFFLINE_CACHE_DIAGNOSTIC: '+json.dumps(diagnostic)) from None
     c.ok('copy saved on this phone' in pl2.inner_text('#toast')
          and not pl2.is_hidden('#status')
          and pl2.evaluate('JSON.stringify(window.__team.teamData)') == previous_player_copy,
