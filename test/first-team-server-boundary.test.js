@@ -63,10 +63,33 @@ function world(){
         async loadPersonLink(accountId){state.trace.push('link');return state.links.get(accountId);},
         async loadParticipation(personId,teamId){state.trace.push('participation');return state.participations.get(personId+':'+teamId);},
         async loadDuty(personId,dutyId){state.trace.push('duty');return state.duties.get(personId+':'+dutyId);},
-        async auditDecision(record){state.trace.push('audit');if(state.fail==='audit')throw Error('PRIVATE-AUDIT');state.audited.push(record);},
-        async executeAuthorized(record){state.trace.push('execute');if(state.fail==='execute')throw Error('PRIVATE-SQL');state.executed.push(record);return {success:true};}
+        async auditDecision(record){
+          state.trace.push('audit');
+          if(state.fail==='audit')throw Error('PRIVATE-AUDIT');
+          state.audited.push(record);
+          return state.fail==='audit-no-ack'?undefined:state.fail==='audit-false'?false:true;
+        },
+        async executeAuthorized(record){
+          state.trace.push('execute');
+          if(state.fail==='execute')throw Error('PRIVATE-SQL');
+          state.executed.push(record);
+          if(state.fail==='execute-no-ack')return undefined;
+          if(state.fail==='execute-false')return false;
+          if(state.fail==='execute-error')return {success:false,details:'PRIVATE-SQL'};
+          if(state.fail==='execute-implicit')return {ok:true};
+          return {success:true};
+        }
       };
-      return fn(tx);
+      // A disposable test transaction: restore audit + execution observations
+      // whenever the callback rejects. A real storage adapter must implement
+      // this atomically, which these synthetic tests cannot independently prove.
+      const auditStart=state.audited.length,executeStart=state.executed.length;
+      try{return await fn(tx);}
+      catch(error){
+        state.audited.splice(auditStart);
+        state.executed.splice(executeStart);
+        throw error;
+      }
     },
     clock:()=>NOW
   };
@@ -228,6 +251,25 @@ test('backend, policy store, audit and executor faults cannot authorize or discl
     assert.deepEqual(result,{allowed:false,code:'trusted-backend-failure'});
     assert.equal(JSON.stringify(result).includes('PRIVATE-'),false);
     if(fail!=='execute')assert.equal(state.executed.length,0);
+  }
+});
+test('missing or negative audit acknowledgement blocks execution and leaves no committed audit',async()=>{
+  for(const fail of ['audit-no-ack','audit-false']){
+    const {state,ask}=world();state.fail=fail;
+    const result=await ask('coach','team_coach','schedule.edit','comets-u16');
+    assert.deepEqual(result,{allowed:false,code:'trusted-backend-failure'});
+    assert.equal(state.executed.length,0);
+    assert.equal(state.audited.length,0,'synthetic transaction must roll back unacknowledged audit');
+  }
+});
+test('missing, false or error-shaped operation result cannot be reported as permitted',async()=>{
+  for(const fail of ['execute-no-ack','execute-false','execute-error','execute-implicit']){
+    const {state,ask}=world();state.fail=fail;
+    const result=await ask('coach','team_coach','schedule.edit','comets-u16');
+    assert.deepEqual(result,{allowed:false,code:'trusted-backend-failure'});
+    assert.equal(state.executed.length,0,'transaction must roll back a non-acknowledged operation');
+    assert.equal(state.audited.length,0,'transaction must roll back the preceding allow audit');
+    assert.ok(!JSON.stringify(result).includes('PRIVATE-'));
   }
 });
 test('an adapter without mandatory transactional methods fails closed',async()=>{
