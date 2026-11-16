@@ -67,19 +67,20 @@
       "allowedValues": [
         "one-team-scheduling-and-plays-only",
         "one-team-full-management-with-restricted-personal-data",
-        "other-requires-review"
+        "other-requires-review",
+        "one-team-operations-with-registration-emergency-and-linked-accounts"
       ],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "one-team-operations-with-registration-emergency-and-linked-accounts",
+      "responseSummary": "Initial team operations include registration email, proposed Apple/Google account sign-in, emergency contact details and linked guardian accounts for every under-18 player. Adult players may approve an optional linked account. Verification, permissions and data handling remain separate decisions.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-003",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes"
     },
     {
       "id": "TM-PR-004",
