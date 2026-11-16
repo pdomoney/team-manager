@@ -499,17 +499,34 @@
       "question": "Encrypted GitHub history, backup retention, restore access and verified secure deletion/exit approach",
       "answerType": "review",
       "allowedValues": [],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "requires-detailed-policy",
+      "responseSummary": "The Team Manager platform operator is responsible for backup restoration and recovery. Club Admins and appointed Team Managers must not restore the hosted database. Encryption, backup locations/retention, restore authorisation, recovery testing, privacy rights and secure deletion/exit require separate detailed approval.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-015",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes",
+      "proposedRecoveryPolicy": {
+        "restoreAndRecoveryOwner": "team-manager-platform-operator",
+        "prohibitedDatabaseRestoreRoles": [
+          "club-admin",
+          "appointed-team-manager"
+        ],
+        "otherRoleRestoreAccess": "not-authorised",
+        "participantDataInGitHub": "prohibited",
+        "backupEncryption": "required-security-design-pending-verification",
+        "restoreOperatorAuthenticationAndApproval": "pending-detailed-policy",
+        "backupRetentionDuration": "undecided-provider-and-privacy-review",
+        "backupStorageAndProcessorRegions": "undecided-TM-PR-010-and-TM-PR-011",
+        "recoveryTesting": "pending-detailed-policy",
+        "privacyErasureAndBackupExpiry": "pending-detailed-policy",
+        "secureSupplierExit": "pending-detailed-policy",
+        "productionBackupOrRestoreAuthorised": false
+      }
     },
     {
       "id": "TM-PR-016",

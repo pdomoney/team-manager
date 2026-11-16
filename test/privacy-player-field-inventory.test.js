@@ -29,6 +29,13 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.equal(field.retention,'undecided',field.key);
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
+  const recovery=register.decisions.find(x=>x.id==='TM-PR-015');
+  assert.equal(recovery.status,'answered-pending-review');
+  assert.equal(recovery.reviewState,'not-reviewed');
+  assert.equal(recovery.proposedRecoveryPolicy.restoreAndRecoveryOwner,'team-manager-platform-operator');
+  assert.deepEqual(recovery.proposedRecoveryPolicy.prohibitedDatabaseRestoreRoles,
+    ['club-admin','appointed-team-manager']);
+  assert.equal(recovery.proposedRecoveryPolicy.productionBackupOrRestoreAuthorised,false);
   const rights=register.decisions.find(x=>x.id==='TM-PR-014');
   assert.equal(rights.status,'answered-pending-review');
   assert.equal(rights.reviewState,'not-reviewed');
@@ -98,7 +105,7 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
   assert.equal(junior.status,'answered-pending-review');
   assert.equal(junior.reviewState,'not-reviewed');
   assert.equal(junior.responseCode,'junior-own-login-guardian-contact-candidate');
-  for(const id of ['TM-PR-015','TM-PR-016']){
+  for(const id of ['TM-PR-016','TM-PR-017']){
     assert.equal(register.decisions.find(x=>x.id===id).status,'unanswered',id);
   }
 });
