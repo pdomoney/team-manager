@@ -80,6 +80,7 @@ import { matchRosterReadiness } from './matchday-roster-readiness.js';
 import { rosterRecordReview } from './matchday-roster-review.js';
 import { matchReplyRosterScope } from './matchday-season-rsvp.js';
 import { teamPlacementStatus,recordTeamPlacement } from './team-placement-decisions.js';
+import { squadRecordReview } from './squad-record-review.js';
 import { INTAKE_STAGES,rosterIntakeReview,rosterIntakeMatches } from './roster-intake-review.js';
 import { matchArrivalGate } from './matchday-arrival-gate.js';
 import { matchPreparationSummary } from './matchday-preparation.js';
@@ -2063,6 +2064,42 @@ function squadIntakePanel(review) {
     '<output id="roster-intake-selection" class="sr-only" role="status" aria-live="polite"></output>'+
     '</section>';
 }
+// M2.2: existing coach-side, read-only suggestions. A reported relationship
+// is NEVER identity verification, consent, or access to a child record.
+function squadRecordReviewPanel(){
+  const s=nativePersona();
+  if(!isCoach()||readOnlyView()||!data||data.archived||
+     s&&!['personal_owner','team_coach'].includes(s.role)||
+     s&&s.role==='team_coach'&&
+       (s.context?.kind!=='access'||s.context?.status!=='active'||
+        s.context?.group?.type!=='team'||
+        nativeTeamId(s.context.group.id)!==data.id||
+        nativeTeamId(s.team?.id)!==data.id))return '';
+  const namespace=peopleScope();
+  const people=namespace?localPeopleReviewView(ws,namespace):null;
+  const ledger=people&&!people.error?people.guardianLedger?.reviews:null;
+  const review=squadRecordReview(data,V.players,ledger);
+  if(!review||!review.total)return '';
+  const relationshipText=review.relationships
+    ? review.relationships.recorded+' reported · '+
+      review.relationships.needsSourceReview+' source reviews needed · '+
+      review.relationships.reversed+' reversed'
+    : 'Source review unavailable in this workspace';
+  return '<details class="squad-record-review" data-team-id="'+esc(review.teamId)+'">'+
+    '<summary><strong>Player record review</strong><span class="muted small">'+
+    review.reviewCount+' of '+review.total+' players with optional details to review</span></summary>'+
+    '<p class="hint">Jersey numbers and preferred positions help Coaches organise a squad. They are optional, not registration requirements or permission to play.</p>'+
+    (review.items.length?'<div class="list">'+review.items.map(item=>
+      '<div class="row squad-record-item" data-player-id="'+esc(item.id)+'">'+
+      '<span class="grow"><strong>'+esc(item.name)+'</strong><span class="sub" style="display:block">'+
+      esc(item.suggestions.join(' · '))+'</span></span>'+
+      '<button class="btn sm" data-act="edit-player" data-id="'+esc(item.id)+
+      '" aria-label="Review player details for '+esc(item.name)+'">Review</button></div>').join('')+'</div>'
+      :'<p class="hint">No optional player details flagged for this team.</p>')+
+    '<p class="hint">Reported adult/carer relationships for this team: '+esc(relationshipText)+
+    '. These are coach-reported records only, NOT verified legal guardianship, consent or access rights. No relationship is inferred when none has been recorded.</p>'+
+    '</details>';
+}
 function viewSquad() {
   const P = V.players;
   const active=nativePersona(),intake=activeRosterIntakeReview();
@@ -2079,6 +2116,7 @@ function viewSquad() {
   return `<div class="sec-h"><h2>Squad</h2>${fullEdit ? `<button class="btn primary sm" data-act="squad-add" aria-haspopup="dialog">${icon('plus', 18)}Add</button>` : ''}</div>
     ${teamDecisionHint}
     ${squadIntakePanel(intake)}
+    ${squadRecordReviewPanel()}
     <input type="text" placeholder="Search players" aria-label="Search players" data-input="squad-search" value="${esc(state.squadSearch)}" style="margin-bottom:10px">
     <div class="chips">${chip('all', 'All')}${chip('F', 'Female')}${chip('M', 'Male')}${fullEdit ? chip('out', 'Injured / unavailable') : ''}</div>
     <div id="squad-list">${squadList()}</div>
