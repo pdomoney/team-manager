@@ -150,10 +150,13 @@ export function teamView(d, club = null, comps = []) {
     // The E5 eventTimeline is opt-in, validated against the diagram, and copied
     // through a strict allowlist. Invalid/stale timeline data stays in the
     // coach's original record without blocking legacy player diagrams.
-    plays: (d.plays || []).map(p => ({
-      ...pick(p, ['id', 'name', 'sport', 'category', 'headline', 'when', 'steps', 'side', 'builtin', 'rev', 'edited', 'players', 'defence', 'moves', 'focus', 'ghost', 'view', 'tags', 'notes', 'labels', 'title', 'phases', 'set', 'who', 'study', 'rules']),
-      ...(publishedPlayEventTimeline(p) ? { eventTimeline: publishedPlayEventTimeline(p) } : {})
-    })),
+    plays: (d.plays || []).map(p => {
+      const eventTimeline = publishedPlayEventTimeline(p);
+      return {
+        ...pick(p, ['id', 'name', 'sport', 'category', 'headline', 'when', 'steps', 'side', 'builtin', 'rev', 'edited', 'players', 'defence', 'moves', 'focus', 'ghost', 'view', 'tags', 'notes', 'labels', 'title', 'phases', 'set', 'who', 'study', 'rules']),
+        ...(eventTimeline ? { eventTimeline } : {})
+      };
+    }),
     playerSets: (d.playerSets || []).map(x => pick(x, ['id', 'name', 'labels', 'slots'])),
     // Volunteer tasks without names: each spot is only taken or done (open spots are left to the app),
     // and a lift only says how many cars, seats and riders. Helpers never leave the coach's file.
