@@ -51,7 +51,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 6);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 7);
   const collection = file.decisions.find(row => row.id === 'TM-PR-004');
   assert.equal(collection.status, 'answered-pending-review');
   assert.equal(collection.responseCode, 'requires-detailed-policy');
@@ -60,6 +60,17 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'unanswered',
     'marketing consent/notice is not implied by optional marketing fields');
+  const safetyScope=file.decisions.find(row=>row.id==='TM-PR-007');
+  assert.equal(safetyScope.status,'answered-pending-review');
+  assert.equal(safetyScope.responseCode,'emergency-contact-minimum-subject-to-separate-policy');
+  assert.deepEqual(safetyScope.proposedInitialScope,['emergency-contact-details']);
+  assert.equal(safetyScope.collectionApproved,false);
+  for(const category of ['medical-conditions','allergies','injury-history','concussion-history','return-to-play-restrictions','clinical-records','safeguarding-case-records']){
+    assert.ok(safetyScope.excludedFromInitialScope.includes(category),category);
+  }
+  assert.equal(safetyScope.reviewState,'not-reviewed');
+  for(const id of ['TM-PR-008','TM-PR-009','TM-PR-013'])
+    assert.equal(file.decisions.find(r=>r.id===id).status,'unanswered',id+' remains unapproved');
   const guardianVerifier=file.decisions.find(row => row.id === 'TM-PR-006');
   assert.equal(guardianVerifier.status,'answered-pending-review');
   assert.equal(guardianVerifier.responseCode,'requires-detailed-policy');
