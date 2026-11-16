@@ -47,17 +47,17 @@
         "joint-controllers",
         "other-requires-review"
       ],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "platform-operator",
+      "responseSummary": "Platform sets privacy/data policy and leads breach reporting. Team Managers and clubs may have assigned duties to collect/provide information and escalate incidents. Exact legal entity, contracts and statutory notification obligations require review.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-002",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes"
     },
     {
       "id": "TM-PR-003",
