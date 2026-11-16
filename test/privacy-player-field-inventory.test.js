@@ -29,6 +29,15 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.equal(field.retention,'undecided',field.key);
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
+  const sharing=register.decisions.find(x=>x.id==='TM-PR-012');
+  assert.equal(sharing.status,'answered-pending-review');
+  assert.equal(sharing.reviewState,'not-reviewed');
+  assert.equal(sharing.proposedSharingPolicy.auditDisclosureRequired,true);
+  assert.equal(sharing.proposedSharingPolicy.unrestrictedExportsPermitted,false);
+  assert.equal(sharing.proposedSharingPolicy.thirdPartyMarketingPermitted,false);
+  assert.equal(sharing.proposedSharingPolicy.unrelatedClubsPermitted,false);
+  assert.equal(sharing.proposedSharingPolicy.productionSharingAuthorised,false);
+  assert.deepEqual(sharing.proposedSharingPolicy.individualFieldsApproved,[]);
   const international=register.decisions.find(x=>x.id==='TM-PR-011');
   assert.equal(international.residencyPolicy.australiaPreferred,true);
   assert.equal(international.residencyPolicy.australiaMandatory,false);

@@ -51,7 +51,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 11);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 12);
   const collection = file.decisions.find(row => row.id === 'TM-PR-004');
   assert.equal(collection.status, 'answered-pending-review');
   assert.equal(collection.responseCode, 'requires-detailed-policy');
@@ -60,6 +60,22 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'answered-pending-review',
     'owner now specified separate optional marketing choice; no production consent was obtained');
+  const sharing=file.decisions.find(row=>row.id==='TM-PR-012');
+  assert.equal(sharing.status,'answered-pending-review');
+  assert.equal(sharing.responseCode,'requires-detailed-policy');
+  assert.equal(sharing.reviewState,'not-reviewed');
+  assert.equal(sharing.reviewEvidenceRef,null);
+  assert.deepEqual(sharing.proposedSharingPolicy.recipients,['verified-sporting-association-administrators']);
+  assert.deepEqual(sharing.proposedSharingPolicy.purposes,['competition-registration','team-eligibility','fixture-administration']);
+  assert.equal(sharing.proposedSharingPolicy.requiresActiveRoleAndAssociationScope,true);
+  assert.equal(sharing.proposedSharingPolicy.auditDisclosureRequired,true);
+  for(const forbidden of ['unrestrictedExportsPermitted','thirdPartyMarketingPermitted',
+     'unrelatedClubsPermitted','automaticExternalSyncPermitted','productionSharingAuthorised'])
+    assert.equal(sharing.proposedSharingPolicy[forbidden],false,forbidden);
+  assert.deepEqual(sharing.proposedSharingPolicy.individualFieldsApproved,[]);
+  assert.deepEqual(sharing.proposedSharingPolicy.messagingChannelsApproved,[]);
+  assert.equal(sharing.proposedSharingPolicy.separateLegalAndPrivacyReviewRequired,true);
+  assert.equal(file.decisions.find(row=>row.id==='TM-PR-013').status,'unanswered');
   const crossBorder=file.decisions.find(row=>row.id==='TM-PR-011');
   assert.equal(crossBorder.status,'answered-pending-review');
   assert.equal(crossBorder.responseCode,

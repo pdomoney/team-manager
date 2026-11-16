@@ -379,17 +379,48 @@
       "question": "WhatsApp/email, club/association sharing, external exports and onward-disclosure rules",
       "answerType": "review",
       "allowedValues": [],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "requires-detailed-policy",
+      "responseSummary": "Owner agrees to limited, auditable player-information sharing with verified sporting association administrators for competition registration, eligibility and fixture administration. Unrestricted export, unrelated-club access and third-party marketing are prohibited by default. Precise fields, notices and disclosure controls require review.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-012",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes",
+      "proposedSharingPolicy": {
+        "recipients": [
+          "verified-sporting-association-administrators"
+        ],
+        "purposes": [
+          "competition-registration",
+          "team-eligibility",
+          "fixture-administration"
+        ],
+        "scope": "minimum-required-player-information-for-verified-competition",
+        "requiresActiveRoleAndAssociationScope": true,
+        "auditDisclosureRequired": true,
+        "unrestrictedExportsPermitted": false,
+        "thirdPartyMarketingPermitted": false,
+        "unrelatedClubsPermitted": false,
+        "automaticExternalSyncPermitted": false,
+        "individualFieldsApproved": [],
+        "messagingChannelsApproved": [],
+        "productionSharingAuthorised": false,
+        "separateLegalAndPrivacyReviewRequired": true
+      },
+      "openSharingDetails": [
+        "minimum-fields-per-purpose",
+        "junior-and-guardian-disclosure-conditions",
+        "notice-and-authority",
+        "recipients-and-association-scopes",
+        "export-and-messaging-policy",
+        "audit-and-retention",
+        "recipient-contract-and-onward-disclosure",
+        "correction-and-revocation"
+      ]
     },
     {
       "id": "TM-PR-013",
