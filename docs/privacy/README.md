@@ -1,6 +1,6 @@
 # Team Manager privacy decision register
 
-**Status:** Open questionnaire. **TM-PR-001 and TM-PR-002 answered; 16 questions remain unanswered. Both responses are pending review.** No supplier selection, verified legal entity/controller allocation, guardian policy, legal approval, or authority for production personal-data processing has been recorded. Created 17 November 2026, based on `main` `0f1b34617a905c6e051b1f1866d87a558870ef51`.
+**Status:** Open questionnaire. **TM-PR-001 through TM-PR-003 answered; 15 questions remain unanswered. All three responses are pending review.** No supplier selection, verified legal entity/controller allocation, guardian policy, legal approval, or authority for production personal-data processing has been recorded. Created 17 November 2026, based on `main` `0f1b34617a905c6e051b1f1866d87a558870ef51`.
 
 **Canonical structured register:** [`config/privacy-decision-register.json`](../../config/privacy-decision-register.json).
 
@@ -10,8 +10,9 @@
 | --- | --- | --- | --- |
 | TM-PR-001 | First team **includes players under 18** (owner-confirmed, 17 November 2026) | **Answered, pending review** | Keep junior account, verified guardian, age transition, privacy notice and safeguarding decisions open. No real junior records or access can be processed until separate approvals. |
 | TM-PR-002 | **Platform-led policy responsibility.** The platform decides privacy/data controls and will lead breach reporting; Team Managers and clubs may be required to collect and provide information (owner-confirmed, 17 November 2026). | **Answered, pending review** | Formalise the actual accountable legal entity, delegated team/club duties, incident escalation, controller/processor agreements and notification procedures. Neither this preference nor an in-app designation discharges applicable statutory obligations. |
+| TM-PR-003 | **Registration email, proposed Sign in with Apple/Google, emergency contacts and associated adult accounts** for the initial team. Each under-18 player needs a verified linked guardian account; adult players may opt into a linked account (owner-confirmed, 17 November 2026). | **Answered, pending review** | Account links must never imply legal guardian authority or blanket data access. Confirm verification, adult consent/withdrawal, identity-provider privacy and email relay handling, emergency access purpose and what each linked adult may actually see. |
 
-TM-PR-003 through TM-PR-018 remain unanswered. Recorded policy direction is not a verified legal-controller allocation, provider contract, completed privacy review or release approval.
+TM-PR-004 through TM-PR-018 remain unanswered. TM-PR-004 data-category minimisation, TM-PR-005 child login model, TM-PR-006 guardian verification and TM-PR-007 sensitive/emergency data policy remain distinct questions; this broad scope decision does not approve those details. Recorded policy direction is not a verified legal-controller allocation, provider contract, completed privacy review or release approval.
 
 **Breach notification note:** The OAIC's NDB guidance allows affected entities to coordinate assessment and notification, but each covered entity holding relevant personal information must be able to demonstrate its own compliance. The platform may coordinate and submit notices under an agreed arrangement; an assignment in Team Manager cannot remove a club's or association's independent legal duties where they apply. See [OAIC: NDB scheme and multi-entity responsibility](https://www.oaic.gov.au/privacy/notifiable-data-breaches/preventing-preparing-for-and-responding-to-data-breaches/data-breach-preparation-and-response/part-4-notifiable-data-breach-ndb-scheme).
 
