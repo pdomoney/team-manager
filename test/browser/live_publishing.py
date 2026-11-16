@@ -1,5 +1,5 @@
 import sys, json, base64; from harness import *; from ghmock import GitHubMock
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 build(); srv, url = serve(); gh = GitHubMock()
 c = Check(); errs = []
 act = "([a, ds]) => { const b = document.createElement('button'); b.dataset.act = a; Object.assign(b.dataset, ds || {}); document.body.appendChild(b); b.click(); b.remove(); }"
@@ -108,8 +108,23 @@ with sync_playwright() as p:
     ctx3.set_offline(True)
     pl2.wait_for_function('navigator.onLine === false', timeout=5000)
     pl2.evaluate(act, ['refresh', {}])
-    pl2.wait_for_function("""() => window.__team.S.fromCache === true &&
-        document.querySelector('#toast').textContent.includes('copy saved on this phone')""", timeout=20000)
+    try:
+        pl2.wait_for_function("""() => window.__team.S.fromCache === true &&
+            document.querySelector('#toast').textContent.includes('copy saved on this phone')""", timeout=20000)
+    except PlaywrightTimeoutError:
+        # Boolean-only cache evidence; do not log team records, keys or passwords.
+        diagnostic = pl2.evaluate("""() => ({
+            online: navigator.onLine,
+            fromCache: window.__team.S.fromCache,
+            role: window.__team.S.role,
+            teamFilePresent: !!window.__team.S.teamFile,
+            primaryCachePresent: !!localStorage.getItem('tm-team-file'),
+            toastText: document.querySelector('#toast').textContent.slice(0,120),
+            statusText: document.querySelector('#status').textContent.slice(0,120),
+            statusHidden: document.querySelector('#status').hidden
+        })""")
+        print('OFFLINE_CACHE_DIAGNOSTIC: '+json.dumps(diagnostic), file=sys.stderr, flush=True)
+        raise
     c.ok('copy saved on this phone' in pl2.inner_text('#toast')
          and not pl2.is_hidden('#status')
          and pl2.evaluate('JSON.stringify(window.__team.teamData)') == previous_player_copy,
