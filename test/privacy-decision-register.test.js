@@ -90,8 +90,10 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     'field preferences are recorded, but minimisation and field-level approval are still open');
   assert.equal(collection.reviewEvidenceRef, null,
     'collection is not approved by supplying the requested field list');
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'unanswered',
-    'guardian association does not decide whether minors can sign in directly');
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review',
+    'own junior login was explicitly chosen but not independently approved');
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status, 'unanswered',
+    'guardian verification, activation and child consent are still open');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-006').status, 'unanswered',
     'verified guardian authority and adult linkage remain separate decisions');
   const platformResponsibility = file.decisions.find(row => row.id === 'TM-PR-002');
