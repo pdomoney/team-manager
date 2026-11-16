@@ -9,7 +9,7 @@ The owner directed development back to everyday management after accepting play 
 | Phase | Scope | Status |
 | --- | --- | --- |
 | M1 | Selected-team management workspace, context UX, role/device acceptance | M1.1–M1.3 merged/published, exact-main Node/Chromium/WebKit PASS through #248; physical Safari/VoiceOver and owner review pending |
-| M2 | Player intake, guardian reviews, registration and season lifecycle | M2.1 fictional roster intake review PR candidate; M2.2–M2.5 queued or decision-gated |
+| M2 | Player intake, guardian reviews, registration and season lifecycle | M2.1 PRs #249 and #250 merged/published, post-merge Chromium prerequisite pending at M2.2 branch creation; M2.2 Coach-only review candidate; M2.3–M2.5 queued/decision-gated |
 | M3 | Coach/Manager training, availability and team selection approvals | Proposed |
 | M4 | Sport-scoped Match Day roster, staff, result and publication authority | Proposed; rule-gated |
 | M5 | Club and volunteer administration, appointments and qualification evidence | Proposed |
@@ -29,13 +29,13 @@ The owner directed development back to everyday management after accepting play 
 
 | Slice | Outcome | Current gate |
 | --- | --- | --- |
-| **M2.1** Team placement intake review | Native Squad shows existing team-only nomination, awaiting approval, approved and withdrawn stages with exact-team filters for fictional Coach/Manager; Club Admin can review only | Source PR candidate; merge, post-merge and owner UI acceptance outstanding |
-| **M2.2** Player intake completeness and reported guardian linkage | Identify missing squad fields and review reported relationships without claiming verified guardian authority or creating accounts | Not started; preserve existing player/person and guardian review models |
+| **M2.1** Team placement intake review | Native Squad shows existing team-only nomination, awaiting approval, approved and withdrawn stages with exact-team filters for fictional Coach/Manager; Club Admin can review only | PRs #249/#250 merged and Pages published; #250 exact-main Node/WebKit PASS, Chromium and owner device acceptance pending |
+| **M2.2** Player intake completeness and reported guardian linkage | Coach-only collapsed Squad detail suggestions and reported relationship review counts, using existing player/person records | Source branch candidate, not merged; exact-head CI/owner acceptance outstanding |
 | **M2.3** Registration and financial evidence lifecycle | Club registration/Registrar and external provider confirmations strictly separate from Coach/Manager team approval | Design/authority gate: D17 grace-period rules, verifiable provider evidence, D21 retention and D23 finance roles |
 | **M2.4** Season move/transfer lifecycle | New-season choices, safe withdrawal and cross-team history with explicit approvals, no automatic inherited eligibility | Not started; migration/backups require separate authority |
 | **M2.5** Recovery and real-device acceptance | Negative role/club tests, exact-data preservation, genuine iPhone/macOS Safari and restore | Not started; source tests do not prove physical-device or individual identity |
 
-**Progress accounting:** five equal roadmap slices (20% each) for planning. M2.1 is a source candidate, not accepted completion. Do not advance the programme percentage on tests alone. No new backend, real identity, external registration, child data, payments or match eligibility is authorised by M2.1. Keep M3–M8 and play E6–E8 deferred as shown below.
+**Progress accounting:** five equal roadmap slices (20% each) for planning. M2.1 is merged/published but still requires full exact-main qualification and owner device review; M2.2 is source-only. Do not advance the release-qualified percentage on source implementation or Pages publication alone. No new backend, real identity, external registration, child data, payments or match eligibility is authorised by M2.1. Keep M3–M8 and play E6–E8 deferred as shown below.
 
 Existing issues #154, #131, #34, #35 and #31 remain open until independently qualified. **Plays:** E5 accepted, E6–E8 and Option C deferred; preserve all existing tactics behaviour.
 
