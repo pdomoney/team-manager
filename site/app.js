@@ -457,6 +457,14 @@ async function fetchSite(name) {
 }
 const cacheKey = name => name === 'team.enc.json' ? KEYS.teamCache : `${KEYS.teamCache}:${name}`;
 async function fetchTeamFile(name = 'team.enc.json') {
+  // Prefer the exact team's already-encrypted device copy when offline.
+  // Attempting an unnecessary network fetch first can behave differently with
+  // browser HTTP caches, leaving a player waiting at the ground. A missing
+  // local copy still follows the existing fetch/error path.
+  if (!online()) {
+    const cached = readJson(cacheKey(name));
+    if (cached && isSealed(cached)) { S.fromCache = true; return cached; }
+  }
   try {
     const f = await fetchSite(name);
     if (f) store.set(cacheKey(name), JSON.stringify(f));
