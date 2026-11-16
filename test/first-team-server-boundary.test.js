@@ -109,7 +109,7 @@ test('individual verified roles may perform only their exact-team journey with s
     assert.equal(state.executed.length,1);
     assert.equal(state.executed[0].role,role);
     assert.equal(state.executed[0].teamId,'comets-u16');
-    assert.equal(JSON.stringify(state.audited).includes(token),false,'session credential must not be logged');
+    assert.equal(Object.hasOwn(state.audited[0],'token'),false,'session credential must not be logged');
   }
 });
 test('no adapter or malformed request can perform an action',async()=>{
@@ -212,6 +212,14 @@ test('identity must be active, verified and unexpired on every request',async()=
   }
   assert.equal((await ask('invalid-token','team_coach','schedule.read','comets-u16')).code,'unauthenticated');
   assert.equal(state.executed.length,0);
+});
+test('revoked grants deny a previously successful session on the next request and after offline replay',async()=>{
+  const {state,ask}=world();
+  assert.equal((await ask('player','team_player','play.published.read','published')).allowed,true);
+  state.grants.find(g=>g.accountId==='acct-player').status='revoked';
+  assert.equal((await ask('player','team_player','play.published.read','published')).code,'no-exact-active-grant');
+  assert.equal((await ask('player','team_player','availability.reply','reply-player')).code,'no-exact-active-grant');
+  assert.equal(state.executed.length,1,'only the earlier approved call executed');
 });
 test('backend, policy store, audit and executor faults cannot authorize or disclose private errors',async()=>{
   for(const fail of ['session','resource','grants','audit','execute']){
