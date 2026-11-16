@@ -51,7 +51,15 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 1);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 2);
+  const platformResponsibility = file.decisions.find(row => row.id === 'TM-PR-002');
+  assert.equal(platformResponsibility.status, 'answered-pending-review');
+  assert.equal(platformResponsibility.responseCode, 'platform-operator');
+  assert.equal(platformResponsibility.applicable, 'yes');
+  assert.equal(platformResponsibility.reviewState, 'not-reviewed');
+  assert.equal(platformResponsibility.reviewEvidenceRef, null);
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-016').status, 'unanswered',
+    'the incident-response operating procedure remains a separate decision');
   const firstTeamAges = file.decisions.find(row => row.id === 'TM-PR-001');
   assert.equal(firstTeamAges.status, 'answered-pending-review');
   assert.equal(firstTeamAges.responseCode, 'includes-under-18s');
