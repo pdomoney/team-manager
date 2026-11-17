@@ -30,7 +30,12 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
   const childReview=register.decisions.find(x=>x.id==='TM-PR-017');
-  assert.equal(childReview.status,'unanswered');
+  assert.equal(childReview.status,'answered-pending-review');
+  assert.equal(childReview.reviewState,'not-reviewed');
+  assert.equal(childReview.proposedJuniorAcceptance.useApplicationRequiresAcceptance,true);
+  assert.equal(childReview.proposedJuniorAcceptance.consentNotBundledWithOptionalMarketing,true);
+  assert.equal(childReview.proposedJuniorAcceptance.regulatoryRequirementsCannotBeWaivedByAcceptance,true);
+  assert.equal(childReview.proposedJuniorAcceptance.realJuniorAccountProcessingAuthorised,false);
   assert.equal(childReview.supplementalSafeguardingRequirement.scope,'volunteers-with-junior-interaction');
   assert.equal(childReview.supplementalSafeguardingRequirement.proposedProfileField,
     'workingWithChildrenCheckNumber');
@@ -120,7 +125,7 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
   assert.equal(junior.status,'answered-pending-review');
   assert.equal(junior.reviewState,'not-reviewed');
   assert.equal(junior.responseCode,'junior-own-login-guardian-contact-candidate');
-  for(const id of ['TM-PR-017','TM-PR-018']){
+  for(const id of ['TM-PR-018']){
     assert.equal(register.decisions.find(x=>x.id===id).status,'unanswered',id);
   }
 });
