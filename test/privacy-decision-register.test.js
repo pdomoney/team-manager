@@ -60,6 +60,21 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'answered-pending-review',
     'owner now specified separate optional marketing choice; no production consent was obtained');
+  const childLegalReview=file.decisions.find(row=>row.id==='TM-PR-017');
+  assert.equal(childLegalReview.status,'unanswered',
+    'the WWCC field requirement is not a response approving the separate junior legal review');
+  assert.equal(childLegalReview.responseCode,null);
+  assert.equal(childLegalReview.responseEvidenceRef,null);
+  assert.equal(childLegalReview.reviewState,'not-reviewed');
+  const wwcc=childLegalReview.supplementalSafeguardingRequirement;
+  assert.equal(wwcc.scope,'volunteers-with-junior-interaction');
+  assert.equal(wwcc.proposedProfileField,'workingWithChildrenCheckNumber');
+  assert.equal(wwcc.fieldType,'private-credential-identifier');
+  assert.equal(wwcc.verificationStatus,'not-implied-by-number-entry');
+  assert.equal(wwcc.whetherEntryMandatoryForJuniorDuty,'pending-safeguarding-and-jurisdiction-review');
+  for(const key of ['collectionAndStorageApproved','externalLookupOrVerificationAuthorised',
+     'productionUIAuthorised','realCredentialNumbersInRepository'])
+    assert.equal(wwcc[key],false,key);
   const incident=file.decisions.find(row=>row.id==='TM-PR-016');
   assert.equal(incident.status,'answered-pending-review');
   assert.equal(incident.responseCode,'requires-detailed-policy');

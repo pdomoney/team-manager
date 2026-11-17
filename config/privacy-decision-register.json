@@ -575,7 +575,24 @@
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "undetermined",
+      "supplementalSafeguardingRequirement": {
+        "requirement": "volunteers-interacting-with-junior-players-have-field-to-record-working-with-children-check-reference",
+        "ownerEvidenceRef": "owner-conversation:2026-11-17:TM-PR-017-supplemental-wwcc",
+        "scope": "volunteers-with-junior-interaction",
+        "proposedProfileField": "workingWithChildrenCheckNumber",
+        "fieldType": "private-credential-identifier",
+        "jurisdictionAndCredentialType": "pending-policy",
+        "verificationStatus": "not-implied-by-number-entry",
+        "checkVerificationProcedure": "pending-policy",
+        "expiryAndReverification": "pending-policy",
+        "roleAndClubAccess": "pending-policy",
+        "whetherEntryMandatoryForJuniorDuty": "pending-safeguarding-and-jurisdiction-review",
+        "collectionAndStorageApproved": false,
+        "externalLookupOrVerificationAuthorised": false,
+        "productionUIAuthorised": false,
+        "realCredentialNumbersInRepository": false
+      }
     },
     {
       "id": "TM-PR-018",

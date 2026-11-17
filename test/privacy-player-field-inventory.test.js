@@ -29,6 +29,14 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.equal(field.retention,'undecided',field.key);
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
+  const childReview=register.decisions.find(x=>x.id==='TM-PR-017');
+  assert.equal(childReview.status,'unanswered');
+  assert.equal(childReview.supplementalSafeguardingRequirement.scope,'volunteers-with-junior-interaction');
+  assert.equal(childReview.supplementalSafeguardingRequirement.proposedProfileField,
+    'workingWithChildrenCheckNumber');
+  assert.equal(childReview.supplementalSafeguardingRequirement.verificationStatus,
+    'not-implied-by-number-entry');
+  assert.equal(childReview.supplementalSafeguardingRequirement.collectionAndStorageApproved,false);
   const incident=register.decisions.find(x=>x.id==='TM-PR-016');
   assert.equal(incident.status,'answered-pending-review');
   assert.equal(incident.reviewState,'not-reviewed');
