@@ -51,7 +51,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 17);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 18);
   const collection = file.decisions.find(row => row.id === 'TM-PR-004');
   assert.equal(collection.status, 'answered-pending-review');
   assert.equal(collection.responseCode, 'requires-detailed-policy');
@@ -60,6 +60,30 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'answered-pending-review',
     'owner now specified separate optional marketing choice; no production consent was obtained');
+  const approval=file.decisions.find(row=>row.id==='TM-PR-018');
+  assert.equal(file.registerState,'open','policy review remains open after questionnaire completion');
+  assert.equal(file.decisions.filter(r=>r.status==='unanswered').length,0);
+  assert.equal(file.decisions.filter(r=>r.status==='approved').length,0);
+  assert.equal(approval.status,'answered-pending-review');
+  assert.equal(approval.responseCode,'requires-detailed-policy');
+  assert.equal(approval.reviewState,'not-reviewed');
+  assert.equal(approval.reviewEvidenceRef,null);
+  assert.equal(approval.proposedLaunchApproval.finalProductReleaseApprover,
+    'team-manager-platform-operator');
+  assert.equal(approval.proposedLaunchApproval.teamManagerOperationalAttestationRequired,true);
+  assert.equal(approval.proposedLaunchApproval.clubAdminOperationalAttestationRequired,true);
+  assert.equal(approval.proposedLaunchApproval.teamManagerReleaseApprovalRequired,false);
+  assert.equal(approval.proposedLaunchApproval.clubAdminReleaseApprovalRequired,false);
+  assert.equal(approval.proposedLaunchApproval.legalControllerAndReviewerAllocation,
+    'to-be-verified-before-live-processing');
+  assert.equal(approval.proposedLaunchApproval.independentReviewState,'not-completed');
+  assert.equal(approval.proposedLaunchApproval.operatorReleaseSignoffState,'not-granted');
+  assert.equal(approval.proposedLaunchApproval.operatorReleaseEvidenceRef,null);
+  assert.equal(approval.proposedLaunchApproval.productionParticipantDataProcessingAuthorised,false);
+  assert.equal(approval.proposedLaunchApproval.productionReleaseAuthorised,false);
+  assert.equal(approval.proposedLaunchApproval.questionnaireCompletionIsReleaseApproval,false);
+  assert.ok(approval.proposedLaunchApproval.evidenceRequiredBeforeFinalRelease.includes(
+    'applicable-privacy-and-child-protection-compliance-checks'));
   const childLegalReview=file.decisions.find(row=>row.id==='TM-PR-017');
   assert.equal(childLegalReview.status,'answered-pending-review');
   assert.equal(childLegalReview.responseCode,'requires-detailed-policy');
@@ -239,7 +263,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.ok(safetyScope.excludedFromInitialScope.includes(category),category);
   }
   assert.equal(safetyScope.reviewState,'not-reviewed');
-  for(const id of ['TM-PR-018'])
+  for(const id of [])
     assert.equal(file.decisions.find(r=>r.id===id).status,'unanswered',id+' remains unapproved');
   const guardianVerifier=file.decisions.find(row => row.id === 'TM-PR-006');
   assert.equal(guardianVerifier.status,'answered-pending-review');

@@ -29,6 +29,16 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
     assert.equal(field.retention,'undecided',field.key);
     assert.ok(field.reviewFlags.length>=1,field.key);
   }
+  const approval=register.decisions.find(x=>x.id==='TM-PR-018');
+  assert.equal(approval.status,'answered-pending-review');
+  assert.equal(approval.reviewState,'not-reviewed');
+  assert.equal(approval.proposedLaunchApproval.finalProductReleaseApprover,'team-manager-platform-operator');
+  assert.equal(approval.proposedLaunchApproval.teamManagerReleaseApprovalRequired,false);
+  assert.equal(approval.proposedLaunchApproval.clubAdminReleaseApprovalRequired,false);
+  assert.equal(approval.proposedLaunchApproval.operatorReleaseSignoffState,'not-granted');
+  assert.equal(approval.proposedLaunchApproval.productionParticipantDataProcessingAuthorised,false);
+  assert.equal(approval.proposedLaunchApproval.productionReleaseAuthorised,false);
+  assert.equal(register.decisions.filter(x=>x.status==='unanswered').length,0);
   const childReview=register.decisions.find(x=>x.id==='TM-PR-017');
   assert.equal(childReview.status,'answered-pending-review');
   assert.equal(childReview.reviewState,'not-reviewed');
@@ -125,7 +135,7 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
   assert.equal(junior.status,'answered-pending-review');
   assert.equal(junior.reviewState,'not-reviewed');
   assert.equal(junior.responseCode,'junior-own-login-guardian-contact-candidate');
-  for(const id of ['TM-PR-018']){
+  for(const id of []){
     assert.equal(register.decisions.find(x=>x.id===id).status,'unanswered',id);
   }
 });

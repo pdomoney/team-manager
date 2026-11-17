@@ -615,17 +615,42 @@
       "question": "Final scope, controller and reviewer sign-off for privacy policy and first-team data processing",
       "answerType": "review",
       "allowedValues": [],
-      "status": "unanswered",
-      "responseCode": null,
-      "responseSummary": null,
-      "respondedOn": null,
-      "responseEvidenceRef": null,
+      "status": "answered-pending-review",
+      "responseCode": "requires-detailed-policy",
+      "responseSummary": "Owner agrees the Team Manager platform operator gives the final product go-live approval only after the agreed registration, guardian, role, safeguarding, backup and privacy controls are independently verified. Team Managers and Club Admins attest operational readiness but do not approve the platform release. No release approval is granted by this answer.",
+      "respondedOn": "2026-11-17",
+      "responseEvidenceRef": "owner-conversation:2026-11-17:TM-PR-018",
       "reviewState": "not-reviewed",
       "reviewerRole": null,
       "reviewedOn": null,
       "reviewEvidenceRef": null,
       "implementationGate": "L0",
-      "applicable": "undetermined"
+      "applicable": "yes",
+      "proposedLaunchApproval": {
+        "finalProductReleaseApprover": "team-manager-platform-operator",
+        "teamManagerOperationalAttestationRequired": true,
+        "clubAdminOperationalAttestationRequired": true,
+        "teamManagerReleaseApprovalRequired": false,
+        "clubAdminReleaseApprovalRequired": false,
+        "evidenceRequiredBeforeFinalRelease": [
+          "verified-registration-acceptance-and-privacy-notices",
+          "guardian-relationships-and-junior-account-safeguards",
+          "field-level-role-and-tenant-permissions",
+          "verified-volunteer-safeguarding-policy-and-checks",
+          "backup-encryption-restore-and-recovery-controls",
+          "incident-escalation-and-privacy-rights-procedures",
+          "supplier-and-cross-border-processing-reviews",
+          "applicable-privacy-and-child-protection-compliance-checks",
+          "release-and-installation-qualification"
+        ],
+        "legalControllerAndReviewerAllocation": "to-be-verified-before-live-processing",
+        "independentReviewState": "not-completed",
+        "operatorReleaseSignoffState": "not-granted",
+        "operatorReleaseEvidenceRef": null,
+        "productionParticipantDataProcessingAuthorised": false,
+        "productionReleaseAuthorised": false,
+        "questionnaireCompletionIsReleaseApproval": false
+      }
     }
   ]
 }
