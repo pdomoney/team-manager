@@ -47,6 +47,8 @@ Do not redesign Home, Schedule, Team, Tactics or More, active role/team selectio
 3. **Scoped personal information:** per-field roles, disclosure projections, archival permissions, self-service contact corrections and denial audits in an authenticated backend, *only after provider/security and privacy approval*.
 4. **Qualification and final release:** signed policy/evidence reviews, independent server and device tests, exact-source backup/restore, L0–L6 and eight live journeys, final operator acceptance.
 
+**Known source-policy inconsistency to resolve (do not silently change):** `docs/operations/first-team-cloud-release.md` still says verified **adult guardian-account linkage** is mandatory where minors participate. TM-PR-005 and TM-PR-017 instead require a junior's own account, **guardian candidate details**, and **optional activated guardian account**. Verify guardian authority, age-specific consent and safeguarding requirements without silently imposing adult-account activation. The existing L0 evaluator still requires guardian evidence for minors and this source-only PR does not change or bypass that gate.
+
 **Current blocking decisions:** select and approve actual legal controller and backend provider/plan, field-level child necessity, guardian proof method, WWCC validity/authorised verifier, archival sensitive data/backup retention, out-of-app incident route, and evidence reviewers. Underlying legal requirements cannot be waived by account acceptance. A future privacy/legal review may be necessary depending on actual applicability. No real participant information is to be placed in this public repository.
 
 ## Reviewer acceptance of this document-only block
