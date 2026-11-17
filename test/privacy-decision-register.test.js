@@ -263,8 +263,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.ok(safetyScope.excludedFromInitialScope.includes(category),category);
   }
   assert.equal(safetyScope.reviewState,'not-reviewed');
-  for(const id of [])
-    assert.equal(file.decisions.find(r=>r.id===id).status,'unanswered',id+' remains unapproved');
+  assert.deepEqual(file.decisions.filter(row=>row.status==='unanswered').map(row=>row.id),[]);
   const guardianVerifier=file.decisions.find(row => row.id === 'TM-PR-006');
   assert.equal(guardianVerifier.status,'answered-pending-review');
   assert.equal(guardianVerifier.responseCode,'requires-detailed-policy');

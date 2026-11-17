@@ -135,7 +135,5 @@ test('mandatory request cannot silently authorise child, address, photo, or opti
   assert.equal(junior.status,'answered-pending-review');
   assert.equal(junior.reviewState,'not-reviewed');
   assert.equal(junior.responseCode,'junior-own-login-guardian-contact-candidate');
-  for(const id of []){
-    assert.equal(register.decisions.find(x=>x.id===id).status,'unanswered',id);
-  }
+  assert.deepEqual(register.decisions.filter(x=>x.status==='unanswered').map(x=>x.id),[]);
 });
