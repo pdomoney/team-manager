@@ -12,8 +12,16 @@ const grant=(accountId,role,teamId='comets-u16')=>({
   validFrom:'2026-11-15T00:00:00Z',expiresAt:'2026-12-15T00:00:00Z'
 });
 const resource=(id,type='team',teamId='comets-u16',other={})=>({
-  id,type,teamId,status:'active',classification:'routine',minorData:false,...other
+  id,type,teamId,status:'active',classification:'routine',minorData:false,version:0,...other
 });
+const commandFor=action=>{
+  const base={mutationId:'synthetic-mutation-000001',expectedVersion:0};
+  if(action==='availability.reply')return {...base,response:'yes'};
+  if(action==='duty.reply')return {...base,response:'yes'};
+  if(action==='play.publish')return {...base,revisionId:'draft-rev1'};
+  return ['schedule.edit','roster.edit','play.draft.edit','duty.assign'].includes(action)
+    ? {...base,command:{change:'fictional'}} : {};
+};
 function world(){
   const state={
     accountId:'acct-coach',
@@ -29,7 +37,7 @@ function world(){
       ['comets-u16',resource('comets-u16')],
       ['rangers-u16',resource('rangers-u16','team','rangers-u16')],
       ['published',resource('published','play','comets-u16',{publicationState:'published',publishedRevisionId:'rev1'})],
-      ['draft',resource('draft','play','comets-u16',{publicationState:'draft'})],
+      ['draft',resource('draft','play','comets-u16',{publicationState:'draft',draftRevisionId:'draft-rev1'})],
       ['other-play',resource('other-play','play','rangers-u16',{publicationState:'published',publishedRevisionId:'rev1'})],
       ['reply-player',resource('reply-player','availability','comets-u16',{personId:'person-player'})],
       ['reply-other',resource('reply-other','availability','comets-u16',{personId:'person-different'})],
@@ -51,7 +59,7 @@ function world(){
     duties:new Map([
       ['person-volunteer:duty-vol',{id:'duty-vol',teamId:'comets-u16',personId:'person-volunteer',status:'assigned',approvedBy:'manager'}]
     ]),
-    audited:[],executed:[],fail:'',trace:[]
+    audited:[],executed:[],reserved:new Set(),fail:'',trace:[]
   };
   const adapter={
     async transaction(fn){
@@ -63,6 +71,20 @@ function world(){
         async loadPersonLink(accountId){state.trace.push('link');return state.links.get(accountId);},
         async loadParticipation(personId,teamId){state.trace.push('participation');return state.participations.get(personId+':'+teamId);},
         async loadDuty(personId,dutyId){state.trace.push('duty');return state.duties.get(personId+':'+dutyId);},
+        async validateActionPayload(record){
+          state.trace.push('command');
+          if(state.fail==='command-throw')throw Error('PRIVATE-COMMAND');
+          return state.fail==='command-false'?false:!!record?.payload;
+        },
+        async reserveMutation(record){
+          state.trace.push('reserve');
+          if(state.fail==='reserve-throw')throw Error('PRIVATE-RESERVATION');
+          if(state.fail==='reserve-false')return false;
+          const key=[record.accountId,record.teamId,record.mutationId].join(':');
+          if(state.reserved.has(key))return false;
+          state.reserved.add(key);
+          return true;
+        },
         async auditDecision(record){
           state.trace.push('audit');
           if(state.fail==='audit')throw Error('PRIVATE-AUDIT');
@@ -84,17 +106,19 @@ function world(){
       // whenever the callback rejects. A real storage adapter must implement
       // this atomically, which these synthetic tests cannot independently prove.
       const auditStart=state.audited.length,executeStart=state.executed.length;
+      const reservedStart=new Set(state.reserved);
       try{return await fn(tx);}
       catch(error){
         state.audited.splice(auditStart);
         state.executed.splice(executeStart);
+        state.reserved=reservedStart;
         throw error;
       }
     },
     clock:()=>NOW
   };
   const boundary=createFirstTeamServerBoundary(adapter);
-  const ask=(token,role,action,resourceId,teamId='comets-u16',payload={})=>
+  const ask=(token,role,action,resourceId,teamId='comets-u16',payload=commandFor(action))=>
     boundary.run({token,activeRole:role,activeTeamId:teamId,action,resourceId,payload});
   return {state,adapter,boundary,ask};
 }
@@ -281,4 +305,68 @@ test('an adapter without mandatory transactional methods fails closed',async()=>
     token:'some',action:'schedule.read',resourceId:'comets-u16',
     activeTeamId:'comets-u16',activeRole:'team_coach'
   }),{allowed:false,code:'missing-trusted-adapter'});
+});
+
+
+test('player reply, volunteer duty and Coach play publish reject stale versions and stale drafts',async()=>{
+  for(const [token,role,action,id] of [
+    ['player','team_player','availability.reply','reply-player'],
+    ['volunteer','team_volunteer','duty.reply','duty-vol'],
+    ['coach','team_coach','play.publish','draft']
+  ]){
+    const {state,ask}=world();
+    state.resources.get(id).version=2;
+    assert.equal((await ask(token,role,action,id)).code,'stale-resource-version');
+    assert.equal(state.executed.length,0);
+    assert.equal(state.reserved.size,0);
+  }
+  const {state,ask}=world();
+  state.resources.get('draft').draftRevisionId='newer-revision';
+  assert.equal((await ask('coach','team_coach','play.publish','draft')).code,'stale-play-revision');
+  assert.equal(state.executed.length,0);
+});
+test('duplicate mutation IDs fail closed on replay, even with an active session and grant',async()=>{
+  const {state,ask}=world();
+  assert.equal((await ask('player','team_player','availability.reply','reply-player')).allowed,true);
+  const second=await ask('player','team_player','availability.reply','reply-player');
+  assert.deepEqual(second,{allowed:false,code:'trusted-backend-failure'});
+  assert.equal(state.executed.length,1);
+  assert.equal(state.audited.length,1);
+  assert.equal(state.reserved.size,1);
+  assert.equal((await ask('player','team_player','availability.reply','reply-player',
+    'comets-u16',{mutationId:'synthetic-mutation-000002',expectedVersion:0,response:'maybe'})).allowed,true);
+  assert.equal(state.executed.length,2);
+  assert.equal(state.reserved.size,2);
+  // A real DB adapter must advance version in the same transaction. This fake
+  // retains version 0 deliberately to isolate the idempotency check from CAS.
+});
+test('bad command, failed reservation or missing audit never commits a replay marker',async()=>{
+  for(const fail of ['command-false','command-throw','reserve-false','reserve-throw',
+    'audit-no-ack','audit-false','execute-no-ack','execute-error']){
+    const {state,ask}=world();state.fail=fail;
+    const result=await ask('volunteer','team_volunteer','duty.reply','duty-vol');
+    assert.equal(result.allowed,false,fail);
+    assert.equal(state.executed.length,0,fail);
+    assert.equal(state.audited.length,0,fail);
+    assert.equal(state.reserved.size,0,fail);
+    state.fail='';
+    assert.equal((await ask('volunteer','team_volunteer','duty.reply','duty-vol')).allowed,true,
+      'a failed attempt should not consume its idempotency key: '+fail);
+  }
+});
+test('unknown or forged action fields are denied before a transaction starts',async()=>{
+  const {state,boundary}=world();
+  const base={token:'player',activeRole:'team_player',activeTeamId:'comets-u16',
+    action:'availability.reply',resourceId:'reply-player',
+    payload:{mutationId:'synthetic-mutation-000001',expectedVersion:0,response:'yes'}};
+  for(const request of [
+    {...base,payload:{...base.payload,personId:'person-other'}},
+    {...base,payload:{...base.payload,guardianPermission:true}},
+    {...base,payload:{...base.payload,response:'medical-leave'}},
+    {...base,payload:{...base.payload,mutationId:'bad?'}},
+    {...base,payload:{...base.payload,expectedVersion:-1}},
+    {...base,payload:{...base.payload,role:'team_coach'}},
+    {...base,payload:{...base.payload,teamId:'rangers-u16'}}
+  ])assert.equal((await boundary.run(request)).code,'invalid-action-payload');
+  assert.equal(state.trace.length,0);
 });

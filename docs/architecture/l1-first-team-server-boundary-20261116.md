@@ -41,6 +41,21 @@ On failure, the boundary **throws inside** the supplied transactional callback, 
 
 A correct acknowledgement can still be produced by an incorrect or hostile adapter. Therefore none of these source tests proves cryptographic identity verification, production RLS, output redaction, or successful actual storage. These remain P13B/C and L1–L6 gates.
 
+## Mutation freshness and request-envelope contract (17 November 2026)
+
+`src/first-team-action-contract.js` and the server-boundary integration add a **source-only** replay and optimistic-write contract for all seven first-team mutations. This is not a working database, a browser-authentication mechanism, a source of approved minor/guardian policy or a guarantee that a future backend enforces once-only updates.
+
+- **Reads** (`schedule.read`, `play.published.read`, `play.draft.read`, `duty.read`) accept an empty body only.
+- **All mutations** require a bounded opaque `mutationId` (16–80 valid identifier characters) plus an integer nonnegative `expectedVersion`. These are correlation and optimistic-concurrency inputs, **not credentials**. The server must enforce uniqueness and freshness transactionally, and the client must not be allowed to choose its own author/person/team ID.
+- **Player self RSVP:** `availability.reply` allows only `response: "yes" | "no" | "maybe"`, consistent with existing player RSVP vocabulary.
+- **Volunteer reply:** `duty.reply` allows only `response: "yes" | "no" | "done"`, consistent with existing task states. It does not verify accreditation.
+- **Coach publish:** `play.publish` takes a canonical existing `revisionId`, not inline diagram source; the server validates it matches the current draft revision. Existing E5 diagram, timing, phases and teaching data are not rewritten.
+- **Schedule / squad / draft editor / duty assignment:** the provider-neutral envelope permits an opaque `command` object, bounded to 64 KiB and requiring `tx.validateActionPayload` to explicitly accept it. **No specific field schema or backend writes for these actions are implemented or approved here.** The real provider adapter must reject unrecognised fields, validate all domain preconditions and return minimal results.
+
+For a write, the boundary checks the **server-owned resource version** against `expectedVersion`, validates the action-specific payload with the trusted adapter, then calls `tx.reserveMutation` in the same rollback-capable transaction as audit and execution. If reservation rejects, the boundary throws inside the transaction to force rollback. Both audit and operation acknowledgements are still required.
+
+**Important release gap:** the present in-memory fixture only simulates unique reservations and rollback of counters. It intentionally does **not** persist a database, advance a real resource version or prove concurrent interleavings. A real adapter must update the resource version atomically, implement a unique constraint for each account/team idempotency key, define safe retry semantics and independently test concurrent writes, network timeouts, failover and at-least-once delivery. Syntactically valid or long IDs are **not evidence of randomness**. The storage/API provider and data policy remain subject to #55 and D21 approval.
+
 ## Synthetic acceptance and regression coverage
 
 `test/first-team-server-boundary.test.js` exercises:
