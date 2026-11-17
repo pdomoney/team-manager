@@ -51,7 +51,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.equal(validAnswer(row), true, row.id + ' is either an unanswered question or an evidenced response');
   }
   assert.equal(file.decisions.filter(row => row.status === 'approved').length, 0);
-  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 15);
+  assert.equal(file.decisions.filter(row => row.status !== 'unanswered').length, 16);
   const collection = file.decisions.find(row => row.id === 'TM-PR-004');
   assert.equal(collection.status, 'answered-pending-review');
   assert.equal(collection.responseCode, 'requires-detailed-policy');
@@ -60,6 +60,21 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-005').status, 'answered-pending-review');
   assert.equal(file.decisions.find(row => row.id === 'TM-PR-009').status, 'answered-pending-review',
     'owner now specified separate optional marketing choice; no production consent was obtained');
+  const incident=file.decisions.find(row=>row.id==='TM-PR-016');
+  assert.equal(incident.status,'answered-pending-review');
+  assert.equal(incident.responseCode,'requires-detailed-policy');
+  assert.equal(incident.reviewState,'not-reviewed');
+  assert.equal(incident.reviewEvidenceRef,null);
+  assert.equal(incident.proposedIncidentOperations.inAppIncidentReportingRequiredInitialRelease,false);
+  assert.equal(incident.proposedIncidentOperations.inAppIncidentReportingFeature,'deferred');
+  assert.equal(incident.proposedIncidentOperations.alternativeReportingChannel,
+    'undecided-must-be-defined-before-live-use');
+  assert.equal(incident.proposedIncidentOperations.platformInvestigationOwner,'team-manager-platform-operator');
+  assert.equal(incident.proposedIncidentOperations.platformBreachAssessmentAndNotificationLead,true);
+  assert.equal(incident.proposedIncidentOperations.personalInformationAccessAudit,
+    'required-design-pending-approval');
+  assert.equal(incident.proposedIncidentOperations.productionIncidentProcessApproved,false);
+  assert.equal(file.decisions.find(x=>x.id==='TM-PR-017').status,'unanswered');
   const recovery=file.decisions.find(row=>row.id==='TM-PR-015');
   assert.equal(recovery.status,'answered-pending-review');
   assert.equal(recovery.responseCode,'requires-detailed-policy');
@@ -74,7 +89,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(recovery.proposedRecoveryPolicy.backupRetentionDuration,'undecided-provider-and-privacy-review');
   assert.equal(recovery.proposedRecoveryPolicy.privacyErasureAndBackupExpiry,'pending-detailed-policy');
   assert.equal(recovery.proposedRecoveryPolicy.productionBackupOrRestoreAuthorised,false);
-  assert.equal(file.decisions.find(x=>x.id==='TM-PR-016').status,'unanswered');
+  assert.equal(file.decisions.find(x=>x.id==='TM-PR-016').status,'answered-pending-review');
   const rights=file.decisions.find(row=>row.id==='TM-PR-014');
   assert.equal(rights.status,'answered-pending-review');
   assert.equal(rights.responseCode,'requires-detailed-policy');
@@ -200,7 +215,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
     assert.ok(safetyScope.excludedFromInitialScope.includes(category),category);
   }
   assert.equal(safetyScope.reviewState,'not-reviewed');
-  for(const id of ['TM-PR-016','TM-PR-017'])
+  for(const id of ['TM-PR-017','TM-PR-018'])
     assert.equal(file.decisions.find(r=>r.id===id).status,'unanswered',id+' remains unapproved');
   const guardianVerifier=file.decisions.find(row => row.id === 'TM-PR-006');
   assert.equal(guardianVerifier.status,'answered-pending-review');
@@ -259,7 +274,7 @@ test('privacy register is a public-safe policy questionnaire, not a release appr
   assert.equal(platformResponsibility.applicable, 'yes');
   assert.equal(platformResponsibility.reviewState, 'not-reviewed');
   assert.equal(platformResponsibility.reviewEvidenceRef, null);
-  assert.equal(file.decisions.find(row => row.id === 'TM-PR-016').status, 'unanswered',
+  assert.equal(file.decisions.find(row => row.id === 'TM-PR-016').status, 'answered-pending-review',
     'the incident-response operating procedure remains a separate decision');
   const firstTeamAges = file.decisions.find(row => row.id === 'TM-PR-001');
   assert.equal(firstTeamAges.status, 'answered-pending-review');
