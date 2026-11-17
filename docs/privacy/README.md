@@ -8,6 +8,8 @@
 
 **Next review phase:** [`launch-readiness.md`](launch-readiness.md) maps all 18 answered decisions to evidence, exact L0–L6 gates and five proposed acceptance/guardian/WWCC/archive/release journeys. This is a source-only plan with **no production authorisation**.
 
+**Scoped private-data review contract:** [`private-access-policy-contract.md`](private-access-policy-contract.md) models source-only self-profile correction, exact-team/club contact access, association disclosure, WWCC review and archived-record rights routing with no live permissions or data values.
+
 ## Current recorded answers
 
 | ID | Owner response | Status | Practical consequence |
