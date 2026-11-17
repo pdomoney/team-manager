@@ -6,6 +6,8 @@
 
 **Player field inventory:** [`config/privacy-player-field-inventory.json`](../../config/privacy-player-field-inventory.json). Contains proposed field requirements only, with **no actual personal records** and no approved production collection.
 
+**Next review phase:** [`launch-readiness.md`](launch-readiness.md) maps all 18 answered decisions to evidence, exact L0–L6 gates and five proposed acceptance/guardian/WWCC/archive/release journeys. This is a source-only plan with **no production authorisation**.
+
 ## Current recorded answers
 
 | ID | Owner response | Status | Practical consequence |

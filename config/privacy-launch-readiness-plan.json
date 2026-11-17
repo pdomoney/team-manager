@@ -1,0 +1,452 @@
+{
+  "schemaVersion": 1,
+  "kind": "team-manager-privacy-launch-review-plan",
+  "classification": "public-policy-metadata-only",
+  "sourceMainSha": "de3b43bfcffec05e90da7e2218d71e2c139b7d76",
+  "basedOn": "config/privacy-decision-register.json",
+  "relatedIssues": [
+    55,
+    252
+  ],
+  "status": "proposed-review-plan-not-approved",
+  "noPersonalData": true,
+  "productionDataProcessingAuthorised": false,
+  "backendProvisioningAuthorised": false,
+  "productionReleaseAuthorised": false,
+  "controls": [
+    {
+      "decisionId": "TM-PR-001",
+      "control": "Junior first-team inclusion and safeguarding applicability",
+      "proposedEvidenceCoordinator": "platform-operator",
+      "requiredEvidence": "guardian/minor risk and age-handling policy",
+      "acceptanceCriterion": "Junior participant sign-in is only activated after verified policy and protected-data authorisation",
+      "negativeCase": "A junior profile cannot become live through a QA role picker",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L1_ISOLATED_SERVER_AND_IDENTITY"
+      ],
+      "launchJourneyRefs": [
+        "PLAYER_OWN_AVAILABILITY"
+      ],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-002",
+      "control": "Legal accountability and breach allocation",
+      "proposedEvidenceCoordinator": "platform-operator",
+      "requiredEvidence": "accountable legal entity, regulator applicability and incident delegation record",
+      "acceptanceCriterion": "Actual controller obligations, operator duties and team/club escalation are separately documented",
+      "negativeCase": "A platform label does not erase a club's statutory obligations",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY"
+      ],
+      "launchJourneyRefs": [],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-003",
+      "control": "First-team registration and identity scope",
+      "proposedEvidenceCoordinator": "platform-operator",
+      "requiredEvidence": "proposed individual identity, email and emergency-contact processing specification",
+      "acceptanceCriterion": "Registration methods and guardian candidate fields have purpose-specific security boundaries",
+      "negativeCase": "Signing in with Apple/Google or entering a candidate contact creates no verified guardian grant",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L1_ISOLATED_SERVER_AND_IDENTITY"
+      ],
+      "launchJourneyRefs": [
+        "PLAYER_OWN_AVAILABILITY"
+      ],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-004",
+      "control": "Player fields and minimisation",
+      "proposedEvidenceCoordinator": "privacy-reviewer",
+      "requiredEvidence": "field-by-field purpose, age, necessity, access and retention assessment",
+      "acceptanceCriterion": "All five requested mandatory and six optional categories are evaluated individually before collecting any",
+      "negativeCase": "Requested address/photo and optional school/social fields are not automatically mandatory for every child",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY"
+      ],
+      "launchJourneyRefs": [],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-005",
+      "control": "Junior self-login and guardian candidate",
+      "proposedEvidenceCoordinator": "privacy-reviewer",
+      "requiredEvidence": "child account model, guardian proof and consent assessment",
+      "acceptanceCriterion": "Junior may have own login; guardian contact exists only as unactivated candidate until verified",
+      "negativeCase": "A recorded candidate cannot read a child's data or receive automatic access",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L1_ISOLATED_SERVER_AND_IDENTITY"
+      ],
+      "launchJourneyRefs": [
+        "PLAYER_OWN_AVAILABILITY"
+      ],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-006",
+      "control": "Appointed Manager guardian activation verification",
+      "proposedEvidenceCoordinator": "appointed-team-manager",
+      "requiredEvidence": "independent guardian verification/revocation procedure and audit evidence",
+      "acceptanceCriterion": "Appointed human team Manager verifies requested activation with safeguards against self-approval",
+      "negativeCase": "An unverified, expired or disputed guardian request cannot activate access",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L3_REAL_SERVER_SECURITY"
+      ],
+      "launchJourneyRefs": [
+        "REVOKED_FOREIGN_TEAM_DENIAL"
+      ],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-007",
+      "control": "Emergency contacts only in first release",
+      "proposedEvidenceCoordinator": "privacy-reviewer",
+      "requiredEvidence": "purpose-limited emergency contact inventory with medical-field exclusions",
+      "acceptanceCriterion": "Emergency access is exact-team/purpose-limited and audited; no health data included",
+      "negativeCase": "Medical history, injury and concussion information are rejected from initial collection",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L3_REAL_SERVER_SECURITY"
+      ],
+      "launchJourneyRefs": [
+        "REVOKED_FOREIGN_TEAM_DENIAL"
+      ],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-008",
+      "control": "Team Manager and Club Admin scoped reads",
+      "proposedEvidenceCoordinator": "platform-operator",
+      "requiredEvidence": "server-enforced role/club/team field projections and access audit tests",
+      "acceptanceCriterion": "Only independently granted roles read the minimum authorised personal/contact fields",
+      "negativeCase": "Other team/club, coach or volunteer cannot gain details from dropdown or direct URL",
+      "gateRefs": [
+        "L1_ISOLATED_SERVER_AND_IDENTITY",
+        "L3_REAL_SERVER_SECURITY"
+      ],
+      "launchJourneyRefs": [
+        "COACH_MANAGER_EXACT_TEAM",
+        "REVOKED_FOREIGN_TEAM_DENIAL"
+      ],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-009",
+      "control": "Notice and separate optional marketing",
+      "proposedEvidenceCoordinator": "privacy-reviewer",
+      "requiredEvidence": "versioned notices and default-off consent/withdrawal evidence",
+      "acceptanceCriterion": "Terms/privacy acknowledgement is required; marketing is separate, optional and reversible",
+      "negativeCase": "Deny marketing after withdrawal or when unchecked, without denying sporting participation",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L2_EXACT_TEAM_WORKFLOW"
+      ],
+      "launchJourneyRefs": [],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-010",
+      "control": "Provider choice remains deferred",
+      "proposedEvidenceCoordinator": "platform-operator",
+      "requiredEvidence": "compared provider/plan/cost, identity, child processing, contracts and exit assessment",
+      "acceptanceCriterion": "Supplier selection is separately approved before any hosted account or record is created",
+      "negativeCase": "A source PR or a sample Supabase suggestion never provisions a provider",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L1_ISOLATED_SERVER_AND_IDENTITY"
+      ],
+      "launchJourneyRefs": [],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-011",
+      "control": "Australia preferred, international permitted",
+      "proposedEvidenceCoordinator": "privacy-reviewer",
+      "requiredEvidence": "actual processing countries and APP/subprocessor transfer review",
+      "acceptanceCriterion": "International supplier choice is evaluated without an Australian-only presumption",
+      "negativeCase": "Overseas storage is not deemed exempt from privacy duties merely because data is not financial",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY"
+      ],
+      "launchJourneyRefs": [],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-012",
+      "control": "Narrow sporting-association disclosure",
+      "proposedEvidenceCoordinator": "privacy-reviewer",
+      "requiredEvidence": "recipient association verification, purpose-specific field projection and audit",
+      "acceptanceCriterion": "Only verified registration/eligibility/fixture recipients receive minimum required fields",
+      "negativeCase": "Bulk export, unrelated club read or third-party marketing are denied",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L3_REAL_SERVER_SECURITY"
+      ],
+      "launchJourneyRefs": [
+        "REVOKED_FOREIGN_TEAM_DENIAL"
+      ],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-013",
+      "control": "12-month inactive then archive",
+      "proposedEvidenceCoordinator": "platform-operator",
+      "requiredEvidence": "dated membership lifecycle, archive permissions, legal holds and field-retention schedule",
+      "acceptanceCriterion": "Member is inactive at departure and archived after 12 months, without automatic record deletion",
+      "negativeCase": "Archive does not enable unaudited access or imply indefinite retention of every private field",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L4_BACKUP_ROLLBACK_AND_STAGING"
+      ],
+      "launchJourneyRefs": [],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-014",
+      "control": "Self-service profile correction and platform rights",
+      "proposedEvidenceCoordinator": "platform-operator",
+      "requiredEvidence": "email verification, personal correction and team/club rights request procedures",
+      "acceptanceCriterion": "Player may correct own email/phone/address; operator handles team/club records requests",
+      "negativeCase": "Player cannot edit another person's profile, claim a club grant or bypass email change verification",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L3_REAL_SERVER_SECURITY"
+      ],
+      "launchJourneyRefs": [
+        "REVOKED_FOREIGN_TEAM_DENIAL"
+      ],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-015",
+      "control": "Platform-only backup restore",
+      "proposedEvidenceCoordinator": "platform-operator",
+      "requiredEvidence": "encrypted backup, least-privilege restore, recovery tests and deletion/exit evidence",
+      "acceptanceCriterion": "Only platform operator can initiate controlled database restore; retention/erasure are documented",
+      "negativeCase": "Appointed Team Manager and Club Admin cannot restore hosted database",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L4_BACKUP_ROLLBACK_AND_STAGING"
+      ],
+      "launchJourneyRefs": [
+        "PLAY_E5_LOSSLESS_RECOVERY"
+      ],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-016",
+      "control": "Incident process without initial in-app report form",
+      "proposedEvidenceCoordinator": "platform-operator",
+      "requiredEvidence": "external reporting channel, escalation procedure, access audit and breach test",
+      "acceptanceCriterion": "Operator receives and responds to incidents without requiring an in-app reporting feature",
+      "negativeCase": "Absence of incident button cannot mean absence of incident escalation or access audit",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L3_REAL_SERVER_SECURITY"
+      ],
+      "launchJourneyRefs": [],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-017",
+      "control": "Mandatory account acceptance and volunteer WWCC field",
+      "proposedEvidenceCoordinator": "privacy-reviewer",
+      "requiredEvidence": "terms notice versioning; child-law applicability; private WWCC field, credential verification and role policies",
+      "acceptanceCriterion": "Acceptance precedes app use, separate optional marketing remains; junior-facing volunteer WWCC requires a private field and verified status",
+      "negativeCase": "Checkbox alone cannot waive law and an entered WWCC number never equals verified clearance",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L1_ISOLATED_SERVER_AND_IDENTITY",
+        "L3_REAL_SERVER_SECURITY"
+      ],
+      "launchJourneyRefs": [
+        "VOLUNTEER_OWN_DUTIES",
+        "VOLUNTEER_OWN_RESPONSE"
+      ],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    },
+    {
+      "decisionId": "TM-PR-018",
+      "control": "Platform operator final signoff; team/club attestations",
+      "proposedEvidenceCoordinator": "platform-operator",
+      "requiredEvidence": "independent reviews, real release evidence, operational attestations and explicit operator approval",
+      "acceptanceCriterion": "Only platform operator makes final product go-live decision after L0–L6 and eight journeys are qualified",
+      "negativeCase": "Completing the questionnaire or merging a PR cannot approve release",
+      "gateRefs": [
+        "L0_OWNER_AND_DATA_POLICY",
+        "L6_OWNER_LIVE_RELEASE_ACCEPTANCE"
+      ],
+      "launchJourneyRefs": [
+        "COACH_MANAGER_EXACT_TEAM",
+        "PLAYER_OWN_AVAILABILITY",
+        "PLAYER_PUBLISHED_PLAY_VIEW",
+        "VOLUNTEER_OWN_DUTIES",
+        "VOLUNTEER_OWN_RESPONSE",
+        "COACH_PLAY_EDIT_PUBLISH",
+        "PLAY_E5_LOSSLESS_RECOVERY",
+        "REVOKED_FOREIGN_TEAM_DENIAL"
+      ],
+      "reviewStatus": "requires-independent-evidence",
+      "reviewEvidenceRef": null,
+      "independentlyReviewed": false,
+      "productionAuthorised": false
+    }
+  ],
+  "designJourneys": [
+    {
+      "id": "ACCOUNT_ACCEPTANCE",
+      "title": "Junior/player registration with privacy acceptance",
+      "user": "Player, including eligible under-18 applicant",
+      "stages": [
+        "Identity is independently verified by future selected provider",
+        "Show understandable versioned terms and privacy collection notice",
+        "Require affirmative acceptance to proceed, record notice version/time",
+        "Offer separate optional marketing consent, default off",
+        "Record guardian candidate details without activating a guardian login or grant",
+        "Deny live junior account activation until child/guardian and provider reviews are accepted"
+      ],
+      "negativeCases": [
+        "Declined terms blocks activation; does not opt into marketing",
+        "No click, no version or forged acceptance denies activation",
+        "Self-reported guardian contact cannot grant guardian access",
+        "Unapproved provider or missing child privacy authorisation denies live use"
+      ],
+      "designApproved": false,
+      "productionEnabled": false
+    },
+    {
+      "id": "GUARDIAN_ACTIVATION",
+      "title": "Optional guardian activation by appointed human team Manager",
+      "user": "Appointed team Manager reviewing a guardian access request",
+      "stages": [
+        "Capture request for existing guardian candidate, without sending automatic invitation",
+        "Verify identity and relationship using separately approved evidence procedure",
+        "Check conflict-of-interest and role/team scope; log reviewed determination",
+        "Grant only approved guardian permissions on validated success",
+        "Support revocation, disputes and minor age transition"
+      ],
+      "negativeCases": [
+        "Candidate-only or unverified guardian cannot access junior data",
+        "Manager cannot self-verify personal/related request without independent control",
+        "Revoked, unrelated-team or expired permission denies access"
+      ],
+      "designApproved": false,
+      "productionEnabled": false
+    },
+    {
+      "id": "VOLUNTEER_WWCC",
+      "title": "Junior-facing volunteer credentials",
+      "user": "Volunteer and authorised junior safeguarding verifier",
+      "stages": [
+        "Junior-facing assignment proposes private Working With Children Check field on volunteer profile",
+        "Determine state or territory and role applicability or exemptions",
+        "Record identifier only in private approved storage, with minimum necessary access",
+        "Independently verify current credential and record status, recheck or expiry",
+        "Allow relevant duty only after independent safeguarding rule and grant checks"
+      ],
+      "negativeCases": [
+        "Entered WWCC number does not assert valid credential",
+        "Unverified, expired or wrong-jurisdiction status cannot certify duty eligibility",
+        "No WWCC number or verification status is exported to player or public club directory"
+      ],
+      "designApproved": false,
+      "productionEnabled": false
+    },
+    {
+      "id": "MEMBERSHIP_ARCHIVE",
+      "title": "Departing member inactive, then archived",
+      "user": "Appointed team Manager and platform retention reviewer",
+      "stages": [
+        "Membership ends and player/volunteer team participation becomes inactive",
+        "Restrict normal roster access and former member operational permissions",
+        "After 12 months of inactive status move record to restricted archive",
+        "Do not automatically delete record solely because period elapsed",
+        "Evaluate per-field retention, legal holds, access requests and backup expiry separately"
+      ],
+      "negativeCases": [
+        "Inactive member cannot retain active team privilege by stale session",
+        "Archive is not unguarded browse or indefinite retention permission",
+        "Automated time passage cannot delete the entire historical record"
+      ],
+      "designApproved": false,
+      "productionEnabled": false
+    },
+    {
+      "id": "PLATFORM_RELEASE_SIGNOFF",
+      "title": "First-team launch approval",
+      "user": "Team Manager platform operator",
+      "stages": [
+        "Verify privacy and legal-controller allocation against all 18 decisions",
+        "Collect team Manager and Club Admin operational attestations",
+        "Review provider identity, server scope, real security and recovery evidence",
+        "Confirm all L0–L6 gates and eight live first-team journeys with exact SHA",
+        "Record separate final platform operator approval and independently check installed runtime"
+      ],
+      "negativeCases": [
+        "Questionnaire 18/18 without independent reviews denies release",
+        "Merge, green synthetic CI or static Pages publish cannot qualify personal-data processing",
+        "Team/Club attestations cannot substitute for platform operator approval"
+      ],
+      "designApproved": false,
+      "productionEnabled": false
+    }
+  ]
+}
