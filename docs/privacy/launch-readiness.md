@@ -51,6 +51,8 @@ Do not redesign Home, Schedule, Team, Tactics or More, active role/team selectio
 
 **Current blocking decisions:** select and approve actual legal controller and backend provider/plan, field-level child necessity, guardian proof method, WWCC validity/authorised verifier, archival sensitive data/backup retention, out-of-app incident route, and evidence reviewers. Underlying legal requirements cannot be waived by account acceptance. A future privacy/legal review may be necessary depending on actual applicability. No real participant information is to be placed in this public repository.
 
+The next source-only implementation is an [L0 evidence preflight](l0-evidence-preflight.md), which reason-codes independent reviewer, field collection and release evidence gaps without granting approval.
+
 ## Reviewer acceptance of this document-only block
 
 Confirm every TM-PR is mapped once; the owner decisions above have not been widened; denial examples would catch accidental privileges; no person/volunteer information, secrets or approval claims were added; launch gates remain pending; and actual iPhone/UI/backend behaviour is **not tested** by source-only policy checks. Approval of this *plan* must be recorded separately from approval of live processing.

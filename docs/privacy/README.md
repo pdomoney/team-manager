@@ -10,6 +10,8 @@
 
 **Scoped private-data review contract:** [`private-access-policy-contract.md`](private-access-policy-contract.md) models source-only self-profile correction, exact-team/club contact access, association disclosure, WWCC review and archived-record rights routing with no live permissions or data values.
 
+**L0 evidence status:** [`l0-evidence-preflight.md`](l0-evidence-preflight.md) explains the read-only 18-decision/11-field approval check and preserves the protected 0/7 live release HOLD.
+
 ## Current recorded answers
 
 | ID | Owner response | Status | Practical consequence |
