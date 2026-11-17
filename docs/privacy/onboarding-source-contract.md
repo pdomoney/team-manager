@@ -28,6 +28,8 @@ Every return value includes `productionProcessingAuthorised:false`, `dataWritten
 
 The older [first-team cloud release guidance](../operations/first-team-cloud-release.md) is corrected to distinguish *mandatory verified guardian/privacy evidence* from *optional activated guardian-account linkage*, without changing the actual L0–L6 evaluator or its guardian evidence-ref requirement.
 
+The next source-only stage is [private-data access review](private-access-policy-contract.md), which models exact-team/club scopes, minimum field classes, association disclosure denials and archived member rights without real personal data or access.
+
 ## Next approval boundary
 
 This PR does **not** authorise a production onboarding UI, browser identity provider, real junior registrations, private volunteer credentials, a guardian verification invitation, public contact information, a database or an installed release. [#55](https://github.com/pdomoney/team-manager/issues/55) and [#252](https://github.com/pdomoney/team-manager/issues/252) remain HOLD. All seven cloud gates and eight live journeys retain their pending values.
