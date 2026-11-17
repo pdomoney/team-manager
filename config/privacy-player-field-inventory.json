@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "kind": "team-manager-player-field-policy-inventory",
+  "classification": "public-policy-metadata-only",
+  "decisionId": "TM-PR-004",
+  "recordedOn": "2026-11-17",
+  "evidenceRef": "owner-conversation:2026-11-17:TM-PR-004",
+  "status": "owner-requirements-captured-pending-privacy-review",
+  "scope": "first-team-player-profile",
+  "productionCollectionAuthorised": false,
+  "notes": [
+    "This file records owner-requested field requirements, not any real player's details and not the approved application schema.",
+    "Registered email, sign-in providers, emergency contacts and associated guardian accounts are recorded separately under TM-PR-003; their field-level and access details remain review-gated.",
+    "The proposed-mandatory label is the owner's preference only. Minimise and justify each mandatory field for each player age group before production; support an alternative where a junior has no personal phone or an identifiable photo is inappropriate.",
+    "Optional marketing-profile data must not be collected by default or used for promotional outreach based solely on profile completion. Consent/permission, age safeguards, visibility, purpose and withdrawal remain separate decisions.",
+    "School or institution, precise address, images and social handles must never be published in a public player roster by default; future server access must be separately scoped and verified.",
+    "No sensitive medical, injury or safeguarding records are authorised by this inventory."
+  ],
+  "fields": [
+    {
+      "key": "fullName",
+      "label": "Full name",
+      "ownerRequirement": "proposed-mandatory",
+      "proposedPurpose": "participant-identification",
+      "reviewFlags": [
+        "junior-profile",
+        "identity-linking"
+      ],
+      "policyStatus": "review-required",
+      "approvedForCollection": false,
+      "approvedForMarketingUse": false,
+      "minorHandling": "pending-age-specific-decision",
+      "visibility": "pending-role-by-field-review",
+      "retention": "undecided"
+    },
+    {
+      "key": "dateOfBirth",
+      "label": "Date of birth",
+      "ownerRequirement": "proposed-mandatory",
+      "proposedPurpose": "age-and-eligibility",
+      "reviewFlags": [
+        "junior-profile",
+        "exact-age",
+        "age-minimisation"
+      ],
+      "policyStatus": "review-required",
+      "approvedForCollection": false,
+      "approvedForMarketingUse": false,
+      "minorHandling": "pending-age-specific-decision",
+      "visibility": "pending-role-by-field-review",
+      "retention": "undecided"
+    },
+    {
+      "key": "phoneNumber",
+      "label": "Phone number",
+      "ownerRequirement": "proposed-mandatory",
+      "proposedPurpose": "team-contact",
+      "reviewFlags": [
+        "junior-profile",
+        "junior-contact-policy"
+      ],
+      "policyStatus": "review-required",
+      "approvedForCollection": false,
+      "approvedForMarketingUse": false,
+      "minorHandling": "pending-age-specific-decision",
+      "visibility": "pending-role-by-field-review",
+      "retention": "undecided"
+    },
+    {
+      "key": "residentialAddress",
+      "label": "Residential address",
+      "ownerRequirement": "proposed-mandatory",
+      "proposedPurpose": "participant-profile",
+      "reviewFlags": [
+        "junior-profile",
+        "precise-location",
+        "necessity-review"
+      ],
+      "policyStatus": "review-required",
+      "approvedForCollection": false,
+      "approvedForMarketingUse": false,
+      "minorHandling": "pending-age-specific-decision",
+      "visibility": "pending-role-by-field-review",
+      "retention": "undecided"
+    },
+    {
+      "key": "profilePhoto",
+      "label": "Profile photo",
+      "ownerRequirement": "proposed-mandatory",
+      "proposedPurpose": "participant-profile",
+      "reviewFlags": [
+        "junior-profile",
+        "identifying-image",
+        "consent-and-media-use"
+      ],
+      "policyStatus": "review-required",
+      "approvedForCollection": false,
+      "approvedForMarketingUse": false,
+      "minorHandling": "pending-age-specific-decision",
+      "visibility": "pending-role-by-field-review",
+      "retention": "undecided"
+    },
+    {
+      "key": "socialMediaAccounts",
+      "label": "Social media accounts",
+      "ownerRequirement": "proposed-optional",
+      "proposedPurpose": "marketing-profile",
+      "reviewFlags": [
+        "junior-marketing",
+        "external-identity",
+        "separate-marketing-consent"
+      ],
+      "policyStatus": "review-required",
+      "approvedForCollection": false,
+      "approvedForMarketingUse": false,
+      "minorHandling": "pending-age-specific-decision",
+      "visibility": "pending-role-by-field-review",
+      "retention": "undecided"
+    },
+    {
+      "key": "otherClubs",
+      "label": "Other clubs",
+      "ownerRequirement": "proposed-optional",
+      "proposedPurpose": "marketing-profile",
+      "reviewFlags": [
+        "junior-marketing",
+        "cross-organisation-data"
+      ],
+      "policyStatus": "review-required",
+      "approvedForCollection": false,
+      "approvedForMarketingUse": false,
+      "minorHandling": "pending-age-specific-decision",
+      "visibility": "pending-role-by-field-review",
+      "retention": "undecided"
+    },
+    {
+      "key": "otherSports",
+      "label": "Other sports",
+      "ownerRequirement": "proposed-optional",
+      "proposedPurpose": "marketing-profile",
+      "reviewFlags": [
+        "junior-marketing",
+        "interest-profile"
+      ],
+      "policyStatus": "review-required",
+      "approvedForCollection": false,
+      "approvedForMarketingUse": false,
+      "minorHandling": "pending-age-specific-decision",
+      "visibility": "pending-role-by-field-review",
+      "retention": "undecided"
+    },
+    {
+      "key": "profession",
+      "label": "Profession",
+      "ownerRequirement": "proposed-optional",
+      "proposedPurpose": "marketing-profile",
+      "reviewFlags": [
+        "junior-marketing",
+        "employment-profile"
+      ],
+      "policyStatus": "review-required",
+      "approvedForCollection": false,
+      "approvedForMarketingUse": false,
+      "minorHandling": "pending-age-specific-decision",
+      "visibility": "pending-role-by-field-review",
+      "retention": "undecided"
+    },
+    {
+      "key": "educationLevel",
+      "label": "Education level",
+      "ownerRequirement": "proposed-optional",
+      "proposedPurpose": "marketing-profile",
+      "reviewFlags": [
+        "junior-marketing",
+        "education-profile"
+      ],
+      "policyStatus": "review-required",
+      "approvedForCollection": false,
+      "approvedForMarketingUse": false,
+      "minorHandling": "pending-age-specific-decision",
+      "visibility": "pending-role-by-field-review",
+      "retention": "undecided"
+    },
+    {
+      "key": "educationInstitution",
+      "label": "Education institution",
+      "ownerRequirement": "proposed-optional",
+      "proposedPurpose": "marketing-profile",
+      "reviewFlags": [
+        "junior-marketing",
+        "school-location",
+        "necessity-review"
+      ],
+      "policyStatus": "review-required",
+      "approvedForCollection": false,
+      "approvedForMarketingUse": false,
+      "minorHandling": "pending-age-specific-decision",
+      "visibility": "pending-role-by-field-review",
+      "retention": "undecided"
+    }
+  ]
+}
