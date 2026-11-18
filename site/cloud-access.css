@@ -25,4 +25,5 @@
 .access-status{min-height:24px;margin-top:14px;color:var(--muted);font-size:14px}
 @media(max-width:660px){.access-layout{grid-template-columns:1fr}.access-side{order:2}}
 
-.access-workspace-link{display:block;text-align:center;padding:12px;margin-top:12px;border-radius:8px;text-decoration:none}
+.access-workspace-link{display:block;text-align:center;padding:12px;margin:0 0 16px;border-radius:8px;text-decoration:none}
+.access-workspace-link[hidden]{display:none}

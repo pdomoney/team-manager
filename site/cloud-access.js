@@ -7,6 +7,7 @@ const submit = $('cloud-submit');
 const account = $('cloud-account');
 const status = $('cloud-status');
 const teams = $('cloud-teams');
+const workspaceLink = $('cloud-workspace-link');
 const client = createCloudIdentityClient({
   ...CLOUD_SUPABASE, fetchImpl: fetch.bind(window), storage: sessionStorage
 });
@@ -22,6 +23,7 @@ function showGuest() {
   account.hidden = true;
   form.hidden = false;
   teams.replaceChildren();
+  workspaceLink.hidden = true;
   $('cloud-password').value = '';
 }
 function showUser(user, contexts, owner = false) {
@@ -46,16 +48,8 @@ function showUser(user, contexts, owner = false) {
     li.append(name, extra);
     teams.append(li);
   }
-  const link=document.createElement('a');
-  link.href='cloud-team.html';
-  link.className='access-primary access-workspace-link';
-  link.textContent='Open your team workspace';
-  if (contexts.length||owner) {
-    const launch=document.createElement('li');
-    launch.className='access-team-launch';
-    launch.append(link);
-    teams.append(launch);
-  }
+  // The workspace action is not a team or a role grant.
+  workspaceLink.hidden = !(contexts.length || owner);
 }
 async function loadAccess() {
   const user = await client.currentUser();
