@@ -1,0 +1,16 @@
+/* Use the existing Team Manager colours, spacing and type. No new branding. */
+.stage-layout{max-width:1020px;grid-template-columns:minmax(0,1.6fr) minmax(220px,.65fr)}
+.stage-layout .access-panel h3{margin:22px 0 10px;font-size:20px;color:var(--pitch)}
+.stage-layout .access-panel h4{margin:8px 0;font-size:16px}
+.stage-layout section+section{border-top:1px solid var(--line);margin-top:26px;padding-top:8px}
+.stage-layout select,.stage-layout input{min-height:44px;width:100%;border:1px solid #aebbb1;border-radius:8px;padding:10px 12px;font:inherit;background:#fff;color:#26372e}
+.stage-layout label{display:block;margin:7px 0 4px;font-size:14px;font-weight:600}
+.stage-list{list-style:none;padding:0;margin:8px 0 14px}
+.stage-list li{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:12px 0;font-size:14px}
+.stage-list li span{flex:1;min-width:170px;overflow-wrap:anywhere}
+.stage-list button,.stage-form button,#stage-refresh{min-height:44px;padding:8px 12px;border-radius:8px;cursor:pointer}
+.stage-form{display:grid;gap:7px;margin:14px 0 22px}
+.stage-actions{display:flex;gap:8px;flex-wrap:wrap}
+.stage-form .access-primary{background:var(--pitch);color:#fff;border:1px solid var(--pitch);font-weight:700}
+.stage-layout :focus-visible{outline:3px solid var(--turf);outline-offset:2px}
+@media(max-width:660px){.stage-layout{grid-template-columns:1fr}.stage-list li span{flex-basis:100%}}
