@@ -153,11 +153,11 @@ test('private SQL remains service-role-only, new schema fields and training fixt
   assert.match(sql,/resource_version=resource_version\+1/);
   assert.match(worker,/\/auth\/v1\/user/);
   assert.match(worker,/SUPABASE_SERVICE_ROLE_KEY/);
-  assert.match(legacyConfig,/"main"\\s*:\\s*"worker\\/index\\.js"/);
-  assert.match(legacyConfig,/"binding"\\s*:\\s*"ASSETS"/);
+  assert.equal(JSON.parse(legacyConfig).main,'worker/index.js');
+  assert.equal(JSON.parse(legacyConfig).assets.binding,'ASSETS');
   assert.doesNotMatch(legacyConfig,/SUPABASE_SERVICE_ROLE_KEY|sb_secret_/);
   const entry=readFileSync(new URL('../worker/index.js',import.meta.url),'utf8');
-  assert.match(entry,/path\\.startsWith\\('\/api\/stage1\/'\\)/);
-  assert.match(entry,/env\\.ASSETS\\.fetch\\(request\\)/);
+  assert(entry.includes("path.startsWith('/api/stage1/')"));
+  assert(entry.includes('env.ASSETS.fetch(request)'));
   assert.doesNotMatch(readFileSync(new URL('../site/cloud-access.js',import.meta.url),'utf8'),/service_role|sb_secret_|SUPABASE_SERVICE_ROLE_KEY/i);
 });
