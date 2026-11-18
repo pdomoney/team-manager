@@ -24,7 +24,7 @@ function showGuest() {
   teams.replaceChildren();
   $('cloud-password').value = '';
 }
-function showUser(user, contexts) {
+function showUser(user, contexts, owner = false) {
   form.hidden = true;
   account.hidden = false;
   $('cloud-identity').textContent = 'Signed in as ' + user.email;
@@ -32,6 +32,11 @@ function showUser(user, contexts) {
   $('cloud-team-message').textContent = contexts.length
     ? 'These are your current team/role grants. The full team app is not connected yet.'
     : 'No verified active team access is assigned to this account.';
+  if (owner) {
+    const li=document.createElement('li');
+    li.textContent='Platform Owner · administration context (no automatic team-data access)';
+    teams.append(li);
+  }
   for (const item of contexts) {
     const li = document.createElement('li');
     const name = document.createElement('strong');
@@ -41,13 +46,20 @@ function showUser(user, contexts) {
     li.append(name, extra);
     teams.append(li);
   }
+  const link=document.createElement('a');
+  link.href='cloud-team.html';
+  link.className='access-primary access-workspace-link';
+  link.textContent='Open your team workspace';
+  if (contexts.length||owner) teams.append(link);
 }
 async function loadAccess() {
   const user = await client.currentUser();
   if (!user) { showGuest(); showMessage('Sign in with an existing invited test account.'); return; }
   try {
     const contexts = await client.myTeamContexts();
-    showUser(user, contexts);
+    let owner=false;
+    try { owner=await client.myOperatorAccess(); } catch { /* owner is not inferred */ }
+    showUser(user, contexts, owner);
     showMessage('Identity verified. This preview does not grant access to private team data.');
   } catch (error) {
     showUser(user, []);

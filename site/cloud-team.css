@@ -1,0 +1,67 @@
+/* Signed-in team workspace. Uses the original brand tokens and five-section shell. */
+.cloud-team-page{background:var(--chalk);min-height:100vh}
+.cloud-team-header .top-row{display:flex;align-items:center;gap:12px}
+.cloud-team-brand{display:grid;place-items:center;flex:none;width:42px;height:42px;
+ border:1px solid #84ac97;border-radius:8px;color:white;text-decoration:none;
+ font:700 17px var(--font-m)}
+.cloud-team-heading{flex:1;min-width:0}
+.cloud-team-heading h1{font-family:var(--font-m);font-size:22px;line-height:1}
+.cloud-team-heading p{margin:3px 0 0;color:#c6e2d1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cloud-team-back{color:white;font-size:13px;text-decoration:underline;text-underline-offset:3px}
+.cloud-context-controls{display:flex;align-items:center;gap:10px;margin:12px 0 2px}
+.cloud-context-controls label{font-size:12px;color:#d4e7da}
+.cloud-context-controls select{flex:1;min-width:0;padding:9px 12px;border:1px solid #8aaf96;
+ border-radius:9px;background:#fff;color:var(--pitch);font:600 14px var(--font-b)}
+.cloud-main{max-width:940px;margin:0 auto;padding:18px 16px 36px;display:grid;gap:15px}
+.cloud-main h2{font:700 clamp(23px,4vw,30px) var(--font-m);margin:0 0 6px}
+.cloud-main h3{font:700 19px var(--font-m);margin:0 0 8px}
+.cloud-main p{margin:5px 0}
+.cloud-main .cloud-eyebrow{font:700 12px var(--font-b);text-transform:uppercase;
+ letter-spacing:.05em;color:var(--ok)}
+.cloud-intro{color:var(--muted);font-size:14px}
+.cloud-card{padding:17px;background:white;border:1px solid var(--line);
+ border-radius:12px;box-shadow:0 1px 3px #091c130a}
+.cloud-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.cloud-row{display:flex;align-items:start;gap:12px;justify-content:space-between}
+.cloud-row>div{min-width:0;flex:1}
+.cloud-badge{font-size:12px;border-radius:18px;background:var(--ok-soft);
+ padding:4px 9px;color:var(--ok);white-space:nowrap}
+.cloud-list{display:grid;gap:10px}
+.cloud-list-item{padding:13px;border:1px solid var(--line);border-radius:9px;background:white}
+.cloud-list-item strong{font-weight:700;display:block;overflow-wrap:anywhere}
+.cloud-list-item small{display:block;color:var(--muted);margin:3px 0}
+.cloud-form{display:grid;gap:10px}
+.cloud-form label{font-size:13px;font-weight:700;display:grid;gap:5px}
+.cloud-form input,.cloud-form select,.cloud-form textarea{min-width:0;width:100%;padding:10px;
+ border:1px solid #a4b7aa;border-radius:8px;background:white;color:var(--ink);
+ font:15px var(--font-b)}
+.cloud-form textarea{min-height:92px;resize:vertical}
+.cloud-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.cloud-btn{border:1px solid #a4b7aa;border-radius:8px;padding:10px 13px;
+ background:#fff;color:var(--pitch);font:700 14px var(--font-b);
+ cursor:pointer;min-height:42px}
+.cloud-btn.primary{background:var(--team-action);border-color:var(--team-action-edge);
+ color:var(--team-action-ink)}
+.cloud-btn:disabled{opacity:.55;cursor:wait}
+.cloud-btn:focus-visible,.cloud-nav button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.cloud-nav{position:fixed;bottom:0;left:0;right:0;padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+ display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;background:#fff;
+ border-top:1px solid var(--line);z-index:30}
+.cloud-nav button{background:transparent;border:0;color:var(--muted);border-radius:8px;
+ font:600 12px var(--font-b);min-height:44px;padding:10px 3px}
+.cloud-nav button[aria-current="page"]{background:var(--ok-soft);color:var(--pitch)}
+.cloud-alert{position:fixed;bottom:calc(80px + env(safe-area-inset-bottom));left:16px;right:16px;
+ margin:0 auto;max-width:900px;background:var(--pitch);color:#fff;padding:11px 16px;
+ border-radius:10px;z-index:35;box-shadow:0 2px 15px #0002}
+.cloud-play-field{background:#17452d;border:1px solid #94b6a4;border-radius:10px;
+ padding:10px;overflow:hidden}
+.cloud-play-field svg{display:block;width:100%;max-height:460px}
+.cloud-phase-nav{display:flex;gap:7px;overflow-x:auto;padding:9px 0}
+.cloud-phase-nav button[aria-pressed="true"]{background:var(--pitch);color:#fff}
+.cloud-step{padding:9px 12px;background:var(--chalk);border-radius:8px;margin:8px 0}
+.cloud-muted{color:var(--muted);font-size:13px}
+@media(max-width:450px){
+ .cloud-context-controls{align-items:stretch;flex-direction:column;gap:5px}
+ .cloud-main{padding:13px 12px 30px}
+ .cloud-row{flex-wrap:wrap}
+}
