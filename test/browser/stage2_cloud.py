@@ -142,7 +142,6 @@ def new_page(browser,token,width=390):
     })();""".replace('TOKEN_LITERAL',json.dumps(token)))
     page=ctx.new_page()
     page.on('pageerror',lambda e:errors.append('pageerror: '+str(e)))
-    page.on('dialog',lambda d:d.accept())
     page.on('dialog',lambda dialog:dialog.accept())
     page.goto(url+'cloud-team.html')
     page.wait_for_selector('#context-controls:not([hidden])',timeout=15000)
@@ -181,7 +180,7 @@ with sync_playwright() as p:
     coach.get_by_text('Published revision').wait_for()
     checks.ok(len(published)==1,
         'Head Coach published a reviewed revision with source untouched')
-    coach.locator('#role-context').select_option(index=0)
+    coach.locator('#role-context').select_option('0')
     checks.ok('Fictional drills' not in coach.locator('main').inner_text(),
         'Switching to Owner drops Coach records')
     coach_ctx.close()
