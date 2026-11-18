@@ -107,6 +107,18 @@ begin
   if (select title from tm_private.sessions where session_id=v_session_id)='Stale overwrite'
   then raise exception 'stale write changed persistence'; end if;
 
+  -- An already verified active player cannot be silently re-nominated;
+  -- registrar evidence and active participation must remain intact.
+  r:=public.tm_stage1_operation(coach,team,'team_coach','roster.edit',team,
+    '{"mutationId":"synthetic-existing-0001","expectedVersion":0,"command":{"op":"nominate","personId":"fictional-player-1"}}'::jsonb,
+    repeat('7',64));
+  if r->>'code'<>'stale-roster' or
+     (select status from tm_private.participations where team_id=team
+       and person_id='fictional-player-1')<>'active' or
+     (select verified_by from tm_private.participations where team_id=team
+       and person_id='fictional-player-1') is null
+  then raise exception 'existing verified participation was overwritten'; end if;
+
   -- Team-scoped nomination is pending; never verified registration.
   r:=public.tm_stage1_operation(coach,team,'team_coach','roster.edit',team,
     '{"mutationId":"synthetic-roster-000001","expectedVersion":0,"command":{"op":"nominate","personId":"fictional-roster-proposal"}}'::jsonb,
