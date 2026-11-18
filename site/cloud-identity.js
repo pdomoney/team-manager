@@ -134,6 +134,24 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
       });
     }));
   }
+  async function myOperatorAccess() {
+    const user = await currentUser();
+    if (!user) throw safeError('not-signed-in');
+    const bearer = await accessToken();
+    const result = await request('/rest/v1/rpc/tm_my_operator_context', {
+      method: 'POST', body: {}, bearer
+    });
+    if (!result || typeof result !== 'object' || typeof result.isOwner !== 'boolean')
+      throw safeError('invalid-server-response');
+    return result.isOwner;
+  }
+  async function verifiedBearer() {
+    const user = await currentUser();
+    if (!user) throw safeError('not-signed-in');
+    const bearer = await accessToken();
+    if (!bearer) throw safeError('not-signed-in');
+    return bearer;
+  }
   async function signOut() {
     const s = read();
     clear(); // local session is cleared even if provider logout is unavailable
@@ -143,5 +161,5 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
       return true;
     } catch { return false; } // caller must distinguish local vs provider sign-out
   }
-  return Object.freeze({ signInWithPassword, currentUser, myTeamContexts, signOut });
+  return Object.freeze({ signInWithPassword, currentUser, myTeamContexts, myOperatorAccess, verifiedBearer, signOut });
 }
