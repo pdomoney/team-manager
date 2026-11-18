@@ -52,7 +52,12 @@ export function previewCloudPlay(play,host,{phase=0,atMs=0}={}){
   const selected=cues.filter(x=>x.phase===phase);
   for(const c of selected){const d=document.createElement('div');d.className='cloud-step';
     text('strong',c.title,d);text('p',c.text,d);host.append(d);}
-  if(!selected.length&&play.steps)text('p',play.steps);
+  // Multi-phase E5 plays also carry a separate authored instructions field.
+  // Never discard it simply because the phase contains an overview cue.
+  if(typeof play.steps==='string'&&play.steps.trim()){
+    const instructions=text('p',play.steps);
+    instructions.className='cloud-step';
+  }
   const timeline=publishedPlayEventTimeline(play);
   if(timeline){
     const duration=Math.max(0,...timeline.events.map(e=>e.atMs));
