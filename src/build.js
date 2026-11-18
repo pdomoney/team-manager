@@ -36,8 +36,9 @@ export function isEncryptedFile(text, role = null) {
 // old file with a new one, and written to data/manifest.json so a running app can spot a newer release.
 export function stampVersion(outDir, version) {
   const edit = (file, fn) => { const p = path.join(outDir, file); if (fs.existsSync(p)) fs.writeFileSync(p, fn(fs.readFileSync(p, 'utf8'))); };
-  edit('index.html', t => t
-    .replace(/(src|href)="(app\.js|styles\.css|favicon\.svg)"/g, `$1="$2?v=${version}"`)
+  // Version the original demo and the isolated cloud-identity preview alike.
+  for (const html of ['index.html', 'cloud-access.html']) edit(html, t => t
+    .replace(/(src|href)="(app\.js|styles\.css|favicon\.svg|cloud-access\.js|cloud-access\.css)"/g, `$1="$2?v=${version}"`)
     .replace('<meta charset="utf-8">', `<meta charset="utf-8">\n  <meta name="app-version" content="${version}">`));
   // Every module the app loads is stamped wherever it's imported, so a new module can't be missed.
   for (const f of fs.readdirSync(outDir).filter(n => n.endsWith('.js'))) edit(f, t => t.replace(/from '\.\/([a-z0-9-]+)\.js'/g, `from './$1.js?v=${version}'`));

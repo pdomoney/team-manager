@@ -36,13 +36,17 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
     } catch { return null; }
   }
   function save(body) {
+    // Raw GoTrue API may provide expires_in, unlike the JS client's expires_at.
+    const expiry = Number.isSafeInteger(body?.expires_at) ? body.expires_at
+      : Number.isSafeInteger(body?.expires_in) && body.expires_in > 0
+        ? Math.floor(now()/1000) + body.expires_in : null;
     if (!body || !tokenValid(body.access_token) || !tokenValid(body.refresh_token) ||
-        !Number.isSafeInteger(body.expires_at) || body.expires_at <= Math.floor(now()/1000))
+        !Number.isSafeInteger(expiry) || expiry <= Math.floor(now()/1000))
       throw safeError('invalid-auth-response');
     // Persist only opaque session tokens and expiry in sessionStorage, never passwords,
     // account profile fields, personal information or grants.
     const s = { access_token: body.access_token,
-      refresh_token: body.refresh_token, expires_at: body.expires_at };
+      refresh_token: body.refresh_token, expires_at: expiry };
     storage.setItem(SESSION_KEY, JSON.stringify(s));
     return s;
   }
@@ -63,6 +67,7 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
       if (response && response.status === 404) throw safeError('server-not-ready');
       throw safeError('request-failed');
     }
+    if (response.status === 204) return {};
     try { return await response.json(); } catch { throw safeError('invalid-server-response'); }
   }
   async function accessToken() {
