@@ -138,3 +138,7 @@ jobs:
         run: |
           python3 test/browser/play_e4_drag_intent.py
           python3 test/browser/play_e4_touch_input.py
+      - name: Stage 2 signed-in team journeys on WebKit
+        env:
+          STAGE2_BROWSER_ENGINE: webkit
+        run: python3 test/browser/stage2_cloud.py
