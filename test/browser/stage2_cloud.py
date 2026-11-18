@@ -128,13 +128,15 @@ def bind(ctx):
 def new_page(browser,token,width=390):
     ctx=browser.new_context(viewport={'width':width,'height':820})
     bind(ctx)
-    ctx.add_init_script("""(token) => {
+    ctx.add_init_script("""(() => {
+      const token = TOKEN_LITERAL;
       sessionStorage.setItem('tm-cloud-identity-preview-v1',
         JSON.stringify({access_token:token,refresh_token:'synthetic-refresh-token-long',
           expires_at:Math.floor(Date.now()/1000)+3600}));
-    }""",token)
+    })();""".replace('TOKEN_LITERAL',json.dumps(token)))
     page=ctx.new_page()
     page.on('pageerror',lambda e:errors.append('pageerror: '+str(e)))
+    page.on('dialog',lambda d:d.accept())
     page.on('dialog',lambda dialog:dialog.accept())
     page.goto(url+'cloud-team.html')
     page.wait_for_selector('#context-controls:not([hidden])',timeout=15000)
