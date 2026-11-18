@@ -19,9 +19,12 @@ jobs:
         run: node scripts/check-first-team-cloud-release.mjs --assert-source-blocked
 
   browser:
-    # Playwright 1.55.0 cannot install Chromium on GitHub's Ubuntu 26.04 image.
-    # Pin the existing, supported browser qualification environment.
+    # Playwright 1.55.0 needs its Ubuntu 24.04 browser dependencies.
+    # Match the version-pinned WebKit job: prebuilt browsers/libraries avoid
+    # slow/flaky apt mirrors, without skipping any Chromium checks.
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.55.0-noble
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -31,10 +34,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Install browser test runner
-        run: |
-          python -m pip install playwright==1.55.0
-          python -m playwright install --with-deps chromium
+      - name: Install version-matched Python Playwright client
+        run: python -m pip install playwright==1.55.0
       - name: Structured browser release qualification (simulated GitHub, synthetic data)
         shell: bash
         env:
