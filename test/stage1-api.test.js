@@ -124,18 +124,21 @@ test('incorrect server config and unsupported requests do not open trusted servi
   assert.equal(no.status,404);
   assert.equal(fake.calls.length,0);
 });
-test('original branded demo and RC1 identity preview remain the only built pages',()=>{
+test('Stage 1 demo stays isolated from the Stage 2 signed-in workspace',()=>{
   const tmp=mkdtempSync(join(tmpdir(),'stage1-build-'));
   const out=join(tmp,'dist');
   build({outDir:out,dataDir:join(tmp,'none'),log:()=>{},version:'stage1-fixture'});
   assert(existsSync(join(out,'index.html')));
   assert(existsSync(join(out,'cloud-access.html')));
-  for(const asset of ['cloud-operations.html','cloud-operations.js','cloud-operations.css'])
-    assert.equal(existsSync(join(out,asset)),false,
-      'Stage 1 must not connect new user-facing shared-data UI');
+  assert(existsSync(join(out,'cloud-team.html')));
+  assert(existsSync(join(out,'cloud-operations.js')));
+  // The cloud route is an entirely separate page. Stage 1 never gave the
+  // original demo direct API access or upgraded its local QA personas.
   const demo=readFileSync(join(out,'index.html'),'utf8');
   assert.match(demo,/app.js\?v=stage1-fixture/);
   assert(!demo.includes('cloud-operations'));
+  assert(!demo.includes('cloud-team.js'));
+  assert(!readFileSync(join(out,'app.js'),'utf8').includes('stage2-play-api'));
 });
 test('private SQL remains service-role-only, new schema fields and training fixture explicit',()=>{
   const sql=readFileSync(new URL('../supabase/migrations/20261118030000_stage1_team_operations.sql',import.meta.url),'utf8');
@@ -150,6 +153,11 @@ test('private SQL remains service-role-only, new schema fields and training fixt
   assert.match(sql,/resource_version=resource_version\+1/);
   assert.match(worker,/\/auth\/v1\/user/);
   assert.match(worker,/SUPABASE_SERVICE_ROLE_KEY/);
-  assert.doesNotMatch(legacyConfig,/"main"\s*:/);
+  assert.match(legacyConfig,/"main"\\s*:\\s*"worker\\/index\\.js"/);
+  assert.match(legacyConfig,/"binding"\\s*:\\s*"ASSETS"/);
+  assert.doesNotMatch(legacyConfig,/SUPABASE_SERVICE_ROLE_KEY|sb_secret_/);
+  const entry=readFileSync(new URL('../worker/index.js',import.meta.url),'utf8');
+  assert.match(entry,/path\\.startsWith\\('\/api\/stage1\/'\\)/);
+  assert.match(entry,/env\\.ASSETS\\.fetch\\(request\\)/);
   assert.doesNotMatch(readFileSync(new URL('../site/cloud-access.js',import.meta.url),'utf8'),/service_role|sb_secret_|SUPABASE_SERVICE_ROLE_KEY/i);
 });
