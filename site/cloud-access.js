@@ -50,7 +50,12 @@ function showUser(user, contexts, owner = false) {
   link.href='cloud-team.html';
   link.className='access-primary access-workspace-link';
   link.textContent='Open your team workspace';
-  if (contexts.length||owner) teams.append(link);
+  if (contexts.length||owner) {
+    const launch=document.createElement('li');
+    launch.className='access-team-launch';
+    launch.append(link);
+    teams.append(launch);
+  }
 }
 async function loadAccess() {
   const user = await client.currentUser();
