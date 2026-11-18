@@ -48,7 +48,7 @@ declare
   team text := 'comets-qa-u16';
   r jsonb;
   first jsonb;
-  session_id text;
+  v_session_id text;
   duty_id text;
   before_receipts bigint;
   before_audits bigint;
@@ -71,13 +71,13 @@ begin
     repeat('a',64));
   if first->>'code'<>'committed' or (first->>'version')::integer<>0
   then raise exception 'training creation failed: %',first; end if;
-  session_id:=first->>'resourceId';
-  if session_id is null then raise exception 'missing training resource'; end if;
+  v_session_id:=first->>'resourceId';
+  if v_session_id is null then raise exception 'missing training resource'; end if;
 
   -- Client B (Manager) sees the identical committed server row.
   r:=public.tm_stage1_operation(manager,team,'team_manager','schedule.read',team,'{}'::jsonb,null);
   if r->>'code'<>'permitted' or jsonb_array_length(r->'data')<>1 or
-     r->'data'->0->>'sessionId'<>session_id
+     r->'data'->0->>'sessionId'<>v_session_id
   then raise exception 'two-client persistence failed: %',r; end if;
 
   -- Exact retry returns the SAME receipt, no additional row or audit.
@@ -95,16 +95,16 @@ begin
   if r->>'code'<>'mutation-id-reused' then raise exception 'reuse not rejected'; end if;
 
   -- Manager changes training; Coach's stale version is rejected.
-  r:=public.tm_stage1_operation(manager,team,'team_manager','schedule.edit',session_id,
+  r:=public.tm_stage1_operation(manager,team,'team_manager','schedule.edit',v_session_id,
     '{"mutationId":"synthetic-update-000001","expectedVersion":0,"command":{"op":"update","title":"Manager changed practice"}}'::jsonb,
     repeat('c',64));
   if r->>'code'<>'committed' or (r->>'version')::integer<>1
   then raise exception 'manager training update failed: %',r; end if;
-  r:=public.tm_stage1_operation(coach,team,'team_coach','schedule.edit',session_id,
+  r:=public.tm_stage1_operation(coach,team,'team_coach','schedule.edit',v_session_id,
     '{"mutationId":"synthetic-stale-000001","expectedVersion":0,"command":{"op":"update","title":"Stale overwrite"}}'::jsonb,
     repeat('d',64));
   if r->>'code'<>'stale-or-protected-session' then raise exception 'stale write committed'; end if;
-  if (select title from tm_private.sessions where session_id=session_id)='Stale overwrite'
+  if (select title from tm_private.sessions where session_id=v_session_id)='Stale overwrite'
   then raise exception 'stale write changed persistence'; end if;
 
   -- Team-scoped nomination is pending; never verified registration.
@@ -120,11 +120,11 @@ begin
   then raise exception 'manager cannot read scoped participation'; end if;
 
   -- A verified player can submit only their own availability; no person ID supplied.
-  r:=public.tm_stage1_operation(player,team,'team_player','availability.reply',session_id,
+  r:=public.tm_stage1_operation(player,team,'team_player','availability.reply',v_session_id,
     '{"mutationId":"synthetic-player-000001","expectedVersion":0,"response":"yes"}'::jsonb,
     repeat('f',64));
   if r->>'code'<>'committed' or
-     (select response from tm_private.availability where session_id=session_id
+     (select response from tm_private.availability where session_id=v_session_id
        and person_id='fictional-player-1')<>'yes'
   then raise exception 'player RSVP failed'; end if;
   r:=public.tm_stage1_operation(player,team,'team_player','schedule.read',team,'{}'::jsonb,null);
@@ -141,7 +141,7 @@ begin
   -- Manager assigns a separately verified volunteer, who can see and respond.
   r:=public.tm_stage1_operation(manager,team,'team_manager','duty.assign',team,
     jsonb_build_object('mutationId','synthetic-duty-000001','expectedVersion',0,
-      'command',jsonb_build_object('op','assign','sessionId',session_id,
+      'command',jsonb_build_object('op','assign','sessionId',v_session_id,
         'personId','fictional-volunteer-1')),repeat('1',64));
   if r->>'code'<>'committed' then raise exception 'duty assignment failed: %',r; end if;
   duty_id:=r->>'resourceId';
