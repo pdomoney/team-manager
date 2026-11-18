@@ -143,6 +143,5 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
       return true;
     } catch { return false; } // caller must distinguish local vs provider sign-out
   }
-  return Object.freeze({ signInWithPassword, currentUser, myTeamContexts, signOut,
-    accessToken });
+  return Object.freeze({ signInWithPassword, currentUser, myTeamContexts, signOut });
 }
