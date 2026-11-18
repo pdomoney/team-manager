@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#123D2B">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Team access | Team Manager</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="cloud-access.css">
+  <script type="module" src="cloud-access.js"></script>
+</head>
+<body class="cloud-access-page">
+  <header class="top"><div class="top-row">
+    <span class="access-mark" aria-hidden="true">TM</span>
+    <h1>Team Manager</h1>
+    <a class="access-header-link" href="./">Back to demo</a>
+  </div></header>
+  <main class="access-layout">
+    <section class="access-panel" aria-labelledby="access-title">
+      <p class="access-eyebrow">Cloud identity qualification</p>
+      <h2 id="access-title">Sign in to your team</h2>
+      <p class="access-intro">For invited test accounts only. This is an identity and team-permission preview, not the live member application.</p>
+      <form id="cloud-login" autocomplete="on">
+        <label for="cloud-email">Email</label>
+        <input id="cloud-email" name="email" type="email" inputmode="email" autocomplete="username" required maxlength="254">
+        <label for="cloud-password">Password</label>
+        <input id="cloud-password" name="password" type="password" autocomplete="current-password" required>
+        <button id="cloud-submit" class="access-primary" type="submit">Sign in</button>
+      </form>
+      <div id="cloud-account" hidden>
+        <p id="cloud-identity" class="access-identity"></p>
+        <h3>Your authorised teams</h3>
+        <p id="cloud-team-message" class="access-intro"></p>
+        <ul id="cloud-teams" class="access-teams"></ul>
+        <button id="cloud-signout" type="button" class="access-secondary">Sign out</button>
+      </div>
+      <p id="cloud-status" role="status" aria-live="polite" class="access-status"></p>
+    </section>
+    <aside class="access-side">
+      <h3>What this preview verifies</h3>
+      <p>Individual Supabase sign-in and read-only team access scoped by independently approved roles.</p>
+      <p>No roster, player contacts, medical information, play drafts or volunteer details are exposed here.</p>
+      <p>The existing demonstration remains separate until the full release checks pass.</p>
+    </aside>
+  </main>
+</body>
+</html>

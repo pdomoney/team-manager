@@ -1,0 +1,26 @@
+/* First-team cloud identity preview: reuse current brand, not a new product shell. */
+.cloud-access-page{padding-bottom:24px;min-height:100vh}
+.cloud-access-page .top{position:relative}
+.access-mark{display:grid;place-items:center;flex:none;width:42px;height:42px;border:1px solid #84ac97;border-radius:8px;font:700 17px var(--font-m);color:#fff}
+.access-header-link{color:#fff;font-size:13px;text-decoration:underline;text-underline-offset:3px}
+.access-layout{max-width:920px;margin:clamp(18px,5vw,56px) auto;padding:0 16px;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(220px,.65fr);gap:18px;align-items:start}
+.access-panel,.access-side{background:#fff;border:1px solid var(--line);border-radius:14px;padding:clamp(18px,3vw,32px)}
+.access-eyebrow{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--ok);font-weight:700;margin-bottom:12px}
+.access-panel h2{font-size:clamp(24px,3vw,32px);margin-bottom:10px}
+.access-intro{color:var(--muted);font-size:14px;line-height:1.55;margin-bottom:18px}
+#cloud-login{display:flex;flex-direction:column;gap:8px}
+#cloud-login label{font-size:13px;font-weight:700;margin-top:8px}
+#cloud-login input{width:100%;min-height:46px;border:1px solid #aebbb1;border-radius:8px;padding:10px 12px;font:inherit}
+#cloud-login button,.access-secondary{min-height:46px;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer}
+.access-primary{background:var(--pitch);color:#fff;border:1px solid var(--pitch);margin-top:14px}
+.access-primary[disabled],.access-secondary[disabled]{opacity:.55;cursor:wait}
+.access-secondary{background:#fff;color:var(--pitch);border:1px solid #9aaea1}
+.access-side{border-left:4px solid var(--turf)}
+.access-side h3{font-size:19px;margin-bottom:12px}
+.access-side p{font-size:14px;color:var(--muted);margin-bottom:12px}
+.access-identity{font-weight:600;margin:14px 0}
+.access-teams{list-style:none;margin:0 0 20px;padding:0;display:grid;gap:8px}
+.access-teams li{padding:12px;border-radius:8px;border:1px solid var(--line);font-size:14px}
+.access-teams strong{display:block;color:var(--pitch)}
+.access-status{min-height:24px;margin-top:14px;color:var(--muted);font-size:14px}
+@media(max-width:660px){.access-layout{grid-template-columns:1fr}.access-side{order:2}}
