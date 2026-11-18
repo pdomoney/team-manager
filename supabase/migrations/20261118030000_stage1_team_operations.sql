@@ -226,12 +226,17 @@ begin
       insert into tm_private.participations(team_id,person_id,kind,status)
         values(p_team,v_command->>'personId','player','pending');
       v_version:=0;
-    elsif v_version=v_expected then
+    elsif found and v_command->>'op'='withdraw' and v_version=v_expected then
+      -- Withdrawing from the team cannot erase previous club registrar
+      -- verification evidence. Nomination must never reset an active player.
       update tm_private.participations set
-        status=case when v_command->>'op'='withdraw' then 'inactive' else 'pending' end,
-        verified_by=null,verified_at=null,resource_version=resource_version+1
+        status='inactive',resource_version=resource_version+1
         where team_id=p_team and person_id=v_command->>'personId'
+          and status <> 'inactive'
         returning resource_version into v_version;
+      if v_version is null then
+        return jsonb_build_object('ok',false,'code','stale-roster');
+      end if;
     else return jsonb_build_object('ok',false,'code','stale-roster'); end if;
     v_resource:=v_command->>'personId';
 
