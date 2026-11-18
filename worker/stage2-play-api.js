@@ -1,7 +1,7 @@
 // Stage 2 play API. Team membership, a selected role and publication authority
 // are independently enforced by the database. A valid bearer alone is not a grant.
 import {validateFirstTeamActionPayload} from '../src/first-team-action-contract.js';
-import {publishedPlayEventTimeline} from '../site/play-event-persistence.js';
+import {publishedPlayEventTimeline,loadPlayEventDraft} from '../site/play-event-persistence.js';
 const ROLES=new Set(['team_coach','team_assistant','team_manager','team_player','team_play_viewer']);
 const ACTIONS=new Set(['play.published.read','play.draft.read','play.draft.edit','play.publish']);
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -75,6 +75,18 @@ export async function handleStage2PlayRequest(request,env,fetchImpl=fetch){
     });
     if(!user||!UUID.test(user.id||''))return deny('unauthenticated',401);
     const normalized=payload.payload;
+    // Stage 2 must not import a stale or malformed authored E5 timeline
+    // into a published workflow merely because the JSON envelope is valid.
+    if(op.action==='play.draft.edit'){
+      const candidate=normalized.command?.play;
+      if(!candidate||typeof candidate!=='object'||Array.isArray(candidate)
+        ||typeof candidate.name!=='string'||!candidate.name.trim()
+        ||!candidate.players||typeof candidate.players!=='object'
+        ||Array.isArray(candidate.players)||!Array.isArray(candidate.moves)
+        ||(Object.hasOwn(candidate,'eventTimeline')
+          &&loadPlayEventDraft(candidate).status!=='ready'))
+        return deny('invalid-request',400);
+    }
     const digest=Object.hasOwn(normalized,'mutationId')?
       Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
         new TextEncoder().encode(JSON.stringify([user.id,op.activeTeamId,op.activeRole,

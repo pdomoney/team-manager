@@ -33,6 +33,26 @@ function apiServer({user={id:actor},result={ok:true,code:'permitted',data:[]},
       (rejectAuth?{ok:false,status:401}:ok(user)):ok(result);
   }};
 }
+test('Unknown API routes do not fall through to the static site',async()=>{
+  let touched=false;
+  const response=await worker.fetch(new Request('https://team-manager.example.test/api/admin/private'),{
+    ASSETS:{fetch:async()=>{touched=true;return new Response('static');}}
+  });
+  assert.equal(response.status,404);
+  assert.equal(touched,false);
+});
+test('Malformed E5 authored timeline cannot reach a trusted write RPC',async()=>{
+  const bad=body('play.draft.edit','team_coach',{
+    mutationId:'stage2-timeline-negative-01',expectedVersion:0,
+    command:{op:'create',play:{name:'Fictional play',
+      players:{LM:[24,46]},moves:[],eventTimeline:{version:1,
+        actors:[],events:[{eventId:'bad',atMs:-1}]}}}
+  });
+  const fake=apiServer();
+  const response=await handleStage2PlayRequest(request(bad),env,fake.fetchImpl);
+  assert.equal(response.status,400);
+  assert.equal(fake.calls.length,1,'never call private RPC after invalid timeline');
+});
 test('Stage 2 Worker delegates API routes and retains existing static shell',async()=>{
   const assets=[];
   const res=await worker.fetch(new Request('https://team-manager.example.test/'),{

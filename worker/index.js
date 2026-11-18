@@ -8,6 +8,10 @@ export default {
     const path=new URL(request.url).pathname;
     if (path.startsWith('/api/stage1/')) return handleStage1Request(request,env);
     if (path.startsWith('/api/stage2/')) return handleStage2PlayRequest(request,env);
+    if (path.startsWith('/api/')) return new Response(
+      JSON.stringify({ok:false,code:'not-found'}),{status:404,
+        headers:{'Content-Type':'application/json; charset=utf-8',
+          'Cache-Control':'no-store'}});
     if (!env?.ASSETS?.fetch) return new Response('Service unavailable',{status:503});
     return env.ASSETS.fetch(request);
   }
