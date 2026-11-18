@@ -47,7 +47,13 @@ def signed_role(headers):
 def bind(ctx):
     def auth_endpoint(route):
         role=signed_role(route.request.headers)
-        data={'id':ACCOUNT,'email':'coach@fictional.test'} if role else {}
+        identities={
+            'owner':(ACCOUNT,'coach@fictional.test'),
+            'player':('33333333-3333-4333-8333-333333333333','player@fictional.test'),
+            'volunteer':('44444444-4444-4444-8444-444444444444',
+                         'volunteer@fictional.test')
+        }
+        data={'id':identities[role][0],'email':identities[role][1]} if role else {}
         route.fulfill(status=200 if role else 401,
             content_type='application/json',body=json.dumps(data))
     def contexts_endpoint(route):
