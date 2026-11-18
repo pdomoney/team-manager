@@ -15,8 +15,10 @@ export function createCloudOperationsClient({identity,fetchImpl=fetch,origin}={}
     throw new TypeError('missing-auth-boundary');
   let base;
   try{base=new URL(origin);}catch{throw new TypeError('invalid-origin');}
-  if(!['https:','http:'].includes(base.protocol)||base.username||base.password||
-    base.search||base.hash||base.pathname!=='/'||base.port&&base.hostname!=='localhost')
+  const loopback=['localhost','127.0.0.1','[::1]'].includes(base.hostname);
+  if((base.protocol!=='https:'&&!(base.protocol==='http:'&&loopback))||
+    base.username||base.password||base.search||base.hash||
+    base.pathname!=='/'||(base.port&&!loopback))
     throw new TypeError('invalid-origin');
   async function operation(ctx,action,resourceId,payload={}){
     if(!obj(ctx)||!ID.test(ctx.teamId||'')||!ROLES.has(ctx.role)||

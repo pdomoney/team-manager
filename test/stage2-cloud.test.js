@@ -160,6 +160,14 @@ test('One verified identity holds independent Platform Owner and Coach access',a
   assert.match(await client.verifiedBearer(),/^token/);
   assert(seen.includes('/rest/v1/rpc/tm_my_operator_context'));
 });
+test('Stage 2 client only allows HTTPS hosts or loopback browser rehearsal',()=>{
+  const identity={myTeamContexts:async()=>[],verifiedBearer:async()=>'irrelevant'};
+  assert(createCloudOperationsClient({identity,origin:'http://127.0.0.1:45321'}));
+  assert(createCloudOperationsClient({identity,origin:'https://team-manager.example.test'}));
+  for(const origin of ['http://untrusted.example.test','https://untrusted.example.test:8443',
+    'https://user:pass@team-manager.example.test','https://team-manager.example.test/path'])
+    assert.throws(()=>createCloudOperationsClient({identity,origin}),/invalid-origin/);
+});
 test('Client rechecks one exact active team grant, never permits Owner mode as a team role',async()=>{
   let active=true;const calls=[];
   const identity={
