@@ -18,6 +18,54 @@ jobs:
       - name: Confirm first-team cloud release ledger remains safely blocked
         run: node scripts/check-first-team-cloud-release.mjs --assert-source-blocked
 
+  stage1-postgres:
+    # No Supabase API keys, linked project or live participant records.
+    # Each CI run receives a fresh disposable PostgreSQL service.
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: stage1-ci-synthetic-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGDATABASE: postgres
+      PGPASSWORD: stage1-ci-synthetic-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client if not present
+        shell: bash
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Rehearse versioned schema and isolated cross-client transactions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in \
+            supabase/tests/stage1_bootstrap_disposable.sql \
+            supabase/migrations/20261118010000_first_team_private_foundation.sql \
+            supabase/migrations/20261118020000_first_team_my_context.sql \
+            supabase/migrations/20261118030000_stage1_team_operations.sql \
+            supabase/tests/first_team_private_foundation.sql \
+            supabase/tests/first_team_my_context.sql \
+            supabase/tests/stage1_persistent_journey.sql
+          do
+            echo "Stage 1 isolated PostgreSQL: $script"
+            psql -X -v ON_ERROR_STOP=1 -f "$script"
+          done
+
   browser:
     # Playwright 1.55.0 needs its Ubuntu 24.04 browser dependencies.
     # Match the version-pinned WebKit job: prebuilt browsers/libraries avoid
