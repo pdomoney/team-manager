@@ -46,8 +46,10 @@ begin
   v_write := p_action not in ('schedule.read','roster.read','duty.read');
   if v_write then
     if p_digest is null or p_digest !~ '^[0-9a-f]{64}$'
-       or coalesce(p_payload->>'mutationId','') !~ '^[A-Za-z0-9][A-Za-z0-9_-]{15,79}       or jsonb_typeof(p_payload->'expectedVersion') <> 'number'
-       or coalesce(p_payload->>'expectedVersion','') !~ '^(0|[1-9][0-9]{0,9})    then return jsonb_build_object('ok',false,'code','invalid-mutation'); end if;
+       or coalesce(p_payload->>'mutationId','') !~ '^[A-Za-z0-9][A-Za-z0-9_-]{15,79}$'
+       or jsonb_typeof(p_payload->'expectedVersion') <> 'number'
+       or coalesce(p_payload->>'expectedVersion','') !~ '^(0|[1-9][0-9]{0,9})$'
+    then return jsonb_build_object('ok',false,'code','invalid-mutation'); end if;
     v_mutation := p_payload->>'mutationId';
     if (p_payload->>'expectedVersion')::bigint > 2147483647
     then return jsonb_build_object('ok',false,'code','invalid-mutation'); end if;
