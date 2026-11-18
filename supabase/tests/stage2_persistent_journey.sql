@@ -55,7 +55,7 @@ declare
   r jsonb;
   first_result jsonb;
   before_count integer;
-  payload jsonb:='{"name":"Step Out","sport":"oztag","players":{"LM":[24.6,49.6],"RM":[25,46]},"moves":[{"t":"pass","pts":[[24.6,49.6],[25,46]]}],"phases":[{"title":"Phase 2","players":{"LM":[28,42]},"moves":[]}],"steps":"Coach authored","eventTimeline":{"version":1,"actors":[],"events":[]}}'::jsonb;
+  payload jsonb:='{"name":"Step Out","sport":"oztag","players":{"LM":[24.6,49.6],"RM":[25,46]},"moves":[{"t":"pass","pts":[[24.6,49.6],[25,46]]}],"phases":[{"title":"Phase 2","players":{"LM":[28,42]},"moves":[]}],"steps":"Coach authored","internalDraftMemo":"private synthetic source only","eventTimeline":{"version":1,"actors":[],"events":[]}}'::jsonb;
 begin
   if has_function_privilege('anon',
        'public.tm_stage2_play_operation(uuid,text,text,text,text,jsonb,text)','EXECUTE')
@@ -139,8 +139,10 @@ begin
   r:=public.tm_stage2_play_operation(player_id,team,'team_player',
     'play.published.read',team,'{}'::jsonb,null);
   if r->>'code'<>'permitted' or jsonb_array_length(r->'data')<>1
-    or r->'data'->0->'play'<>payload then
-    raise exception 'published payload changed or missing: %',r; end if;
+    or r->'data'->0->'play'<>(payload-'internalDraftMemo') then
+    raise exception 'published allowed payload changed or missing: %',r; end if;
+  if r->'data'->0->'play' ? 'internalDraftMemo' then
+    raise exception 'private draft metadata reached player'; end if;
   r:=public.tm_stage2_play_operation(viewer_id,team,'team_play_viewer',
     'play.published.read',team,'{}'::jsonb,null);
   if jsonb_array_length(r->'data')<>1 then

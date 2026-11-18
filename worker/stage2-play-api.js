@@ -1,10 +1,24 @@
 // Stage 2 play API. Team membership, a selected role and publication authority
 // are independently enforced by the database. A valid bearer alone is not a grant.
 import {validateFirstTeamActionPayload} from '../src/first-team-action-contract.js';
+import {publishedPlayEventTimeline} from '../site/play-event-persistence.js';
 const ROLES=new Set(['team_coach','team_assistant','team_manager','team_player','team_play_viewer']);
 const ACTIONS=new Set(['play.published.read','play.draft.read','play.draft.edit','play.publish']);
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ID=/^[A-Za-z0-9][A-Za-z0-9:_-]{0,99}$/;
+const PLAYER_PLAY_FIELDS=new Set(['id','name','sport','category','headline',
+  'when','steps','side','builtin','rev','edited','players','defence',
+  'moves','focus','ghost','view','tags','notes','labels','title',
+  'phases','set','who','study','rules','eventTimeline']);
+function publishedProjection(play){
+  const out=Object.fromEntries(Object.entries(play).filter(([k])=>PLAYER_PLAY_FIELDS.has(k)));
+  if(Object.hasOwn(out,'eventTimeline')){
+    const timeline=publishedPlayEventTimeline(out);
+    delete out.eventTimeline;
+    if(timeline)out.eventTimeline=timeline;
+  }
+  return out;
+}
 const ERRORS=new Set(['invalid-command','invalid-mutation','invalid-read','forged-field',
   'scope-denied','account-inactive','role-denied','person-not-verified',
   'participation-not-verified','resource-out-of-scope','invalid-play',
@@ -94,7 +108,8 @@ export async function handleStage2PlayRequest(request,env,fetchImpl=fetch){
       return deny('service-unavailable',503);
     const safe=result.data.map(x=>({
       playId:x.playId,revisionId:x.revisionId,version:x.version,
-      play:x.play,...(op.action==='play.draft.read'?{
+      play:op.action==='play.published.read'?publishedProjection(x.play):x.play,
+      ...(op.action==='play.draft.read'?{
         revisionStatus:x.revisionStatus,publishedRevisionId:x.publishedRevisionId}: {})
     }));
     return json({ok:true,code:'permitted',data:safe});

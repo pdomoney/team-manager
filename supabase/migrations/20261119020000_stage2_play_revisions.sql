@@ -96,7 +96,18 @@ begin
     if p_action='play.published.read' then
       select coalesce(jsonb_agg(jsonb_build_object(
         'playId',p.play_id,'version',p.resource_version,
-        'revisionId',r.revision_id,'play',r.e5_payload)
+        'revisionId',r.revision_id,'play',(
+          -- The original E5 player export uses this exact top-level allowlist.
+          -- Keep coach-only or future fields in the private draft source.
+          select coalesce(jsonb_object_agg(e.key,e.value),'{}'::jsonb)
+          from jsonb_each(r.e5_payload) e
+          where e.key=any(array[
+            'id','name','sport','category','headline','when','steps',
+            'side','builtin','rev','edited','players','defence','moves',
+            'focus','ghost','view','tags','notes','labels','title',
+            'phases','set','who','study','rules','eventTimeline'
+          ])
+        ))
         order by p.play_id),'[]'::jsonb)
       into v_data from tm_private.plays p
         join tm_private.play_revisions r
