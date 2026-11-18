@@ -64,7 +64,7 @@ test('Stage 3A profile requires individual sign-in and reveals only self data',a
 test('Stage 3A self-edit validates fields and uses optimistic updates',async()=>{
   const f=fixture();
   await f.client.signInWithPassword('profile@example.test','test-only');
-  for(const displayName of ['', '   ', 'bad\\nname', 'x'.repeat(81)]){
+  for(const displayName of ['', '   ', 'bad\nname', 'x'.repeat(81)]){
     await assert.rejects(f.client.saveMyProfile({displayName,expectedVersion:0}),
       {code:'invalid-profile'});
   }
