@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#123D2B">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Team operations | Team Manager</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="cloud-access.css">
+  <link rel="stylesheet" href="cloud-operations.css">
+  <script type="module" src="cloud-operations.js"></script>
+</head>
+<body class="cloud-access-page">
+  <header class="top"><div class="top-row">
+    <span class="access-mark" aria-hidden="true">TM</span>
+    <h1>Team Manager</h1>
+    <a class="access-header-link" href="cloud-access.html">Team sign-in</a>
+    <a class="access-header-link" href="./">Back to demo</a>
+  </div></header>
+  <main class="access-layout stage-layout">
+    <section class="access-panel" aria-labelledby="stage-title">
+      <p class="access-eyebrow">Stage 1 · controlled development candidate</p>
+      <h2 id="stage-title">Team operations</h2>
+      <p class="access-intro">Manage fictional training and team activities with an individually verified team role. This candidate is not approved for real participant information.</p>
+      <p id="stage-identity" class="access-identity"></p>
+      <label for="stage-context"><strong>Active team and role</strong></label>
+      <select id="stage-context" aria-describedby="stage-context-help" disabled></select>
+      <p id="stage-context-help" class="access-intro">The selected role is checked independently by the server on every request.</p>
+      <p id="stage-status" class="access-status" role="status" aria-live="polite">Verifying your session…</p>
+      <div id="stage-workspace" hidden>
+        <section id="stage-schedule-section" aria-labelledby="stage-schedule-heading" hidden>
+          <h3 id="stage-schedule-heading">Training and schedule</h3>
+          <ul id="stage-sessions" class="stage-list"></ul>
+          <form id="stage-training" class="stage-form" hidden>
+            <h4 id="stage-training-heading">Add training</h4>
+            <label for="stage-title-field">Training title</label>
+            <input id="stage-title-field" maxlength="120" required placeholder="Team training">
+            <label for="stage-when">Starts</label>
+            <input id="stage-when" type="datetime-local" required>
+            <label for="stage-place">Location (optional)</label>
+            <input id="stage-place" maxlength="120">
+            <div class="stage-actions">
+              <button type="submit" class="access-primary" id="stage-training-save">Save training</button>
+              <button type="button" class="access-secondary" id="stage-training-cancel" hidden>Discard edit</button>
+            </div>
+          </form>
+        </section>
+        <section id="stage-roster-section" aria-labelledby="stage-roster-heading" hidden>
+          <h3 id="stage-roster-heading">Squad participation</h3>
+          <p class="access-intro">Nomination is not club registration or competition eligibility.</p>
+          <ul id="stage-roster" class="stage-list"></ul>
+          <form id="stage-roster-form" class="stage-form">
+            <label for="stage-person">Fictional person ID</label>
+            <input id="stage-person" required pattern="[A-Za-z0-9][A-Za-z0-9:_-]*" maxlength="100">
+            <button class="access-primary" type="submit">Nominate for team</button>
+          </form>
+        </section>
+        <section id="stage-availability-section" aria-labelledby="stage-availability-heading" hidden>
+          <h3 id="stage-availability-heading">My availability</h3>
+          <form id="stage-availability-form" class="stage-form">
+            <label for="stage-session-picker">Training or match</label>
+            <select id="stage-session-picker" required></select>
+            <label for="stage-rsvp">My response</label>
+            <select id="stage-rsvp"><option value="yes">Going</option><option value="maybe">Not sure</option><option value="no">Can't attend</option></select>
+            <button class="access-primary" type="submit">Save my response</button>
+          </form>
+        </section>
+        <section id="stage-duty-assign-section" aria-labelledby="stage-assign-heading" hidden>
+          <h3 id="stage-assign-heading">Assign volunteer duty</h3>
+          <p class="access-intro">Only an independently verified, role-approved volunteer can be assigned.</p>
+          <form id="stage-duty-assign-form" class="stage-form">
+            <label for="stage-duty-session">Session</label>
+            <select id="stage-duty-session" required></select>
+            <label for="stage-duty-person">Verified volunteer person ID</label>
+            <input id="stage-duty-person" required maxlength="100" pattern="[A-Za-z0-9][A-Za-z0-9:_-]*">
+            <button class="access-primary" type="submit">Assign duty</button>
+          </form>
+        </section>
+        <section id="stage-duty-section" aria-labelledby="stage-duty-heading" hidden>
+          <h3 id="stage-duty-heading">My assigned duties</h3>
+          <ul id="stage-duties" class="stage-list"></ul>
+        </section>
+        <button id="stage-refresh" class="access-secondary" type="button">Refresh team records</button>
+      </div>
+    </section>
+    <aside class="access-side">
+      <h3>What is protected</h3>
+      <p>Only the currently selected team and role are used. Another team, a revoked grant or an unverified person cannot access records.</p>
+      <p>Training can be changed, but official competition fixtures remain under their independent authority.</p>
+      <p>The original Home, Schedule, Team, Tactics, More and E5 play tools are not changed by this candidate.</p>
+    </aside>
+  </main>
+</body>
+</html>
