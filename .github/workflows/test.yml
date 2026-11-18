@@ -64,6 +64,8 @@ jobs:
             supabase/migrations/20261119010000_stage2_operator_context.sql \
             supabase/migrations/20261119020000_stage2_play_revisions.sql \
             supabase/tests/stage2_persistent_journey.sql
+            supabase/migrations/20261119030000_stage3a_minimal_account_profiles.sql
+            supabase/tests/stage3a_minimal_account_profiles.sql
           do
             echo "Stage 1 isolated PostgreSQL: $script"
             psql -X -v ON_ERROR_STOP=1 -f "$script"

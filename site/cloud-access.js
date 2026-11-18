@@ -26,7 +26,7 @@ function showGuest() {
   workspaceLink.hidden = true;
   $('cloud-password').value = '';
 }
-function showUser(user, contexts, owner = false) {
+function showUser(user, contexts, owner = false, checked = true) {
   form.hidden = true;
   account.hidden = false;
   $('cloud-identity').textContent = 'Signed in as ' + user.email;
@@ -49,7 +49,9 @@ function showUser(user, contexts, owner = false) {
     teams.append(li);
   }
   // The workspace action is not a team or a role grant.
-  workspaceLink.hidden = !(contexts.length || owner);
+  workspaceLink.hidden = !checked;
+  workspaceLink.textContent = (contexts.length || owner)
+    ? 'Open your team workspace' : 'Set up your profile';
 }
 async function loadAccess() {
   const user = await client.currentUser();
@@ -61,7 +63,7 @@ async function loadAccess() {
     showUser(user, contexts, owner);
     showMessage('Identity verified. This preview does not grant access to private team data.');
   } catch (error) {
-    showUser(user, []);
+    showUser(user, [], false, false);
     showMessage(error.code === 'server-not-ready'
       ? 'The read-only database endpoint has not been installed. Your identity is verified; team access is not yet available.'
       : 'Team access could not be verified. No permissions have been granted.');
