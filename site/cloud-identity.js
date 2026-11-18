@@ -163,7 +163,7 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
   async function saveMyProfile({displayName, expectedVersion} = {}) {
     if (typeof displayName !== 'string' ||
         displayName.trim().length < 1 || displayName.trim().length > 80 ||
-        /[\\u0000-\\u001f\\u007f]/.test(displayName) ||
+        /[\u0000-\u001f\u007f]/.test(displayName) ||
         !Number.isSafeInteger(expectedVersion) || expectedVersion < 0)
       throw safeError('invalid-profile');
     const bearer = await verifiedBearer();

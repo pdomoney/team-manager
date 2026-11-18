@@ -24,8 +24,8 @@ language sql stable security definer set search_path = ''
 as $$
   select pg_catalog.jsonb_build_object(
     'accountStatus', a.status,
-    'displayName', pg_catalog.coalesce(p.display_name, ''),
-    'version', pg_catalog.coalesce(p.version,0),
+    'displayName', coalesce(p.display_name, ''),
+    'version', coalesce(p.version,0),
     'linkStatus', case
       when exists (
         select 1 from tm_private.account_person_links l
