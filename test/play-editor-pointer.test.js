@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { captureEditorPointer, cancelEditorPointer, settleUnchangedEditorPointer } from '../site/play-editor-pointer.js';
+import { captureEditorPointer, cancelEditorPointer, settleUnchangedEditorPointer, nearestEditorHandleAtPoint } from '../site/play-editor-pointer.js';
 
 const editor = () => ({
   draft: {
@@ -97,4 +97,49 @@ test('E4.12.3 after existing edits, a snap-back keeps prior Undo history and dir
   assert.deepEqual(e.undo, before.undo);
   assert.equal(e.dirty, true);
   assert.equal(settleUnchangedEditorPointer(e, null), false);
+});
+
+const fakeHandle = (index, cx, cy, radius = 15) => ({
+  getAttribute: name => name === 'data-h' ? String(index) : null,
+  getBoundingClientRect: () => ({
+    x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2
+  })
+});
+const fakeSvg = (...handles) => ({
+  querySelectorAll: selector => {
+    assert.equal(selector, 'circle.ped-handle-hit[data-h]');
+    return handles;
+  }
+});
+
+test('overlapping mobile hit circles select nearest Start even when Bend is on top', () => {
+  // The DOM draws Bend later. At Start centre, both targets accept touches,
+  // but Bend is not the nearest endpoint and must never steal the selection.
+  const hit = fakeSvg(fakeHandle(0, 100, 100), fakeHandle(1, 108, 100),
+    fakeHandle(2, 158, 100));
+  assert.equal(nearestEditorHandleAtPoint(hit, 100, 100), 0);
+  assert.equal(nearestEditorHandleAtPoint(hit, 108, 100), 1);
+  assert.equal(nearestEditorHandleAtPoint(hit, 158, 100), 2);
+  assert.equal(nearestEditorHandleAtPoint(hit, 104, 100), null,
+    'exact halfway ambiguity must use existing hit or precision controls');
+});
+
+test('nearest handle resolver never selects outside hit target or from invalid geometry', () => {
+  const handles = fakeSvg(fakeHandle(0, 100, 100), fakeHandle(1, 108, 100));
+  assert.equal(nearestEditorHandleAtPoint(handles, 130, 130), null);
+  assert.equal(nearestEditorHandleAtPoint(handles, NaN, 100), null);
+  assert.equal(nearestEditorHandleAtPoint(null, 100, 100), null);
+  const broken = fakeSvg({getAttribute: () => '1',
+    getBoundingClientRect: () => ({x: 0,y: 0,width: 0,height: 10})},
+    {getAttribute: () => 'forged',
+     getBoundingClientRect: () => ({x: 0,y: 0,width: 30,height: 30})});
+  assert.equal(nearestEditorHandleAtPoint(broken, 0, 0), null);
+});
+
+test('nearest handle resolution is read-only and never changes actor-linked play data', () => {
+  const e = editor(), before = JSON.stringify(e);
+  const svg = fakeSvg(fakeHandle(0, 100, 100), fakeHandle(1, 108, 100));
+  assert.equal(nearestEditorHandleAtPoint(svg, 100, 100), 0);
+  assert.equal(JSON.stringify(e), before);
+  assert.equal(e.draft.moves[0].actorLinks.start, 'player:LM');
 });
