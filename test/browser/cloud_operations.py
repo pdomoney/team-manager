@@ -136,11 +136,11 @@ with sync_playwright() as p:
             checks.ok(len(state['sessions'])==1 and state['writes']==1,
                       f'[{width}] coach training write committed to server')
             manager.locator('#stage-refresh').click()
-            manager.get_by_text('Fictional midweek training',exact=False).wait_for()
+            manager.locator('#stage-sessions').get_by_text('Fictional midweek training',exact=False).wait_for()
             checks.ok(manager.locator('#stage-sessions li').count()==1,
                       f'[{width}] independent Manager browser sees same training')
             player.locator('#stage-refresh').click()
-            player.get_by_text('Fictional midweek training',exact=False).wait_for()
+            player.locator('#stage-sessions').get_by_text('Fictional midweek training',exact=False).wait_for()
             player.locator('#stage-rsvp').select_option('yes')
             player.locator('#stage-availability-form button[type=submit]').click()
             player.get_by_text('Your availability response was saved.').wait_for()
