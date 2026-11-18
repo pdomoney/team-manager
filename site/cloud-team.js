@@ -70,7 +70,7 @@ function message(text,isError=false){
 function explain(err){
   const code=err?.code||'request-denied';
   if(['stale-or-protected-session','stale-roster','stale-availability','stale-play',
-    'stale-or-invalid-duty','revision-not-draft','mutation-id-reused'].includes(code))
+    'stale-or-invalid-duty','stale-profile','revision-not-draft','mutation-id-reused'].includes(code))
     return 'This record changed on another device. Refresh to review the latest version before trying again.';
   if(['access-revoked','scope-denied','role-denied','account-inactive',
     'person-not-verified','participation-not-verified'].includes(code))
@@ -391,53 +391,32 @@ function renderProfilePanel(parent=main){
   const panel=card('My profile',parent);
   const content=h('div',{parent:panel});
   const epoch=state.epoch;
-  info('Only your own display name can be edited here. Team roles and account-to-person verification require an independent authorised reviewer.',content);
-  const loading=info('Loading your profile…',content);
-  void auth.myProfile().then(profile=>{
+  const paint=profile=>{
     if(epoch!==state.epoch)return;
-    loading.remove();
+    content.replaceChildren();
+    info('Manage your own display name. Team roles and account-to-person verification require an independent authorised reviewer.',content);
     h('p',{text:'Account: '+profile.accountStatus+' · Person link: '+profile.linkStatus,
       parent:content});
     const f=form(content,async d=>{
-      const result=await auth.saveMyProfile({
-        displayName:String(d.get('displayName')||''),expectedVersion:profile.version
-      });
+      const saved=await auth.saveMyProfile({displayName:String(d.get('displayName')||''),
+        expectedVersion:profile.version});
       if(epoch!==state.epoch)return;
+      paint({...profile,displayName:saved.displayName,version:saved.version});
       message('Your display name was saved.');
-      const latest=await auth.myProfile();
-      if(epoch!==state.epoch)return;
-      content.replaceChildren();
-      h('p',{text:'Account: '+latest.accountStatus+' · Person link: '+latest.linkStatus,
-        parent:content});
-      renderNameForm(latest,content);
     });
     field(f,'Display name','displayName',{value:profile.displayName,max:80});
     h('button',{className:'cloud-btn primary',text:'Save my profile',
       attrs:{type:'submit'},parent:f});
-  }).catch(e=>{
+  };
+  const loading=info('Loading your profile…',content);
+  void auth.myProfile().then(paint).catch(e=>{
     if(epoch!==state.epoch)return;
     loading.textContent=e.code==='server-not-ready'
       ?'Profile setup is not available until the approved database migration is installed.'
       :'Your profile could not be verified. No details have been changed.';
   });
-  function renderNameForm(profile,place) {
-    const f=form(place,async d=>{
-      await auth.saveMyProfile({displayName:String(d.get('displayName')||''),
-        expectedVersion:profile.version});
-      if(epoch!==state.epoch)return;
-      message('Your display name was saved.');
-      const latest=await auth.myProfile();
-      if(epoch!==state.epoch)return;
-      place.replaceChildren();
-      h('p',{text:'Account: '+latest.accountStatus+' · Person link: '+latest.linkStatus,
-        parent:place});
-      renderNameForm(latest,place);
-    });
-    field(f,'Display name','displayName',{value:profile.displayName,max:80});
-    h('button',{className:'cloud-btn primary',text:'Save my profile',
-      attrs:{type:'submit'},parent:f});
-  }
 }
+
 function renderMore(){
   const c=card('Signed-in account');
   h('p',{text:state.user?.email||'Signed in',parent:c});
