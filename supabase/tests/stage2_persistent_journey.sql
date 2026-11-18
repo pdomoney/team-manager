@@ -74,8 +74,9 @@ begin
   perform set_config('request.jwt.claim.sub',owner_id::text,true);
   r:=public.tm_my_operator_context();
   if r->>'isOwner'<>'true' then raise exception 'owner missing independent grant'; end if;
-  r:=public.tm_my_team_context();
-  if jsonb_array_length(to_jsonb(r))<>1 then
+  select coalesce(jsonb_agg(to_jsonb(c)),'[]'::jsonb) into r
+    from public.tm_my_team_context() c;
+  if jsonb_array_length(r)<>1 then
     raise exception 'one signed-in owner+coach account lost team role'; end if;
   perform set_config('request.jwt.claim.sub',reviewer_id::text,true);
   r:=public.tm_my_operator_context();
@@ -178,7 +179,7 @@ begin
   select count(*) into before_count from tm_private.mutation_receipts;
   begin
     alter table tm_private.audit_events add constraint stage2_audit_block
-      check (action<>'play.draft.edit');
+      check (action<>'play.draft.edit') not valid;
     r:=public.tm_stage2_play_operation(owner_id,team,'team_coach',
       'play.draft.edit',play_id,
       jsonb_build_object('mutationId','stage2-fault-0000001',
@@ -189,7 +190,7 @@ begin
     null;
   end;
   if (select count(*) from tm_private.mutation_receipts)<>before_count
-    or (select resource_version from tm_private.plays where play_id=play_id)<>2
+    or (select resource_version from tm_private.plays where tm_private.plays.play_id=first_result->>'resourceId')<>2
   then raise exception 'failed audit did not roll back play or receipt'; end if;
   raise notice 'PASS: Stage 2 one identity two roles, independent grants, E5 lossless publish, replay, revocation, rollback';
 end;
