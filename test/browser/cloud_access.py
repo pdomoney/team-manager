@@ -73,6 +73,9 @@ with sync_playwright() as p:
                   f'[{width}] form hides on verified identity')
         checks.ok(page.locator('#cloud-teams li').count() == 1,
                   f'[{width}] one team scope returned by reviewed RPC')
+        checks.ok(page.locator('#cloud-workspace-link').is_visible() and
+                  page.locator('#cloud-workspace-link').get_attribute('href') == 'cloud-team.html',
+                  f'[{width}] workspace action is separate from team-grant list')
         checks.ok('fictional-u16' in page.locator('#cloud-teams').inner_text() and
                   'team coach' in page.locator('#cloud-teams').inner_text(),
                   f'[{width}] approved active team and role displayed')
@@ -89,6 +92,8 @@ with sync_playwright() as p:
         page.get_by_text('The read-only database endpoint has not been installed.', exact=False).wait_for()
         checks.ok(page.locator('#cloud-teams li').count() == 0,
                   f'[{width}] missing RPC cannot imply an authorised team')
+        checks.ok(page.locator('#cloud-workspace-link').is_hidden(),
+                  f'[{width}] workspace action hidden when no grants can be verified')
         state['rpc_status'] = 200
         page.reload()
         page.get_by_text('Signed in as coach@example.test').wait_for()
@@ -97,6 +102,8 @@ with sync_playwright() as p:
         checks.ok(page.locator('#cloud-account').is_hidden() and
                   page.locator('#cloud-login').is_visible(),
                   f'[{width}] logout restores guest-only state')
+        checks.ok(page.locator('#cloud-workspace-link').is_hidden(),
+                  f'[{width}] signout hides team workspace action')
         state['token_status'] = 400
         page.locator('#cloud-email').fill('coach@example.test')
         page.locator('#cloud-password').fill('invalid')

@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
-    paths: ['src/**', 'test/**', 'site/**', 'scripts/check-first-team-cloud-release.mjs', 'config/first-team-cloud-release-evidence.json']
+    paths: ['src/**', 'test/**', 'site/**', 'worker/**', 'supabase/**', 'wrangler.jsonc', 'scripts/check-first-team-cloud-release.mjs', 'config/first-team-cloud-release-evidence.json']
 
 jobs:
   test:
@@ -60,7 +60,10 @@ jobs:
             supabase/migrations/20261118030000_stage1_team_operations.sql \
             supabase/tests/first_team_private_foundation.sql \
             supabase/tests/first_team_my_context.sql \
-            supabase/tests/stage1_persistent_journey.sql
+            supabase/tests/stage1_persistent_journey.sql \
+            supabase/migrations/20261119010000_stage2_operator_context.sql \
+            supabase/migrations/20261119020000_stage2_play_revisions.sql \
+            supabase/tests/stage2_persistent_journey.sql
           do
             echo "Stage 1 isolated PostgreSQL: $script"
             psql -X -v ON_ERROR_STOP=1 -f "$script"
@@ -135,3 +138,7 @@ jobs:
         run: |
           python3 test/browser/play_e4_drag_intent.py
           python3 test/browser/play_e4_touch_input.py
+      - name: Stage 2 signed-in team journeys on WebKit
+        env:
+          STAGE2_BROWSER_ENGINE: webkit
+        run: python3 test/browser/stage2_cloud.py

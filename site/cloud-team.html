@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#123D2B">
+  <meta name="robots" content="noindex,nofollow">
+  <title>My team | Team Manager</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="cloud-team.css">
+  <script type="module" src="cloud-team.js"></script>
+</head>
+<body class="cloud-team-page">
+  <header class="top cloud-team-header">
+    <div class="top-row">
+      <a href="./" class="cloud-team-brand" aria-label="Team Manager home">TM</a>
+      <div class="cloud-team-heading"><h1>Team Manager</h1><p id="active-context">Checking your access…</p></div>
+      <a class="cloud-team-back" href="cloud-access.html">Account</a>
+    </div>
+    <div class="cloud-context-controls" id="context-controls" hidden>
+      <label for="role-context">Working role and team</label>
+      <select id="role-context" aria-label="Select your active role and team"></select>
+    </div>
+  </header>
+  <main class="cloud-main" id="cloud-main">
+    <p role="status">Verifying your account and team permissions…</p>
+  </main>
+  <nav class="cloud-nav" id="cloud-nav" aria-label="Sections" hidden>
+    <button type="button" data-tab="home">Home</button>
+    <button type="button" data-tab="schedule">Schedule</button>
+    <button type="button" data-tab="team">Team</button>
+    <button type="button" data-tab="tactics">Tactics</button>
+    <button type="button" data-tab="more">More</button>
+  </nav>
+  <p class="cloud-alert" id="cloud-alert" aria-live="polite" role="status" hidden></p>
+</body>
+</html>
