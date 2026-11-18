@@ -55,7 +55,8 @@ test('E5 revisions and versioned participant writes remain scoped',()=>{
 
 test('source-only setup carries no remote project secrets, migration hooks or auto-deploy',()=>{
   assert.match(config,/project_id = "team-manager"/);
-  assert.doesNotMatch(config,/password|secret|token|db_url|project_ref|remote/i);
+  const activeSettings=config.split(/\r?\n/).map(line=>line.trim()).filter(line=>line && !line.startsWith('#'));
+  assert.deepEqual(activeSettings,['project_id = "team-manager"']);
   assert.match(ignore,/supabase\/\.env\*/);
   assert.match(ignore,/supabase\/\.temp\//);
   assert.doesNotMatch(sql,/\b(insert into|copy\s+\w+\s+from)\b/i);
