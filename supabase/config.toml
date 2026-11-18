@@ -1,0 +1,3 @@
+# Local Supabase CLI project label only; NOT a remote project reference.
+# No remote link, API key, secret or deployment trigger is stored here.
+project_id = "team-manager"

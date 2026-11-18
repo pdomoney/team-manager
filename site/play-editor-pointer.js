@@ -74,3 +74,35 @@ export function settleUnchangedEditorPointer(editor, before) {
   editor.dirty = before.dirty;
   return true;
 }
+
+// SVG endpoint circles have transparent touch targets which may overlap at
+// phone Fit zoom. DOM hit order alone can select a later bend over the point
+// the coach actually touched. Resolve by visual-centre distance, but only
+// among targets whose ellipse contains the touch. Never infer movement or a
+// persistent actor connection here. Return null when nothing or a geometric
+// tie is distinguishable so the editor can use its existing hit/precision UI.
+export function nearestEditorHandleAtPoint(svg, clientX, clientY) {
+  if (!svg || typeof svg.querySelectorAll !== 'function' ||
+      !Number.isFinite(clientX) || !Number.isFinite(clientY)) return null;
+  let nearest = null, best = Infinity, ambiguous = false;
+  for (const circle of svg.querySelectorAll('circle.ped-handle-hit[data-h]')) {
+    const id = circle.getAttribute?.('data-h');
+    if (typeof id !== 'string' || !/^(0|[1-9]\d*)$/.test(id) ||
+        typeof circle.getBoundingClientRect !== 'function') continue;
+    const rect = circle.getBoundingClientRect();
+    if (!rect || ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) ||
+        rect.width <= 0 || rect.height <= 0) continue;
+    const dx = (clientX - rect.x - rect.width / 2) / (rect.width / 2);
+    const dy = (clientY - rect.y - rect.height / 2) / (rect.height / 2);
+    const score = dx * dx + dy * dy;
+    if (score > 1) continue;
+    if (score < best - 1e-9) {
+      best = score;
+      nearest = Number(id);
+      ambiguous = false;
+    } else if (Math.abs(score - best) <= 1e-9) {
+      ambiguous = true;
+    }
+  }
+  return ambiguous ? null : nearest;
+}

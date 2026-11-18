@@ -5,3 +5,8 @@ data/
 .DS_Store
 rules-watch/
 __pycache__/
+
+# Supabase local links, service settings and credentials must never enter Git.
+supabase/.env*
+supabase/.temp/
+supabase/.branches/

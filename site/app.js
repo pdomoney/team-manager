@@ -38,7 +38,7 @@ import { previewBendInsertion, insertMovementBend, canRemoveMovementBend, remove
 import { editorArtworkScale, editorInteractionScale } from './play-editor-art-scale.js';
 import { watchArtworkScale } from './play-watch-art-scale.js';
 import { learnArtworkScale } from './play-learn-art-scale.js';
-import { captureEditorPointer, cancelEditorPointer, captureEditorPointerContext, matchesEditorPointerContext, settleUnchangedEditorPointer } from './play-editor-pointer.js';
+import { captureEditorPointer, cancelEditorPointer, captureEditorPointerContext, matchesEditorPointerContext, settleUnchangedEditorPointer, nearestEditorHandleAtPoint } from './play-editor-pointer.js';
 import { beginsEditorPointerDrag } from './play-editor-drag-intent.js';
 import { TRANSFER_SPORTS, transferGuide, transferBrief } from './play-transfer.js';
 import { sportFormatReviewOptions, coachSportFormatReview } from './play-format-review.js';
@@ -5068,7 +5068,14 @@ function bindPlayEditor() {
     const h = hit('[data-h]'), add = hit('[data-hadd]'), fe = hit('[data-fe]'), fb = hit('[data-fb]');
     if (E.sel && E.sel.k === 'mv' && d.moves[E.sel.i] && (h || add)) {
       if (add) { pedSnap(); const j = +add.dataset.hadd + 1; d.moves[E.sel.i].pts.splice(j, 0, p); E.selH = j; Object.assign(drag, { kind: 'handle', j, moved: true }); }
-      else { E.selH = +h.dataset.h; Object.assign(drag, { kind: 'handle', j: E.selH }); }
+      else {
+        // Transparent touch targets may overlap at Fit/mobile zoom. Pick the
+        // geometrically nearest visible point, not the topmost SVG hit circle.
+        // For truly coincident points, retain the original hit target and let
+        // coaches use the precision point controls to disambiguate.
+        E.selH = nearestEditorHandleAtPoint(s, e.clientX, e.clientY) ?? +h.dataset.h;
+        Object.assign(drag, { kind: 'handle', j: E.selH });
+      }
       refreshPlayEditor();
     } else if (E.tool === 'pan') {
       const card = box.closest('.ped-card');
