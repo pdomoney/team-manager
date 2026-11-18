@@ -424,12 +424,26 @@ async function initialise(keep=false){
   if(!choices.length){state.epoch++;state.context=null;clear();
     title('No active access','Account permissions');
     info('This account has no independently approved team or Platform Owner grant.');return;}
-  const ix=Math.max(0,choices.findIndex(c=>c.role+'|'+c.teamId===previous));
-  selectContext(ix);
+  const ix=choices.findIndex(c=>c.role+'|'+c.teamId===previous);
+  if(ix>=0||choices.length===1){selectContext(ix>=0?ix:0);return;}
+  // Multiple grants: never automatically operate as Owner or Coach.
+  state.epoch++;state.context=null;state.tab='home';state.schedule=[];state.roster=[];
+  state.duties=[];state.drafts=[];state.published=[];state.preview=null;
+  $('cloud-nav').hidden=true;
+  $('active-context').textContent='Choose one active role and team';
+  picker.insertBefore(h('option',{text:'Choose a role and team',
+    attrs:{value:'',disabled:'true'}}),picker.firstChild);
+  picker.value='';
+  clear();title('Choose your role and team','Signed-in account');
+  info('One login can hold more than one approved role. Select a single working context; permissions are never combined.');
+  const list=card('Your available contexts');
+  for(const [i,ctx] of choices.entries())
+    button(contextLabel(ctx),()=>{ $('cloud-nav').hidden=false;selectContext(i);},list);
+
 }
 $('cloud-nav').addEventListener('click',e=>{
   const b=e.target.closest('button[data-tab]');if(b)switchTab(b.dataset.tab);
 });
-picker.addEventListener('change',()=>selectContext(Number(picker.value)));
+picker.addEventListener('change',()=>{if(picker.value!==''){$('cloud-nav').hidden=false;selectContext(Number(picker.value));}});
 initialise().catch(e=>{clear();title('Unable to verify access','Account');
   info(explain(e));$('cloud-nav').hidden=true;$('context-controls').hidden=true;});
