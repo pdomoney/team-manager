@@ -15,6 +15,8 @@ const FROM='Controlled staging for four approved adults using fictional team rec
 const REPLACEMENT='Restricted first-team adult setup for St George Oztag · Mixed 20. Real players and volunteers are not onboarded until separate privacy and safeguarding approval.';
 const CONFIG_OFF='export const CLOUD_STAGE3D2_AUTH_ENABLED=false;';
 const CONFIG_ON='export const CLOUD_STAGE3D2_AUTH_ENABLED=true;';
+const POLICY_OFF='export const CLOUD_STAGE3D3_POLICY_REQUIRED=false;';
+const POLICY_ON='export const CLOUD_STAGE3D3_POLICY_REQUIRED=true;';
 
 function exactOnce(content,needle,label){
   if(content.split(needle).length!==2)throw new Error('stage3d3-source-drift-'+label);
@@ -63,8 +65,12 @@ export function buildStage3D3({root=process.cwd(),env=process.env,
   const configFile=path.join(out,'cloud-public-config.js');
   const config=fs.readFileSync(configFile,'utf8');
   exactOnce(config,CONFIG_OFF,'auth-toggle');
+  exactOnce(config,POLICY_OFF,'policy-flag');
   fs.writeFileSync(configFile,config.replace(CONFIG_OFF,
-    args.methods==='on'?CONFIG_ON:CONFIG_OFF));
+    args.methods==='on'?CONFIG_ON:CONFIG_OFF).replace(POLICY_OFF,POLICY_ON));
+  // Deliberately include this page only in the connected first-team build.
+  for(const name of ['cloud-registration.html','cloud-registration.js'])
+    fs.copyFileSync(path.join(root,'site',name),path.join(out,name));
   const accessFile=path.join(out,'cloud-access.html');
   let html=fs.readFileSync(accessFile,'utf8');
   exactOnce(html,FROM,'login-copy');

@@ -165,6 +165,32 @@ Then 3D.4 independently qualifies connected first-team operations; 3D.5
 covers real security, recovery and devices; 3D.6 is owner-approved cutover.
 **Stage 4** E5 play/tactics remains deferred.
 
+### Stage 3D.3 provider and registration decision (20 November 2026)
+
+The owner approved the Supabase PostgreSQL/Auth and separate Cloudflare Worker
+**architecture for the first St George Oztag / Mixed 20 trial** and the
+privacy/registration **engineering requirements** as one consolidated source
+change. The intended starting tier is Free in Sydney, conditional on current
+costs/region/vendor and the verified 24-hour RPO. The new registration
+migration records approved document versions/hashes and independent adult
+review without collecting DOB; the trusted Worker refuses protected team
+operations until both mandatory terms and privacy acknowledgement are recorded.
+Optional marketing defaults OFF. An adult-only registration page links to
+actual approved documents, but no real document is invented or seeded.
+
+**Critical release authority remains pending:** GitHub showed PR274 still open
+when the consolidated branch was started from PR274 head; do not retarget it
+to main without verifying that merge. Independent review of all 18 privacy
+answers, explicit category approvals of the 11 player fields, under-18
+guardian/safeguarding eligibility, actual terms/privacy document versions,
+provider contracts, real hosting, independent Coach/Manager verification,
+and backup/recovery must be evidenced before live use. The user approved
+implementation, **not** fabricated statutory/legal compliance. L0–L6 stay HOLD.
+See [Stage 3D.3 consolidated operator guide](operations/stage3d3-provider-registration-approval.md).
+Actual Google/Apple/email provider activation is next, followed by eight
+connected journeys in 3D.4, security/device/restore in 3D.5 and owner
+release acceptance in 3D.6. Stage 4 Tactics remains deferred.
+
 ## Prior direction: Option B play workspace
 
 Owner decision (8 November 2026): favour a dedicated diagram-first viewing experience and a purpose-built coach editing workspace, without requiring browser zoom. See [Option B phased programme](architecture/option-b-play-workspace-programme.md) and [Play Engine 2.0 #166](https://github.com/pdomoney/team-manager/issues/166).

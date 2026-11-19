@@ -13,6 +13,7 @@
     "run_worker_first": true
   },
   "vars": {
-    "STAGE3C_MODE": "management-only"
+    "STAGE3C_MODE": "management-only",
+    "STAGE3D3_REGISTRATION_MODE": "required"
   }
 }

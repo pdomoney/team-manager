@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "kind": "first-team-provider-and-registration-implementation-decision",
+  "approvedScope": "provider-architecture-and-registration-controls-for-source-development",
+  "ownerDirectionDate": "2026-11-20",
+  "firstTeam": {
+    "club": "St George Oztag",
+    "team": "Mixed 20",
+    "teamId": "stgeorge-mixed20",
+    "sport": "oztag",
+    "season": "requires-owner-verification"
+  },
+  "deploymentArchitecture": {
+    "application": "separately named Cloudflare Workers connected application",
+    "database": "Supabase PostgreSQL",
+    "desiredRegion": "ap-southeast-2",
+    "intendedTrialPlan": "Supabase Free, limits and suitability to be independently verified",
+    "authentication": [
+      "google",
+      "apple",
+      "email-otp",
+      "email-password"
+    ],
+    "emailDelivery": "external SMTP provider to be selected and approved",
+    "hostAndBillingVerified": false,
+    "resourcesExistenceChecked": false,
+    "liveProviderProvisioningApproved": false,
+    "productionSourceInstalled": false,
+    "maximumInitialUsers": 50,
+    "recoveryPointObjectiveHours": 24,
+    "backupRestoreEvidenceApproved": false
+  },
+  "dataPolicy": {
+    "ownerPrivacyRequirementsApprovedForEngineering": true,
+    "actualApprovedTermsDocumentRef": null,
+    "actualApprovedPrivacyNoticeDocumentRef": null,
+    "approvedPolicyDocumentHashes": null,
+    "independentPrivacyReviewsComplete": false,
+    "approvedPersonalFieldCategories": [],
+    "juniorAccountsAndGuardianDataAuthorised": false,
+    "noImplicitGuardianAccess": true,
+    "adultAccountReviewRequired": true,
+    "mandatoryVersionedTermsAndPrivacyAcknowledgement": true,
+    "marketingOptInDefault": false,
+    "marketingBundledWithTerms": false,
+    "medicalDataCollectionAuthorised": false,
+    "realParticipantProcessingAuthorised": false
+  },
+  "access": {
+    "initialPlatformOwnerAndCoachSameAccount": true,
+    "independentlyApprovedTeamCoachGrantRequired": true,
+    "independentReviewerRequired": true,
+    "firstManagerSeparateApprovalRequired": true,
+    "exactTeamScopeOnly": true
+  },
+  "release": {
+    "stage4PlaysDeferred": true,
+    "existingEncryptedDemoPreserved": true,
+    "releaseGatesQualified": 0,
+    "releaseGatesTotal": 7,
+    "installedRuntimeVerified": false,
+    "ownerProductionGoLiveApproved": false
+  }
+}

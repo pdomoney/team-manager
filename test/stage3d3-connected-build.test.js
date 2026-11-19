@@ -32,7 +32,8 @@ test('Stage 3D.3 builds an isolated first-team connected management candidate',(
     assert.equal(result.sourceSha,sha);
     const names=new Set(fs.readdirSync(out));
     for(const n of ['cloud-access.html','cloud-team.html','cloud-public-config.js',
-      'cloud-auth-flows.js','stage3d3-manifest.json','stage3c-no-tactics.js'])
+      'cloud-auth-flows.js','cloud-registration.html','cloud-registration.js',
+      'stage3d3-manifest.json','stage3c-no-tactics.js'])
       assert(names.has(n),n+' needed');
     for(const n of ['index.html','data','test-library.html','coach.enc.json',
       'team.enc.json','stage3c-manifest.json','cloud-play-board.js'])
@@ -50,9 +51,13 @@ test('Stage 3D.3 builds an isolated first-team connected management candidate',(
     const conf=fs.readFileSync(path.join(out,'cloud-public-config.js'),'utf8');
     assert.match(conf,/CLOUD_STAGE3C_MODE=true/);
     assert.match(conf,/CLOUD_STAGE3D2_AUTH_ENABLED=false/);
+    assert.match(conf,/CLOUD_STAGE3D3_POLICY_REQUIRED=true/);
     assert(!conf.includes('sb_secret_'));
     const html=fs.readFileSync(path.join(out,'cloud-access.html'),'utf8');
     assert(html.includes('St George Oztag · Mixed 20'));
+    assert(html.includes('cloud-registration.html'));
+    assert(fs.readFileSync(path.join(out,'cloud-registration.html'),'utf8')
+      .includes('Registration and privacy'));
     assert(!html.includes('four approved adults using fictional team records'));
     assert(!html.includes('For invited test accounts only.'));
     assert(!fs.readdirSync(out).some(n=>n.endsWith('.enc.json')));

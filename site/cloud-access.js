@@ -1,4 +1,4 @@
-import { CLOUD_SUPABASE, CLOUD_STAGE3D2_AUTH_ENABLED } from './cloud-public-config.js';
+import { CLOUD_SUPABASE, CLOUD_STAGE3D2_AUTH_ENABLED, CLOUD_STAGE3D3_POLICY_REQUIRED } from './cloud-public-config.js';
 import { createCloudIdentityClient } from './cloud-identity.js';
 import {teamDisplayName} from './first-live-team.js';
 
@@ -36,6 +36,7 @@ function showGuest() {
   workspaceLink.hidden = true;
   $('cloud-password').value = '';
   $('cloud-link-providers').hidden=true;pendingOtpEmail='';
+  $('cloud-policy-link').hidden=true;
 }
 function showUser(user, contexts, owner = false, checked = true) {
   form.hidden = true;
@@ -43,6 +44,7 @@ function showUser(user, contexts, owner = false, checked = true) {
   $('cloud-otp-request').hidden=true;
   $('cloud-otp-verify').hidden=true;
   account.hidden = false;
+  $('cloud-policy-link').hidden=true;
   $('cloud-link-providers').hidden=!(extraAuthEnabled&&checked&&(contexts.length||owner));
   $('cloud-identity').textContent = 'Signed in as ' + user.email;
   teams.replaceChildren();
@@ -72,6 +74,24 @@ async function loadAccess() {
   const user = await client.currentUser();
   if (!user) { showGuest(); showMessage('Sign in with an existing invited test account.'); return; }
   try {
+    if(CLOUD_STAGE3D3_POLICY_REQUIRED===true){
+      const bearer=await client.verifiedBearer();
+      const response=await fetch('/api/stage3d3/v1/registration',{
+        method:'GET',cache:'no-store',redirect:'error',
+        headers:{Authorization:'Bearer '+bearer}
+      });
+      const policy=await response.json();
+      if(response.status!==200||policy?.code!=='accepted'||
+         policy.canProceed!==true){
+        showUser(user,[],false,false);
+        if(policy?.code==='acceptance-required')
+          $('cloud-policy-link').hidden=false;
+        showMessage(policy?.code==='acceptance-required'
+          ? 'Review and acknowledge the approved terms and privacy notice before team access.'
+          : 'Team access is unavailable until your individual registration requirements are approved.');
+        return;
+      }
+    }
     const contexts = await client.myTeamContexts();
     let owner=false;
     try { owner=await client.myOperatorAccess(); } catch { /* owner is not inferred */ }
