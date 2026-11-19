@@ -22,7 +22,7 @@
       <p class="access-eyebrow">Cloud identity qualification</p>
       <h2 id="access-title">Sign in to your team</h2>
       <p class="access-intro">For invited test accounts only. This is an identity and team-permission preview, not the live member application.</p>
-      <div id="cloud-provider-options" class="access-auth-methods">
+      <div id="cloud-provider-options" class="access-auth-methods" hidden>
         <button id="cloud-google" class="access-secondary" type="button">Continue with Google</button>
         <button id="cloud-apple" class="access-secondary" type="button">Continue with Apple</button>
         <p class="access-intro">Already invited? Sign in using your approved account. Signing in does not give you access to a team until your role is verified.</p>
@@ -33,7 +33,7 @@
         <label for="cloud-password">Password</label>
         <input id="cloud-password" name="password" type="password" autocomplete="current-password" required>
         <button id="cloud-submit" class="access-primary" type="submit">Sign in</button>
-        <button id="cloud-email-code" class="access-secondary" type="button">Use a one-time email code</button>
+        <button id="cloud-email-code" class="access-secondary" type="button" hidden>Use a one-time email code</button>
         <button id="cloud-forgot" class="access-secondary" type="button">Forgot password?</button>
       </form>
       <form id="cloud-otp-request" class="cloud-alt-form" hidden>
