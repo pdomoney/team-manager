@@ -42,8 +42,7 @@ migration or iPhone Watch qualification a Stage 3 release dependency.
 **Privacy decision remains HOLD:** first team may include under-18 players, with
 individual accounts and guardian-candidate details only if independently approved.
 Verified relationship, age-appropriate policy, data controller and approved privacy
-evidence are mandatory for actual minor-data processing; an activated guardian login
-is optional per the recorded owner direction. Do not treat proposed guardian
+evidence are mandatory for actual minor-data processing; an activated guardian account is optional per the recorded owner direction. Do not treat proposed guardian
 information as permission, proof of consent or automatic team access.
 
 The source evaluator now requires these **eight management-only journeys**.

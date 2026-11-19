@@ -278,7 +278,7 @@
         "L4_BACKUP_ROLLBACK_AND_STAGING"
       ],
       "launchJourneyRefs": [
-        "PLAY_E5_LOSSLESS_RECOVERY"
+        "ROLE_GRANT_AND_RECOVERY"
       ],
       "reviewStatus": "requires-independent-evidence",
       "reviewEvidenceRef": null,
@@ -337,11 +337,11 @@
       "launchJourneyRefs": [
         "COACH_MANAGER_EXACT_TEAM",
         "PLAYER_OWN_AVAILABILITY",
-        "PLAYER_PUBLISHED_PLAY_VIEW",
+        "INDIVIDUAL_INVITE_ACTIVATION",
         "VOLUNTEER_OWN_DUTIES",
         "VOLUNTEER_OWN_RESPONSE",
-        "COACH_PLAY_EDIT_PUBLISH",
-        "PLAY_E5_LOSSLESS_RECOVERY",
+        "PROFILE_PERSON_LINK_APPROVAL",
+        "ROLE_GRANT_AND_RECOVERY",
         "REVOKED_FOREIGN_TEAM_DENIAL"
       ],
       "reviewStatus": "requires-independent-evidence",
