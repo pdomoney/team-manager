@@ -146,3 +146,7 @@ jobs:
         env:
           STAGE2_BROWSER_ENGINE: webkit
         run: python3 test/browser/stage2_cloud.py
+      - name: Stage 3A account invitations and recovery on WebKit
+        env:
+          STAGE3A_BROWSER_ENGINE: webkit
+        run: python3 test/browser/stage3a_onboarding.py
