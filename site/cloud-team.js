@@ -20,9 +20,11 @@ const ROLE_NAMES=Object.freeze({
   team_play_viewer:'Play viewer'
 });
 const state={user:null,contexts:[],context:null,tab:'home',epoch:0,
-  schedule:[],roster:[],duties:[],drafts:[],published:[],preview:null,busy:false};
+  schedule:[],roster:[],duties:[],drafts:[],published:[],notices:[],preview:null,busy:false};
 const canEditSchedule=()=>['team_coach','team_manager','team_assistant'].includes(state.context?.role);
 const canRoster=()=>['team_coach','team_manager'].includes(state.context?.role);
+const canManage=canRoster;
+const canReadNotices=()=>['team_coach','team_manager','team_assistant','team_player','team_volunteer'].includes(state.context?.role);
 const canViewTactics=()=>['team_coach','team_assistant','team_manager',
   'team_player','team_play_viewer'].includes(state.context?.role);
 const canDraft=()=>['team_coach','team_assistant'].includes(state.context?.role);
@@ -72,7 +74,8 @@ function message(text,isError=false){
 function explain(err){
   const code=err?.code||'request-denied';
   if(['stale-or-protected-session','stale-roster','stale-availability','stale-play',
-    'stale-or-invalid-duty','stale-profile','revision-not-draft','mutation-id-reused'].includes(code))
+    'stale-or-invalid-duty','stale-profile','revision-not-draft','mutation-id-reused',
+    'stale-attendance','stale-event','stale-notice','stale-or-external-event'].includes(code))
     return 'This record changed on another device. Refresh to review the latest version before trying again.';
   if(['access-revoked','scope-denied','role-denied','account-inactive',
     'person-not-verified','participation-not-verified'].includes(code))
@@ -95,7 +98,7 @@ function contextLabel(c){return c.role==='platform_owner'?'Platform Owner · pla
   (ROLE_NAMES[c.role]||c.role)+' · '+c.teamId;}
 function selectContext(index){
   state.epoch++;notice.hidden=true;state.context=state.contexts[index]||null;
-  state.schedule=[];state.roster=[];state.duties=[];state.drafts=[];
+  state.schedule=[];state.roster=[];state.duties=[];state.notices=[];state.drafts=[];
   state.published=[];state.preview=null;
   $('active-context').textContent=state.context?contextLabel(state.context):'No active access';
   picker.value=String(index);
@@ -189,16 +192,17 @@ function renderHome(){
     const d=card('Team plays');h('p',{text:state.published.length+' published play(s)',parent:d});
     button('Watch published plays',()=>switchTab('tactics'),d,{primary:true});
   }else{
-    const d=card('Upcoming training');
+    const d=card('Upcoming sessions');
     const upcoming=state.schedule.filter(s=>s.status!=='cancelled')
       .slice().sort((a,b)=>String(a.startsAt||'').localeCompare(String(b.startsAt||''))).slice(0,4);
     readList(d,upcoming,(s,row)=>{
-      h('strong',{text:s.title||'Training',parent:row});
+      h('strong',{text:s.title||s.kind||'Team session',parent:row});
       h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:''),parent:row});
       if(c.role==='team_player')h('p',{text:'My availability: '+(s.myAvailability||'not answered'),parent:row});
     });
-    button(c.role==='team_player'?'Reply to training':'Manage training',()=>switchTab('schedule'),d,{primary:true});
+    button(c.role==='team_player'?'Reply to availability':'Manage schedule',()=>switchTab('schedule'),d,{primary:true});
   }
+  if(canReadNotices())renderNotices('home');
 }
 function renderSchedule(){
   if(state.context.role==='team_volunteer'||state.context.role==='team_play_viewer'){
@@ -216,13 +220,28 @@ function renderSchedule(){
           try{await mutation('availability.reply',s.sessionId,s.myAvailabilityVersion??0,{response:reply});
             message('Your response was saved.');await showTab();}
           catch(e){message(explain(e),true);}},a,{primary:s.myAvailability===reply});
-    }else if(canEditSchedule()&&s.kind==='training'&&s.status==='planned'){
+    }else if(canManage()){
       const a=actions(row);
-      button('Edit',()=>editTraining(s),a);
-      button('Cancel',async()=>{if(!confirm('Cancel this training session?'))return;
-        try{await mutation('schedule.edit',s.sessionId,s.version,{command:{op:'cancel'}});
-          message('Training cancelled.');await showTab();}
-        catch(e){message(explain(e),true);}},a);
+      if(s.kind==='training'){
+        button('Attendance and responses',()=>void openAttendance(s),a);
+        if(s.status==='planned'){
+          button('Edit',()=>editTraining(s),a);
+          button('Cancel',async()=>{if(!confirm('Cancel this training session?'))return;
+            try{await mutation('schedule.edit',s.sessionId,s.version,{command:{op:'cancel'}});
+              message('Training cancelled.');await showTab();}
+            catch(e){message(explain(e),true);}},a);
+        }
+      }else if(s.sessionId.startsWith('event-')&&s.status==='planned'){
+        button('Reschedule team event',()=>editTeamEvent(s),a);
+        button('Cancel team event',async()=>{
+          if(!confirm('Cancel this team-managed event?'))return;
+          try{await mutation('event.change',s.sessionId,s.version,{command:{op:'cancel'}});
+            message('Team event cancelled.');await showTab();}
+          catch(e){message(explain(e),true);}
+        },a);
+      }else if(s.kind==='match'){
+        info('Official fixture: read-only unless the competition grants separate authority.',row);
+      }
     }
   });
   if(canEditSchedule()){
@@ -242,6 +261,99 @@ function renderSchedule(){
     h('button',{className:'cloud-btn primary',text:'Create training',
       attrs:{type:'submit'},parent:f});
   }
+  if(canManage()){
+    const c=card('Add team event or friendly');
+    info('Team-controlled activities only. Official competition fixtures cannot be created or edited here.',c);
+    const f=form(c,async d=>{
+      const startsAt=new Date(String(d.get('startsAt')));
+      if(!Number.isFinite(startsAt.valueOf()))
+        throw Object.assign(new Error(),{code:'invalid-input'});
+      await mutation('event.create',state.context.teamId,0,{command:{
+        kind:String(d.get('kind')),title:String(d.get('title')).trim(),
+        locationLabel:String(d.get('locationLabel')).trim(),
+        startsAt:startsAt.toISOString()}});
+      message('Team-managed event created.');await showTab();
+    });
+    selectField(f,'Event type','kind',[
+      ['activity','Team activity'],['friendly','Friendly match (unofficial)']]);
+    field(f,'Event title','title',{max:120});
+    field(f,'Start','startsAt',{type:'datetime-local'});
+    field(f,'Location','locationLabel',{required:false,max:120});
+    h('button',{className:'cloud-btn primary',text:'Add team event',
+      attrs:{type:'submit'},parent:f});
+  }
+}
+function editTeamEvent(s){
+  clear();title('Reschedule team event','Schedule');
+  const c=card(s.title||'Team event');
+  info('Only a team-managed activity or friendly can be rescheduled. Official fixtures are protected.',c);
+  const f=form(c,async d=>{
+    const startsAt=new Date(String(d.get('startsAt')));
+    if(!Number.isFinite(startsAt.valueOf()))
+      throw Object.assign(new Error(),{code:'invalid-input'});
+    await mutation('event.change',s.sessionId,s.version,{
+      command:{op:'reschedule',title:String(d.get('title')).trim(),
+        locationLabel:String(d.get('locationLabel')).trim(),
+        startsAt:startsAt.toISOString()}});
+    message('Team event updated.');await showTab();
+  });
+  field(f,'Title','title',{value:s.title||'',max:120});
+  field(f,'New start','startsAt',{type:'datetime-local'});
+  field(f,'Location','locationLabel',{value:s.locationLabel||'',required:false,max:120});
+  h('button',{className:'cloud-btn primary',text:'Save team event',
+    attrs:{type:'submit'},parent:f});
+  button('Back to schedule',()=>void showTab(),c);
+}
+async function openAttendance(s){
+  const epoch=++state.epoch;
+  clear();title('Attendance and availability',s.title||'Training');
+  const loading=info('Loading this team training register…');
+  try{
+    const [attendance,replies]=await Promise.all([
+      action('attendance.read',s.sessionId),
+      action('availability.board',s.sessionId)]);
+    if(epoch!==state.epoch)return;
+    loading.remove();
+    const registers=card('Training roll call');
+    info('Coach and Manager record attendance for active team players only. This does not certify registration or eligibility.',registers);
+    readList(registers,attendance,(p,row)=>{
+      h('strong',{text:'Player reference '+p.personId,parent:row});
+      h('small',{text:'Attendance: '+(p.status||'Not marked'),parent:row});
+      const f=form(row,async d=>{
+        await mutation('attendance.record',s.sessionId,p.version,
+          {command:{personId:p.personId,status:String(d.get('status'))}});
+        message('Attendance recorded.');await openAttendance(s);
+      });
+      selectField(f,'Attendance','status',[
+        ['present','Present'],['absent','Absent'],['late','Late'],['excused','Excused']])
+        .value=p.status||'present';
+      h('button',{className:'cloud-btn',text:'Save attendance',
+        attrs:{type:'submit'},parent:f});
+    });
+    const board=card('Availability responses');
+    info('Manager entries retain their stated source. Players can still update their own response.',board);
+    readList(board,replies,(p,row)=>{
+      h('strong',{text:'Player reference '+p.personId,parent:row});
+      h('small',{text:'Reply: '+(p.response||'Not answered')+
+        ' · source: '+(p.source||'none'),parent:row});
+      if(state.context.role!=='team_manager')return;
+      const f=form(row,async d=>{
+        await mutation('availability.transcribe',s.sessionId,p.version,{command:{
+          personId:p.personId,response:String(d.get('response')),
+          source:String(d.get('source'))}});
+        message('External availability response recorded with provenance.');
+        await openAttendance(s);
+      });
+      selectField(f,'Reported reply','response',[
+        ['yes','Yes'],['no','No'],['maybe','Maybe']]).value=p.response||'maybe';
+      selectField(f,'Received by','source',[
+        ['phone','Phone'],['in_person','In person'],['email','Email']]);
+      h('button',{className:'cloud-btn',text:'Record reported reply',
+        attrs:{type:'submit'},parent:f});
+    });
+    button('Back to schedule',()=>void switchTab('schedule'),actions());
+  }catch(e){if(epoch!==state.epoch)return;loading.textContent=explain(e);message(explain(e),true);
+    button('Back to schedule',()=>void switchTab('schedule'),actions());}
 }
 function editTraining(s){
   clear();title('Edit training','Schedule');
@@ -266,6 +378,12 @@ function renderTeam(){
     readList(roster,state.roster,(p,row)=>{
       h('strong',{text:p.personId,parent:row});
       h('small',{text:p.status+' · version '+p.version,parent:row});
+      if(p.status==='pending')button('Approve team placement',async()=>{
+        if(!confirm('Approve team placement only? Registration, payment and competition eligibility remain separate.'))return;
+        try{await mutation('roster.approve',p.personId,p.version,{command:{op:'approve'}});
+          message('Team placement approved. Registration and eligibility are not verified.');await showTab();}
+        catch(e){message(explain(e),true);}
+      },actions(row));
       if(p.status!=='inactive')button('Withdraw nomination',async()=>{
         try{await mutation('roster.edit',c.teamId,p.version,
           {command:{op:'withdraw',personId:p.personId}});
@@ -314,7 +432,111 @@ function renderTeam(){
   }
   if(c.role==='team_player'||c.role==='team_play_viewer')
     info('Private squad and volunteer information is not available to this role.');
-  if(['team_coach','team_manager'].includes(c.role))renderTeamInvitations(c);
+  if(c.role==='team_manager')renderDutyBoard(c);
+    if(['team_coach','team_manager'].includes(c.role))renderTeamInvitations(c);
+}
+function renderDutyBoard(ctx){
+  const c=card('Team volunteer duty board');
+  info('Assignments do not grant software access or prove sporting accreditation. Certified roles require a separate verified process.',c);
+  const content=h('div',{parent:c});
+  const epoch=state.epoch;
+  const loading=info('Loading verified team assignments…',content);
+  void action('duty.board',ctx.teamId).then(rows=>{
+    if(epoch!==state.epoch)return;loading.remove();
+    readList(content,rows,(d,row)=>{
+      h('strong',{text:'Duty '+d.dutyId,parent:row});
+      h('small',{text:'Session '+d.sessionId+' · volunteer '+d.personId+
+        ' · '+d.status+' · '+(d.type||'general_help'),parent:row});
+      if(!['assigned','confirmed'].includes(d.status))return;
+      const f=form(row,async data=>{
+        await mutation('duty.label',d.dutyId,d.version,
+          {command:{type:String(data.get('type'))}});
+        message('Duty category updated.');await showTab();
+      });
+      selectField(f,'Non-accredited duty type','type',[
+        ['general_help','General help'],['setup','Setup'],
+        ['equipment','Equipment'],['scorer_support','Scorer support']])
+        .value=d.type||'general_help';
+      h('button',{className:'cloud-btn',text:'Update duty type',
+        attrs:{type:'submit'},parent:f});
+      button('Withdraw duty',async()=>{
+        if(!confirm('Withdraw this volunteer assignment?'))return;
+        try{await mutation('duty.withdraw',d.dutyId,d.version,
+          {command:{op:'withdraw'}});
+          message('Duty withdrawn.');await showTab();}
+        catch(e){message(explain(e),true);}
+      },actions(row));
+    });
+  }).catch(e=>{if(epoch!==state.epoch)return;loading.textContent=explain(e);});
+}
+function renderNotices(place='more'){
+  if(!canReadNotices())return;
+  const c=card(place==='home'?'Latest team notices':'Team notices');
+  if(place==='more'&&canManage()){
+    const f=form(c,async d=>{
+      const result=await mutation('notice.create',state.context.teamId,0,{command:{
+        title:String(d.get('title')).trim(),body:String(d.get('body')).trim(),
+        audience:String(d.get('audience'))}});
+      message('Notice saved as a draft. Review it before publishing.');
+      await showTab();
+    });
+    field(f,'Notice title','title',{max:100});
+    const label=h('label',{text:'Notice message',parent:f});
+    const ta=h('textarea',{attrs:{name:'body',maxlength:1000,rows:4,required:true},
+      parent:label});
+    selectField(f,'Audience','audience',[
+      ['all','Everyone in this team'],['players','Players'],
+      ['volunteers','Volunteers'],['coaches','Coaching staff']]);
+    h('button',{className:'cloud-btn primary',text:'Save notice draft',
+      attrs:{type:'submit'},parent:f});
+  }
+  const content=h('div',{parent:c}),epoch=state.epoch;
+  const loading=info('Loading team notices…',content);
+  void action('notices.read',state.context.teamId).then(items=>{
+    if(epoch!==state.epoch)return;loading.remove();
+    readList(content,place==='home'?items.filter(n=>n.status==='published').slice(0,3):items,
+      (n,row)=>{
+        h('strong',{text:n.title,parent:row});
+        h('small',{text:n.audience+' · '+n.status,parent:row});
+        h('p',{text:n.body,parent:row});
+        if(place!=='more'||!canManage())return;
+        const a=actions(row);
+        const change=async(operation,command)=>{
+          try{await mutation(operation,n.noticeId,n.version,{command});
+            message(operation==='notice.publish'?'Notice published to its approved audience.':'Notice archived.');
+            await showTab();}
+          catch(e){message(explain(e),true);}
+        };
+        if(n.status==='draft')button('Publish notice',()=>void change('notice.publish',{op:'publish'}),a,{primary:true});
+        button('Archive notice',()=>void change('notice.archive',{op:'archive'}),a);
+      });
+    if(place==='home')button('View notices',()=>switchTab('more'),actions(c));
+  }).catch(e=>{if(epoch!==state.epoch)return;loading.textContent=explain(e);});
+}
+function openReports(){
+  if(!canManage())return;
+  const ctx=state.context,epoch=++state.epoch;
+  clear();title('Team reports','Attendance, availability and duties');
+  const loading=info('Loading team-scoped management summary…');
+  void action('report.summary',ctx.teamId).then(rows=>{
+    if(epoch!==state.epoch)return;loading.remove();
+    info('Small cohorts of 1–4 are suppressed in aggregate reports. Only this selected team is included.');
+    const c=card('Session summaries');
+    const value=n=>n===null?'Under 5':String(n??0);
+    readList(c,rows,(s,row)=>{
+      h('strong',{text:s.title||s.kind||'Team session',parent:row});
+      h('small',{text:when(s.startsAt),parent:row});
+      h('p',{text:'Active roster: '+value(s.activeRoster)+
+        ' · Available: '+value(s.availabilityYes)+
+        ' · Attended: '+value(s.attendancePresent)+
+        ' · Volunteer confirmations: '+value(s.volunteerAccepted),parent:row});
+      if(s.kind==='training')button('Attendance detail',()=>{
+        void openAttendance(s);
+      },actions(row));
+    });
+    button('Back to More',()=>void switchTab('more'),actions());
+  }).catch(e=>{if(epoch!==state.epoch)return;loading.textContent=explain(e);
+    button('Back to More',()=>void switchTab('more'),actions());});
 }
 function validE5Play(play){
   return play&&typeof play==='object'&&!Array.isArray(play)
@@ -525,6 +747,12 @@ function renderMore(){
   info('All team records come from the server for one selected role and team. Nothing is copied into the legacy encrypted demo.',c);
   renderProfilePanel();
   renderMyInvitations();
+  if(canReadNotices())renderNotices();
+  if(canManage()){
+    const reports=card('Reports');
+    info('Attendance, availability and duties for your selected team.',reports);
+    button('Open team reports',()=>void openReports(),reports,{primary:true});
+  }
   const a=actions(c);
   button('Refresh permissions and team data',async()=>{
     try{await initialise(true);message('Current grants refreshed.');}
@@ -563,7 +791,7 @@ async function initialise(keep=false){
   if(ix>=0||choices.length===1){selectContext(ix>=0?ix:0);return;}
   // Multiple grants: never automatically operate as Owner or Coach.
   state.epoch++;state.context=null;state.tab='home';state.schedule=[];state.roster=[];
-  state.duties=[];state.drafts=[];state.published=[];state.preview=null;
+  state.duties=[];state.notices=[];state.drafts=[];state.published=[];state.preview=null;
   $('cloud-nav').hidden=true;
   $('active-context').textContent='Choose one active role and team';
   picker.insertBefore(h('option',{text:'Choose a role and team',
