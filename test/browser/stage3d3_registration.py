@@ -29,12 +29,12 @@ with sync_playwright() as p:
     force_missing=[False]
     sent=[]
     ctx=browser.new_context(viewport={'width':width,'height':844})
-    ctx.add_init_script("""() => {
+    ctx.add_init_script("""(() => {
       sessionStorage.setItem('tm-cloud-identity-preview-v1',
         JSON.stringify({access_token:'synthetic-stage3d3-token-1234567890',
           refresh_token:'synthetic-stage3d3-refresh-1234567890',
           expires_at:Math.floor(Date.now()/1000)+3600}));
-    }""")
+    })();""")
     def auth(route):
       req=route.request
       path=req.url.split('supabase.co',1)[-1].split('?',1)[0]
