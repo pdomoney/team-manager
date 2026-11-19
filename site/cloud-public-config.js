@@ -7,3 +7,6 @@ export const CLOUD_SUPABASE = Object.freeze({
 
 // The standard GitHub Pages demonstration is not a connected staging release.
 export const CLOUD_STAGE3C_MODE = false;
+// Stage 3D.2 provider methods remain DISABLED on the historical public demo.
+// Only an independently approved connected build in 3D.3 may enable them.
+export const CLOUD_STAGE3D2_AUTH_ENABLED = false;
