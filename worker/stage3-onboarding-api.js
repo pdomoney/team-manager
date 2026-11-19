@@ -1,3 +1,4 @@
+import {adminHeaders,isApprovedProjectConfig} from './supabase-admin-key.js';
 // Stage 3A trusted onboarding boundary. Source only; deployment and provider
 // email delivery need separate authorisation. No browser credential is privileged.
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -15,16 +16,9 @@ const reply=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{
   'X-Content-Type-Options':'nosniff'}});
 const deny=(code,status=403)=>reply({ok:false,code},status);
 function config(env){
-  let base;
-  try{base=new URL(env?.SUPABASE_URL);}catch{return null;}
-  if(base.protocol!=='https:'||base.username||base.password||base.search||
-      base.hash||base.pathname!=='/'||base.port||
-      !/^[a-z0-9-]+\.supabase\.co$/.test(base.hostname)||
-      !/^sb_publishable_[A-Za-z0-9_-]{10,160}$/.test(env?.SUPABASE_PUBLISHABLE_KEY||'')||
-      !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(env?.SUPABASE_SERVICE_ROLE_KEY||''))
-    return null;
-  return base.origin;
+  return isApprovedProjectConfig(env)?new URL(env.SUPABASE_URL).origin:null;
 }
+
 function valid(input){
   if(!own(input)||Object.keys(input).some(k=>![
     'action','teamId','role','invitationId','email','targetRole'].includes(k))||
@@ -60,9 +54,7 @@ async function provider(fetchImpl,url,init){
   catch{return {ok:false,status:503};}
 }
 function privilegedHeaders(env){
-  return {'Content-Type':'application/json',
-    apikey:env.SUPABASE_SERVICE_ROLE_KEY,
-    Authorization:'Bearer '+env.SUPABASE_SERVICE_ROLE_KEY};
+  return {'Content-Type':'application/json',...adminHeaders(env)};
 }
 async function rpc(fetchImpl,host,env,endpoint,args){
   return provider(fetchImpl,host+'/rest/v1/rpc/'+endpoint,{

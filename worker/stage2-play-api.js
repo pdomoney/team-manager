@@ -1,6 +1,7 @@
 // Stage 2 play API. Team membership, a selected role and publication authority
 // are independently enforced by the database. A valid bearer alone is not a grant.
 import {validateFirstTeamActionPayload} from '../src/first-team-action-contract.js';
+import {adminHeaders,isApprovedProjectConfig} from './supabase-admin-key.js';
 import {publishedPlayEventTimeline,loadPlayEventDraft} from '../site/play-event-persistence.js';
 const ROLES=new Set(['team_coach','team_assistant','team_manager','team_player','team_play_viewer']);
 const ACTIONS=new Set(['play.published.read','play.draft.read','play.draft.edit','play.publish']);
@@ -30,16 +31,9 @@ const json=(body,status=200)=>new Response(JSON.stringify(body),{
 const deny=(code,status=403)=>json({ok:false,code},status);
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 function config(env){
-  let base;
-  try{base=new URL(env?.SUPABASE_URL);}catch{return null;}
-  if(base.protocol!=='https:'||!/^[a-z0-9-]+\.supabase\.co$/.test(base.hostname)
-    ||base.pathname!=='/'||base.search||base.hash||base.username||base.password||base.port
-    ||!/^sb_publishable_[A-Za-z0-9_-]{10,160}$/.test(env?.SUPABASE_PUBLISHABLE_KEY||'')
-    ||typeof env?.SUPABASE_SERVICE_ROLE_KEY!=='string'
-    ||!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(env.SUPABASE_SERVICE_ROLE_KEY))
-    return null;
-  return base.origin;
+  return isApprovedProjectConfig(env)?new URL(env.SUPABASE_URL).origin:null;
 }
+
 async function provider(fetchImpl,url,options){
   const res=await fetchImpl(url,{...options,cache:'no-store',redirect:'error'});
   if(!res?.ok)return null;
@@ -93,9 +87,7 @@ export async function handleStage2PlayRequest(request,env,fetchImpl=fetch){
           op.action,op.resourceId,normalized])))),
         b=>b.toString(16).padStart(2,'0')).join(''):null;
     const result=await provider(fetchImpl,base+'/rest/v1/rpc/tm_stage2_play_operation',{
-      method:'POST',headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,
-        Authorization:'Bearer '+env.SUPABASE_SERVICE_ROLE_KEY,
-        'Content-Type':'application/json'},
+      method:'POST',headers:{...adminHeaders(env),'Content-Type':'application/json'},
       body:JSON.stringify({p_account:user.id,p_team:op.activeTeamId,p_role:op.activeRole,
         p_action:op.action,p_resource:op.resourceId,p_payload:normalized,p_digest:digest})
     });
