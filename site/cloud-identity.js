@@ -114,6 +114,49 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
     save(reply);
     return currentUser();
   }
+  async function requestPasswordRecovery(email, redirectTo) {
+    const normalized=typeof email==='string'?email.trim().toLowerCase():'';
+    let redirect;
+    try{redirect=new URL(redirectTo);}catch{throw safeError('invalid-input');}
+    if(!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(normalized)||
+       normalized.length>254||redirect.protocol!=='https:'&&
+         !(redirect.protocol==='http:'&&['localhost','127.0.0.1'].includes(redirect.hostname))||
+       !redirect.pathname.endsWith('/cloud-access.html')||
+       redirect.username||redirect.password||redirect.search||redirect.hash)
+      throw safeError('invalid-input');
+    // GoTrue handles account existence, email rate limiting and reset-link expiry.
+    // Never expose whether the email is registered.
+    await request('/auth/v1/recover?redirect_to='+
+      encodeURIComponent(redirect.href),{method:'POST',body:{email:normalized}});
+    return true;
+  }
+  async function acceptAuthLink(fragment) {
+    if(typeof fragment!=='string'||fragment.length>8192)
+      throw safeError('invalid-auth-link');
+    const params=new URLSearchParams(fragment.replace(/^#/, ''));
+    const type=params.get('type');
+    const bearer=params.get('access_token');
+    const refresh=params.get('refresh_token');
+    const seconds=Number(params.get('expires_in'));
+    if(!['invite','recovery'].includes(type)||!tokenValid(bearer)||
+       !tokenValid(refresh)||!Number.isSafeInteger(seconds)||
+       seconds<1||seconds>86400)
+      throw safeError('invalid-auth-link');
+    save({access_token:bearer,refresh_token:refresh,expires_in:seconds});
+    try{await currentUser();}catch(e){clear();throw e;}
+    return type;
+  }
+  async function setPassword(password) {
+    if(typeof password!=='string'||password.length<12||password.length>128)
+      throw safeError('invalid-input');
+    const bearer=await verifiedBearer();
+    const result=await request('/auth/v1/user',{
+      method:'PUT',body:{password},bearer
+    });
+    if(!result||typeof result.id!=='string')
+      throw safeError('invalid-auth-response');
+    return true;
+  }
   async function myTeamContexts() {
     const user = await currentUser();
     if (!user) throw safeError('not-signed-in');
@@ -150,6 +193,7 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
     const profile = await request('/rest/v1/rpc/tm_my_profile', {
       method: 'POST', body: {}, bearer
     });
+    if (profile === null) throw safeError('account-unavailable');
     if (!profile || !['pending','active'].includes(profile.accountStatus) ||
         typeof profile.displayName !== 'string' || profile.displayName.length > 80 ||
         !Number.isSafeInteger(profile.version) || profile.version < 0 ||
@@ -197,5 +241,5 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
       return true;
     } catch { return false; } // caller must distinguish local vs provider sign-out
   }
-  return Object.freeze({ signInWithPassword, currentUser, myTeamContexts, myOperatorAccess, myProfile, saveMyProfile, verifiedBearer, signOut });
+  return Object.freeze({ signInWithPassword, currentUser, myTeamContexts, myOperatorAccess, myProfile, saveMyProfile, requestPasswordRecovery, acceptAuthLink, setPassword, verifiedBearer, signOut });
 }

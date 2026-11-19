@@ -12,6 +12,12 @@ const client = createCloudIdentityClient({
   ...CLOUD_SUPABASE, fetchImpl: fetch.bind(window), storage: sessionStorage
 });
 let busy = false;
+const recovery=$('cloud-recovery');
+const setup=$('cloud-password-setup');
+function showSignIn(){
+  recovery.hidden=true;setup.hidden=true;account.hidden=true;form.hidden=false;
+}
+
 
 function setBusy(value) {
   busy = value;
@@ -20,8 +26,7 @@ function setBusy(value) {
 }
 function showMessage(message) { status.textContent = message; }
 function showGuest() {
-  account.hidden = true;
-  form.hidden = false;
+  showSignIn();
   teams.replaceChildren();
   workspaceLink.hidden = true;
   $('cloud-password').value = '';
@@ -97,7 +102,68 @@ $('cloud-signout').addEventListener('click', async () => {
     : 'Signed out on this device. Remote sign-out could not be confirmed.');
   setBusy(false);
 });
-loadAccess().catch(() => {
+$('cloud-forgot').addEventListener('click',()=>{
+  form.hidden=true;account.hidden=true;setup.hidden=true;recovery.hidden=false;
+  $('cloud-recovery-email').value=$('cloud-email').value;
+  showMessage('');
+});
+$('cloud-recovery-back').addEventListener('click',()=>{
+  showSignIn();showMessage('');
+});
+recovery.addEventListener('submit',async event=>{
+  event.preventDefault();if(busy)return;
+  busy=true;const control=recovery.querySelector('button[type=submit]');
+  control.disabled=true;
+  try{
+    const redirect=new URL('cloud-access.html',location.href).href;
+    await client.requestPasswordRecovery($('cloud-recovery-email').value,redirect);
+    showMessage('If that account exists, recovery instructions have been sent. Check your email.');
+    recovery.hidden=true;form.hidden=false;
+  }catch{
+    // Do not disclose whether an account exists.
+    showMessage('Recovery could not be requested. Please try again later.');
+  }finally{busy=false;control.disabled=false;}
+});
+setup.addEventListener('submit',async event=>{
+  event.preventDefault();if(busy)return;
+  const pwd=$('cloud-new-password').value;
+  if(pwd!==$('cloud-confirm-password').value){
+    showMessage('Passwords must match.');return;
+  }
+  busy=true;const control=setup.querySelector('button[type=submit]');
+  control.disabled=true;
+  try{
+    await client.setPassword(pwd);
+    $('cloud-new-password').value='';
+    $('cloud-confirm-password').value='';
+    setup.hidden=true;
+    showMessage('Password saved. Your account is ready to continue.');
+    await loadAccess();
+  }catch{
+    showMessage('Password could not be saved. The link may have expired.');
+  }finally{busy=false;control.disabled=false;}
+});
+async function start(){
+  // Remove bearer credentials from browser address before contacting the provider.
+  const fragment=location.hash;
+  if(fragment){
+    history.replaceState(null,'',location.pathname+location.search);
+    if(fragment.includes('access_token=')||fragment.includes('type=invite')||
+       fragment.includes('type=recovery')){
+      try{
+        await client.acceptAuthLink(fragment);
+        form.hidden=true;account.hidden=true;recovery.hidden=true;setup.hidden=false;
+        showMessage('Email verified. Choose a password to continue.');
+        return;
+      }catch{
+        showGuest();showMessage('This invitation or recovery link is invalid or expired.');
+        return;
+      }
+    }
+  }
+  await loadAccess();
+}
+start().catch(() => {
   showGuest();
   showMessage('Unable to verify an existing session. No team access has been granted.');
 });
