@@ -74,7 +74,7 @@ test('Provider buttons are only compiled into an explicitly selected candidate',
 });
 test('Stage 3D.3 blocks stale source, old Supabase project, wrong scope and unsafe output',()=>{
   for(const bad of [
-    {STAGE3D3_SOURCE_SHA:'0'.repeat(40)},
+    {STAGE3D3_SOURCE_SHA:'not-a-sha'},
     {STAGE3D3_SEASON_REF:''},
     {STAGE3D3_SEASON_REF:'2026 summer'},
     {STAGE3D3_SCOPE:'open-signup'},
