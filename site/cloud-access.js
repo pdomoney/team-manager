@@ -1,4 +1,4 @@
-import { CLOUD_SUPABASE } from './cloud-public-config.js';
+import { CLOUD_SUPABASE, CLOUD_STAGE3D2_AUTH_ENABLED } from './cloud-public-config.js';
 import { createCloudIdentityClient } from './cloud-identity.js';
 import {teamDisplayName} from './first-live-team.js';
 
@@ -14,12 +14,14 @@ const client = createCloudIdentityClient({
 });
 let busy = false;
 let pendingOtpEmail = '';
+const extraAuthEnabled=CLOUD_STAGE3D2_AUTH_ENABLED===true;
+$('cloud-email-code').hidden=!extraAuthEnabled;
 const recovery=$('cloud-recovery');
 const setup=$('cloud-password-setup');
 function showSignIn(){
   recovery.hidden=true;setup.hidden=true;account.hidden=true;form.hidden=false;
   $('cloud-otp-request').hidden=true;$('cloud-otp-verify').hidden=true;
-  $('cloud-provider-options').hidden=false;
+  $('cloud-provider-options').hidden=!extraAuthEnabled;
 }
 
 
@@ -41,7 +43,7 @@ function showUser(user, contexts, owner = false, checked = true) {
   $('cloud-otp-request').hidden=true;
   $('cloud-otp-verify').hidden=true;
   account.hidden = false;
-  $('cloud-link-providers').hidden=!(checked&&(contexts.length||owner));
+  $('cloud-link-providers').hidden=!(extraAuthEnabled&&checked&&(contexts.length||owner));
   $('cloud-identity').textContent = 'Signed in as ' + user.email;
   teams.replaceChildren();
   $('cloud-team-message').textContent = contexts.length
@@ -83,7 +85,7 @@ async function loadAccess() {
   }
 }
 async function beginProvider(provider,link=false){
-  if(busy)return;
+  if(busy||!extraAuthEnabled)return;
   setBusy(true);
   showMessage('Opening secure '+(provider==='google'?'Google':'Apple')+' sign-in…');
   try{
@@ -219,6 +221,7 @@ async function start(){
   const callback=new URL(location.href);
   if(callback.searchParams.has('code')||callback.searchParams.has('error')){
     history.replaceState(null,'',location.pathname);
+    if(!extraAuthEnabled){showGuest();showMessage('This identity provider is not enabled on this site.');return;}
     if(callback.searchParams.has('error')){
       showGuest();showMessage('Sign-in was cancelled or the provider declined it.');
       return;
