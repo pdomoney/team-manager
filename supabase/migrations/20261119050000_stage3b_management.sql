@@ -450,7 +450,7 @@ grant execute on function public.tm_stage3b_operation(
 -- their external-source audit.
 create function tm_private.stage3b_availability_self_reply_provenance()
 returns trigger language plpgsql set search_path=''
-as $
+as $$
 begin
  if new.resource_version=old.resource_version+1
    and new.recorded_source is not distinct from old.recorded_source
@@ -463,7 +463,7 @@ begin
  end if;
  return new;
 end;
-$;
+$$;
 create trigger stage3b_availability_reply_provenance
 before update on tm_private.availability
 for each row execute function tm_private.stage3b_availability_self_reply_provenance();
