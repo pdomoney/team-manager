@@ -122,10 +122,10 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
   async function beginOAuth({provider,redirectTo,link=false}={}) {
     const expectedUserId=link?(await currentUser())?.id:null;
     if(link&&!expectedUserId)throw safeError('not-signed-in');
-    let flow;
+    // A second rejected request must not erase a valid earlier PKCE flow.
+    const flow=await pkce.begin({provider,redirectTo,kind:link?'link':'sign-in',
+      expectedUserId});
     try{
-      flow=await pkce.begin({provider,redirectTo,kind:link?'link':'sign-in',
-        expectedUserId});
       const qs=new URLSearchParams({provider,redirect_to:flow.redirectTo,
         flow_type:'pkce',code_challenge:flow.challenge,
         code_challenge_method:'s256'});
