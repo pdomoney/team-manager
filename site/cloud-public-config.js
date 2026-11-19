@@ -10,3 +10,5 @@ export const CLOUD_STAGE3C_MODE = false;
 // Stage 3D.2 provider methods remain DISABLED on the historical public demo.
 // Only an independently approved connected build in 3D.3 may enable them.
 export const CLOUD_STAGE3D2_AUTH_ENABLED = false;
+// Only the isolated 3D.3 connected build enables real policy enforcement.
+export const CLOUD_STAGE3D3_POLICY_REQUIRED = false;
