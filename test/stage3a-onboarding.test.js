@@ -25,7 +25,7 @@ const body=(action='list.team',options={})=>({
 });
 const ok=(data,status=200)=>({ok:true,status,json:async()=>data});
 const authUser={id:account,email,email_confirmed_at:'2026-11-19T00:00:00Z'};
-function fakeServer({auth=authUser,sql=null,inviteStatus=200}={}){
+function fakeServer({auth=authUser,sql=null,inviteStatus=200,inviteError='user_already_exists'}={}){
   const calls=[];
   const fetchImpl=async(url,init)=>{
     const parsed=new URL(url),path=parsed.pathname;
@@ -36,7 +36,7 @@ function fakeServer({auth=authUser,sql=null,inviteStatus=200}={}){
       sql||{ok:true,code:'permitted',data:[]});
     if(path==='/rest/v1/rpc/tm_stage3_delivery_result')return ok({ok:true});
     if(path==='/auth/v1/invite')return {ok:inviteStatus<400,status:inviteStatus,
-      json:async()=>({id:'never-expose-provider-user'})};
+      json:async()=>inviteStatus>=400?{code:inviteError}:{id:'never-expose-provider-user'}};
     return {ok:false,status:404,json:async()=>({private:'no'})};
   };
   return {calls,fetchImpl};
@@ -102,6 +102,12 @@ test('Stage 3A independent approval sends server-side provider invite, redacts e
   const again=await handleStage3Onboarding(request(body('deliver',{
     invitationId:target})),env,already.fetchImpl);
   assert.equal((await again.json()).delivery,'existing-account');
+  const invalidEmail=fakeServer({sql:{ok:true,code:'approved',
+    invitationId:target,internalEmail:'member@fictional.test'},
+    inviteStatus:422,inviteError:'email_address_invalid'});
+  const invalid=await handleStage3Onboarding(request(body('deliver',{
+    invitationId:target})),env,invalidEmail.fetchImpl);
+  assert.equal((await invalid.json()).delivery,'failed');
   const missing={...env,ONBOARDING_REDIRECT_URL:undefined};
   const unconfigured=fakeServer({sql:{ok:true,code:'approved',invitationId:target,
     internalEmail:'member@fictional.test'}});
