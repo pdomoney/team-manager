@@ -67,7 +67,9 @@ jobs:
             supabase/migrations/20261119030000_stage3a_minimal_account_profiles.sql \
             supabase/tests/stage3a_minimal_account_profiles.sql \
             supabase/migrations/20261119040000_stage3a_onboarding.sql \
-            supabase/tests/stage3a_onboarding_journey.sql
+            supabase/tests/stage3a_onboarding_journey.sql \
+            supabase/migrations/20261119050000_stage3b_management.sql \
+            supabase/tests/stage3b_management_journey.sql
           do
             echo "Stage 1 isolated PostgreSQL: $script"
             psql -X -v ON_ERROR_STOP=1 -f "$script"
@@ -150,3 +152,7 @@ jobs:
         env:
           STAGE3A_BROWSER_ENGINE: webkit
         run: python3 test/browser/stage3a_onboarding.py
+      - name: Stage 3B shared management journeys on WebKit
+        env:
+          STAGE3B_BROWSER_ENGINE: webkit
+        run: python3 test/browser/stage3b_management.py

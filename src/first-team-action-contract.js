@@ -1,13 +1,15 @@
 // L1 backend-only request shape guard for first-team operations.
 // This is NOT authorization, domain validation, an idempotency store or RLS.
 // It rejects unknown mutation envelopes before they reach a future server adapter.
-const reads=new Set(['schedule.read','play.published.read','play.draft.read','duty.read']);
+const reads=new Set(['schedule.read','play.published.read','play.draft.read','duty.read',
+  'attendance.read','availability.board','duty.board','notices.read','report.summary']);
 const replies=Object.freeze({
   'availability.reply':new Set(['yes','no','maybe']),
   'duty.reply':new Set(['yes','no','done'])
 });
 const writes=new Set(['schedule.edit','roster.edit','play.draft.edit',
-  'play.publish','availability.reply','duty.reply','duty.assign']);
+  'play.publish','availability.reply','duty.reply','duty.assign',
+  'roster.approve','event.create','event.change','attendance.record','availability.transcribe','duty.label','duty.withdraw','notice.create','notice.publish','notice.archive']);
 const own=(x,k)=>Object.prototype.hasOwnProperty.call(x,k);
 const record=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&
   (Object.getPrototypeOf(x)===Object.prototype||Object.getPrototypeOf(x)===null);

@@ -5,6 +5,8 @@ const ROLES=new Set(['team_coach','team_assistant','team_manager',
 const OPERATIONS=new Set(['schedule.read','schedule.edit','roster.read','roster.edit',
   'availability.reply','duty.read','duty.reply','duty.assign',
   'play.published.read','play.draft.read','play.draft.edit','play.publish']);
+const MANAGEMENT=new Set(['attendance.read','availability.board','duty.board','notices.read','report.summary','roster.approve','event.create','event.change','attendance.record','availability.transcribe','duty.label','duty.withdraw','notice.create','notice.publish','notice.archive']);
+for(const action of MANAGEMENT)OPERATIONS.add(action);
 const ID=/^[A-Za-z0-9][A-Za-z0-9:_-]{0,99}$/;
 const PLAYS=new Set(['play.published.read','play.draft.read','play.draft.edit','play.publish']);
 const obj=x=>x&&typeof x==='object'&&!Array.isArray(x);
@@ -29,7 +31,8 @@ export function createCloudOperationsClient({identity,fetchImpl=fetch,origin}={}
     if(!grants.some(g=>g.teamId===ctx.teamId&&g.role===ctx.role))
       throw safeError('access-revoked');
     const bearer=await identity.verifiedBearer();
-    const path=PLAYS.has(action)?'/api/stage2/v1/play':'/api/stage1/v1/operation';
+    const path=PLAYS.has(action)?'/api/stage2/v1/play':MANAGEMENT.has(action)?
+      '/api/stage3b/v1/operation':'/api/stage1/v1/operation';
     let res;
     try{
       res=await fetchImpl(new URL(path,base).href,{
@@ -48,7 +51,8 @@ export function createCloudOperationsClient({identity,fetchImpl=fetch,origin}={}
         'person-not-verified','participation-not-verified','volunteer-not-verified',
         'stale-or-protected-session','stale-availability','stale-roster',
         'stale-or-invalid-duty','stale-play','revision-not-draft',
-        'mutation-id-reused','service-unavailable','session-unavailable']);
+        'mutation-id-reused','service-unavailable','session-unavailable',
+        'stale-attendance','stale-notice','stale-event','stale-or-external-event']);
       throw safeError(allowed.has(result?.code)?result.code:res.status===401?
         'unauthenticated':'request-denied');
     }
