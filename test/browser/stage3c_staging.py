@@ -75,7 +75,7 @@ with sync_playwright() as p:
     checks.ok('play.published.read' not in calls,
       f'[{width}] no Stage 4 reads triggered from Home')
     pg.get_by_role('button',name='Team',exact=True).click()
-    pg.get_by_role('heading',name='Team').wait_for()
+    pg.get_by_role('heading',name='Team',exact=True).wait_for()
     checks.ok(pg.get_by_role('heading',name='Team account invitations').count()==1,
       f'[{width}] real account invitation UI preserved')
     pg.get_by_role('button',name='More',exact=True).click()
