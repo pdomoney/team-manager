@@ -140,6 +140,31 @@ of **3D.3**; Stage 3D.4–3D.6 deliver live team journeys, release qualification
 and owner-authorised launch. No additional fictional plays work is included.
 See [Stage 3D.2 provider handover](operations/stage3d2-multi-provider-auth.md).
 
+### Stage 3D.3: connected first-team adult staging candidate (20 November 2026)
+
+**Status: source candidate only; no real provider/host/data installation.**
+After merged PR273 Google, Apple and invited-account email login source, the
+next slice creates a distinct, management-only, exact-SHA build for
+**St George Oztag / Mixed 20**. It reuses the verified Stage 3C asset
+closure but removes the fictional Stage 3C manifest and identifies the
+actual intended first team. Its distinct Wrangler configuration cannot
+overwrite the historic `team-manager` Worker; demo data and Stage 4
+Tactics/play endpoints remain absent. Provider buttons stay disabled unless
+an operator explicitly chooses a reviewed candidate build. This is
+*not* evidence that live provider settings or account consent are approved.
+
+**Required next operational authority:** approve actual Supabase/Cloudflare
+existing-resource choice, region/plan/cost, Google/Apple/SMTP configuration,
+privacy/terms text and server acknowledgement, minors/guardian/field policy,
+independent first-Coach reviewer, first Manager, backups/restore and
+release path. The register still has 18 owner answers awaiting independent
+review and no approved first-team player fields. Do not activate real
+participants or bypass L0–L6. See the
+[ordered Stage 3D.3 first-team activation guide](operations/stage3d3-connected-first-team-activation.md).
+Then 3D.4 independently qualifies connected first-team operations; 3D.5
+covers real security, recovery and devices; 3D.6 is owner-approved cutover.
+**Stage 4** E5 play/tactics remains deferred.
+
 ## Prior direction: Option B play workspace
 
 Owner decision (8 November 2026): favour a dedicated diagram-first viewing experience and a purpose-built coach editing workspace, without requiring browser zoom. See [Option B phased programme](architecture/option-b-play-workspace-programme.md) and [Play Engine 2.0 #166](https://github.com/pdomoney/team-manager/issues/166).
