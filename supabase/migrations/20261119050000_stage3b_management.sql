@@ -443,6 +443,30 @@ revoke all on function public.tm_stage3b_operation(
 grant execute on function public.tm_stage3b_operation(
   uuid,text,text,text,text,jsonb,text) to service_role;
 
--- Stage 1 self-replies retain their original transactional behaviour.
--- A later self-response must clear any previously transcribed source; use a
--- qualified follow-up migration when modifying the Stage 1 transaction body.
+-- Stage 1 Player self-reply already uses a separately qualified transactional
+-- update. A narrow BEFORE UPDATE trigger resets provenance when Stage 1 changes
+-- the response/version without supplying new provenance. Stage 3B Manager writes
+-- update source, recorder and recorded_at explicitly and therefore preserve
+-- their external-source audit.
+create function tm_private.stage3b_availability_self_reply_provenance()
+returns trigger language plpgsql set search_path=''
+as $
+begin
+ if new.resource_version=old.resource_version+1
+   and new.response is distinct from old.response
+   and new.recorded_source is not distinct from old.recorded_source
+   and new.recorded_by is not distinct from old.recorded_by
+   and new.recorded_at is not distinct from old.recorded_at
+ then
+   new.recorded_source:='self';
+   new.recorded_by:=null;
+   new.recorded_at:=pg_catalog.now();
+ end if;
+ return new;
+end;
+$;
+create trigger stage3b_availability_reply_provenance
+before update on tm_private.availability
+for each row execute function tm_private.stage3b_availability_self_reply_provenance();
+revoke execute on function tm_private.stage3b_availability_self_reply_provenance()
+  from public,anon,authenticated;
