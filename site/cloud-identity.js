@@ -145,6 +145,42 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
       throw safeError('invalid-server-response');
     return result.isOwner;
   }
+  async function myProfile() {
+    const bearer = await verifiedBearer();
+    const profile = await request('/rest/v1/rpc/tm_my_profile', {
+      method: 'POST', body: {}, bearer
+    });
+    if (!profile || !['pending','active'].includes(profile.accountStatus) ||
+        typeof profile.displayName !== 'string' || profile.displayName.length > 80 ||
+        !Number.isSafeInteger(profile.version) || profile.version < 0 ||
+        !['none','pending','verified'].includes(profile.linkStatus))
+      throw safeError('invalid-server-response');
+    // No account IDs, verification evidence, or provider-defined profile extras.
+    return Object.freeze({accountStatus: profile.accountStatus,
+      displayName: profile.displayName, version: profile.version,
+      linkStatus: profile.linkStatus});
+  }
+  async function saveMyProfile({displayName, expectedVersion} = {}) {
+    if (typeof displayName !== 'string' ||
+        displayName.trim().length < 1 || displayName.trim().length > 80 ||
+        /[\u0000-\u001f\u007f]/.test(displayName) ||
+        !Number.isSafeInteger(expectedVersion) || expectedVersion < 0)
+      throw safeError('invalid-profile');
+    const bearer = await verifiedBearer();
+    const outcome = await request('/rest/v1/rpc/tm_save_my_profile', {
+      method: 'POST', body: {
+        p_display_name: displayName.trim(), p_expected_version: expectedVersion
+      }, bearer
+    });
+    if (outcome?.ok === false &&
+        ['stale-profile','invalid-profile','account-unavailable'].includes(outcome.code))
+      throw safeError(outcome.code);
+    if (!outcome || outcome.ok !== true ||
+        !Number.isSafeInteger(outcome.version) || outcome.version <= expectedVersion ||
+        outcome.displayName !== displayName.trim())
+      throw safeError('invalid-server-response');
+    return Object.freeze({displayName: outcome.displayName, version: outcome.version});
+  }
   async function verifiedBearer() {
     const user = await currentUser();
     if (!user) throw safeError('not-signed-in');
@@ -161,5 +197,5 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
       return true;
     } catch { return false; } // caller must distinguish local vs provider sign-out
   }
-  return Object.freeze({ signInWithPassword, currentUser, myTeamContexts, myOperatorAccess, verifiedBearer, signOut });
+  return Object.freeze({ signInWithPassword, currentUser, myTeamContexts, myOperatorAccess, myProfile, saveMyProfile, verifiedBearer, signOut });
 }

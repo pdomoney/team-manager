@@ -70,7 +70,7 @@ function message(text,isError=false){
 function explain(err){
   const code=err?.code||'request-denied';
   if(['stale-or-protected-session','stale-roster','stale-availability','stale-play',
-    'stale-or-invalid-duty','revision-not-draft','mutation-id-reused'].includes(code))
+    'stale-or-invalid-duty','stale-profile','revision-not-draft','mutation-id-reused'].includes(code))
     return 'This record changed on another device. Refresh to review the latest version before trying again.';
   if(['access-revoked','scope-denied','role-denied','account-inactive',
     'person-not-verified','participation-not-verified'].includes(code))
@@ -387,10 +387,41 @@ function viewPlay(entry){
   previewCloudPlay(entry.play,viewer);
   button('Back to team plays',()=>void showTab(),panel);
 }
+function renderProfilePanel(parent=main){
+  const panel=card('My profile',parent);
+  const content=h('div',{parent:panel});
+  const epoch=state.epoch;
+  const paint=profile=>{
+    if(epoch!==state.epoch)return;
+    content.replaceChildren();
+    info('Manage your own display name. Team roles and account-to-person verification require an independent authorised reviewer.',content);
+    h('p',{text:'Account: '+profile.accountStatus+' · Person link: '+profile.linkStatus,
+      parent:content});
+    const f=form(content,async d=>{
+      const saved=await auth.saveMyProfile({displayName:String(d.get('displayName')||''),
+        expectedVersion:profile.version});
+      if(epoch!==state.epoch)return;
+      paint({...profile,displayName:saved.displayName,version:saved.version});
+      message('Your display name was saved.');
+    });
+    field(f,'Display name','displayName',{value:profile.displayName,max:80});
+    h('button',{className:'cloud-btn primary',text:'Save my profile',
+      attrs:{type:'submit'},parent:f});
+  };
+  const loading=info('Loading your profile…',content);
+  void auth.myProfile().then(paint).catch(e=>{
+    if(epoch!==state.epoch)return;
+    loading.textContent=e.code==='server-not-ready'
+      ?'Profile setup is not available until the approved database migration is installed.'
+      :'Your profile could not be verified. No details have been changed.';
+  });
+}
+
 function renderMore(){
   const c=card('Signed-in account');
   h('p',{text:state.user?.email||'Signed in',parent:c});
   info('All team records come from the server for one selected role and team. Nothing is copied into the legacy encrypted demo.',c);
+  renderProfilePanel();
   const a=actions(c);
   button('Refresh permissions and team data',async()=>{
     try{await initialise(true);message('Current grants refreshed.');}
@@ -423,7 +454,8 @@ async function initialise(keep=false){
   $('cloud-nav').hidden=!choices.length;
   if(!choices.length){state.epoch++;state.context=null;clear();
     title('No active access','Account permissions');
-    info('This account has no independently approved team or Platform Owner grant.');return;}
+    info('You can set up your own profile, but team access requires an independently approved grant.');
+    renderProfilePanel();return;}
   const ix=choices.findIndex(c=>c.role+'|'+c.teamId===previous);
   if(ix>=0||choices.length===1){selectContext(ix>=0?ix:0);return;}
   // Multiple grants: never automatically operate as Owner or Coach.
