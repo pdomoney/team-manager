@@ -6,8 +6,8 @@ import {
 
 const mutation={mutationId:'synthetic-mutation-000001',expectedVersion:0};
 const reply=(action,response)=>validateFirstTeamActionPayload(action,{...mutation,response});
-test('all four read actions require an empty request body',()=>{
-  assert.equal(FIRST_TEAM_READ_ACTIONS.length,4);
+test('all old and Stage 3B read actions require an empty request body',()=>{
+  assert.equal(FIRST_TEAM_READ_ACTIONS.length,9);
   for(const action of FIRST_TEAM_READ_ACTIONS){
     assert.deepEqual(validateFirstTeamActionPayload(action),{kind:'read',payload:{}});
     assert.equal(validateFirstTeamActionPayload(action,{personId:'other'}),null);
@@ -51,7 +51,7 @@ test('the other manager/coach write actions require a bounded change request env
   }
 });
 test('mutation identifiers and optimistic versions must be valid, bounded and non-forgeable at root',()=>{
-  assert.equal(FIRST_TEAM_WRITE_ACTIONS.length,7);
+  assert.equal(FIRST_TEAM_WRITE_ACTIONS.length,17);
   const action='availability.reply';
   const ok={...mutation,response:'yes'};
   for(const bad of [
