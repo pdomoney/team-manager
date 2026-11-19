@@ -82,6 +82,69 @@ async function loadAccess() {
       : 'Team access could not be verified. No permissions have been granted.');
   }
 }
+async function beginProvider(provider,link=false){
+  if(busy)return;
+  setBusy(true);
+  showMessage('Opening secure '+(provider==='google'?'Google':'Apple')+' sign-in…');
+  try{
+    const redirectTo=new URL('cloud-access.html',location.href).href;
+    const url=await client.beginOAuth({provider,redirectTo,link});
+    location.assign(url);
+  }catch{
+    showMessage(link
+      ? 'Provider linking is unavailable or needs enabling by the account administrator. Your existing account is unchanged.'
+      : 'This sign-in method is not available yet. Try email or another approved provider.');
+    setBusy(false);
+  }
+}
+$('cloud-google').addEventListener('click',()=>void beginProvider('google'));
+$('cloud-apple').addEventListener('click',()=>void beginProvider('apple'));
+$('cloud-link-google').addEventListener('click',()=>void beginProvider('google',true));
+$('cloud-link-apple').addEventListener('click',()=>void beginProvider('apple',true));
+$('cloud-email-code').addEventListener('click',()=>{
+  form.hidden=true;$('cloud-provider-options').hidden=true;
+  $('cloud-otp-request').hidden=false;
+  $('cloud-otp-email').value=$('cloud-email').value;
+  showMessage('');
+  $('cloud-otp-email').focus();
+});
+$('cloud-otp-back').addEventListener('click',()=>{showSignIn();showMessage('');});
+$('cloud-otp-restart').addEventListener('click',()=>{
+  $('cloud-otp-verify').hidden=true;$('cloud-otp-request').hidden=false;
+  pendingOtpEmail='';$('cloud-otp-token').value='';
+  $('cloud-otp-email').focus();showMessage('');
+});
+$('cloud-otp-request').addEventListener('submit',async event=>{
+  event.preventDefault();if(busy)return;
+  busy=true;
+  const button=$('cloud-otp-request').querySelector('button[type=submit]');
+  button.disabled=true;
+  try{
+    const email=$('cloud-otp-email').value.trim().toLowerCase();
+    await client.requestEmailOtp(email);
+    pendingOtpEmail=email;
+    $('cloud-otp-request').hidden=true;$('cloud-otp-verify').hidden=false;
+    showMessage('If this account is eligible, a one-time code was sent. Check your email.');
+    $('cloud-otp-token').focus();
+  }catch{
+    showMessage('Unable to request a code. Check the account address or try again later.');
+  }finally{busy=false;button.disabled=false;}
+});
+$('cloud-otp-verify').addEventListener('submit',async event=>{
+  event.preventDefault();if(busy)return;
+  busy=true;
+  const button=$('cloud-otp-verify').querySelector('button[type=submit]');
+  button.disabled=true;
+  try{
+    await client.verifyEmailOtp(pendingOtpEmail,$('cloud-otp-token').value.trim());
+    $('cloud-otp-token').value='';pendingOtpEmail='';
+    await loadAccess();
+  }catch{
+    $('cloud-otp-token').value='';
+    showMessage('That code could not be verified. Check the code or request a new one.');
+  }finally{busy=false;button.disabled=false;}
+});
+
 form.addEventListener('submit', async event => {
   event.preventDefault();
   if (busy) return;
@@ -152,6 +215,26 @@ setup.addEventListener('submit',async event=>{
   }finally{busy=false;control.disabled=false;}
 });
 async function start(){
+  // Clear OAuth code and error query parameters BEFORE making any network call.
+  const callback=new URL(location.href);
+  if(callback.searchParams.has('code')||callback.searchParams.has('error')){
+    history.replaceState(null,'',location.pathname);
+    if(callback.searchParams.has('error')){
+      showGuest();showMessage('Sign-in was cancelled or the provider declined it.');
+      return;
+    }
+    try{
+      const outcome=await client.completeOAuth(callback.href);
+      await loadAccess();
+      showMessage(outcome.linked
+        ? 'Additional sign-in method linked to your existing account. Team permissions are unchanged.'
+        : 'Signed in. Your team role is checked independently.');
+    }catch{
+      showGuest();
+      showMessage('Secure sign-in expired or could not be verified. Start again on this device.');
+    }
+    return;
+  }
   // Remove bearer credentials from browser address before contacting the provider.
   const fragment=location.hash;
   if(fragment){
