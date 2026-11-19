@@ -2,6 +2,7 @@
 // demo vault or reuses its synthetic role picker as a production permission.
 import {CLOUD_SUPABASE} from './cloud-public-config.js';
 import {createCloudIdentityClient} from './cloud-identity.js';
+import {createCloudOnboardingClient} from './cloud-onboarding.js';
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
@@ -12,6 +13,7 @@ const auth=createCloudIdentityClient({...CLOUD_SUPABASE,
   fetchImpl:fetch.bind(window),storage:sessionStorage});
 const ops=createCloudOperationsClient({identity:auth,fetchImpl:fetch.bind(window),
   origin:location.origin});
+const onboarding=createCloudOnboardingClient({identity:auth,fetchImpl:fetch.bind(window),origin:location.origin});
 const ROLE_NAMES=Object.freeze({
   platform_owner:'Platform Owner',team_coach:'Coach',team_assistant:'Assistant Coach',
   team_manager:'Manager',team_player:'Player',team_volunteer:'Volunteer',
@@ -75,7 +77,11 @@ function explain(err){
   if(['access-revoked','scope-denied','role-denied','account-inactive',
     'person-not-verified','participation-not-verified'].includes(code))
     return 'Your current role or team is not authorised for this action.';
-  if(code==='service-unavailable'||code==='network-unavailable')
+  if(code==='already-pending')return 'There is already an invitation awaiting action for this email and role.';
+  if(code==='self-approval-denied')return 'A different authorised reviewer must approve this request.';
+  if(code==='invitation-unavailable')return 'This invitation is no longer available. Refresh the list.';
+  if(code==='already-active')return 'This individual already has the selected team role.';
+    if(code==='service-unavailable'||code==='network-unavailable')
     return 'The shared team service is unavailable. Your changes have not been queued or saved.';
   if(code==='unauthenticated'||code==='not-signed-in')
     return 'Your session has expired. Please sign in again.';
@@ -308,6 +314,7 @@ function renderTeam(){
   }
   if(c.role==='team_player'||c.role==='team_play_viewer')
     info('Private squad and volunteer information is not available to this role.');
+  if(['team_coach','team_manager'].includes(c.role))renderTeamInvitations(c);
 }
 function validE5Play(play){
   return play&&typeof play==='object'&&!Array.isArray(play)
@@ -387,6 +394,99 @@ function viewPlay(entry){
   previewCloudPlay(entry.play,viewer);
   button('Back to team plays',()=>void showTab(),panel);
 }
+function invitationOutcome(outcome){
+  if(outcome.delivery==='sent')return 'Invitation approved and email sent. Access still requires verification.';
+  if(outcome.delivery==='existing-account')return 'Invitation approved. This existing user can sign in to claim it.';
+  if(outcome.delivery==='failed')return 'Approved, but invitation email was not delivered. Check provider configuration or retry.';
+  if(outcome.code==='proposed')return 'Invitation proposed. Another authorised reviewer must approve it.';
+  if(outcome.code==='claimed')return 'Invitation claimed. Awaiting independent person verification and team approval.';
+  if(outcome.code==='activated')return 'Access approved for the selected team and role.';
+  if(outcome.code==='revoked')return 'Team access withdrawn.';
+  return 'Invitation updated.';
+}
+function renderMyInvitations(){
+  const panel=card('My team invitations');
+  const content=h('div',{parent:panel});
+  info('Your verified sign-in email determines which invitations belong to you. Claiming does not grant access.',content);
+  const epoch=state.epoch;
+  const loading=info('Checking invitations…',content);
+  void onboarding.listMine().then(items=>{
+    if(epoch!==state.epoch)return;
+    loading.remove();
+    if(!items.length){info('No approved invitations are waiting for this account.',content);return;}
+    readList(content,items,(entry,row)=>{
+      h('strong',{text:entry.teamId+' · '+(ROLE_NAMES[entry.teamRole]||entry.teamRole),parent:row});
+      h('small',{text:entry.status+' · expires '+when(entry.expiresAt),parent:row});
+      if(entry.status==='approved')button('Claim invitation',async()=>{
+        try{const result=await onboarding.claim(entry.invitationId);
+          message(invitationOutcome(result));await initialise(true);}
+        catch(e){message(explain(e),true);}
+      },actions(row),{primary:true});
+    });
+  }).catch(()=>{
+    if(epoch!==state.epoch)return;
+    loading.textContent='Team invitations are unavailable until the approved onboarding service is installed.';
+  });
+}
+function renderTeamInvitations(ctx){
+  const panel=card('Team account invitations');
+  info('This is for approved adult account trials. Invitation proposals never grant access. A second Coach or Manager with their own verified role must approve.',panel);
+  const formNode=form(panel,async d=>{
+    const result=await onboarding.propose(ctx,String(d.get('email')||'').trim(),
+      String(d.get('teamRole')||''));
+    message(invitationOutcome(result));await showTab();
+  });
+  field(formNode,'Invitee email','email',{type:'email',max:254});
+  selectField(formNode,'Proposed team access','teamRole',[
+    ['team_coach','Coach'],['team_manager','Manager'],
+    ['team_assistant','Assistant Coach'],['team_player','Player'],
+    ['team_volunteer','Volunteer']]);
+  h('button',{className:'cloud-btn primary',text:'Propose invitation',
+    attrs:{type:'submit'},parent:formNode});
+  const content=h('div',{parent:panel});
+  const epoch=state.epoch;
+  const loading=info('Loading team invitations…',content);
+  void onboarding.listTeam(ctx).then(items=>{
+    if(epoch!==state.epoch)return;
+    loading.remove();
+    if(!items.length){info('No team invitations recorded.',content);return;}
+    readList(content,items,(entry,row)=>{
+      h('strong',{text:entry.email+' · '+(ROLE_NAMES[entry.teamRole]||entry.teamRole),parent:row});
+      h('small',{text:entry.status+' · email '+entry.delivery+
+        ' · expires '+when(entry.expiresAt),parent:row});
+      const a=actions(row);
+      const next=async fn=>{
+        try{const result=await fn(ctx,entry.invitationId);
+          message(invitationOutcome(result));await showTab();}
+        catch(e){message(explain(e),true);}
+      };
+      if(entry.canReview){
+        if(entry.status==='proposed')
+          button('Approve invitation',()=>void next(onboarding.approve),a,{primary:true});
+        if(entry.status==='approved'&&entry.delivery!=='sent')
+          button('Send invitation email',()=>void next(onboarding.resend),a);
+        if(entry.status==='claimed')
+          button('Verify person and activate access',async()=>{
+            if(!confirm('I have independently verified this adult individual, their correct team and role. This is not proof of sporting or financial registration. Approve access?'))return;
+            await next(onboarding.activate);
+          },a,{primary:true});
+        if(entry.status==='activated')
+          button('Revoke team access',async()=>{
+            if(!confirm('Revoke this individual\\'s selected team role?'))return;
+            await next(onboarding.revoke);
+          },a);
+        if(['proposed','approved','claimed'].includes(entry.status))
+          button('Cancel invitation',async()=>{
+            if(!confirm('Cancel this invitation?'))return;
+            await next(onboarding.cancel);
+          },a);
+      }else info('A separate authorised reviewer is required.',row);
+    });
+  }).catch(()=>{
+    if(epoch!==state.epoch)return;
+    loading.textContent='Invitation management is unavailable until the approved onboarding service is installed.';
+  });
+}
 function renderProfilePanel(parent=main){
   const panel=card('My profile',parent);
   const content=h('div',{parent:panel});
@@ -411,8 +511,10 @@ function renderProfilePanel(parent=main){
   const loading=info('Loading your profile…',content);
   void auth.myProfile().then(paint).catch(e=>{
     if(epoch!==state.epoch)return;
-    loading.textContent=e.code==='server-not-ready'
-      ?'Profile setup is not available until the approved database migration is installed.'
+    loading.textContent=e.code==='account-unavailable'
+      ?'Claim your approved invitation first. Your personal profile becomes available after account activation.'
+      :e.code==='server-not-ready'
+      ?'Profile setup is unavailable until the approved database migration is installed.'
       :'Your profile could not be verified. No details have been changed.';
   });
 }
@@ -422,6 +524,7 @@ function renderMore(){
   h('p',{text:state.user?.email||'Signed in',parent:c});
   info('All team records come from the server for one selected role and team. Nothing is copied into the legacy encrypted demo.',c);
   renderProfilePanel();
+  renderMyInvitations();
   const a=actions(c);
   button('Refresh permissions and team data',async()=>{
     try{await initialise(true);message('Current grants refreshed.');}
@@ -455,7 +558,7 @@ async function initialise(keep=false){
   if(!choices.length){state.epoch++;state.context=null;clear();
     title('No active access','Account permissions');
     info('You can set up your own profile, but team access requires an independently approved grant.');
-    renderProfilePanel();return;}
+    renderMyInvitations();renderProfilePanel();return;}
   const ix=choices.findIndex(c=>c.role+'|'+c.teamId===previous);
   if(ix>=0||choices.length===1){selectContext(ix>=0?ix:0);return;}
   // Multiple grants: never automatically operate as Owner or Coach.
