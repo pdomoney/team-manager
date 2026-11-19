@@ -101,6 +101,19 @@ seven L0–L6 hard gates and replaces the three plays-dependent first-team
 journeys with account/invitation, identity-link and grant/recovery journeys.
 No gate is auto-approved by this roadmap entry.
 
+### Stage 3C: owner-approved controlled staging (19 November 2026)
+
+The owner approved all **3C.1–3C.6**. Development now targets a **separate
+management-only staging Worker** and **separate Supabase project** for four
+adult trial accounts using fictional team records. Isolated build,
+provider compatibility, two-reviewer bootstrap and connected-service
+acceptance instructions are being developed together. Status:
+**SOURCE CANDIDATE, NOT INSTALLED**, pending the actual provider/preflight,
+independent staging account and privacy approvals. Source CI alone does not
+complete 3C. Stage 3D production rollout and all L0–L6 remain HOLD; E5
+Tactics and Play Editor remain Stage 4 after management rollout.
+See [Stage 3C operator journey](operations/stage3c-connected-staging-20261119.md).
+
 ## Prior direction: Option B play workspace
 
 Owner decision (8 November 2026): favour a dedicated diagram-first viewing experience and a purpose-built coach editing workspace, without requiring browser zoom. See [Option B phased programme](architecture/option-b-play-workspace-programme.md) and [Play Engine 2.0 #166](https://github.com/pdomoney/team-manager/issues/166).

@@ -2,6 +2,7 @@
 // the existing static wrangler.jsonc. No credential, private row or SQL error is
 // returned to a browser. All data mutations take place inside ONE database RPC.
 import {validateFirstTeamActionPayload} from '../src/first-team-action-contract.js';
+import {adminHeaders,isApprovedProjectConfig} from './supabase-admin-key.js';
 
 const ROLES=new Set(['team_coach','team_assistant','team_manager','team_player','team_volunteer']);
 const ACTIONS=new Set(['schedule.read','schedule.edit','roster.read','roster.edit',
@@ -29,19 +30,9 @@ const plainObject=v=>v!==null&&typeof v==='object'&&!Array.isArray(v)&&
   (Object.getPrototypeOf(v)===Object.prototype||Object.getPrototypeOf(v)===null);
 const only=(o,names)=>Object.keys(o).every(k=>names.includes(k));
 function config(env){
-  if(!env||typeof env.SUPABASE_URL!=='string')return null;
-  let url;
-  try{url=new URL(env.SUPABASE_URL);}catch{return null;}
-  if(url.protocol!=='https:'||!/^[a-z0-9-]+\.supabase\.co$/.test(url.hostname)||
-     url.pathname!=='/'||url.search||url.hash||url.username||url.password)return null;
-  if(!/^sb_publishable_[A-Za-z0-9_-]{10,160}$/.test(env.SUPABASE_PUBLISHABLE_KEY||''))
-    return null;
-  // The service-role JWT is a server-side Worker SECRET, never a browser key.
-  if(typeof env.SUPABASE_SERVICE_ROLE_KEY!=='string'||
-     !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(env.SUPABASE_SERVICE_ROLE_KEY))
-    return null;
-  return url.origin;
+  return isApprovedProjectConfig(env)?new URL(env.SUPABASE_URL).origin:null;
 }
+
 function validOperation(input){
   if(!plainObject(input)||
      !only(input,['activeTeamId','activeRole','action','resourceId','payload'])||
@@ -103,9 +94,7 @@ export async function handleStage1Request(request,env,fetchImpl=fetch){
       await digest(user.id,op):null;
     const endpoint=management?'tm_stage3b_operation':'tm_stage1_operation';
     const result=await provider(fetchImpl,host+'/rest/v1/rpc/'+endpoint,{
-      method:'POST',headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,
-        Authorization:'Bearer '+env.SUPABASE_SERVICE_ROLE_KEY,
-        'Content-Type':'application/json'},
+      method:'POST',headers:{...adminHeaders(env),'Content-Type':'application/json'},
       body:JSON.stringify({p_account:user.id,p_team:op.activeTeamId,
         p_role:op.activeRole,p_action:op.action,p_resource:op.resourceId,
         p_payload:op.payload,p_digest:checksum})
