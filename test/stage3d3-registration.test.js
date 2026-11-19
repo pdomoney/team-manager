@@ -114,8 +114,8 @@ test('acceptance requires both explicit acknowledgements; marketing stays option
     const res=await handleStage3D3Registration(req('POST',changed),env,f.fetchImpl);
     assert.equal(res.status,400,JSON.stringify(changed));
   }
-  assert.equal(f.calls.length,14,
-    'Only the seven prior validation requests should verify the caller');
+  assert.equal(f.calls.length,7,
+    'Rejected bodies must never call the privileged database RPC');
   const result=await handleStage3D3Registration(req('POST',validConsent()),env,
     f.fetchImpl);
   assert.equal(result.status,200);
