@@ -152,7 +152,12 @@ test('private SQL remains service-role-only, new schema fields and training fixt
   assert.match(sql,/audit_events/);
   assert.match(sql,/resource_version=resource_version\+1/);
   assert.match(worker,/\/auth\/v1\/user/);
-  assert.match(worker,/SUPABASE_SERVICE_ROLE_KEY/);
+  const keyBoundary=readFileSync(new URL('../worker/supabase-admin-key.js',import.meta.url),'utf8');
+  assert.match(worker,/adminHeaders,isApprovedProjectConfig/);
+  assert.match(keyBoundary,/SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(keyBoundary,/SUPABASE_SECRET_KEY/);
+  assert.match(keyBoundary,/apikey:key,Authorization:'Bearer '/);
+  assert.match(keyBoundary,/\{apikey:key\}/);
   assert.equal(JSON.parse(legacyConfig).main,'worker/index.js');
   assert.equal(JSON.parse(legacyConfig).assets.binding,'ASSETS');
   assert.doesNotMatch(legacyConfig,/SUPABASE_SERVICE_ROLE_KEY|sb_secret_/);
