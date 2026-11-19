@@ -60,9 +60,9 @@ with sync_playwright() as p:
     pg.locator('#cloud-otp-token').fill('123456')
     pg.get_by_role('button',name='Verify and sign in').click()
     pg.get_by_text('No verified active team access is assigned to this account.').wait_for()
-    checks.ok(not pg.locator('#cloud-workspace-link').is_visible() is False
-      or pg.get_by_role('link',name='Set up your profile').count()==1,
-      f'[{width}] no role grant inferred from email code sign-in')
+    checks.ok(pg.get_by_role('link',name='Set up your profile').count()==1
+      and pg.get_by_role('link',name='Open your team workspace').count()==0,
+      f'[{width}] no team role granted from email OTP')
     checks.ok(pg.locator('body').evaluate('(el)=>el.scrollWidth<=innerWidth+2'),
       f'[{width}] no mobile horizontal overflow')
     pg.get_by_role('button',name='Sign out').click()
