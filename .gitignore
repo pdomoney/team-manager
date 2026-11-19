@@ -10,3 +10,7 @@ __pycache__/
 supabase/.env*
 supabase/.temp/
 supabase/.branches/
+
+# Separate Stage 3C staging build and operator-only connection evidence.
+dist-stage3c/
+.stage3c-private/

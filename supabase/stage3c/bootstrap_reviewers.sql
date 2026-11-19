@@ -5,9 +5,9 @@
 -- Never paste UUIDs or participant information into Git or CI logs.
 -- Operator attests a real independent identity review outside this script.
 begin;
-select pg_catalog.set_config('stage3c.coach_uuid', :'coach_uuid',true);
-select pg_catalog.set_config('stage3c.manager_uuid', :'manager_uuid',true);
-select pg_catalog.set_config('stage3c.approval_ref', :'approval_ref',true);
+select pg_catalog.set_config('stage3c.coach_uuid', :'coach_uuid',true) as c,
+  pg_catalog.set_config('stage3c.manager_uuid', :'manager_uuid',true) as m,
+  pg_catalog.set_config('stage3c.approval_ref', :'approval_ref',true) as r \gset
 do $$
 declare
   coach uuid;
