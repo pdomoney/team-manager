@@ -202,7 +202,8 @@ begin
   end if;
 
   if p_action='activate' then
-    if invite.status<>'claimed' or invite.claimed_by is null
+    if invite.status<>'claimed' or invite.expires_at<=now_at
+       or invite.claimed_by is null
        or invite.grant_id is null or invite.person_id is null then
       return pg_catalog.jsonb_build_object('ok',false,'code','invitation-unavailable'); end if;
     if invite.approved_by is null or invite.approved_by=invite.proposed_by

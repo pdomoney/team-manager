@@ -87,6 +87,14 @@ begin
    from public.tm_my_team_context() x;
  if jsonb_array_length(other)<>0 then
    raise exception 'Unreviewed invite received a team role: %',other; end if;
+ update tm_private.team_invitations
+   set expires_at=now()-interval '1 day' where invitation_id=invitation;
+ response:=public.tm_stage3_onboarding(manager,'manager@fictional.test',
+   team,'team_manager','activate',invitation,null,null);
+ if response->>'code'<>'invitation-unavailable' then
+   raise exception 'Expired claimed invitation was activated'; end if;
+ update tm_private.team_invitations
+   set expires_at=now()+interval '7 days' where invitation_id=invitation;
  response:=public.tm_stage3_onboarding(manager,'manager@fictional.test',
    team,'team_manager','activate',invitation,null,null);
  if response->>'code'<>'activated' then
