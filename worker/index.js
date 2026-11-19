@@ -7,6 +7,17 @@ import {handleStage3Onboarding} from './stage3-onboarding-api.js';
 export default {
   async fetch(request, env) {
     const path=new URL(request.url).pathname;
+    // Only the separately named staging Worker uses this management-only gate.
+    // Do not remove or rewrite the accepted E5 demo or its saved plays.
+    if(env?.STAGE3C_MODE==='management-only'){
+      if(path==='/'&&request.method==='GET')
+        return new Response(null,{status:302,headers:{
+          'Location':'/cloud-access.html','Cache-Control':'no-store'}});
+      if(path==='/index.html'||path.startsWith('/data/')||
+        path.startsWith('/api/stage2/'))
+        return new Response('Not available in management staging',{status:404,
+          headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+    }
     if (path.startsWith('/api/stage1/')) return handleStage1Request(request,env);
     if (path.startsWith('/api/stage3b/')) return handleStage1Request(request,env);
     if (path.startsWith('/api/stage2/')) return handleStage2PlayRequest(request,env);

@@ -1,6 +1,6 @@
 // Stage 2 connected first-team workspace. This never opens the legacy encrypted
 // demo vault or reuses its synthetic role picker as a production permission.
-import {CLOUD_SUPABASE} from './cloud-public-config.js';
+import {CLOUD_SUPABASE,CLOUD_STAGE3C_MODE} from './cloud-public-config.js';
 import {createCloudIdentityClient} from './cloud-identity.js';
 import {createCloudOnboardingClient} from './cloud-onboarding.js';
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
@@ -25,7 +25,7 @@ const canEditSchedule=()=>['team_coach','team_manager','team_assistant'].include
 const canRoster=()=>['team_coach','team_manager'].includes(state.context?.role);
 const canManage=canRoster;
 const canReadNotices=()=>['team_coach','team_manager','team_assistant','team_player','team_volunteer'].includes(state.context?.role);
-const canViewTactics=()=>['team_coach','team_assistant','team_manager',
+const canViewTactics=()=>!CLOUD_STAGE3C_MODE&&['team_coach','team_assistant','team_manager',
   'team_player','team_play_viewer'].includes(state.context?.role);
 const canDraft=()=>['team_coach','team_assistant'].includes(state.context?.role);
 const isOwner=()=>state.context?.role==='platform_owner';
@@ -107,7 +107,8 @@ function selectContext(index){
 function drawTabs(){
   const owner=isOwner();
   for(const b of $('cloud-nav').querySelectorAll('button')){
-    b.hidden=owner&&b.dataset.tab!=='home'&&b.dataset.tab!=='more';
+    b.hidden=(CLOUD_STAGE3C_MODE&&b.dataset.tab==='tactics')||
+      (owner&&b.dataset.tab!=='home'&&b.dataset.tab!=='more');
     b.setAttribute('aria-current',state.tab===b.dataset.tab?'page':'false');
   }
 }
@@ -137,7 +138,9 @@ async function loadForTab(tab,epoch){
     if(state.epoch===epoch)state[key]=records;};
   if(tab==='home'){
     if(c.role==='team_volunteer')await need('duty.read','duties');
-    else if(c.role==='team_play_viewer')await need('play.published.read','published');
+    else if(c.role==='team_play_viewer'){
+      if(!CLOUD_STAGE3C_MODE)await need('play.published.read','published');
+    }
     else await need('schedule.read','schedule');
   }else if(tab==='schedule'&&c.role!=='team_volunteer'&&c.role!=='team_play_viewer'){
     await need('schedule.read','schedule');
@@ -189,8 +192,12 @@ function renderHome(){
     const d=card('Your assigned duties');h('p',{text:state.duties.length+' assignment(s)',parent:d});
     button('View your duties',()=>switchTab('team'),d,{primary:true});
   }else if(c.role==='team_play_viewer'){
-    const d=card('Team plays');h('p',{text:state.published.length+' published play(s)',parent:d});
-    button('Watch published plays',()=>switchTab('tactics'),d,{primary:true});
+    const d=card('Selected role');
+    if(CLOUD_STAGE3C_MODE)info('Play-only access is deferred until Stage 4. Choose an approved management role to continue.',d);
+    else{
+      h('p',{text:state.published.length+' published play(s)',parent:d});
+      button('Watch published plays',()=>switchTab('tactics'),d,{primary:true});
+    }
   }else{
     const d=card('Upcoming sessions');
     const upcoming=state.schedule.filter(s=>s.status!=='cancelled')
@@ -765,7 +772,8 @@ function renderMore(){
   },a);
 }
 function switchTab(tab){
-  if(!['home','schedule','team','tactics','more'].includes(tab))return;
+  if(!['home','schedule','team','tactics','more'].includes(tab)||
+     (CLOUD_STAGE3C_MODE&&tab==='tactics'))return;
   if(isOwner()&&!['home','more'].includes(tab))return;
   state.tab=tab;state.preview=null;notice.hidden=true;drawTabs();void showTab();
 }
