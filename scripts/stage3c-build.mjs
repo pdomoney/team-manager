@@ -47,8 +47,8 @@ export function buildStage3C({root=process.cwd(),env=process.env,
      cloudTeam.includes("from './cloud-play-board.js'")||
      cloudTeam.includes("from './play-event-persistence.js'"))
     throw new Error('stage3c-tactics-import-source-drift');
-  const noTactics="export function previewCloudPlay(){throw new Error('stage4-deferred');}\\n"+
-    "export function loadPlayEventDraft(){throw new Error('stage4-deferred');}\\n";
+  const noTactics="export function previewCloudPlay(){throw new Error('stage4-deferred');}\n"+
+    "export function loadPlayEventDraft(){throw new Error('stage4-deferred');}\n";
     const overrides=new Map([
     ['cloud-team.js',cloudTeam],
     ['stage3c-no-tactics.js',noTactics]
