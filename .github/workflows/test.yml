@@ -71,7 +71,9 @@ jobs:
             supabase/migrations/20261119050000_stage3b_management.sql \
             supabase/tests/stage3b_management_journey.sql \
             supabase/tests/stage3c_bootstrap_disposable.sql \
-            supabase/tests/stage3d_first_live_team_disposable.sql
+            supabase/tests/stage3d_first_live_team_disposable.sql \
+            supabase/migrations/20261120010000_stage3d3_registration_policy.sql \
+            supabase/tests/stage3d3_registration_policy_disposable.sql
           do
             echo "Stage 1 isolated PostgreSQL: $script"
             psql -X -v ON_ERROR_STOP=1 -f "$script"
