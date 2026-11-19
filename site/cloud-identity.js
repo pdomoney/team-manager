@@ -174,7 +174,7 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
   }
   async function requestEmailOtp(email){
     const normalized=typeof email==='string'?email.trim().toLowerCase():'';
-    if(!str(normalized,254)||!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(normalized))
+    if(!str(normalized,254)||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized))
       throw safeError('invalid-input');
     // create_user=false: requesting a code never self-registers an account.
     await request('/auth/v1/otp',{method:'POST',
@@ -183,7 +183,7 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
   }
   async function verifyEmailOtp(email,token){
     const normalized=typeof email==='string'?email.trim().toLowerCase():'';
-    if(!str(normalized,254)||!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(normalized)||
+    if(!str(normalized,254)||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)||
        typeof token!=='string'||!/^[0-9]{6,8}$/.test(token))
       throw safeError('invalid-input');
     const session=await request('/auth/v1/verify',{method:'POST',
