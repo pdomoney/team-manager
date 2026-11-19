@@ -1,3 +1,5 @@
+import {createPkceStore,safeAuthReturn,validOAuthDestination} from './cloud-auth-flows.js';
+
 // First-team read-only identity boundary. No self-signup, private table access,
 // privileged key, writable operation or authorisation inferred from login alone.
 // Published browser key is a project identifier, NOT an account permission.
@@ -11,7 +13,7 @@ const str = (value, max = 120) => typeof value === 'string' && value.length > 0 
 const tokenValid = value => text(value) && value.length > 10;
 const safeError = code => Object.assign(new Error(code), { code });
 
-export function createCloudIdentityClient({ url, publishableKey, fetchImpl, storage, now = Date.now } = {}) {
+export function createCloudIdentityClient({ url, publishableKey, fetchImpl, storage, now = Date.now, cryptoImpl = globalThis.crypto } = {}) {
   let base;
   try { base = new URL(url); } catch { throw new TypeError('invalid-project-url'); }
   if (base.protocol !== 'https:' ||
@@ -26,6 +28,7 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
       ['getItem', 'setItem', 'removeItem'].some(k => typeof storage[k] !== 'function') ||
       typeof now !== 'function') throw new TypeError('missing-browser-adapter');
 
+  const pkce=createPkceStore({storage,cryptoImpl,now});
   function clear() { storage.removeItem(SESSION_KEY); }
   function read() {
     try {
@@ -114,6 +117,87 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
     save(reply);
     return currentUser();
   }
+  // OAuth is a provider identity only. Even a valid new GoTrue user receives
+  // no Account/Person/Team role until the separately reviewed onboarding RPC.
+  async function beginOAuth({provider,redirectTo,link=false}={}) {
+    const expectedUserId=link?(await currentUser())?.id:null;
+    if(link&&!expectedUserId)throw safeError('not-signed-in');
+    let flow;
+    try{
+      flow=await pkce.begin({provider,redirectTo,kind:link?'link':'sign-in',
+        expectedUserId});
+      const qs=new URLSearchParams({provider,redirect_to:flow.redirectTo,
+        flow_type:'pkce',code_challenge:flow.challenge,
+        code_challenge_method:'s256'});
+      if(!link)return new URL('/auth/v1/authorize?'+qs,base).href;
+      qs.set('skip_http_redirect','true');
+      const bearer=await verifiedBearer();
+      const url=new URL('/auth/v1/user/identities/authorize?'+qs,base);
+      let response;
+      try{response=await fetchImpl(url.href,{
+        method:'GET',mode:'cors',cache:'no-store',redirect:'error',
+        headers:{apikey:publishableKey,Authorization:'Bearer '+bearer}
+      });}catch{throw safeError('network-unavailable');}
+      if(!response?.ok)throw safeError('identity-link-unavailable');
+      let body;
+      try{body=await response.json();}catch{throw safeError('invalid-server-response');}
+      return validOAuthDestination(body?.url,provider);
+    }catch(e){pkce.clear();throw e;}
+  }
+  async function completeOAuth(callbackUrl){
+    let callback;
+    try{callback=safeAuthReturn(new URL(callbackUrl).origin+
+      new URL(callbackUrl).pathname);}
+    catch{pkce.clear();throw safeError('invalid-oauth-callback');}
+    const url=new URL(callbackUrl);
+    const code=url.searchParams.getAll('code');
+    if(callback.origin!==url.origin || callback.pathname!==url.pathname ||
+       code.length!==1 || !/^[A-Za-z0-9._~-]{4,2048}$/.test(code[0]) ||
+       url.searchParams.has('error') || url.hash){
+      pkce.clear();throw safeError('invalid-oauth-callback');
+    }
+    let flow;
+    try{flow=pkce.consume(callbackUrl);}
+    catch{throw safeError('missing-or-expired-oauth-request');}
+    let session;
+    try{
+      session=await request('/auth/v1/token?grant_type=pkce',{
+        method:'POST',body:{auth_code:code[0],code_verifier:flow.verifier}
+      });
+      save(session);
+      const user=await currentUser();
+      if(flow.kind==='link'&&user.id!==flow.expectedUserId){
+        clear();throw safeError('identity-link-mismatch');
+      }
+      return Object.freeze({user,linked:flow.kind==='link',provider:flow.provider});
+    }catch(e){clear();throw e;}
+  }
+  async function requestEmailOtp(email){
+    const normalized=typeof email==='string'?email.trim().toLowerCase():'';
+    if(!str(normalized,254)||!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(normalized))
+      throw safeError('invalid-input');
+    // create_user=false: requesting a code never self-registers an account.
+    await request('/auth/v1/otp',{method:'POST',
+      body:{email:normalized,create_user:false}});
+    return true;
+  }
+  async function verifyEmailOtp(email,token){
+    const normalized=typeof email==='string'?email.trim().toLowerCase():'';
+    if(!str(normalized,254)||!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(normalized)||
+       typeof token!=='string'||!/^[0-9]{6,8}$/.test(token))
+      throw safeError('invalid-input');
+    const session=await request('/auth/v1/verify',{method:'POST',
+      body:{email:normalized,token,type:'email'}});
+    try{
+      save(session);
+      const user=await currentUser();
+      if(user.email.toLowerCase()!==normalized){
+        clear();throw safeError('otp-identity-mismatch');
+      }
+      return user;
+    }catch(e){clear();throw e;}
+  }
+
   async function requestPasswordRecovery(email, redirectTo) {
     const normalized=typeof email==='string'?email.trim().toLowerCase():'';
     let redirect;
@@ -241,5 +325,5 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
       return true;
     } catch { return false; } // caller must distinguish local vs provider sign-out
   }
-  return Object.freeze({ signInWithPassword, currentUser, myTeamContexts, myOperatorAccess, myProfile, saveMyProfile, requestPasswordRecovery, acceptAuthLink, setPassword, verifiedBearer, signOut });
+  return Object.freeze({ signInWithPassword, beginOAuth, completeOAuth, requestEmailOtp, verifyEmailOtp, currentUser, myTeamContexts, myOperatorAccess, myProfile, saveMyProfile, requestPasswordRecovery, acceptAuthLink, setPassword, verifiedBearer, signOut });
 }
