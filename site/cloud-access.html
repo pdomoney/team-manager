@@ -28,6 +28,24 @@
         <label for="cloud-password">Password</label>
         <input id="cloud-password" name="password" type="password" autocomplete="current-password" required>
         <button id="cloud-submit" class="access-primary" type="submit">Sign in</button>
+        <button id="cloud-forgot" class="access-secondary" type="button">Forgot password?</button>
+      </form>
+      <form id="cloud-recovery" class="cloud-alt-form" hidden>
+        <h3>Reset your password</h3>
+        <p class="access-intro">Enter your sign-in email. If an account exists, the provider will send recovery instructions.</p>
+        <label for="cloud-recovery-email">Account email</label>
+        <input id="cloud-recovery-email" type="email" autocomplete="username" maxlength="254" required>
+        <button class="access-primary" type="submit">Send recovery instructions</button>
+        <button id="cloud-recovery-back" class="access-secondary" type="button">Back to sign in</button>
+      </form>
+      <form id="cloud-password-setup" class="cloud-alt-form" hidden>
+        <h3>Set your password</h3>
+        <p class="access-intro">For a verified invitation or password recovery link.</p>
+        <label for="cloud-new-password">New password</label>
+        <input id="cloud-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+        <label for="cloud-confirm-password">Confirm new password</label>
+        <input id="cloud-confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+        <button class="access-primary" type="submit">Save password</button>
       </form>
       <div id="cloud-account" hidden>
         <p id="cloud-identity" class="access-identity"></p>

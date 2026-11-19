@@ -16,7 +16,7 @@ function syntheticComplete(){
   e.ownerDecision={
     status:'approved',provider:'Fictional Provider',plan:'Synthetic Plan',
     region:'Test Australian Region',controller:'Fictional Club',
-    launchMode:'team-participants-private',dataScope:'approved-limited-real',
+    launchMode:'team-management-private',dataScope:'approved-limited-real',
     firstTeamAgeGroup:'adult',minorDataPolicy:'excluded',guardianAccessEvidenceRef:null,
     ownerApprovalRef:proof,
     providerCostRef:proof,retentionDeletionRef:proof,
@@ -66,7 +66,7 @@ test('unauthorised supplier choice, payment, data scope and child policy always 
   for(const [key,value] of [
     ['status','pending'],['provider',null],['plan',null],['region',null],
     ['controller',null],['launchMode','public-self-service'],
-    ['launchMode','coach-manager-private'],['firstTeamAgeGroup','undecided'],
+    ['launchMode','coach-manager-private'],['launchMode','team-participants-private'],['firstTeamAgeGroup','undecided'],
     ['dataScope','synthetic-only'],['minorDataPolicy','undecided'],
     ['ownerApprovalRef',null],['providerCostRef','unsafe?token=value'],
     ['retentionDeletionRef',null],['privacyNoticeRef',null],
@@ -76,7 +76,7 @@ test('unauthorised supplier choice, payment, data scope and child policy always 
     assert.equal(evaluate(e).ready,false,key);
   }
 });
-test('first-team release requires all eight Player, Volunteer and E5 Plays journeys',()=>{
+test('first-team management release requires all eight account, Player and Volunteer journeys',()=>{
   assert.equal(FIRST_TEAM_JOURNEYS.length,8);
   for(const id of FIRST_TEAM_JOURNEYS){
     for(const state of ['pending','waived','missing']){

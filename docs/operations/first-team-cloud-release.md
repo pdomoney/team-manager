@@ -16,26 +16,40 @@ The owner needs to make explicit decisions for **one team** before any provider 
 4. Backup and restore ownership/targets, historical Git ciphertext risk, migration choice, rollback and release authority.
 5. Actual iPhone/macOS Safari, accessibility, two-device and owner acceptance.
 
-**Do not infer approval from the word “continue” or from PR merging.** The production backend/identity gate #55 remains unapproved. Supabase is one proposal, not a selected vendor. This PR uses no network connection, service keys, account provisioning, paid service, or real records.
+**Do not infer approval from the word “continue” or from PR merging.** The production backend/identity gate #55 remains unapproved. Supabase is a candidate, not a provisioned/qualified live identity backend. Source changes do not themselves send emails, provision an environment, import records, purchase services or authorise real users.
 
-## Owner-required participant and plays scope (16 November 2026)
+## Owner-approved management-only initial release (19 November 2026)
 
-The owner expanded the requested first-team operational launch to include **players, volunteers and existing plays**, in addition to Coaches/Managers. A Coach/Manager-only pilot no longer meets that request. Preserve the accepted E5 tactics viewer/editor, phase instructions, paths, timings, animations, Quick Look and legacy compatibility. E6–E8 remain deferred; no play re-authoring or blind conversion.
+**The current Stage 3 release scope supersedes the 16 November plays-required candidate.**
+The owner approved a management-first programme: 3A individual accounts and profiles,
+3B operational management, 3C controlled real-user staging and 3D management-only
+production rollout. The existing E5 Tactics and Play Editor are **Stage 4, only after
+management go-live and stabilisation**. Preserve existing E5 code, authored plays,
+drawings and encrypted demo; do not make its Worker integration, animation, editor,
+migration or iPhone Watch qualification a Stage 3 release dependency.
 
-| Required journey | Expected first-team experience and security boundary |
+| Management-only release journey | Required behaviour |
 | --- | --- |
-| Coach/Manager exact team | Sign in as an individual; manage only authorised team roster, schedule, match tasks and team operations; no arbitrary competition fixture authorisation |
-| Player own availability | See team schedule and submit own RSVP/availability (or through a separately verified guardian for a minor), never browse another player’s private contact/attendance |
-| Player published play view | Watch/learn/animate **published** team plays on iPhone Safari; never view coach drafts, private library content or another team’s plans |
-| Volunteer own duty | Sign in as an individual and see only independently assigned team/fixture roles; sporting duty/accreditation is not a software grant |
-| Volunteer own response | Reply to own duty/task or availability requests, not edit the squad, certify eligibility, or publish results/plays |
-| Coach E5 play editing and publishing | Authorised coaching role can edit and publish a reviewed play without modifying historical diagrams, phase/event state, paths or timing; Player/Volunteer may not publish |
-| E5 lossless recovery | Restored plays match source versions, including animations, instruction text and play/library provenance; no automatic migration into incompatible schema |
-| Revocation and foreign-team denial | Withdrawn/revoked, unauthorised roles, foreign team, direct URL and offline replay all denied by real server; no permission inferred from membership |
+| Coach/Manager exact team | Independently approved role can manage only the selected team's roster, training and delegated activities |
+| Player own availability | Verified participant replies to their own team training, never another person's records |
+| Individual invite activation | Independently proposed and approved invitation, verified email, account setup and credential recovery |
+| Volunteer own duty | Verified volunteer sees only directly assigned duties, never arbitrary team records |
+| Volunteer own response | Assigned volunteer accepts, declines or completes only their own assigned duties |
+| Profile/person-link approval | Individual edits permitted profile fields; separate authorised reviewer verifies account-to-person linkage |
+| Role grant and recovery | Exact team/role granted, suspended/revoked with independently tested recovery; no implicit Owner/private access |
+| Revocation and foreign-team denial | Foreign team, revoked roles, forged grants, direct calls and stale/offline use denied by real server |
 
-**Privacy decision (reconciled with TM-PR-001/005/006/017; proposed policy, still HOLD):** the first team **includes under-18 players**. They may have **their own account** with **guardian contact candidate details recorded**, while an **activated guardian account is optional**, requested and verified through the appointed human team Manager. An unverified candidate is never an account grant or proof of consent. Verified guardian relationship/age-specific privacy policy and the existing L0 guardian evidence reference are still mandatory safety prerequisites where applicable, **not** a requirement to create an active adult account. User acceptance does not waive applicable statutory obligations. All live junior/medical/safeguarding data remains prohibited until separate privacy, provider, controller and release approvals.
+**Privacy decision remains HOLD:** first team may include under-18 players, with
+individual accounts and guardian-candidate details only if independently approved.
+Verified relationship, age-appropriate policy, data controller and approved privacy
+evidence are mandatory for actual minor-data processing; an activated guardian account is optional per the recorded owner direction. Do not treat proposed guardian
+information as permission, proof of consent or automatic team access.
 
-The evaluator records these eight additional mandatory journeys in `launchJourneys`, separately from seven operational release gates. Every positive journey requires exact-source evidence; a successful synthetic fixture or unverified evidence URL still **cannot** prove actual server authorization, rights, backup quality or real iPhone success.
+The source evaluator now requires these **eight management-only journeys**.
+All seven original L0–L6 hard release gates remain in place, including provider,
+data/controller approval, real independent security testing, backup and recovery,
+physical iPhone/macOS Safari and explicit owner go-live acceptance. Published
+source and synthetic test success do not satisfy these external gates.
 
 ## Source-only release evaluator
 
@@ -62,10 +76,10 @@ Do not commit filled release evidence containing internal URLs, patient/player d
 | --- | --- | --- |
 | L0 | Explicit scope/provider/finance, controller, privacy/retention and minors decision | HOLD |
 | L1 | Approved isolated actual backend, identity and exact team grant enforcement | HOLD |
-| L2 | Coach/Manager, Player, Volunteer and Plays live read/write journeys, including individual identities, exact team permissions and denied cross-team access | HOLD |
+| L2 | Coach/Manager, Player, Volunteer and account onboarding live read/write journeys, including individual identities, exact team permissions and denied cross-team access | HOLD |
 | L3 | P13B/C 59 actual server tests and separate ID-060 history risk acceptance | HOLD |
 | L4 | Separate backup/restore, rollback and actual staging release verification | HOLD |
-| L5 | Real iPhone and Mac Safari for player Watch/Learn animation, volunteer replies, coach editing and recovery; VoiceOver and two devices | HOLD |
+| L5 | Real iPhone and Mac Safari for sign-in, profile, management, player/volunteer actions and recovery; VoiceOver and two devices | HOLD |
 | L6 | Exact deployed commit, production health, privacy authority and owner acceptance | HOLD |
 
 Target: conditional rollout no later than **Saturday 28 November 2026 (AEDT)** for the first team on **Sunday 29 November**. This date does not authorise cutting security, data handling or recovery controls. If any mandatory evidence is unavailable, run a **fictional-data rehearsal**, not a live personal-data launch.

@@ -27,3 +27,9 @@
 
 .access-workspace-link{display:block;text-align:center;padding:12px;margin:0 0 16px;border-radius:8px;text-decoration:none}
 .access-workspace-link[hidden]{display:none}
+
+.cloud-alt-form{display:flex;flex-direction:column;gap:9px}
+.cloud-alt-form[hidden]{display:none}
+.cloud-alt-form label{font-size:13px;font-weight:700}
+.cloud-alt-form input{min-height:46px;border:1px solid #aebbb1;border-radius:8px;padding:10px 12px;font:inherit}
+.cloud-alt-form button{min-height:46px;border-radius:8px;padding:10px 16px;font-weight:700}
