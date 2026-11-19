@@ -152,3 +152,7 @@ jobs:
         env:
           STAGE3A_BROWSER_ENGINE: webkit
         run: python3 test/browser/stage3a_onboarding.py
+      - name: Stage 3B shared management journeys on WebKit
+        env:
+          STAGE3B_BROWSER_ENGINE: webkit
+        run: python3 test/browser/stage3b_management.py
