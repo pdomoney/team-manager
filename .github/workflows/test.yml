@@ -162,3 +162,7 @@ jobs:
         env:
           STAGE3C_BROWSER_ENGINE: webkit
         run: python3 test/browser/stage3c_staging.py
+      - name: Stage 3D.2 provider and email login on WebKit
+        env:
+          STAGE3D2_BROWSER_ENGINE: webkit
+        run: python3 test/browser/stage3d2_login.py
