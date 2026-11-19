@@ -66,6 +66,9 @@ test('Stage 3C isolated build includes only cloud pages, current source and publ
     assert.equal(result.sourceSha,sha);
     assert.equal(fs.existsSync(path.join(dest,'index.html')),false);
     assert.equal(fs.existsSync(path.join(dest,'app.js')),false);
+    assert.equal(fs.existsSync(path.join(dest,'cloud-play-board.js')),false);
+    assert.equal(fs.existsSync(path.join(dest,'play-event-persistence.js')),false);
+    assert.equal(fs.existsSync(path.join(dest,'stage3c-no-tactics.js')),true);
     assert.equal(fs.existsSync(path.join(dest,'test-library.html')),false);
     assert.equal(fs.existsSync(path.join(dest,'data')),false);
     assert.equal(fs.existsSync(path.join(dest,'cloud-team.html')),true);

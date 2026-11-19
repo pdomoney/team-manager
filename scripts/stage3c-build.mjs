@@ -37,12 +37,28 @@ export function buildStage3C({root=process.cwd(),env=process.env,
   if(out===path.resolve(root,'dist')||out===source||
      out===path.resolve(root)||out.startsWith(path.resolve(root,'.git')+path.sep))
     throw new Error('stage3c-output-is-not-isolated');
+  const originalCloudTeam=fs.readFileSync(path.join(source,'cloud-team.js'),'utf8');
+  const cloudTeam=originalCloudTeam
+    .replace("import {previewCloudPlay} from './cloud-play-board.js';",
+      "import {previewCloudPlay} from './stage3c-no-tactics.js';")
+    .replace("import {loadPlayEventDraft} from './play-event-persistence.js';",
+      "import {loadPlayEventDraft} from './stage3c-no-tactics.js';");
+  if(cloudTeam===originalCloudTeam||
+     cloudTeam.includes("from './cloud-play-board.js'")||
+     cloudTeam.includes("from './play-event-persistence.js'"))
+    throw new Error('stage3c-tactics-import-source-drift');
+  const noTactics="export function previewCloudPlay(){throw new Error('stage4-deferred');}\\n"+
+    "export function loadPlayEventDraft(){throw new Error('stage4-deferred');}\\n";
+  const overrides=new Map([
+    ['cloud-team.js',cloudTeam],
+    ['stage3c-no-tactics.js',noTactics]
+  ]);
   const needed=new Set(START);
   const queue=['cloud-access.js','cloud-team.js'];
   const JS_IMPORT=/\b(?:from\s*|import\s*)['"]\.\/([a-z0-9-]+\.js)['"]/g;
   while(queue.length){
     const name=queue.shift();
-    const content=fs.readFileSync(path.join(source,name),'utf8');
+    const content=overrides.get(name)??fs.readFileSync(path.join(source,name),'utf8');
     for(const match of content.matchAll(JS_IMPORT)){
       const child=match[1];
       if(!needed.has(child)){needed.add(child);queue.push(child);}
@@ -52,7 +68,11 @@ export function buildStage3C({root=process.cwd(),env=process.env,
   // included. No legacy index.html, data/, client files or backup exports.
   fs.rmSync(out,{recursive:true,force:true});
   fs.mkdirSync(out,{recursive:true});
-  for(const name of needed)fs.copyFileSync(path.join(source,name),path.join(out,name));
+  for(const name of needed){
+    const generated=overrides.get(name);
+    if(generated!==undefined)fs.writeFileSync(path.join(out,name),generated);
+    else fs.copyFileSync(path.join(source,name),path.join(out,name));
+  }
   fs.writeFileSync(path.join(out,'cloud-public-config.js'),
     `// Stage 3C generated public information only. No privileged keys.\n`+
     `export const CLOUD_SUPABASE=Object.freeze(${JSON.stringify({
