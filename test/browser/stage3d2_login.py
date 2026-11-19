@@ -2,10 +2,19 @@
 # No real Google/Apple account, Supabase project or invitation is contacted.
 import os, json, sys
 from urllib.parse import urlparse, parse_qs
+import harness
 from harness import build, serve, Check
 from playwright.sync_api import sync_playwright
 
 build()
+# Opt in ONLY in this throwaway browser dist; production/public config stays
+# fail-closed and the Supabase requests below are mocked.
+cfg=os.path.join(harness.DIST,'cloud-public-config.js')
+with open(cfg,encoding='utf8') as source: txt=source.read()
+old='export const CLOUD_STAGE3D2_AUTH_ENABLED = false;'
+assert txt.count(old)==1, 'Browser synthetic provider activation source drift'
+with open(cfg,'w',encoding='utf8') as dest:
+  dest.write(txt.replace(old,'export const CLOUD_STAGE3D2_AUTH_ENABLED = true;'))
 server,url=serve()
 checks=Check()
 errors=[]
