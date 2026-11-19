@@ -200,7 +200,7 @@ function renderHome(){
       h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:''),parent:row});
       if(c.role==='team_player')h('p',{text:'My availability: '+(s.myAvailability||'not answered'),parent:row});
     });
-    button(c.role==='team_player'?'Reply to availability':'Manage schedule',()=>switchTab('schedule'),d,{primary:true});
+    button(c.role==='team_player'?'Reply to training':'Manage training',()=>switchTab('schedule'),d,{primary:true});
   }
   if(canReadNotices())renderNotices('home');
 }
