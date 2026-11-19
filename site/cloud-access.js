@@ -1,4 +1,4 @@
-import { CLOUD_SUPABASE } from './cloud-public-config.js';
+import { CLOUD_SUPABASE, CLOUD_STAGE3D2_AUTH_ENABLED } from './cloud-public-config.js';
 import { createCloudIdentityClient } from './cloud-identity.js';
 import {teamDisplayName} from './first-live-team.js';
 
@@ -13,17 +13,21 @@ const client = createCloudIdentityClient({
   ...CLOUD_SUPABASE, fetchImpl: fetch.bind(window), storage: sessionStorage
 });
 let busy = false;
+let pendingOtpEmail = '';
+const extraAuthEnabled=CLOUD_STAGE3D2_AUTH_ENABLED===true;
+$('cloud-email-code').hidden=!extraAuthEnabled;
 const recovery=$('cloud-recovery');
 const setup=$('cloud-password-setup');
 function showSignIn(){
   recovery.hidden=true;setup.hidden=true;account.hidden=true;form.hidden=false;
+  $('cloud-otp-request').hidden=true;$('cloud-otp-verify').hidden=true;
+  $('cloud-provider-options').hidden=!extraAuthEnabled;
 }
 
 
 function setBusy(value) {
   busy = value;
-  submit.disabled = value;
-  $('cloud-signout').disabled = value;
+  for(const control of document.querySelectorAll('#cloud-provider-options button, #cloud-link-providers button, #cloud-login button, #cloud-signout'))control.disabled=value;
 }
 function showMessage(message) { status.textContent = message; }
 function showGuest() {
@@ -31,14 +35,19 @@ function showGuest() {
   teams.replaceChildren();
   workspaceLink.hidden = true;
   $('cloud-password').value = '';
+  $('cloud-link-providers').hidden=true;pendingOtpEmail='';
 }
 function showUser(user, contexts, owner = false, checked = true) {
   form.hidden = true;
+  $('cloud-provider-options').hidden=true;
+  $('cloud-otp-request').hidden=true;
+  $('cloud-otp-verify').hidden=true;
   account.hidden = false;
+  $('cloud-link-providers').hidden=!(extraAuthEnabled&&checked&&(contexts.length||owner));
   $('cloud-identity').textContent = 'Signed in as ' + user.email;
   teams.replaceChildren();
   $('cloud-team-message').textContent = contexts.length
-    ? 'These are your current team/role grants. The full team app is not connected yet.'
+    ? 'These are your verified team and role grants. Choose one active working context in your workspace.'
     : 'No verified active team access is assigned to this account.';
   if (owner) {
     const li=document.createElement('li');
@@ -67,7 +76,7 @@ async function loadAccess() {
     let owner=false;
     try { owner=await client.myOperatorAccess(); } catch { /* owner is not inferred */ }
     showUser(user, contexts, owner);
-    showMessage('Identity verified. This preview does not grant access to private team data.');
+    showMessage('Identity verified. Team permissions are checked separately for each role and team.');
   } catch (error) {
     showUser(user, [], false, false);
     showMessage(error.code === 'server-not-ready'
@@ -75,6 +84,69 @@ async function loadAccess() {
       : 'Team access could not be verified. No permissions have been granted.');
   }
 }
+async function beginProvider(provider,link=false){
+  if(busy||!extraAuthEnabled)return;
+  setBusy(true);
+  showMessage('Opening secure '+(provider==='google'?'Google':'Apple')+' sign-in…');
+  try{
+    const redirectTo=new URL('cloud-access.html',location.href).href;
+    const url=await client.beginOAuth({provider,redirectTo,link});
+    location.assign(url);
+  }catch{
+    showMessage(link
+      ? 'Provider linking is unavailable or needs enabling by the account administrator. Your existing account is unchanged.'
+      : 'This sign-in method is not available yet. Try email or another approved provider.');
+    setBusy(false);
+  }
+}
+$('cloud-google').addEventListener('click',()=>void beginProvider('google'));
+$('cloud-apple').addEventListener('click',()=>void beginProvider('apple'));
+$('cloud-link-google').addEventListener('click',()=>void beginProvider('google',true));
+$('cloud-link-apple').addEventListener('click',()=>void beginProvider('apple',true));
+$('cloud-email-code').addEventListener('click',()=>{
+  form.hidden=true;$('cloud-provider-options').hidden=true;
+  $('cloud-otp-request').hidden=false;
+  $('cloud-otp-email').value=$('cloud-email').value;
+  showMessage('');
+  $('cloud-otp-email').focus();
+});
+$('cloud-otp-back').addEventListener('click',()=>{showSignIn();showMessage('');});
+$('cloud-otp-restart').addEventListener('click',()=>{
+  $('cloud-otp-verify').hidden=true;$('cloud-otp-request').hidden=false;
+  pendingOtpEmail='';$('cloud-otp-token').value='';
+  $('cloud-otp-email').focus();showMessage('');
+});
+$('cloud-otp-request').addEventListener('submit',async event=>{
+  event.preventDefault();if(busy)return;
+  busy=true;
+  const button=$('cloud-otp-request').querySelector('button[type=submit]');
+  button.disabled=true;
+  try{
+    const email=$('cloud-otp-email').value.trim().toLowerCase();
+    await client.requestEmailOtp(email);
+    pendingOtpEmail=email;
+    $('cloud-otp-request').hidden=true;$('cloud-otp-verify').hidden=false;
+    showMessage('If this account is eligible, a one-time code was sent. Check your email.');
+    $('cloud-otp-token').focus();
+  }catch{
+    showMessage('Unable to request a code. Check the account address or try again later.');
+  }finally{busy=false;button.disabled=false;}
+});
+$('cloud-otp-verify').addEventListener('submit',async event=>{
+  event.preventDefault();if(busy)return;
+  busy=true;
+  const button=$('cloud-otp-verify').querySelector('button[type=submit]');
+  button.disabled=true;
+  try{
+    await client.verifyEmailOtp(pendingOtpEmail,$('cloud-otp-token').value.trim());
+    $('cloud-otp-token').value='';pendingOtpEmail='';
+    await loadAccess();
+  }catch{
+    $('cloud-otp-token').value='';
+    showMessage('That code could not be verified. Check the code or request a new one.');
+  }finally{busy=false;button.disabled=false;}
+});
+
 form.addEventListener('submit', async event => {
   event.preventDefault();
   if (busy) return;
@@ -145,6 +217,27 @@ setup.addEventListener('submit',async event=>{
   }finally{busy=false;control.disabled=false;}
 });
 async function start(){
+  // Clear OAuth code and error query parameters BEFORE making any network call.
+  const callback=new URL(location.href);
+  if(callback.searchParams.has('code')||callback.searchParams.has('error')){
+    history.replaceState(null,'',location.pathname);
+    if(!extraAuthEnabled){showGuest();showMessage('This identity provider is not enabled on this site.');return;}
+    if(callback.searchParams.has('error')){
+      showGuest();showMessage('Sign-in was cancelled or the provider declined it.');
+      return;
+    }
+    try{
+      const outcome=await client.completeOAuth(callback.href);
+      await loadAccess();
+      showMessage(outcome.linked
+        ? 'Additional sign-in method linked to your existing account. Team permissions are unchanged.'
+        : 'Signed in. Your team role is checked independently.');
+    }catch{
+      showGuest();
+      showMessage('Secure sign-in expired or could not be verified. Start again on this device.');
+    }
+    return;
+  }
   // Remove bearer credentials from browser address before contacting the provider.
   const fragment=location.hash;
   if(fragment){

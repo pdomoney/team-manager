@@ -22,13 +22,35 @@
       <p class="access-eyebrow">Cloud identity qualification</p>
       <h2 id="access-title">Sign in to your team</h2>
       <p class="access-intro">For invited test accounts only. This is an identity and team-permission preview, not the live member application.</p>
+      <div id="cloud-provider-options" class="access-auth-methods" hidden>
+        <button id="cloud-google" class="access-secondary" type="button">Continue with Google</button>
+        <button id="cloud-apple" class="access-secondary" type="button">Continue with Apple</button>
+        <p class="access-intro">Already invited? Sign in using your approved account. Signing in does not give you access to a team until your role is verified.</p>
+      </div>
       <form id="cloud-login" autocomplete="on">
         <label for="cloud-email">Email</label>
         <input id="cloud-email" name="email" type="email" inputmode="email" autocomplete="username" required maxlength="254">
         <label for="cloud-password">Password</label>
         <input id="cloud-password" name="password" type="password" autocomplete="current-password" required>
         <button id="cloud-submit" class="access-primary" type="submit">Sign in</button>
+        <button id="cloud-email-code" class="access-secondary" type="button" hidden>Use a one-time email code</button>
         <button id="cloud-forgot" class="access-secondary" type="button">Forgot password?</button>
+      </form>
+      <form id="cloud-otp-request" class="cloud-alt-form" hidden>
+        <h3>Email sign-in code</h3>
+        <p class="access-intro">Enter the email of an existing invited account. If eligible, a one-time code will be emailed.</p>
+        <label for="cloud-otp-email">Email for sign-in code</label>
+        <input id="cloud-otp-email" type="email" autocomplete="username" required maxlength="254">
+        <button type="submit" class="access-primary">Send one-time code</button>
+        <button id="cloud-otp-back" type="button" class="access-secondary">Back to sign in</button>
+      </form>
+      <form id="cloud-otp-verify" class="cloud-alt-form" hidden>
+        <h3>Enter your email code</h3>
+        <p class="access-intro">Use the code sent to your existing account. It expires and can only be used once.</p>
+        <label for="cloud-otp-token">One-time code</label>
+        <input id="cloud-otp-token" type="text" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6,8}" minlength="6" maxlength="8" required>
+        <button type="submit" class="access-primary">Verify and sign in</button>
+        <button id="cloud-otp-restart" type="button" class="access-secondary">Try another email</button>
       </form>
       <form id="cloud-recovery" class="cloud-alt-form" hidden>
         <h3>Reset your password</h3>
@@ -53,13 +75,19 @@
         <p id="cloud-team-message" class="access-intro"></p>
         <ul id="cloud-teams" class="access-teams"></ul>
         <a id="cloud-workspace-link" href="cloud-team.html" class="access-primary access-workspace-link" hidden>Open your team workspace</a>
+        <div id="cloud-link-providers" hidden class="access-link-methods">
+          <h3>Additional sign-in methods</h3>
+          <p class="access-intro">Already approved? Link another provider to this same account. This does not create a second person or change permissions.</p>
+          <button id="cloud-link-google" type="button" class="access-secondary">Link Google</button>
+          <button id="cloud-link-apple" type="button" class="access-secondary">Link Apple</button>
+        </div>
         <button id="cloud-signout" type="button" class="access-secondary">Sign out</button>
       </div>
       <p id="cloud-status" role="status" aria-live="polite" class="access-status"></p>
     </section>
     <aside class="access-side">
       <h3>What this preview verifies</h3>
-      <p>Individual Supabase sign-in and read-only team access scoped by independently approved roles.</p>
+      <p>Individual sign-in, independently approved team roles and secure account recovery. Google, Apple and email require provider configuration before real use.</p>
       <p>No roster, player contacts, medical information, play drafts or volunteer details are exposed here.</p>
       <p>The existing demonstration remains separate until the full release checks pass.</p>
     </aside>
