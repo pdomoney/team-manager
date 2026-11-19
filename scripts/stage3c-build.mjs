@@ -29,7 +29,7 @@ export function stage3cInputs(env){
 export function buildStage3C({root=process.cwd(),env=process.env,
   output=path.join(root,'dist-stage3c')}={}){
   const args=stage3cInputs(env);
-  const current=execFileSync('git',['rev-parse','HEAD'],{
+  const current=execFileSync('git',['-c','safe.directory='+root,'rev-parse','HEAD'],{
     cwd:root,encoding:'utf8'}).trim();
   if(current!==args.sha)throw new Error('stage3c-exact-source-sha-mismatch');
   const source=path.join(root,'site');

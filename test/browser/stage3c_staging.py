@@ -5,7 +5,7 @@ from harness import Check
 import harness
 from playwright.sync_api import sync_playwright
 
-sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+sha=subprocess.check_output(['git','-c','safe.directory='+harness.REPO,'rev-parse','HEAD'],cwd=harness.REPO,text=True).strip()
 env=dict(os.environ,STAGE3C_SOURCE_SHA=sha,
   STAGE3C_SUPABASE_URL='https://sandbox3c-example.supabase.co',
   STAGE3C_SUPABASE_PUBLISHABLE_KEY='sb_publishable_fictionalStage3cPublic123',
@@ -18,7 +18,7 @@ checks=Check()
 errors=[]
 token='stage3c-fake-coach-bearer-token-abc123'
 with sync_playwright() as p:
-  browser=p.chromium.launch()
+  browser=getattr(p,os.getenv('STAGE3C_BROWSER_ENGINE','chromium')).launch()
   for width in (390,1280):
     ctx=browser.new_context(viewport={'width':width,'height':844})
     calls=[]
