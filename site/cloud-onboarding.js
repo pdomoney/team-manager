@@ -25,7 +25,7 @@ export function createCloudOnboardingClient({identity,fetchImpl=fetch,origin}={}
         (action==='list.mine'&&invitationId))throw fail('invalid-request');
     }else if(!IDENT.test(teamId||'')||!ROLES.has(role)||
       (action==='propose'&&(!TARGET.has(targetRole)||
-        !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email||'')))||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email||'')))||
       (!['list.team','propose'].includes(action)&&!INVITE.test(invitationId||'')))
       throw fail('invalid-request');
     const bearer=await identity.verifiedBearer();

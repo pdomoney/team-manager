@@ -118,7 +118,7 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
     const normalized=typeof email==='string'?email.trim().toLowerCase():'';
     let redirect;
     try{redirect=new URL(redirectTo);}catch{throw safeError('invalid-input');}
-    if(!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(normalized)||
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)||
        normalized.length>254||redirect.protocol!=='https:'&&
          !(redirect.protocol==='http:'&&['localhost','127.0.0.1'].includes(redirect.hostname))||
        !redirect.pathname.endsWith('/cloud-access.html')||

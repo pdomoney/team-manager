@@ -472,7 +472,7 @@ function renderTeamInvitations(ctx){
           },a,{primary:true});
         if(entry.status==='activated')
           button('Revoke team access',async()=>{
-            if(!confirm('Revoke this individual\\'s selected team role?'))return;
+            if(!confirm("Revoke this individual's selected team role?"))return;
             await next(onboarding.revoke);
           },a);
         if(['proposed','approved','claimed'].includes(entry.status))
