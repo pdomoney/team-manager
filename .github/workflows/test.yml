@@ -109,6 +109,10 @@ jobs:
           # smoke checks. Qualify it on pull requests, not on every main push.
           if [ "${{ github.event_name }}" != "pull_request" ]; then extra+=(--skip-capacity); fi
           python3 test/browser/run_all.py --skip-unit --out qualification.json "${extra[@]}"
+      - name: Stage 3D.3 adult policy registration on Chromium
+        env:
+          STAGE3D3_BROWSER_ENGINE: chromium
+        run: python3 test/browser/stage3d3_registration.py
       - name: Preserve browser qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -168,3 +172,7 @@ jobs:
         env:
           STAGE3D2_BROWSER_ENGINE: webkit
         run: python3 test/browser/stage3d2_login.py
+      - name: Stage 3D.3 adult policy registration on WebKit
+        env:
+          STAGE3D3_BROWSER_ENGINE: webkit
+        run: python3 test/browser/stage3d3_registration.py
