@@ -122,6 +122,24 @@ The first real-team source increment introduces a narrow display identity for ve
 
 **Operational next step:** complete separately authorised St George staging/first-team service configuration, four-account connected acceptance, then Stage 3D L0–L6 release qualification. The target one-team management rollout remains conditional on privacy, minors/guardian, provider, security, recovery and owner sign-off. Tactics and Play Editor remain post-rollout Stage 4. See [first-team runbook](operations/stage3d-first-live-stgeorge-mixed20.md).
 
+### Stage 3D.2: provider sign-in source development (19 November 2026)
+
+Owner-approved consolidated Google, Apple, email-code and existing password
+access is developed against the original Supabase GoTrue boundary. OAuth
+requires one-use browser PKCE, account UUID matching for *explicit* linking,
+and independently approved server account/team grants. A verified provider
+session never creates a Person or team-role grant. Email code requests refuse
+new-user creation. The signed-in profile and team-context functionality from
+3A/3B remains intact; no production OAuth/SMTP/project setup is claimed.
+
+**Still pending for real use:** operator-approved OAuth clients, Apple and
+Google provider configuration, authorised email delivery, **real approved
+terms/privacy version and server-enforced acknowledgement**, junior/guardian
+safeguards, real identities and host verification. Those form the first steps
+of **3D.3**; Stage 3D.4–3D.6 deliver live team journeys, release qualification
+and owner-authorised launch. No additional fictional plays work is included.
+See [Stage 3D.2 provider handover](operations/stage3d2-multi-provider-auth.md).
+
 ## Prior direction: Option B play workspace
 
 Owner decision (8 November 2026): favour a dedicated diagram-first viewing experience and a purpose-built coach editing workspace, without requiring browser zoom. See [Option B phased programme](architecture/option-b-play-workspace-programme.md) and [Play Engine 2.0 #166](https://github.com/pdomoney/team-manager/issues/166).
