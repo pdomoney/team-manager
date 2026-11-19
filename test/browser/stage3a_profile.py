@@ -70,7 +70,7 @@ with sync_playwright() as p:
         page.get_by_role('button',name='Save my profile').click()
         page.get_by_text('Your display name was saved.').wait_for()
         checks.ok(state['displayName']=='Fictional Adult' and state['version']==1,
-            f'[{width}] one person's profile persisted via authenticated RPC')
+            f"[{width}] one person\'s profile persisted via authenticated RPC")
         checks.ok(state['saved'][0]=={'p_display_name':'Fictional Adult',
             'p_expected_version':0},
             f'[{width}] no role, team, person or account identifiers supplied to write')
