@@ -13,17 +13,19 @@ const client = createCloudIdentityClient({
   ...CLOUD_SUPABASE, fetchImpl: fetch.bind(window), storage: sessionStorage
 });
 let busy = false;
+let pendingOtpEmail = '';
 const recovery=$('cloud-recovery');
 const setup=$('cloud-password-setup');
 function showSignIn(){
   recovery.hidden=true;setup.hidden=true;account.hidden=true;form.hidden=false;
+  $('cloud-otp-request').hidden=true;$('cloud-otp-verify').hidden=true;
+  $('cloud-provider-options').hidden=false;
 }
 
 
 function setBusy(value) {
   busy = value;
-  submit.disabled = value;
-  $('cloud-signout').disabled = value;
+  for(const control of document.querySelectorAll('#cloud-provider-options button, #cloud-link-providers button, #cloud-login button, #cloud-signout'))control.disabled=value;
 }
 function showMessage(message) { status.textContent = message; }
 function showGuest() {
@@ -31,14 +33,19 @@ function showGuest() {
   teams.replaceChildren();
   workspaceLink.hidden = true;
   $('cloud-password').value = '';
+  $('cloud-link-providers').hidden=true;pendingOtpEmail='';
 }
 function showUser(user, contexts, owner = false, checked = true) {
   form.hidden = true;
+  $('cloud-provider-options').hidden=true;
+  $('cloud-otp-request').hidden=true;
+  $('cloud-otp-verify').hidden=true;
   account.hidden = false;
+  $('cloud-link-providers').hidden=!(checked&&(contexts.length||owner));
   $('cloud-identity').textContent = 'Signed in as ' + user.email;
   teams.replaceChildren();
   $('cloud-team-message').textContent = contexts.length
-    ? 'These are your current team/role grants. The full team app is not connected yet.'
+    ? 'These are your verified team and role grants. Choose one active working context in your workspace.'
     : 'No verified active team access is assigned to this account.';
   if (owner) {
     const li=document.createElement('li');
@@ -67,7 +74,7 @@ async function loadAccess() {
     let owner=false;
     try { owner=await client.myOperatorAccess(); } catch { /* owner is not inferred */ }
     showUser(user, contexts, owner);
-    showMessage('Identity verified. This preview does not grant access to private team data.');
+    showMessage('Identity verified. Team permissions are checked separately for each role and team.');
   } catch (error) {
     showUser(user, [], false, false);
     showMessage(error.code === 'server-not-ready'
