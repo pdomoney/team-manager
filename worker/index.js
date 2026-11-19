@@ -3,6 +3,7 @@
 import {handleStage1Request} from './stage1-api.js';
 import {handleStage2PlayRequest} from './stage2-play-api.js';
 import {handleStage3Onboarding} from './stage3-onboarding-api.js';
+import {handleStage3D3Registration,stage3D3PolicyGate} from './stage3d3-registration.js';
 
 export default {
   async fetch(request, env) {
@@ -17,6 +18,12 @@ export default {
         path.startsWith('/api/stage2/'))
         return new Response('Not available in management staging',{status:404,
           headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+    }
+    if(path.startsWith('/api/stage3d3/')) return handleStage3D3Registration(request,env);
+    if(path.startsWith('/api/stage1/')||path.startsWith('/api/stage3b/')||
+       path.startsWith('/api/stage3/')){
+      const denied=await stage3D3PolicyGate(request,env);
+      if(denied)return denied;
     }
     if (path.startsWith('/api/stage1/')) return handleStage1Request(request,env);
     if (path.startsWith('/api/stage3b/')) return handleStage1Request(request,env);
