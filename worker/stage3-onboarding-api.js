@@ -86,7 +86,13 @@ async function delivery(fetchImpl,host,env,invitationId,email){
   if(response?.ok)return 'sent';
   // GoTrue does not send a second invite to an already registered user.
   // That user can sign in and claim an independently approved invitation.
-  if(response?.status===422)return 'existing-account';
+  if(response?.status===422){
+    try{
+      const issue=await response.json();
+      if(['email_exists','user_already_exists'].includes(issue?.code))
+        return 'existing-account';
+    }catch{/* no provider details reach the browser */}
+  }
   return 'failed';
 }
 const safeCode=new Set(['permitted','proposed','approved','claimed','activated',
