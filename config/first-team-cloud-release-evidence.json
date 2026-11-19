@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "first-team-cloud-live-release",
-  "description": "SOURCE-ONLY blocked one-team release. Players, volunteers and E5 plays are required. No production identity, vendor, minor/guardian policy or data. No credentials, records or fabricated approvals.",
+  "description": "SOURCE-ONLY management-only first-team release remains BLOCKED. Real Coach/Manager, Player, Volunteer and account onboarding journeys required. E5 Tactics deferred to Stage 4. No supplier/privacy/runtime approval or real data.",
   "candidate": {
     "sourceSha": null,
     "installedSha": null,
@@ -70,7 +70,7 @@
     "PLAYER_OWN_AVAILABILITY": {
       "status": "pending"
     },
-    "PLAYER_PUBLISHED_PLAY_VIEW": {
+    "INDIVIDUAL_INVITE_ACTIVATION": {
       "status": "pending"
     },
     "VOLUNTEER_OWN_DUTIES": {
@@ -79,10 +79,10 @@
     "VOLUNTEER_OWN_RESPONSE": {
       "status": "pending"
     },
-    "COACH_PLAY_EDIT_PUBLISH": {
+    "PROFILE_PERSON_LINK_APPROVAL": {
       "status": "pending"
     },
-    "PLAY_E5_LOSSLESS_RECOVERY": {
+    "ROLE_GRANT_AND_RECOVERY": {
       "status": "pending"
     },
     "REVOKED_FOREIGN_TEAM_DENIAL": {

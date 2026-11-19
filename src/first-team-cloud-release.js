@@ -13,11 +13,11 @@ export const FIRST_TEAM_GATES=Object.freeze([
 export const FIRST_TEAM_JOURNEYS=Object.freeze([
   'COACH_MANAGER_EXACT_TEAM',
   'PLAYER_OWN_AVAILABILITY',
-  'PLAYER_PUBLISHED_PLAY_VIEW',
+  'INDIVIDUAL_INVITE_ACTIVATION',
   'VOLUNTEER_OWN_DUTIES',
   'VOLUNTEER_OWN_RESPONSE',
-  'COACH_PLAY_EDIT_PUBLISH',
-  'PLAY_E5_LOSSLESS_RECOVERY',
+  'PROFILE_PERSON_LINK_APPROVAL',
+  'ROLE_GRANT_AND_RECOVERY',
   'REVOKED_FOREIGN_TEAM_DENIAL'
 ]);
 const SHA=/^[0-9a-f]{40}$/;
@@ -40,12 +40,12 @@ export const FIRST_TEAM_LABELS=labels;
 const journeyLabels=Object.freeze({
   COACH_MANAGER_EXACT_TEAM:'Coach/Manager exact-team roster, training and fixture workflow',
   PLAYER_OWN_AVAILABILITY:'Player or approved guardian own-team RSVP only',
-  PLAYER_PUBLISHED_PLAY_VIEW:'Player can view/animate published play, never unpublished drafts',
+  INDIVIDUAL_INVITE_ACTIVATION:'Individual invitation, verified-email activation and credential recovery',
   VOLUNTEER_OWN_DUTIES:'Assigned volunteer/fixture duty only; no inferred digital role',
   VOLUNTEER_OWN_RESPONSE:'Assigned volunteer task response, not another person or team',
-  COACH_PLAY_EDIT_PUBLISH:'Authorised Coach edits and publishes E5 play; no Player/volunteer write',
-  PLAY_E5_LOSSLESS_RECOVERY:'Legacy and E5 paths, timing, diagrams, instructions restore losslessly',
-  REVOKED_FOREIGN_TEAM_DENIAL:'Foreign/revoked/stale-offline/direct play URL and protected data deny'
+  PROFILE_PERSON_LINK_APPROVAL:'Person profile linked through independent review, never self-approved',
+  ROLE_GRANT_AND_RECOVERY:'Exact-team digital grant approved, recovered and revoked safely',
+  REVOKED_FOREIGN_TEAM_DENIAL:'Foreign/revoked/stale-offline/direct URL and protected data deny'
 });
 export const FIRST_TEAM_JOURNEY_LABELS=journeyLabels;
 
@@ -67,8 +67,8 @@ export function evaluateFirstTeamCloudRelease(e){
   if(owner.status!=='approved') blockers.push('Owner has not explicitly approved the live release scope');
   for(const field of ['provider','plan','region','controller'])
     if(!filled(owner[field])) blockers.push('Owner decision missing '+field);
-  if(owner.launchMode!=='team-participants-private')
-    blockers.push('First-team release must include Coach/Manager, Player, Volunteer and Plays journeys');
+  if(owner.launchMode!=='team-management-private')
+    blockers.push('First-team management release must include Coach/Manager, Player, Volunteer and account onboarding journeys');
   if(!['adult','includes-minors'].includes(owner.firstTeamAgeGroup))
     blockers.push('First-team player age group and guardian rules undecided');
   if(owner.firstTeamAgeGroup==='includes-minors'&&

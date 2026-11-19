@@ -55,6 +55,24 @@ Existing issues #154, #131, #34, #35 and #31 remain open until independently qua
 
 ---
 
+## Accepted programme revision: management rollout before Tactics (19 November 2026)
+
+**Owner-approved current source-development sequence:** Stage 3A.1–3A.6
+authenticated account onboarding, verified Person link, independently reviewed
+team invitations, role grant and revocation, self-profile and account recovery;
+Stage 3B management (schedule, squad, attendance, volunteering, communications,
+reports); Stage 3C controlled individual adult user staging; Stage 3D management
+release qualification and first-team rollout. **Stage 4** is a separate later
+E5 Tactics/Play Editor cloud integration. This supersedes the historical
+plays-required first-team criterion above **for the initial release only**.
+The original encrypted E5 experience must remain intact, but is not a production
+management blocker. Stage 3A is source-only until separately approved real
+provider, email, privacy, schema, migrations, backups and host validation.
+The release evaluator in `src/first-team-cloud-release.js` retains all
+seven L0–L6 hard gates and replaces the three plays-dependent first-team
+journeys with account/invitation, identity-link and grant/recovery journeys.
+No gate is auto-approved by this roadmap entry.
+
 ## Prior direction: Option B play workspace
 
 Owner decision (8 November 2026): favour a dedicated diagram-first viewing experience and a purpose-built coach editing workspace, without requiring browser zoom. See [Option B phased programme](architecture/option-b-play-workspace-programme.md) and [Play Engine 2.0 #166](https://github.com/pdomoney/team-manager/issues/166).
