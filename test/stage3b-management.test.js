@@ -97,9 +97,13 @@ test('3B route cannot execute Stage 1 actions, play writes or forged identity',a
   assert.equal(provider.calls.length,0);
 });
 test('3B denials, suspended accounts, provider faults and foreign origin fail closed',async()=>{
-  const forbidden=fake({data:{ok:false,code:'scope-denied',private:'sensitive'}});
+  const forbidden=fake({data:{ok:false,code:'scope-denied'}});
   const r=await handleStage1Request(request(),env,forbidden.fetchImpl);
   assert.deepEqual(await r.json(),{ok:false,code:'scope-denied'});
+  const leaked=fake({data:{ok:false,code:'scope-denied',private:'sensitive'}});
+  const blocked=await handleStage1Request(request(),env,leaked.fetchImpl);
+  assert.equal(blocked.status,503);
+  assert.deepEqual(await blocked.json(),{ok:false,code:'service-unavailable'});
   const foreign=fake();
   const x=await handleStage1Request(request(body(),{
     Origin:'https://other.example.test'}),env,foreign.fetchImpl);

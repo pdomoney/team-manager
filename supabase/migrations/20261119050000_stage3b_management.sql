@@ -453,7 +453,6 @@ returns trigger language plpgsql set search_path=''
 as $
 begin
  if new.resource_version=old.resource_version+1
-   and new.response is distinct from old.response
    and new.recorded_source is not distinct from old.recorded_source
    and new.recorded_by is not distinct from old.recorded_by
    and new.recorded_at is not distinct from old.recorded_at
