@@ -51,3 +51,32 @@ begin
   raise notice 'PASS: one real-designated team, separately approved dual role, reviewer denied grants, zero participant records';
 end;
 $$;
+
+-- A second Manager is not inherited from acting as the reviewer.
+-- It requires a DIFFERENT explicit activation after the first Coach is active.
+\set coach_uuid 33333333-3333-4333-8333-333333333333
+\set manager_uuid 44444444-4444-4444-8444-444444444444
+\set approval_ref evidence-ref/disposable-separate-manager-attestation
+\set manager_authorised approved-first-manager-activation
+\ir ../stage3d/bootstrap_first_manager.sql
+do $$
+declare
+  coach uuid := '33333333-3333-4333-8333-333333333333'::uuid;
+  manager uuid := '44444444-4444-4444-8444-444444444444'::uuid;
+begin
+  if (select count(*) from tm_private.role_grants
+      where team_id='stgeorge-mixed20' and role='team_manager'
+        and user_id=manager and status='active' and approved_by=coach)<>1
+     or (select count(*) from tm_private.role_grants
+        where team_id='stgeorge-mixed20' and role='team_coach'
+          and user_id=coach and status='active')<>1
+     or (select count(*) from tm_private.platform_operator_grants
+        where user_id=manager)<>0
+     or (select count(*) from tm_private.account_person_links
+        where user_id=manager and status='verified' and verified_by=coach)<>1
+     or (select count(*) from tm_private.participations)<>0 then
+    raise exception 'Explicit Manager activation or separated platform scope failed';
+  end if;
+  raise notice 'PASS: first Coach and separately authorised Manager can independently review team invitations';
+end;
+$$;
