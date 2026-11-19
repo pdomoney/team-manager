@@ -77,7 +77,8 @@ export function buildStage3C({root=process.cwd(),env=process.env,
     `// Stage 3C generated public information only. No privileged keys.\n`+
     `export const CLOUD_SUPABASE=Object.freeze(${JSON.stringify({
       url:args.supabaseUrl,publishableKey:args.publicKey})});\n`+
-    'export const CLOUD_STAGE3C_MODE=true;\n');
+    'export const CLOUD_STAGE3C_MODE=true;\n'+
+    'export const CLOUD_STAGE3D2_AUTH_ENABLED=false;\n');
   let html=fs.readFileSync(path.join(out,'cloud-access.html'),'utf8');
   const original='For invited test accounts only. This is an identity and team-permission preview, not the live member application.';
   if(!html.includes(original))throw new Error('stage3c-login-source-drift');
