@@ -265,20 +265,20 @@ function renderSchedule(){
     const c=card('Add team event or friendly');
     info('Team-controlled activities only. Official competition fixtures cannot be created or edited here.',c);
     const f=form(c,async d=>{
-      const startsAt=new Date(String(d.get('startsAt')));
+      const startsAt=new Date(String(d.get('eventStartsAt')));
       if(!Number.isFinite(startsAt.valueOf()))
         throw Object.assign(new Error(),{code:'invalid-input'});
       await mutation('event.create',state.context.teamId,0,{command:{
-        kind:String(d.get('kind')),title:String(d.get('title')).trim(),
-        locationLabel:String(d.get('locationLabel')).trim(),
+        kind:String(d.get('kind')),title:String(d.get('eventTitle')).trim(),
+        locationLabel:String(d.get('eventLocation')).trim(),
         startsAt:startsAt.toISOString()}});
       message('Team-managed event created.');await showTab();
     });
     selectField(f,'Event type','kind',[
       ['activity','Team activity'],['friendly','Friendly match (unofficial)']]);
-    field(f,'Event title','title',{max:120});
-    field(f,'Start','startsAt',{type:'datetime-local'});
-    field(f,'Location','locationLabel',{required:false,max:120});
+    field(f,'Event title','eventTitle',{max:120});
+    field(f,'Start','eventStartsAt',{type:'datetime-local'});
+    field(f,'Location','eventLocation',{required:false,max:120});
     h('button',{className:'cloud-btn primary',text:'Add team event',
       attrs:{type:'submit'},parent:f});
   }

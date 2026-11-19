@@ -146,7 +146,8 @@ test('3B private attendance and notices and report suppression remain source-enf
     import.meta.url),'utf8');
   assert.match(m,/team_attendance force row level security/);
   assert.match(m,/team_notices force row level security/);
-  assert(m.includes('as 
+  assert(m.includes('as ' + String.fromCharCode(36,36,10) + 'begin'),
+    'trigger body must use PostgreSQL dollar quoting');
   assert.match(m,/p_role not in \('team_coach','team_manager'\)/);
   assert.match(m,/management_origin in \('team-friendly','team-activity'\)/);
   assert.match(m,/between 1 and 4 then null/);
