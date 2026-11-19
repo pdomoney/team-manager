@@ -1,0 +1,18 @@
+{
+  // Stage 3D.3 isolated FIRST-TEAM adult-only connected candidate.
+  // Deployment requires separate project/host/privacy/installer approval.
+  // Not the historic demo Worker or Stage 3C fictional QA Worker.
+  "name": "team-manager-stgeorge-stage3d3",
+  "compatibility_date": "2026-11-19",
+  "workers_dev": true,
+  "preview_urls": false,
+  "main": "worker/index.js",
+  "assets": {
+    "directory": "./dist-stage3d3",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "vars": {
+    "STAGE3C_MODE": "management-only"
+  }
+}
