@@ -55,6 +55,34 @@ Existing issues #154, #131, #34, #35 and #31 remain open until independently qua
 
 ---
 
+## Stage 3B.1–3B.6 authenticated team-management source development (19 November 2026)
+
+**PR source candidate; not installed or released.** Following completed/merged
+3A (#268/#269), the next integrated feature increment uses the original
+authenticated team workspace and existing same-origin Worker. Stage 3B contains:
+
+| Block | Delivered source candidate | Safeguard |
+| --- | --- | --- |
+| 3B.1 Home | Selected-team upcoming schedule, explicit role context and scoped notices | No platform-wide player/volunteer data; existing Home routes preserved |
+| 3B.2 Squad | Coach/Manager confirms pending *team placement* with a versioned audit | Registration, finance, match eligibility and D17 grace rules remain separate |
+| 3B.3 Schedule | Team-controlled activities/friendlies, edit/cancel, existing training and RSVP | Official competition fixtures cannot be changed without D06 authority |
+| 3B.4 Attendance | Training roll call, individual player RSVP and Manager external-reply provenance | Person/team checks, limited identities, timestamp/actor, safe stale-write denial |
+| 3B.5 Volunteer duties | Manager's exact-team duty list, non-accredited type and withdrawal; volunteer reply | No inferred digital grant, screening clearance, trainer or official accreditation |
+| 3B.6 Notices and reports | Targeted in-app draft/publish notices, session aggregate reports, attendance under Reports | Audience isolation, unpublished drafts protected, counts for cohorts 1–4 suppressed |
+
+Private tables are RLS-locked; no new browser table grants.
+The Stage 3B SQL RPC re-checks the selected exact-team role,
+uses versioned mutations, team-serialised idempotency receipts and audit.
+The trusted Worker verifies GoTrue tokens and derives the actor server-side.
+Stage 2 and E5 tactics code remains unchanged. This is not live adoption of
+Supabase/Worker, approval of real personal data, messaging APIs or production.
+
+Stage 3C remains approved isolated staging with real adult trial identities,
+Stage 3D remains management-only production readiness and L0–L6 acceptance,
+and Stage 4 remains separate post-rollout E5 play/tactics integration.
+The original M2.3–M8, D01–D24, competition/official result, guardian,
+WWCC, reports and role-expansion backlog remain separately tracked.
+
 ## Accepted programme revision: management rollout before Tactics (19 November 2026)
 
 **Owner-approved current source-development sequence:** Stage 3A.1–3A.6
