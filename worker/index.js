@@ -8,6 +8,7 @@ export default {
   async fetch(request, env) {
     const path=new URL(request.url).pathname;
     if (path.startsWith('/api/stage1/')) return handleStage1Request(request,env);
+    if (path.startsWith('/api/stage3b/')) return handleStage1Request(request,env);
     if (path.startsWith('/api/stage2/')) return handleStage2PlayRequest(request,env);
     if (path.startsWith('/api/stage3/')) return handleStage3Onboarding(request,env);
     if (path.startsWith('/api/')) return new Response(

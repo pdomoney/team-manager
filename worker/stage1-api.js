@@ -6,6 +6,8 @@ import {validateFirstTeamActionPayload} from '../src/first-team-action-contract.
 const ROLES=new Set(['team_coach','team_assistant','team_manager','team_player','team_volunteer']);
 const ACTIONS=new Set(['schedule.read','schedule.edit','roster.read','roster.edit',
   'availability.reply','duty.read','duty.reply','duty.assign']);
+const MANAGEMENT_ACTIONS=new Set(['attendance.read','availability.board','duty.board','notices.read','report.summary','roster.approve','event.create','event.change','attendance.record','availability.transcribe','duty.label','duty.withdraw','notice.create','notice.publish','notice.archive']);
+for(const action of MANAGEMENT_ACTIONS)ACTIONS.add(action);
 const IDENT=/^[A-Za-z0-9][A-Za-z0-9:_-]{0,99}$/;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_CODES=new Set(['invalid-command','invalid-mutation','invalid-read',
@@ -14,6 +16,8 @@ const SAFE_CODES=new Set(['invalid-command','invalid-mutation','invalid-read',
   'resource-out-of-scope','invalid-training','stale-or-protected-session',
   'invalid-roster','stale-roster','invalid-response','session-unavailable',
   'stale-availability','invalid-duty','volunteer-not-verified',
+  'stale-event','stale-or-external-event','stale-attendance','stale-notice',
+  'invalid-event','invalid-attendance','invalid-availability','invalid-notice',
   'duty-not-assigned','stale-or-invalid-duty','mutation-id-reused',
   'committed','permitted']);
 const deny=(code,status=403)=>reply({ok:false,code},status);
@@ -70,7 +74,8 @@ async function provider(fetchImpl,url,init){
 export async function handleStage1Request(request,env,fetchImpl=fetch){
   try{
     const url=new URL(request.url);
-    if(request.method!=='POST'||url.pathname!=='/api/stage1/v1/operation'||
+    const management=url.pathname==='/api/stage3b/v1/operation';
+    if(request.method!=='POST'||(url.pathname!=='/api/stage1/v1/operation'&&!management)||
        url.search||url.hash)return deny('not-found',404);
     const origin=request.headers.get('Origin');
     if(origin && origin!==url.origin)return deny('origin-denied');
@@ -86,7 +91,7 @@ export async function handleStage1Request(request,env,fetchImpl=fetch){
     let input;
     try{input=JSON.parse(raw);}catch{return deny('invalid-request',400);}
     const op=validOperation(input);
-    if(!op)return deny('invalid-request',400);
+    if(!op||MANAGEMENT_ACTIONS.has(op.action)!==management)return deny('invalid-request',400);
     const token=auth.slice(7);
     const user=await provider(fetchImpl,host+'/auth/v1/user',{
       method:'GET',headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,
@@ -96,7 +101,8 @@ export async function handleStage1Request(request,env,fetchImpl=fetch){
     // Supply account ID only from Supabase Auth verification; never from client.
     const checksum=Object.hasOwn(op.payload,'mutationId')?
       await digest(user.id,op):null;
-    const result=await provider(fetchImpl,host+'/rest/v1/rpc/tm_stage1_operation',{
+    const endpoint=management?'tm_stage3b_operation':'tm_stage1_operation';
+    const result=await provider(fetchImpl,host+'/rest/v1/rpc/'+endpoint,{
       method:'POST',headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,
         Authorization:'Bearer '+env.SUPABASE_SERVICE_ROLE_KEY,
         'Content-Type':'application/json'},
