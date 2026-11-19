@@ -60,6 +60,7 @@ import { qaAcceptanceBoard, qaAcceptanceText } from './p11-qa-acceptance.js';
 import { P12_QA_PROFILES, p12QaView } from './p12-qa-profiles.js';
 import {desktopProfileAvailable,desktopProfileChoices,resolveDesktopProfile} from './desktop-profile-preview.js';
 import {developmentSandbox} from './development-sandbox.js';
+import {legacyTrialPublishingAllowed} from './legacy-trial-publishing.js';
 import {recognisedDemoWorkspace, appendMissingDemoTeams} from './demo-catalog.js';
 import {personWorkspace} from './person-role-workspace.js';
 import {personaSession,personaRoleTeams,personaRoster,personaFixtures,personaSeasons,personaAction,personaCurrentState,upgradePersonaRecords} from './persona-runtime.js';
@@ -174,6 +175,7 @@ const sessionStore = {
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const DEV_SANDBOX=developmentSandbox({hostname:location.hostname,pathname:location.pathname,search:location.search});
+const LEGACY_TRIAL_PUBLISH_ALLOWED=legacyTrialPublishingAllowed(location.hostname);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => M.uid();   // random, except while the test library is built (model.js)
 const pad = n => String(n).padStart(2, '0');
@@ -1648,7 +1650,7 @@ function renderStatus() {
     text = 'This phone’s storage is full. The latest changes are not saved locally; keep this page open and export an encrypted backup now.';
     btn = `<button data-act="export">Export backup</button>`;
   }
-  else if (S.trial) { cls = 'warn'; text = DEV_SANDBOX ? 'Development workspace · saved on this device only. Fictional profiles available on Home.' : (ws && ws.testLibrary ? `Test library (${fmtDay(ws.testLibrary.day)}). Saved on this phone only.` : 'Test mode. Saved on this phone only; nothing is shared.'); btn = DEV_SANDBOX ? '' : `<button data-act="go-live">Go live</button>`; }
+  else if (S.trial) { cls = 'warn'; text = DEV_SANDBOX ? 'Development workspace · saved on this device only. Fictional profiles available on Home.' : (ws && ws.testLibrary ? `Test library (${fmtDay(ws.testLibrary.day)}). Saved on this phone only.` : 'Test mode. Saved on this phone only; nothing is shared.'); btn = !DEV_SANDBOX && LEGACY_TRIAL_PUBLISH_ALLOWED ? `<button data-act="go-live">Go live</button>` : ''; }
   else if (!online() && S.dirty) { cls = 'warn'; text = 'Offline. Changes are saved on this phone and will publish when you’re back online.'; }
   else if (!online()) { cls = 'warn'; text = 'Offline. Everything here is saved on this phone.'; }
   else if (!ghReady()) { cls = 'warn'; text = 'Saved on this phone only.'; btn = `<button data-act="github">Connect GitHub to publish</button>`; }
@@ -8238,6 +8240,7 @@ function phoneSettings() {
   <p class="hint">Choose what to clear: the squad, training, matches, tasks, helpers, lineups, notices or the message log. Team settings${S.trial ? '' : ', plays and passwords'} stay.</p>`;
 }
 function trialSettings() {
+  if(!LEGACY_TRIAL_PUBLISH_ALLOWED)return `<h3 class="form-sec">Local demonstration</h3><p class="muted small">This is a browser-only demo, not a registered team. Real users sign in through the separately approved team access site. No shared Coach password or GitHub publishing is available here.</p><button class="btn block" data-act="preview-on">${icon('eye',18)}See what players will see</button>`;
   if(DEV_SANDBOX)return `<h3 class="form-sec">Development workspace</h3><p class="muted small">No passwords or production publishing in this environment. Use Switch profile on Home. Fictional testing changes stay on this device.</p>`;
   return `<h3 class="form-sec">Going live</h3>
   <p class="muted small" style="margin-bottom:10px">You're in test mode: everything is saved on this phone only and nobody else can see it. When you're ready to share the app with players, go live. You'll choose a coach password and a team password, and connect GitHub so the app can publish.</p>
@@ -10166,8 +10169,8 @@ const actions = {
   'preview-on': coachOnly(() => { state.preview = true; state.moveMode = false; closeSheet(); render(); window.scrollTo(0, 0); }),
   'preview-off': () => { state.preview = false; render(); },
 
-  'go-live': coachOnly(() => {if(DEV_SANDBOX){toast('Production setup is not enabled in this development environment.');return;}openGoLive();}),
-  'github': () => {if(DEV_SANDBOX){toast('GitHub publishing is disabled in the development environment.');return;}S.trial ? openGoLive() : openGithubSheet();},
+  'go-live': coachOnly(() => {if(DEV_SANDBOX||!LEGACY_TRIAL_PUBLISH_ALLOWED){toast('This demonstration cannot activate a real team.');return;}openGoLive();}),
+  'github': () => {if(DEV_SANDBOX||S.trial&&!LEGACY_TRIAL_PUBLISH_ALLOWED){toast('Legacy publishing is unavailable in this demonstration.');return;}S.trial ? openGoLive() : openGithubSheet();},
   'publish': () => {if(DEV_SANDBOX)return;publish(false);},
   'force-publish': () => { closeSheet(); publish(false, true); },
   'conflict': () => openConflictSheet(),

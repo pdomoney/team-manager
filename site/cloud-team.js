@@ -3,6 +3,7 @@
 import {CLOUD_SUPABASE,CLOUD_STAGE3C_MODE} from './cloud-public-config.js';
 import {createCloudIdentityClient} from './cloud-identity.js';
 import {createCloudOnboardingClient} from './cloud-onboarding.js';
+import {teamContextLabel} from './first-live-team.js';
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
@@ -95,7 +96,7 @@ function title(name,subtitle){
   h('h2',{text:name,parent:main});
 }
 function contextLabel(c){return c.role==='platform_owner'?'Platform Owner · platform administration':
-  (ROLE_NAMES[c.role]||c.role)+' · '+c.teamId;}
+  (ROLE_NAMES[c.role]||c.role)+' · '+teamContextLabel(c);}
 function selectContext(index){
   state.epoch++;notice.hidden=true;state.context=state.contexts[index]||null;
   state.schedule=[];state.roster=[];state.duties=[];state.notices=[];state.drafts=[];

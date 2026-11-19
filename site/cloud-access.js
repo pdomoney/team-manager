@@ -1,5 +1,6 @@
 import { CLOUD_SUPABASE } from './cloud-public-config.js';
 import { createCloudIdentityClient } from './cloud-identity.js';
+import {teamDisplayName} from './first-live-team.js';
 
 const $ = id => document.getElementById(id);
 const form = $('cloud-login');
@@ -47,7 +48,7 @@ function showUser(user, contexts, owner = false, checked = true) {
   for (const item of contexts) {
     const li = document.createElement('li');
     const name = document.createElement('strong');
-    name.textContent = item.teamId + ' · ' + item.role.replaceAll('_', ' ');
+    name.textContent = teamDisplayName(item) + ' · ' + item.role.replaceAll('_', ' ');
     const extra = document.createElement('span');
     extra.textContent = item.club + ' · ' + item.sport + ' · ' + item.season;
     li.append(name, extra);
