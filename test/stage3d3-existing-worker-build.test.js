@@ -107,6 +107,8 @@ test('Shared Worker must preserve legacy root and fail closed on registered API 
   assert.equal((await worker.fetch(new Request(base+'/'),env)).status,200);
   assert.equal((await worker.fetch(new Request(base+'/index.html'),env)).status,200);
   assert.equal((await worker.fetch(new Request(base+'/data/team.enc.json'),env)).status,200);
+  assert.equal((await worker.fetch(new Request(base+'/api/stage2/v1/play',{
+    method:'POST'}),env)).status,404);
   assert.equal((await worker.fetch(new Request(base+'/api/stage1/v1/operation',{
     method:'POST'}),env)).status,503);
   assert.equal((await worker.fetch(new Request(base+'/api/stage3d3/v1/registration'),
