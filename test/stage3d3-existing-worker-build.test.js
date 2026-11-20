@@ -58,9 +58,9 @@ test('Existing Worker build preserves real legacy root, plays and encrypted data
     const d=JSON.parse(fs.readFileSync(path.join(x.out,'stage3d3-existing-worker-manifest.json'),'utf8'));
     assert.equal(d.releaseStatus,'NOT_INSTALLED_NOT_ACCEPTED');
     assert.equal(d.legacyVersion,sha.slice(0,7));
-    const m=JSON.parse(fs.readFileSync(path.join(x.out,'stage3d3-manifest.json'),'utf8'));
-    assert.equal(m.team,null);
-    assert.equal(m.seasonRef,null);
+    const connectedManifest=JSON.parse(fs.readFileSync(path.join(x.out,'stage3d3-manifest.json'),'utf8'));
+    assert.equal(connectedManifest.team,null);
+    assert.equal(connectedManifest.seasonRef,null);
     assert(!fs.existsSync(path.join(x.out,'stage3c-manifest.json')));
     assert(fs.existsSync(path.join(x.out,'cloud-registration.html')));
     assert(fs.existsSync(path.join(x.out,'cloud-team.html')));
