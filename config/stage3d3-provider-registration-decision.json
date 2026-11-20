@@ -11,8 +11,8 @@
     "season": "requires-owner-verification"
   },
   "deploymentArchitecture": {
-    "application": "separately named Cloudflare Workers connected application",
-    "database": "Supabase PostgreSQL",
+    "application": "existing Cloudflare Worker team-manager, preserving historical demo while adding first-team connected pages",
+    "database": "existing Team Manager Supabase PostgreSQL project (Sydney)",
     "desiredRegion": "ap-southeast-2",
     "intendedTrialPlan": "Supabase Free, limits and suitability to be independently verified",
     "authentication": [
@@ -23,12 +23,18 @@
     ],
     "emailDelivery": "external SMTP provider to be selected and approved",
     "hostAndBillingVerified": false,
-    "resourcesExistenceChecked": false,
+    "resourcesExistenceChecked": true,
     "liveProviderProvisioningApproved": false,
     "productionSourceInstalled": false,
     "maximumInitialUsers": 50,
     "recoveryPointObjectiveHours": 24,
-    "backupRestoreEvidenceApproved": false
+    "backupRestoreEvidenceApproved": false,
+    "existingWorkerName": "team-manager",
+    "existingWorkerOrigin": "https://team-manager.paul-domoney.workers.dev",
+    "existingSupabaseProjectReference": "uyjxvaobshaahzipzzds",
+    "ownerApprovedExistingResourceReuse": true,
+    "separateNewCloudProjectsRequired": false,
+    "existingDemoAndEncryptedDataMustBePreserved": true
   },
   "dataPolicy": {
     "ownerPrivacyRequirementsApprovedForEngineering": true,
@@ -60,5 +66,6 @@
     "releaseGatesTotal": 7,
     "installedRuntimeVerified": false,
     "ownerProductionGoLiveApproved": false
-  }
+  },
+  "existingResourceDirectionDate": "2026-11-20"
 }
