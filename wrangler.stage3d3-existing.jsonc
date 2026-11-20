@@ -1,0 +1,18 @@
+{
+  // Explicit owner-approved existing Cloudflare Worker reuse, not a new service.
+  // Never deploy before actual host backup/snapshot, approved schema/policy,
+  // protected key preflight and exact-source acceptance. Not used by CI.
+  "name": "team-manager",
+  "compatibility_date": "2026-11-19",
+  "workers_dev": true,
+  "preview_urls": false,
+  "main": "worker/index.js",
+  "assets": {
+    "directory": "./dist-stage3d3-existing",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "vars": {
+    "STAGE3D3_REGISTRATION_MODE": "required"
+  }
+}
