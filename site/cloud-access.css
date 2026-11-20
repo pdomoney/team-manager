@@ -42,3 +42,13 @@
 .access-auth-methods button,.access-link-methods button{min-height:46px;border-radius:8px;font:inherit;font-weight:700}
 .access-auth-methods[hidden],.access-link-methods[hidden]{display:none}
 .access-secondary:focus-visible,.access-primary:focus-visible{outline:3px solid var(--turf);outline-offset:3px}
+
+/* Registration keeps the existing Team Access visual language and 44px taps. */
+#registration-form{display:grid;gap:11px;margin:18px 0}
+#registration-form[hidden]{display:none}
+#registration-form label{display:flex;gap:12px;align-items:flex-start;line-height:1.4;margin:4px 0}
+#registration-form input[type="checkbox"]{width:22px;min-width:22px;height:22px;margin:1px 0 0;accent-color:#29B574}
+#registration-form a{font-weight:700;text-decoration:underline;text-underline-offset:3px}
+#registration-form a:focus-visible,#registration-form input:focus-visible{outline:3px solid #29B574;outline-offset:3px}
+#registration-form button{min-height:46px}
+#registration-unavailable{line-height:1.45}

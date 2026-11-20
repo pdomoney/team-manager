@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#123D2B">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Registration and privacy | Team Manager</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="cloud-access.css">
+  <script type="module" src="cloud-registration.js"></script>
+</head>
+<body class="cloud-access-page">
+  <header class="top"><div class="top-row">
+    <span class="access-mark" aria-hidden="true">TM</span>
+    <h1>Team Manager</h1>
+    <a class="access-header-link" href="cloud-access.html">Team access</a>
+  </div></header>
+  <main class="access-layout">
+    <section class="access-panel" aria-labelledby="registration-title">
+      <p class="access-eyebrow">St George Oztag · Mixed 20</p>
+      <h2 id="registration-title">Registration and privacy</h2>
+      <p class="access-intro">Before using your approved team account, review the current terms and privacy notice. Signing in does not itself grant you a team role.</p>
+      <div id="registration-unavailable" role="status" aria-live="polite">
+        Registration is not available until approved documents and independent identity checks are in place.
+      </div>
+      <form id="registration-form" hidden>
+        <p>These are the current approved documents for your account:</p>
+        <p><a id="registration-terms-link" href="#" target="_blank" rel="noopener noreferrer">Read application terms</a>
+          <span id="registration-terms-version"></span></p>
+        <p><a id="registration-privacy-link" href="#" target="_blank" rel="noopener noreferrer">Read privacy notice</a>
+          <span id="registration-privacy-version"></span></p>
+        <label><input id="registration-terms" type="checkbox" required>
+          I have read and accept the linked application terms.</label>
+        <label><input id="registration-privacy" type="checkbox" required>
+          I have read and acknowledge the linked privacy notice.</label>
+        <label><input id="registration-marketing" type="checkbox">
+          Optional: I would like to receive non-essential marketing communications.</label>
+        <button id="registration-submit" class="access-primary" type="submit">
+          Record acknowledgement
+        </button>
+      </form>
+      <p id="registration-status" role="status" aria-live="polite" class="access-status"></p>
+      <a id="registration-continue" class="access-secondary access-workspace-link"
+        href="cloud-access.html" hidden>Continue to team access</a>
+    </section>
+    <aside class="access-side">
+      <h3>Who can continue?</h3>
+      <p>The initial connected trial is restricted to independently reviewed adult accounts.
+      Junior and guardian access remain unavailable until the relevant safeguards have been approved.</p>
+      <p>Marketing is optional and off by default. Your acknowledgement will not register you
+      with a sporting association or automatically grant access to any team.</p>
+    </aside>
+  </main>
+</body>
+</html>
