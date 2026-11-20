@@ -13,6 +13,7 @@
     "run_worker_first": true
   },
   "vars": {
-    "STAGE3D3_REGISTRATION_MODE": "required"
+    "STAGE3D3_REGISTRATION_MODE": "required",
+    "STAGE3D3_EXISTING_SHARED_WORKER_MODE": "preserve-legacy-pages"
   }
 }
