@@ -32,7 +32,7 @@ const sameFile=(a,b)=>fs.readFileSync(a).equals(fs.readFileSync(b));
 function sameSourceDifferentCacheStamp(a,b){
   if(!a.endsWith('.js')||!b.endsWith('.js'))return false;
   const normalise=file=>fs.readFileSync(file,'utf8')
-    .replace(/\\?v=[a-f0-9]{7,12}\\b/g,'?v=SOURCE-STAMP');
+    .replace(/\?v=[a-f0-9]{7,12}\b/g,'?v=SOURCE-STAMP');
   return normalise(a)===normalise(b);
 }
 
