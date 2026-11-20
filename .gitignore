@@ -14,3 +14,6 @@ supabase/.branches/
 # Separate Stage 3C staging build and operator-only connection evidence.
 dist-stage3c/
 .stage3c-private/
+
+# Connected Worker build contains encrypted source fixtures; never commit artifacts.
+dist-stage3d3-existing/

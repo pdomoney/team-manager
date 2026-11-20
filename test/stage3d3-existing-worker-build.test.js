@@ -16,7 +16,6 @@ const config={
   STAGE3D3_SUPABASE_URL:'https://uyjxvaobshaahzipzzds.supabase.co',
   STAGE3D3_SUPABASE_PUBLISHABLE_KEY:'sb_publishable_syntheticKeyNotASecret123456',
   STAGE3D3_ORIGIN:'https://team-manager.paul-domoney.workers.dev',
-  STAGE3D3_SEASON_REF:'2026', // synthetic fixture; not an approved live season
   STAGE3D3_SCOPE:'individually-authorised-adults-only',
   STAGE3D3_PROVIDER_METHODS:'off'
 };
@@ -59,6 +58,9 @@ test('Existing Worker build preserves real legacy root, plays and encrypted data
     const d=JSON.parse(fs.readFileSync(path.join(x.out,'stage3d3-existing-worker-manifest.json'),'utf8'));
     assert.equal(d.releaseStatus,'NOT_INSTALLED_NOT_ACCEPTED');
     assert.equal(d.legacyVersion,sha.slice(0,7));
+    const m=JSON.parse(fs.readFileSync(path.join(x.out,'stage3d3-manifest.json'),'utf8'));
+    assert.equal(m.team,null);
+    assert.equal(m.seasonRef,null);
     assert(!fs.existsSync(path.join(x.out,'stage3c-manifest.json')));
     assert(fs.existsSync(path.join(x.out,'cloud-registration.html')));
     assert(fs.existsSync(path.join(x.out,'cloud-team.html')));

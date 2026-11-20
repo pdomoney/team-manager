@@ -80,7 +80,7 @@ test('Provider buttons are only compiled into an explicitly selected candidate',
 test('Stage 3D.3 blocks stale source, old Supabase project, wrong scope and unsafe output',()=>{
   for(const bad of [
     {STAGE3D3_SOURCE_SHA:'not-a-sha'},
-    {STAGE3D3_SEASON_REF:''},
+    {STAGE3D3_SEASON_REF:'1998'},
     {STAGE3D3_SEASON_REF:'2026 summer'},
     {STAGE3D3_SCOPE:'open-signup'},
     {STAGE3D3_PROVIDER_METHODS:'always'},
@@ -118,5 +118,20 @@ test('Stage 3D.3 can build against owner-approved existing Supabase while Stage 
     assert.equal(data.supabaseUrl,env.STAGE3D3_SUPABASE_URL);
     assert.equal(data.releaseStatus,'NOT_PRODUCTION_AUTHORISED');
     assert(!fs.existsSync(path.join(out,'index.html')));
+  }finally{fs.rmSync(tmp,{recursive:true,force:true});}
+});
+
+test('Cloud package without a team season is neutral and does not preseed a team',()=>{
+  const env={...cfg};
+  delete env.STAGE3D3_SEASON_REF;
+  const {out,tmp}=tempBuild(env);
+  try{
+    const m=JSON.parse(fs.readFileSync(path.join(out,'stage3d3-manifest.json'),'utf8'));
+    assert.equal(m.team,null);
+    assert.equal(m.seasonRef,null);
+    assert.equal(m.releaseStatus,'NOT_PRODUCTION_AUTHORISED');
+    assert(fs.readFileSync(path.join(out,'cloud-access.html'),'utf8').includes('No club, team or competition season is configured'));
+    assert(fs.readFileSync(path.join(out,'cloud-registration.html'),'utf8').includes('Team Manager · Account registration'));
+    assert(!fs.readFileSync(path.join(out,'cloud-registration.html'),'utf8').includes('St George Oztag · Mixed 20'));
   }finally{fs.rmSync(tmp,{recursive:true,force:true});}
 });
