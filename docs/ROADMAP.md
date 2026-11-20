@@ -167,6 +167,13 @@ covers real security, recovery and devices; 3D.6 is owner-approved cutover.
 
 ### Stage 3D.3 provider and registration decision (20 November 2026)
 
+**Owner correction (20 November):** Existing resources are the intended deployment:
+the Sydney Supabase `Team Manager` project and Cloudflare Worker `team-manager`.
+No duplicate project or Worker. The [existing-resource installation run
+sheet](operations/stage3d3-existing-resource-activation.md) supersedes the earlier
+separate-project assumption. Existing demo, plays, encrypted data, access
+policies and source/runtime release gates remain protected.
+
 The owner approved the Supabase PostgreSQL/Auth and separate Cloudflare Worker
 **architecture for the first St George Oztag / Mixed 20 trial** and the
 privacy/registration **engineering requirements** as one consolidated source
