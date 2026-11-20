@@ -84,7 +84,6 @@ test('Stage 3D.3 blocks stale source, old Supabase project, wrong scope and unsa
     {STAGE3D3_SEASON_REF:'2026 summer'},
     {STAGE3D3_SCOPE:'open-signup'},
     {STAGE3D3_PROVIDER_METHODS:'always'},
-    {STAGE3D3_SUPABASE_URL:'https://uyjxvaobshaahzipzzds.supabase.co'},
     {STAGE3D3_ORIGIN:'https://pdomoney.github.io'},
     {STAGE3D3_ORIGIN:'http://example.com'},
     {STAGE3D3_SUPABASE_PUBLISHABLE_KEY:'sb_secret_private'}
@@ -108,4 +107,16 @@ test('First-team staging Worker denies demo and Stage 4 play endpoints',async()=
   assert.equal((await worker.fetch(new Request(origin+'/data/team.enc.json'),env)).status,404);
   assert.equal((await worker.fetch(new Request(origin+'/api/stage2/v1/play',{method:'POST'}),env)).status,404);
   assert.equal((await worker.fetch(new Request(origin+'/cloud-access.html'),env)).status,200);
+});
+
+test('Stage 3D.3 can build against owner-approved existing Supabase while Stage 3C stays isolated',()=>{
+  const env={...cfg,STAGE3D3_SUPABASE_URL:
+    'https://uyjxvaobshaahzipzzds.supabase.co'};
+  const {out,tmp}=tempBuild(env);
+  try{
+    const data=JSON.parse(fs.readFileSync(path.join(out,'stage3d3-manifest.json'),'utf8'));
+    assert.equal(data.supabaseUrl,env.STAGE3D3_SUPABASE_URL);
+    assert.equal(data.releaseStatus,'NOT_PRODUCTION_AUTHORISED');
+    assert(!fs.existsSync(path.join(out,'index.html')));
+  }finally{fs.rmSync(tmp,{recursive:true,force:true});}
 });

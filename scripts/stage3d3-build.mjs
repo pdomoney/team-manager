@@ -39,7 +39,7 @@ export function stage3d3Inputs(env){
     STAGE3C_SUPABASE_URL:env.STAGE3D3_SUPABASE_URL,
     STAGE3C_SUPABASE_PUBLISHABLE_KEY:env.STAGE3D3_SUPABASE_PUBLISHABLE_KEY,
     STAGE3C_ORIGIN:env.STAGE3D3_ORIGIN
-  });
+  },{approvedExistingProject:true});
   if(new URL(args.origin).pathname!=='/' ||
      new URL(args.origin).username || new URL(args.origin).password ||
      new URL(args.origin).search || new URL(args.origin).hash ||
@@ -61,7 +61,7 @@ export function buildStage3D3({root=process.cwd(),env=process.env,
       STAGE3C_SUPABASE_URL:args.supabaseUrl,
       STAGE3C_SUPABASE_PUBLISHABLE_KEY:args.publicKey,
       STAGE3C_ORIGIN:args.origin
-    },output:out});
+    },output:out,approvedExistingProject:true});
   const configFile=path.join(out,'cloud-public-config.js');
   const config=fs.readFileSync(configFile,'utf8');
   exactOnce(config,CONFIG_OFF,'auth-toggle');

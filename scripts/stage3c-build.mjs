@@ -13,7 +13,7 @@ const REF=/^https:\/\/[a-z0-9-]+\.supabase\.co$/;
 const HTTP=/^https:\/\/[a-z0-9.-]+$/;
 const START=['cloud-access.html','cloud-team.html','cloud-access.css',
   'cloud-team.css','styles.css','favicon.svg','cloud-access.js','cloud-team.js'];
-export function stage3cInputs(env){
+export function stage3cInputs(env,{approvedExistingProject=false}={}){
   const sha=env.STAGE3C_SOURCE_SHA;
   const supabaseUrl=(env.STAGE3C_SUPABASE_URL||'').replace(/\/$/,'');
   const origin=(env.STAGE3C_ORIGIN||'').replace(/\/$/,'');
@@ -22,13 +22,13 @@ export function stage3cInputs(env){
      !PUB.test(publicKey||'')||!HTTP.test(origin)||
      /\.github\.io$/.test(new URL(origin||'https://invalid.example').hostname)||
      new URL(supabaseUrl||'https://invalid.supabase.co').hostname===
-       'uyjxvaobshaahzipzzds.supabase.co')
+       'uyjxvaobshaahzipzzds.supabase.co' && !approvedExistingProject)
     throw new Error('stage3c-configuration-unapproved-or-not-isolated');
   return {sha,supabaseUrl,origin,publicKey};
 }
 export function buildStage3C({root=process.cwd(),env=process.env,
-  output=path.join(root,'dist-stage3c')}={}){
-  const args=stage3cInputs(env);
+  output=path.join(root,'dist-stage3c'),approvedExistingProject=false}={}){
+  const args=stage3cInputs(env,{approvedExistingProject});
   const current=execFileSync('git',['-c','safe.directory='+root,'rev-parse','HEAD'],{
     cwd:root,encoding:'utf8'}).trim();
   if(current!==args.sha)throw new Error('stage3c-exact-source-sha-mismatch');

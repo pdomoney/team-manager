@@ -19,6 +19,14 @@ export default {
         return new Response('Not available in management staging',{status:404,
           headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
     }
+    // Existing-Worker first-team activation preserves the legacy static app
+    // while keeping Stage 4 play API out of the connected adult-only trial.
+    // The historic Worker and demo have no new mode flag until approved install.
+    if(env?.STAGE3D3_EXISTING_SHARED_WORKER_MODE==='preserve-legacy-pages'&&
+       path.startsWith('/api/stage2/'))
+      return new Response('Not available in first-team management activation',{
+        status:404,headers:{'Cache-Control':'no-store',
+          'X-Content-Type-Options':'nosniff'}});
     if(path.startsWith('/api/stage3d3/')) return handleStage3D3Registration(request,env);
     if(path.startsWith('/api/stage1/')||path.startsWith('/api/stage3b/')||
        path.startsWith('/api/stage3/')){
