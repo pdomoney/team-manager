@@ -100,6 +100,7 @@ test('Stage 3C historical builder still explicitly rejects owner reused Supabase
 test('Shared Worker must preserve legacy root and fail closed on registered API without server secrets',async()=>{
   const env={
     STAGE3D3_REGISTRATION_MODE:'required',
+    STAGE3D3_EXISTING_SHARED_WORKER_MODE:'preserve-legacy-pages',
     ASSETS:{fetch:async()=>new Response('legacy-preserved')}
   };
   const base=config.STAGE3D3_ORIGIN;
