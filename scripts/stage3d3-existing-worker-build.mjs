@@ -29,6 +29,12 @@ function filesUnder(root){
   return entries.sort();
 }
 const sameFile=(a,b)=>fs.readFileSync(a).equals(fs.readFileSync(b));
+function sameSourceDifferentCacheStamp(a,b){
+  if(!a.endsWith('.js')||!b.endsWith('.js'))return false;
+  const normalise=file=>fs.readFileSync(file,'utf8')
+    .replace(/\\?v=[a-f0-9]{7,12}\\b/g,'?v=SOURCE-STAMP');
+  return normalise(a)===normalise(b);
+}
 
 export function buildExistingWorkerCandidate({
   root=process.cwd(), env=process.env,
@@ -79,12 +85,16 @@ export function buildExistingWorkerCandidate({
          !fs.existsSync(existingFile)) ||
          (RETAIN.has(name)) ||
          (fs.existsSync(existingFile)&&!PUBLIC_CLOUD.test(name)&&
-           !sameFile(sourceFile,existingFile)))
+           !sameFile(sourceFile,existingFile)&&
+           !sameSourceDifferentCacheStamp(sourceFile,existingFile)))
         throw new Error('existing-worker-unexpected-asset-collision:'+name);
     }
     fs.cpSync(legacy,out,{recursive:true,errorOnExist:true,force:false});
     for(const name of changes){
-      fs.copyFileSync(path.join(stage,name),path.join(out,name));
+      // Keep existing non-cloud scripts and their cache stamps unchanged.
+      // Only the isolated cloud entrypoints and new manifest are replaced.
+      if(PUBLIC_CLOUD.test(name)||extraAllowed.has(name))
+        fs.copyFileSync(path.join(stage,name),path.join(out,name));
     }
     for(const name of before){
       // Every non-cloud legacy asset, including encrypted data and all plays,
