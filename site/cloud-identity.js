@@ -301,7 +301,7 @@ export function createCloudIdentityClient({ url, publishableKey, fetchImpl, stor
       }, bearer
     });
     if (outcome?.ok === false &&
-        ['stale-profile','invalid-profile','account-unavailable'].includes(outcome.code))
+        ['stale-profile','invalid-profile','account-unavailable','registration-required'].includes(outcome.code))
       throw safeError(outcome.code);
     if (!outcome || outcome.ok !== true ||
         !Number.isSafeInteger(outcome.version) || outcome.version <= expectedVersion ||
