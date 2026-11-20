@@ -40,7 +40,7 @@ grant execute on function tm_private.stage3d3_registration_ready()
 
 -- Reuse accepted grant, expiry, scope and Person linkage logic verbatim,
 -- adding the independent registration check before any details are returned.
-create function public.tm_my_operator_context()
+create or replace function public.tm_my_operator_context()
 returns jsonb language sql stable security definer set search_path = ''
 as $$
   select pg_catalog.jsonb_build_object('isOwner',exists(
