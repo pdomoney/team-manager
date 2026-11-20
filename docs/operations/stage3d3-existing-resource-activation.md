@@ -70,6 +70,9 @@ is `wrangler.stage3d3-existing.jsonc`:
 - `STAGE3D3_REGISTRATION_MODE=required`
 - no `STAGE3C_MODE=management-only`, because that would disable the legacy
   root, encrypted data, and Stage 4 tactics currently used by the demo
+- `STAGE3D3_EXISTING_SHARED_WORKER_MODE=preserve-legacy-pages` closes the
+  Stage 2 server play API in the first-team trial (HTTP 404), while
+  preserving the existing static Tactics/play UI and encrypted demo data
 - Worker entry is the existing reviewed `worker/index.js`, with API
   registration checks and the same-origin browser assets
 
