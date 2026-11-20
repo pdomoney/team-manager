@@ -1,5 +1,12 @@
 # Stage 3D.3 Activation | Exact operator handover for the first live team
 
+**Resource selection superseded by owner direction (20 November 2026):**
+use the existing Team Manager Supabase project and Cloudflare Worker.
+For the actual target, preflights and preservation checks see
+[the existing-resource activation run sheet](stage3d3-existing-resource-activation.md).
+This document's earlier separate-project / new-Worker assumptions are not authorised.
+The provider, privacy, identity and release safety gates remain applicable.
+
 **20 November 2026. Source-only, not an installation or real user acceptance.**
 Intended club: **St George Oztag**. Team: **Mixed 20** (`stgeorge-mixed20`).
 This supplements [the approved architecture and registration decision](stage3d3-provider-registration-approval.md)
