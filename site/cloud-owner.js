@@ -63,6 +63,8 @@ function invitationRow(item,parent){
         ...(evidenceRef?{evidenceRef}:{})});
     });
   }
+  if(item.status==='proposed')
+    action('Approve and send invitation','invite.approve');
   if(item.status==='approved'||item.status==='claimed')
     action('Review confirmed adult', 'invite.review-adult',true);
   if(item.status==='claimed')action('Activate team role','invite.activate');
