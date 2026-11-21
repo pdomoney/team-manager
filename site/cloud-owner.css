@@ -1,0 +1,17 @@
+/* Extend the existing account visual language; no new design system. */
+.owner-summary { border: 1px solid #dbe3da; border-radius: 14px;
+  padding: 18px; margin: 18px 0; background: #f8faf7; }
+.owner-summary h3 { margin-top: 0; }
+.owner-form { display: grid; gap: 8px; margin: 20px 0 26px; }
+.owner-form label { margin-top: 8px; }
+.owner-form input,.owner-form select { width: 100%; min-height: 44px; }
+.owner-review { margin-top: 26px; }
+.owner-invite { border-top: 1px solid #dbe3da; padding: 18px 0; }
+.owner-invite h4 { margin: 0 0 6px; overflow-wrap: anywhere; }
+.owner-invite p { margin: 4px 0 12px; color: #54655c; }
+.owner-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.owner-actions button { padding: 10px 16px; border: 1px solid #b9cbc0;
+  border-radius: 10px; background: white; color: #123d2b; cursor: pointer; }
+.owner-actions button:focus-visible { outline: 3px solid #187447; outline-offset: 2px; }
+.owner-back { display: inline-block; margin-top: 20px; }
+@media(max-width:700px){.owner-summary{padding:14px}.owner-actions button{flex:1}}
