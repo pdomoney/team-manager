@@ -14,7 +14,12 @@ create role anon nologin;
 create role authenticated nologin;
 create role service_role nologin;
 create schema auth;
-create table auth.users(id uuid primary key);
+create table auth.users(
+  id uuid primary key,
+  email text unique,
+  email_confirmed_at timestamptz,
+  created_at timestamptz not null default now()
+);
 create function auth.uid() returns uuid language sql stable
 set search_path=''
 as $$
