@@ -1,7 +1,7 @@
 {
-  // Explicit owner-approved existing Cloudflare Worker reuse, not a new service.
-  // Never deploy before actual host backup/snapshot, approved schema/policy,
-  // protected key preflight and exact-source acceptance. Not used by CI.
+  // Opt-in existing Worker activation only. Do not use before approved host preflight.
+  // The public Supabase URL and publishable key are NOT privileged secrets.
+  // Keep SUPABASE_SECRET_KEY exclusively in Cloudflare secret storage.
   "name": "team-manager",
   "compatibility_date": "2026-11-19",
   "workers_dev": true,
@@ -14,6 +14,8 @@
   },
   "vars": {
     "STAGE3D3_REGISTRATION_MODE": "required",
-    "STAGE3D3_EXISTING_SHARED_WORKER_MODE": "preserve-legacy-pages"
+    "STAGE3D3_EXISTING_SHARED_WORKER_MODE": "preserve-legacy-pages",
+    "SUPABASE_URL": "https://uyjxvaobshaahzipzzds.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_8PDTyf-b1ro34cK9dB8_dQ_GQlDBNLT"
   }
 }
