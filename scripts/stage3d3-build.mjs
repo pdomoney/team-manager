@@ -24,12 +24,13 @@ function exactOnce(content,needle,label){
 }
 export function stage3d3Inputs(env){
   const sourceSha=env.STAGE3D3_SOURCE_SHA;
-  const season=env.STAGE3D3_SEASON_REF;
+  // Season belongs to an approved team activation, not the cloud build.
+  const season=env.STAGE3D3_SEASON_REF || null;
   const scope=env.STAGE3D3_SCOPE;
   const methods=env.STAGE3D3_PROVIDER_METHODS;
   // A flag isn't proof of approval. It selects only the generated source's
   // visible controls; external provider/privacy/installation gates still HOLD.
-  if(!SHA.test(sourceSha||'') || !SEASON.test(season||'') ||
+  if(!SHA.test(sourceSha||'') || (season!==null && !SEASON.test(season)) ||
      scope!=='individually-authorised-adults-only' ||
      !['off','on'].includes(methods) ||
      (methods==='on'&&env.STAGE3D3_PROVIDER_SETUP_REVIEWED!=='yes'))
@@ -71,10 +72,19 @@ export function buildStage3D3({root=process.cwd(),env=process.env,
   // Deliberately include this page only in the connected first-team build.
   for(const name of ['cloud-registration.html','cloud-registration.js'])
     fs.copyFileSync(path.join(root,'site',name),path.join(out,name));
+  if(!args.season){
+    const registrationPath=path.join(out,'cloud-registration.html');
+    const registration=fs.readFileSync(registrationPath,'utf8');
+    const firstTeamEyebrow='<p class="access-eyebrow">St George Oztag · Mixed 20</p>';
+    exactOnce(registration,firstTeamEyebrow,'registration-team-label');
+    fs.writeFileSync(registrationPath,registration.replace(firstTeamEyebrow,
+      '<p class="access-eyebrow">Team Manager · Account registration</p>'));
+  }
   const accessFile=path.join(out,'cloud-access.html');
   let html=fs.readFileSync(accessFile,'utf8');
   exactOnce(html,FROM,'login-copy');
-  html=html.replace(FROM,REPLACEMENT)
+  const accountOnly='Restricted adult-account setup for Team Manager. No club, team or competition season is configured by this deployment. Real players and volunteers remain unavailable until separate privacy and safeguarding approval.';
+  html=html.replace(FROM,args.season ? REPLACEMENT : accountOnly)
     .replace('Stage 3C connected management trial',
       'First team · restricted setup')
     .replace('What this preview verifies','How team access works');
@@ -86,7 +96,7 @@ export function buildStage3D3({root=process.cwd(),env=process.env,
     JSON.stringify({
       kind:'team-manager-stage3d3-first-team',
       sourceSha:args.sha,origin:args.origin,supabaseUrl:args.supabaseUrl,
-      team:SOURCE_TEAM,seasonRef:args.season,
+      team:args.season ? SOURCE_TEAM : null,seasonRef:args.season,
       providerControlsEnabled:args.methods==='on',
       scope:'individually-authorised-adults-only',
       releaseStatus:'NOT_PRODUCTION_AUTHORISED'
@@ -98,7 +108,7 @@ export function buildStage3D3({root=process.cwd(),env=process.env,
     if(fs.existsSync(path.join(out,forbidden)))
       throw new Error('stage3d3-unexpected-public-asset');
   }
-  return Object.freeze({...built,out,team:SOURCE_TEAM,
+  return Object.freeze({...built,out,team:args.season ? SOURCE_TEAM : null,
     sourceSha:args.sha,providerControlsEnabled:args.methods==='on'});
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
