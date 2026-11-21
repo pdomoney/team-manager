@@ -97,3 +97,17 @@ test('team activation, season, enabled providers or source-confusing registratio
     finally{fs.rmSync(x.root,{recursive:true,force:true});}
   }
 });
+
+test('committed Worker release descriptor matches the client public config and contains no secret',()=>{
+  const root=path.resolve(new URL('..',import.meta.url).pathname);
+  const raw=fs.readFileSync(path.join(root,'wrangler.stage3d3-existing.jsonc'),'utf8');
+  const cfg=JSON.parse(raw.replace(/^\s*\/\/.*$/gm,''));
+  assert.equal(cfg.name,'team-manager');
+  assert.equal(cfg.assets.directory,'./dist-stage3d3-existing');
+  assert.equal(cfg.assets.run_worker_first,true);
+  assert.equal(cfg.vars.STAGE3D3_REGISTRATION_MODE,'required');
+  assert.equal(cfg.vars.STAGE3D3_EXISTING_SHARED_WORKER_MODE,'preserve-legacy-pages');
+  assert.equal(cfg.vars.SUPABASE_URL,CLOUD_SUPABASE.url);
+  assert.equal(cfg.vars.SUPABASE_PUBLISHABLE_KEY,CLOUD_SUPABASE.publishableKey);
+  assert(!Object.keys(cfg.vars).some(k=>/secret|service.role|token|password/i.test(k)));
+});
