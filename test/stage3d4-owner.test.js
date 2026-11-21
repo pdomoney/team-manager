@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {handleStage3D4Owner,validateOwnerAction} from '../worker/stage3d4-owner-api.js';
 import worker from '../worker/index.js';
 
-const URL='https://team-manager.example.test/api/stage3d4/v1/owner';
+const ENDPOINT='https://team-manager.example.test/api/stage3d4/v1/owner';
 const USER='55555555-5555-4555-8555-555555555555';
 const ACCOUNT='founder@fictional.test';
 const TOKEN='Bearer synthetic-verified-adult-token-12345678';
@@ -19,7 +19,7 @@ const env=Object.freeze({
 });
 const response=(data,status=200)=>({ok:status<400,status,
   json:async()=>data});
-const req=(payload,headers={})=>new Request(URL,{
+const req=(payload,headers={})=>new Request(ENDPOINT,{
   method:'POST',headers:{'Content-Type':'application/json',
     Authorization:TOKEN,...headers},body:JSON.stringify(payload)
 });
@@ -122,7 +122,7 @@ test('Worker mounts new endpoint without altering legacy or unknown API denial',
   const f=fake();
   // The Worker uses its default upstream fetch, so without auth it denies
   // locally before any provider call; no live network access.
-  const r=await worker.fetch(new Request(URL,{method:'POST',
+  const r=await worker.fetch(new Request(ENDPOINT,{method:'POST',
     headers:{'Content-Type':'application/json'},
     body:'{"action":"status"}'}),env);
   assert.equal(r.status,401);
