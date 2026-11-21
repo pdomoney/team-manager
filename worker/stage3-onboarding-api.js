@@ -60,7 +60,7 @@ async function rpc(fetchImpl,host,env,endpoint,args){
   return provider(fetchImpl,host+'/rest/v1/rpc/'+endpoint,{
     method:'POST',headers:privilegedHeaders(env),body:JSON.stringify(args)});
 }
-async function delivery(fetchImpl,host,env,invitationId,email){
+export async function delivery(fetchImpl,host,env,invitationId,email){
   // Redirect origin and route are operator-configured, never accepted from
   // the invitee or from an untrusted browser request.
   let redirect;
@@ -111,6 +111,12 @@ export async function handleStage3Onboarding(request,env,fetchImpl=fetch){
     try{input=JSON.parse(raw);}catch{return deny('invalid-request',400);}
     const op=valid(input);
     if(!op)return deny('invalid-request',400);
+    // Stage 3D.4 replaces the two-coach approval path with a scoped
+    // administrator review. Stage 3C/older installations remain unchanged.
+    if(env?.STAGE3D4_OWNER_ADMIN_MODE==='enabled'&&
+      ['approve','activate','deliver'].includes(op.action))
+      return deny('administrator-required');
+
     const userResult=await provider(fetchImpl,host+'/auth/v1/user',{
       method:'GET',headers:{
         apikey:env.SUPABASE_PUBLISHABLE_KEY,Authorization:authorization}});
