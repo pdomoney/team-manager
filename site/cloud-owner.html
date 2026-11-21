@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#123D2B">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Platform Owner setup | Team Manager</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="cloud-access.css">
+  <link rel="stylesheet" href="cloud-owner.css">
+  <script type="module" src="cloud-owner.js"></script>
+</head>
+<body class="cloud-access-page">
+  <header class="top"><div class="top-row">
+    <span class="access-mark" aria-hidden="true">TM</span>
+    <h1>Team Manager</h1>
+    <a class="access-header-link" href="cloud-access.html">Account</a>
+  </div></header>
+  <main class="access-layout">
+    <section class="access-panel" aria-labelledby="owner-title">
+      <p class="access-eyebrow">Stage 3D.4 · Restricted administration</p>
+      <h2 id="owner-title">Set up your first team</h2>
+      <p class="access-intro">Only a verified Platform Owner can use this page.
+        Your Owner and Coach roles are separate. Team data stays protected until
+        the current registration policy is acknowledged.</p>
+      <p id="owner-state" role="status" aria-live="polite" class="access-status">Verifying your access…</p>
+      <div id="owner-workspace" hidden>
+        <div id="owner-team-summary" class="owner-summary"></div>
+        <form id="owner-create-team" class="owner-form" hidden>
+          <h3>First team</h3>
+          <p class="access-intro">Set up the real team's identity only.
+            No player list, official registration or season is inferred.</p>
+          <label for="owner-club">Club</label>
+          <input id="owner-club" name="clubRef" value="St George Oztag" required maxlength="100">
+          <label for="owner-team-id">Team identifier</label>
+          <input id="owner-team-id" name="teamId" value="stgeorge-mixed20" required
+            minlength="3" maxlength="64" pattern="[a-z][a-z0-9-]{2,63}">
+          <label for="owner-sport">Sport</label>
+          <input id="owner-sport" name="sportRef" value="oztag" required
+            pattern="[a-z][a-z0-9-]{1,30}">
+          <label for="owner-season">Verified season (YYYY)</label>
+          <input id="owner-season" name="seasonRef" inputmode="numeric"
+            autocomplete="off" placeholder="Enter the approved season"
+            pattern="20[0-9]{2}" maxlength="4" required>
+          <button class="access-primary" type="submit">Create first team</button>
+        </form>
+        <div id="owner-coach-panel" hidden>
+          <h3>Your Coach role</h3>
+          <p class="access-intro">Activate one Coach grant for the first team
+            under your authorised initial-owner bootstrap. No other user
+            can use this exception.</p>
+          <button id="owner-coach-action" class="access-primary" type="button">Assign my first-team Coach role</button>
+        </div>
+        <div id="owner-policy-pending" class="owner-summary" hidden>
+          <h3>Before inviting members</h3>
+          <p>First-team setup is available. Invitations and member access remain
+            unavailable until approved adult terms and privacy notices are active
+            and you have acknowledged them.</p>
+          <a href="cloud-registration.html" class="access-secondary">Review registration and privacy</a>
+        </div>
+        <div id="owner-invitations" hidden>
+          <h3>Approve team invitations</h3>
+          <p class="access-intro">Invite an adult to this exact team.
+            New users still need verified identity, approved registration
+            and a separate activation of their team role.</p>
+          <form id="owner-invite-form" class="owner-form">
+            <label for="owner-invite-email">Adult recipient email</label>
+            <input type="email" name="email" id="owner-invite-email" required maxlength="254">
+            <label for="owner-invite-role">Team role</label>
+            <select id="owner-invite-role" name="role">
+              <option value="team_manager">Manager</option>
+              <option value="team_coach">Coach</option>
+              <option value="team_assistant">Assistant Coach</option>
+              <option value="team_volunteer">Volunteer</option>
+              <option value="team_player">Adult Player</option>
+            </select>
+            <button class="access-primary" type="submit">Approve and send invitation</button>
+          </form>
+          <div class="owner-review">
+            <h3>Invitations awaiting action</h3>
+            <div id="owner-invite-list" aria-live="polite"></div>
+          </div>
+        </div>
+        <a href="cloud-team.html" class="access-secondary owner-back">Open team workspace</a>
+      </div>
+    </section>
+    <aside class="access-side">
+      <h3>Initial owner authorisation</h3>
+      <p>A one-time, audit-recorded database administration step establishes the
+        first Owner. Signing in or controlling an email does not itself
+        create an administrator.</p>
+      <p>Your first Coach grant is limited to this team. Normal team invitations
+        cannot self-approve, and no Owner grant automatically exposes rosters
+        or other private team records.</p>
+      <p>Junior, guardian, safeguarding and sporting eligibility workflows
+        remain outside this adult-only first-team setup.</p>
+    </aside>
+  </main>
+</body>
+</html>
