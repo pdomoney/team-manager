@@ -75,7 +75,9 @@ jobs:
             supabase/migrations/20261120010000_stage3d3_registration_policy.sql \
             supabase/tests/stage3d3_registration_policy_disposable.sql \
             supabase/migrations/20261120020000_stage3d3_direct_rpc_registration_gate.sql \
-            supabase/tests/stage3d3_direct_rpc_registration_disposable.sql
+            supabase/tests/stage3d3_direct_rpc_registration_disposable.sql \
+            supabase/migrations/20261121010000_stage3d4_founder_admin.sql \
+            supabase/tests/stage3d4_founder_admin_disposable.sql
           do
             echo "Stage 1 isolated PostgreSQL: $script"
             psql -X -v ON_ERROR_STOP=1 -f "$script"

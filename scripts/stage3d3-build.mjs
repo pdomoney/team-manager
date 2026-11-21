@@ -70,7 +70,8 @@ export function buildStage3D3({root=process.cwd(),env=process.env,
   fs.writeFileSync(configFile,config.replace(CONFIG_OFF,
     args.methods==='on'?CONFIG_ON:CONFIG_OFF).replace(POLICY_OFF,POLICY_ON));
   // Deliberately include this page only in the connected first-team build.
-  for(const name of ['cloud-registration.html','cloud-registration.js'])
+  for(const name of ['cloud-registration.html','cloud-registration.js',
+    'cloud-owner.html','cloud-owner.js','cloud-owner.css'])
     fs.copyFileSync(path.join(root,'site',name),path.join(out,name));
   if(!args.season){
     const registrationPath=path.join(out,'cloud-registration.html');

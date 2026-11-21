@@ -4,6 +4,7 @@ import {handleStage1Request} from './stage1-api.js';
 import {handleStage2PlayRequest} from './stage2-play-api.js';
 import {handleStage3Onboarding} from './stage3-onboarding-api.js';
 import {handleStage3D3Registration,stage3D3PolicyGate} from './stage3d3-registration.js';
+import {handleStage3D4Owner} from './stage3d4-owner-api.js';
 
 export default {
   async fetch(request, env) {
@@ -27,6 +28,7 @@ export default {
       return new Response('Not available in first-team management activation',{
         status:404,headers:{'Cache-Control':'no-store',
           'X-Content-Type-Options':'nosniff'}});
+    if(path.startsWith('/api/stage3d4/')) return handleStage3D4Owner(request,env);
     if(path.startsWith('/api/stage3d3/')) return handleStage3D3Registration(request,env);
     if(path.startsWith('/api/stage1/')||path.startsWith('/api/stage3b/')||
        path.startsWith('/api/stage3/')){

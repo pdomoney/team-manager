@@ -37,6 +37,7 @@ function showGuest() {
   $('cloud-password').value = '';
   $('cloud-link-providers').hidden=true;pendingOtpEmail='';
   $('cloud-policy-link').hidden=true;
+  $('cloud-owner-link').hidden=true;
 }
 function showUser(user, contexts, owner = false, checked = true) {
   form.hidden = true;
@@ -70,6 +71,19 @@ function showUser(user, contexts, owner = false, checked = true) {
   workspaceLink.textContent = (contexts.length || owner)
     ? 'Open your team workspace' : 'Set up your profile';
 }
+async function checkOwnerSetup(){
+  try{
+    const token=await client.verifiedBearer();
+    const res=await fetch('/api/stage3d4/v1/owner',{
+      method:'POST',cache:'no-store',redirect:'error',credentials:'omit',
+      headers:{'Content-Type':'application/json',
+        Authorization:'Bearer '+token},
+      body:JSON.stringify({action:'status'})
+    });
+    const data=await res.json();
+    $('cloud-owner-link').hidden=!(res.ok&&data?.ok===true&&data?.code==='ready');
+  }catch{ $('cloud-owner-link').hidden=true; }
+}
 async function loadAccess() {
   const user = await client.currentUser();
   if (!user) { showGuest(); showMessage('Sign in with an existing invited test account.'); return; }
@@ -84,6 +98,7 @@ async function loadAccess() {
       if(response.status!==200||policy?.code!=='accepted'||
          policy.canProceed!==true){
         showUser(user,[],false,false);
+        await checkOwnerSetup();
         if(policy?.code==='acceptance-required')
           $('cloud-policy-link').hidden=false;
         showMessage(policy?.code==='acceptance-required'
@@ -96,6 +111,7 @@ async function loadAccess() {
     let owner=false;
     try { owner=await client.myOperatorAccess(); } catch { /* owner is not inferred */ }
     showUser(user, contexts, owner);
+    await checkOwnerSetup();
     showMessage('Identity verified. Team permissions are checked separately for each role and team.');
   } catch (error) {
     showUser(user, [], false, false);
