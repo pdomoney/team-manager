@@ -1,6 +1,13 @@
 -- Stage 3D.4 synthetic end-to-end initial Owner + exact-team admin approval.
 -- Disposable PostgreSQL only. All data is invented; nothing persists.
 begin;
+-- Earlier Stage 3C fixtures add email_confirmed_at. Stage 3D.4 needs only
+-- these two further real GoTrue-shaped fields, never applied to live Supabase.
+alter table auth.users add column email text unique;
+alter table auth.users add column created_at timestamptz default now();
+-- The preceding Stage 3D disposable bootstrap intentionally left a
+-- synthetic team and reviewers. Never mistake them for owner-installed data.
+truncate table tm_private.accounts,tm_private.teams,tm_private.persons cascade;
 
 do $$
 declare
