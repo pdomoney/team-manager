@@ -170,9 +170,11 @@ async function showTab(){
   if(isOwner()){
     if(state.tab==='more')renderMore();else{
       const panel=card('Platform administration');
-      info('Your Platform Owner grant is independently verified. This context does not open private team, player, volunteer or safeguarding records.',panel);
+      info('Your authorised Platform Owner context does not automatically open private team, player, volunteer or safeguarding records.',panel);
       info('To work as a Coach, select your separately approved team role above.',panel);
-      info('Privileged platform administration requires its own protected workflows and step-up verification.',panel);
+      info('Use restricted administration to configure the first team and review adult team invitations.',panel);
+      button('Open Platform Owner administration',
+        ()=>location.assign('cloud-owner.html'),panel,{primary:true});
     }
     return;
   }
