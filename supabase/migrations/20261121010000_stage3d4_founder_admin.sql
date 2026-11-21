@@ -132,7 +132,7 @@ begin
      'status',i.status,'delivery',i.delivery_status,
      'expiresAt',i.expires_at) order by i.created_at desc),'[]'::jsonb)
     into v_invites from tm_private.team_invitations i
-    where i.team_id=f.first_team_id and i.administrator_approved=true
+    where i.team_id=f.first_team_id
       and i.created_at>now()-interval '30 days';
   return jsonb_build_object('ok',true,'code','ready','team',v_team,
     'coachAssigned',f.first_coach_grant_id is not null,
