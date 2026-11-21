@@ -1,0 +1,22 @@
+// Stage 3D.4 OPT-IN, NOT DEPLOYED. Only after the versioned migration,
+// operator bootstrap, release preflight, backup and owner installation approval.
+// Existing Worker and eight encrypted demo assets must be preserved.
+{
+  "name": "team-manager",
+  "compatibility_date": "2026-11-19",
+  "workers_dev": true,
+  "preview_urls": false,
+  "main": "worker/index.js",
+  "assets": {
+    "directory": "./dist-stage3d3-existing",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "vars": {
+    "STAGE3D3_REGISTRATION_MODE": "required",
+    "STAGE3D3_EXISTING_SHARED_WORKER_MODE": "preserve-legacy-pages",
+    "SUPABASE_URL": "https://uyjxvaobshaahzipzzds.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_8PDTyf-b1ro34cK9dB8_dQ_GQlDBNLT",
+    "STAGE3D4_OWNER_ADMIN_MODE": "enabled"
+  }
+}
