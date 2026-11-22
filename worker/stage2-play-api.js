@@ -35,7 +35,7 @@ function config(env){
 }
 
 async function provider(fetchImpl,url,options){
-  const res=await fetchImpl(url,{...options,cache:'no-store',redirect:'error'});
+  const res=await fetchImpl(url,{...options,cache:'no-store',redirect:'manual'});
   if(!res?.ok)return null;
   try{return await res.json();}catch{return null;}
 }

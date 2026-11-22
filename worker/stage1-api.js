@@ -57,7 +57,7 @@ async function digest(accountId,op){
   return toHex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(data)));
 }
 async function provider(fetchImpl,url,init){
-  const res=await fetchImpl(url,{...init,cache:'no-store',redirect:'error'});
+  const res=await fetchImpl(url,{...init,cache:'no-store',redirect:'manual'});
   if(!res?.ok)return null;
   try{return await res.json();}catch{return null;}
 }

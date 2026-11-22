@@ -25,7 +25,7 @@ async function trustedActor(request,env,fetchImpl){
   let res,user;
   try{
     res=await fetchImpl(env.SUPABASE_URL+'/auth/v1/user',{
-      method:'GET',cache:'no-store',redirect:'error',
+      method:'GET',cache:'no-store',redirect:'manual',
       headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,Authorization:token}
     });
     if(!res?.ok)return null;
@@ -42,7 +42,7 @@ async function rpc(env,fetchImpl,actor,action,payload={}){
   try{
     res=await fetchImpl(env.SUPABASE_URL+
       '/rest/v1/rpc/tm_stage3d3_registration',{
-      method:'POST',cache:'no-store',redirect:'error',
+      method:'POST',cache:'no-store',redirect:'manual',
       headers:{...headers,'Content-Type':'application/json'},
       body:JSON.stringify({
         p_actor:actor,p_action:action,

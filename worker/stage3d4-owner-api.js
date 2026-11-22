@@ -57,7 +57,7 @@ export function validateOwnerAction(value){
 }
 async function remote(fetchImpl,url,init){
   let res;
-  try{res=await fetchImpl(url,{...init,cache:'no-store',redirect:'error'});}
+  try{res=await fetchImpl(url,{...init,cache:'no-store',redirect:'manual'});}
   catch{return null;}
   if(!res?.ok)return null;
   try{return await res.json();}catch{return null;}
