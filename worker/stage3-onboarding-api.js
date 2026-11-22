@@ -48,7 +48,7 @@ function valid(input){
   };
 }
 async function provider(fetchImpl,url,init){
-  const response=await fetchImpl(url,{...init,cache:'no-store',redirect:'error'});
+  const response=await fetchImpl(url,{...init,cache:'no-store',redirect:'manual'});
   if(!response?.ok)return {ok:false,status:response?.status||503};
   try{return {ok:true,data:await response.json()};}
   catch{return {ok:false,status:503};}
@@ -72,7 +72,7 @@ export async function delivery(fetchImpl,host,env,invitationId,email){
   const endpoint=host+'/auth/v1/invite?redirect_to='+encodeURIComponent(redirect.href);
   let response;
   try{response=await fetchImpl(endpoint,{method:'POST',cache:'no-store',
-    redirect:'error',headers:privilegedHeaders(env),
+    redirect:'manual',headers:privilegedHeaders(env),
     body:JSON.stringify({email})});}
   catch{return 'failed';}
   if(response?.ok)return 'sent';
