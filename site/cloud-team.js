@@ -117,7 +117,16 @@ function drawContextChips(){
   if(state.isPlatformOwner)chip(clubs,'Platform',isOwner(),()=>selectContext('platform'));
   for(const club of clubsForNavigation(state.contexts)){
     chip(clubs,club,state.activeClub===club,()=>{
-      state.activeClub=club;drawContextChips();
+      // A club alone is not a team permission. Clear previous team's private
+      // records before revealing another club's team chips.
+      state.epoch++;state.context=null;state.activeClub=club;
+      state.schedule=[];state.roster=[];state.duties=[];state.notices=[];
+      state.drafts=[];state.published=[];state.preview=null;
+      $('active-context').textContent='Choose a team · '+club;
+      $('cloud-nav').hidden=true;$('cloud-desktop-nav').hidden=true;
+      clear();title('Choose an authorised team',club);
+      info('Select a team chip to open only the functions approved for that team.');
+      drawContextChips();
     });
   }
   const selectedClub=state.activeClub;
@@ -133,6 +142,7 @@ function selectContext(key){
   state.schedule=[];state.roster=[];state.duties=[];state.notices=[];state.drafts=[];
   state.published=[];state.preview=null;
   $('active-context').textContent=contextLabel(next);
+  $('cloud-nav').hidden=false;$('cloud-desktop-nav').hidden=false;
   state.tab='home';drawContextChips();drawTabs();void showTab();
 }
 function drawTabs(){
