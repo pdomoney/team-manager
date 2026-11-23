@@ -38,14 +38,14 @@ export function projectCloudTeamToOriginalModel({
    name:plain(m.name).slice(0,120),status:m.status==='active'?'available':'inactive',
    number:'',positions:[],jerseys:[],jerseyCorrections:[]});
  }
- const seenIssues=new Set();
+ const seenIssues=new Set(),omitted=[];
  for(const issue of jerseys){
   if(!ID.test(issue.personId||'')||typeof issue.issueId!=='string'||
     !/^\d{1,3}$/.test(plain(issue.jerseyNo))||seenIssues.has(issue.issueId))
     throw new TypeError('ambiguous-jersey-issue');
   seenIssues.add(issue.issueId);
   const p=playerById.get(issue.personId);
-  if(!p)continue; // Former members remain in the server ledger, not invented as active.
+  if(!p){omitted.push({kind:'unlinked-jersey',issueId:issue.issueId});continue;}
   const issueSeason=plain(issue.season);
   p.jerseys.push({id:issue.issueId,number:issue.jerseyNo,
    seasonId:issueSeason,out:day(issue.issuedAt),back:day(issue.returnedAt)});
@@ -64,8 +64,9 @@ export function projectCloudTeamToOriginalModel({
     if(!ID.test(s.sessionId||'')||typeof s.startsAt!=='string'||
       !Number.isFinite(new Date(s.startsAt).getTime()))throw new TypeError('invalid-session');
     const start=new Date(s.startsAt);
-    const isoDate=new Intl.DateTimeFormat('en-CA',{timeZone:'Australia/Sydney',
-      year:'numeric',month:'2-digit',day:'2-digit'}).format(start);
+    const isoDate=new Intl.DateTimeFormat('en-AU',{timeZone:'Australia/Sydney',
+      year:'numeric',month:'2-digit',day:'2-digit'}).format(start)
+      .split('/').reverse().join('-');
     return {id:s.sessionId,date:isoDate,kind:s.kind,seasonId:season,
       cancelled:s.status==='cancelled',venue:plain(s.locationLabel),
       // No assumed RSVP, attendance, time zone or participant record.
@@ -89,15 +90,16 @@ export function projectCloudTeamToOriginalModel({
  });
  const workspace={...result,clubs:[],competitions:sourceComps,teams:[],
    library:{plays:[],systems:{},playerSets:[]}};
- return Object.freeze({team:Object.freeze(result),workspace:Object.freeze(workspace)});
+ return Object.freeze({team:Object.freeze(result),workspace:Object.freeze(workspace),
+  complete:omitted.length===0,omissions:Object.freeze(omitted)});
 }
 export function originalJerseyReportFromCloud(input){
- const {team}=projectCloudTeamToOriginalModel(input);
- return M.jerseyReport(team,input.context.season);
+ const {team,complete,omissions}=projectCloudTeamToOriginalModel(input);
+ return {...M.jerseyReport(team,input.context.season),complete,omissions};
 }
 export function originalJerseyInventoryFromCloud(input){
- const {team}=projectCloudTeamToOriginalModel(input);
- return M.jerseyInventory(team);
+ const {team,complete,omissions}=projectCloudTeamToOriginalModel(input);
+ return {...M.jerseyInventory(team),complete,omissions};
 }
 export function originalTeamCompetitionsFromCloud(input){
  const {team,workspace}=projectCloudTeamToOriginalModel(input);
