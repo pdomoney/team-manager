@@ -1047,6 +1047,22 @@ const managementExperience=createCloudManagementExperience({
     if(state.context?.key!==ctx?.key)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
     return action('schedule.read',ctx.teamId);
   },getTeamLabel:ctx=>teamContextLabel(ctx),
+  publishMessageNotice:async(ctx,{title,body,audience})=>{
+    if(state.context?.key!==ctx?.key)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+    // The existing validated notice endpoint is team scoped and requires
+    // independent Coach/Manager approval. No external messaging API is used.
+    const created=await mutation('notice.create',ctx.teamId,0,{
+      command:{title,body,audience}});
+    if(state.context?.key!==ctx?.key)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+    try{
+      await mutation('notice.publish',created.resourceId,created.version,
+        {command:{op:'publish'}});
+      return {status:'published'};
+    }catch(e){
+      // Draft exists even if publish fails. Do not claim a full rollback.
+      return {status:'draft-only',error:e?.code||'request-denied'};
+    }
+  },
   ui:{h,card,info,button,actions,form,field,selectField,title,clear,message,explain},
   onBack:()=>switchTab('more'),onReport:()=>openReports(),
   onNotices:()=>switchTab('more'),onTeam:()=>switchTab('team')
