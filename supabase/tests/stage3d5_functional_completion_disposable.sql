@@ -13,7 +13,6 @@ insert into auth.users(id,email,email_confirmed_at) values
 ('44444444-4444-4444-8444-444444444444','outsider@fictional.test',now());
 insert into tm_private.accounts(user_id,status) values
 ('11111111-1111-4111-8111-111111111111','active'),
-('22222222-2222-4222-8222-222222222222','active'),
 ('44444444-4444-4444-8444-444444444444','active');
 insert into tm_private.teams(team_id,club_ref,sport_ref,season_ref,status)
 values('stgeorge-mixed20','St George Oztag','oztag','2027','active'),
