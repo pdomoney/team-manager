@@ -22,12 +22,14 @@ checks=Check();errors=[]
 engine=os.getenv('STAGE3D5_BROWSER_ENGINE','chromium')
 owner_token='synthetic-owner-token-long-123456789'
 manager_token='synthetic-manager-token-long-123456789'
+player_token='synthetic-player-token-long-123456789'
 grants={
  'owner':[
   ('stgeorge-mixed20','St George Oztag','2027','team_coach'),
   ('stgeorge-mixed20','St George Oztag','2027','team_volunteer'),
   ('rangers-manager','Rangers Club','2027','team_manager')],
- 'manager':[('stgeorge-mixed20','St George Oztag','2027','team_manager')]
+ 'manager':[('stgeorge-mixed20','St George Oztag','2027','team_manager')],
+ 'player':[('stgeorge-mixed20','St George Oztag','2027','team_player')]
 }
 operations=[];invitations=[]
 def respond(route,body,status=200):
@@ -37,6 +39,7 @@ def bind(ctx):
   header=req.headers.get('authorization','')
   if owner_token in header:return 'owner'
   if manager_token in header:return 'manager'
+  if player_token in header:return 'player'
   return None
  def provider(route):
   who=actor(route.request)
@@ -99,8 +102,18 @@ def bind(ctx):
   if action=='admin.status':
    return respond(route,{'ok':True,'code':'permitted','data':{
     'canAdmin':role=='team_manager','role':role}})
+  if action=='player.team.read' and role=='team_player':
+   return respond(route,{'ok':True,'code':'permitted','data':{
+    'roster':[{'displayName':'Verified Example Player'}],
+    'rosterEligible':1,'rosterShown':1,'rosterOmittedUnverified':0,
+    'competitions':[{'competitionId':'competition-'+'a'*32,
+      'name':'Fictional Carnival','format':'tournament','division':'Mixed 20',
+      'status':'entered','official':False}],
+    'fixtures':[{'competitionId':'competition-'+'a'*32,
+      'title':'vs Fictional Opponent','startsAt':'2027-02-20T08:00:00+11:00',
+      'status':'planned','official':False}]}})
   if action in ('team.members','volunteers.list','jerseys.read',
-    'competitions.read','messages.read','duties.board','invite.list'):
+    'competitions.read','competitions.fixtures','messages.read','duties.board','invite.list'):
    return respond(route,{'ok':True,'code':'permitted','data':[]})
   if action=='settings.read':
    return respond(route,{'ok':True,'code':'permitted','data':{
@@ -235,6 +248,26 @@ try:
    page.get_by_role('button',name='All management tools').click()
    checks.ok(page.locator('body').evaluate('(el)=>el.scrollWidth<=innerWidth+2'),
      f'[{width}] Manager layout fits')
+   c.close()
+   # Player sees only independently approved roster and team tournament facts.
+   c,page=session(browser,player_token,width)
+   page.get_by_role('heading',name='Home').wait_for()
+   checks.ok('Player' in page.locator('#active-context').inner_text(),
+     f'[{width}] Player opens the exact approved team')
+   page.get_by_role('button',name='Team',exact=True).first.click()
+   page.get_by_role('heading',name='Our team').wait_for()
+   page.get_by_text('Verified Example Player').wait_for()
+   page.get_by_text('Fictional Carnival').wait_for()
+   checks.ok(page.get_by_text('Team recorded, not an official draw').count()==1,
+     f'[{width}] Player sees local fixture without official draw claim')
+   page.get_by_role('button',name='More',exact=True).first.click()
+   checks.ok(page.get_by_role('button',name='Settings').count()==0
+     and page.get_by_role('button',name='Messages').count()==0,
+     f'[{width}] Player has no Manager settings or message history')
+   page.get_by_role('button',name='Noticeboard').first.click()
+   page.get_by_role('heading',name='Noticeboard').wait_for()
+   checks.ok(page.get_by_role('button',name='Save notice draft').count()==0,
+     f'[{width}] Player reads notices but cannot publish')
    c.close()
   browser.close()
 finally:server.shutdown()
