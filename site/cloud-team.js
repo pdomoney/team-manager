@@ -175,8 +175,10 @@ async function loadForTab(tab,epoch){
   };
   if(tab==='home'){
     if(roleForAction(c,'schedule.read'))await need('schedule.read','schedule');
-    else if(roleForAction(c,'duty.read'))await need('duty.read','duties');
-    else if(canViewTactics())await need('play.published.read','published');
+    if(canRoster())await need('roster.read','roster');
+    if(roleForAction(c,'duty.read'))await need('duty.read','duties');
+    if(canViewTactics()&&!roleForAction(c,'schedule.read'))
+      await need('play.published.read','published');
   }else if(tab==='schedule'&&roleForAction(c,'schedule.read')){
     await need('schedule.read','schedule');
   }else if(tab==='team'){
@@ -341,29 +343,53 @@ async function renderOwnerDashboard(epoch){
 
 function renderHome(){
   const c=state.context;
-  const banner=card('Your working team');
-  h('p',{text:c.club+' · '+c.sport+' · '+c.season,parent:banner});
-  info('Only records for this exact team and selected role are shown.',banner);
-  if(hasRole('team_volunteer')&&!roleForAction(c,'schedule.read')){
-    const d=card('Your assigned duties');h('p',{text:state.duties.length+' assignment(s)',parent:d});
-    button('View your duties',()=>switchTab('team'),d,{primary:true});
-  }else if(hasRole('team_play_viewer')&&!roleForAction(c,'schedule.read')){
-    const d=card('Selected role');
-    if(CLOUD_STAGE3C_MODE)info('Play-only access is deferred until Stage 4. Choose an approved management role to continue.',d);
-    else{
-      h('p',{text:state.published.length+' published play(s)',parent:d});
-      button('Watch published plays',()=>switchTab('tactics'),d,{primary:true});
-    }
-  }else{
-    const d=card('Upcoming sessions');
-    const upcoming=state.schedule.filter(s=>s.status!=='cancelled')
-      .slice().sort((a,b)=>String(a.startsAt||'').localeCompare(String(b.startsAt||''))).slice(0,4);
-    readList(d,upcoming,(s,row)=>{
-      h('strong',{text:s.title||s.kind||'Team session',parent:row});
-      h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:''),parent:row});
-      if(hasRole('team_player'))h('p',{text:'My availability: '+(s.myAvailability||'not answered'),parent:row});
+  const banner=card(teamContextLabel(c)+' · '+c.season);
+  info('Your available functions reflect the grants on this team, not your permissions on other teams.',banner);
+  const overview=h('div',{className:'cloud-grid',parent:main});
+  const upcoming=state.schedule.filter(item=>item.status!=='cancelled')
+    .slice().sort((a,b)=>String(a.startsAt||'').localeCompare(String(b.startsAt||'')));
+  if(roleForAction(c,'schedule.read')){
+    const sessions=card('Upcoming activities',overview);
+    h('p',{className:'cloud-overview-number',text:String(upcoming.length),parent:sessions});
+    info('Team sessions and authorised activities',sessions);
+    button('View schedule',()=>switchTab('schedule'),sessions);
+  }
+  if(canRoster()){
+    const members=card('Squad placements',overview);
+    h('p',{className:'cloud-overview-number',text:String(state.roster.length),parent:members});
+    info('Existing team nominations and placements',members);
+    button('Open squad',()=>switchTab('team'),members);
+  }
+  if(roleForAction(c,'duty.read')){
+    const duty=card('My volunteer duties',overview);
+    h('p',{className:'cloud-overview-number',text:String(state.duties.length),parent:duty});
+    info('Only your verified assignments are available',duty);
+    button('View duties',()=>switchTab('team'),duty);
+  }
+  const actionable=card('Outstanding actions');
+  if(canEditSchedule()&&!upcoming.length)
+    info('No scheduled activities yet. Create the first training session for this team.',actionable);
+  else if(hasRole('team_player'))
+    info('Review your upcoming sessions and record your own availability.',actionable);
+  else if(roleForAction(c,'duty.read'))
+    info('Review your assigned volunteer duties and confirm your response.',actionable);
+  else info('Team work, approvals and reports are available from the navigation below.',actionable);
+  const quick=actions(actionable);
+  if(canEditSchedule())button('Manage training',()=>switchTab('schedule'),quick,{primary:true});
+  else if(roleForAction(c,'schedule.read'))
+    button('Reply to training',()=>switchTab('schedule'),quick,{primary:true});
+  if(canRoster())button('Team and invitations',()=>switchTab('team'),quick);
+  if(canManage())button('Reports',()=>void openReports(),quick);
+  if(roleForAction(c,'duty.read'))button('My duties',()=>switchTab('team'),quick);
+  if(roleForAction(c,'schedule.read')){
+    const section=card('Upcoming sessions');
+    readList(section,upcoming.slice(0,5),(item,row)=>{
+      h('strong',{text:item.title||item.kind||'Team session',parent:row});
+      h('small',{text:when(item.startsAt)+(item.locationLabel?' · '+item.locationLabel:''),parent:row});
+      if(hasRole('team_player'))
+        h('p',{text:'My availability: '+(item.myAvailability||'Not answered'),parent:row});
     });
-    button(hasRole('team_player')&&!canManage()?'Reply to training':'Manage training',()=>switchTab('schedule'),d,{primary:true});
+    button('View all sessions',()=>switchTab('schedule'),actions(section));
   }
   if(canReadNotices())renderNotices('home');
 }
