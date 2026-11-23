@@ -148,7 +148,7 @@ begin
    p_action not in ('settings.read','settings.save','jerseys.read','jerseys.issue',
      'jerseys.return','competitions.read','competitions.create','competitions.update',
      'competitions.fixture','messages.read','messages.prepare','messages.confirm',
-     'team.members','duties.board','duties.assign','duties.withdraw','invite.list','invite.issue','invite.review-adult',
+     'team.members','volunteers.list','admin.status','duties.board','duties.assign','duties.withdraw','invite.list','invite.issue','invite.review-adult',
      'invite.activate','invite.revoke') or jsonb_typeof(obj)<>'object'
    or pg_catalog.length(obj::text)>5000
  then return jsonb_build_object('ok',false,'code','invalid-request'); end if;
@@ -156,7 +156,7 @@ begin
  if not allowed then return jsonb_build_object('ok',false,'code','scope-denied'); end if;
  admin_ok:=tm_private.stage3d5_team_admin(p_actor,p_team,p_role);
  if p_action in ('settings.read','jerseys.read','competitions.read','messages.read',
-                'team.members','duties.board','invite.list') then
+                'team.members','volunteers.list','admin.status','duties.board','invite.list') then
    if obj<>'{}'::jsonb then return jsonb_build_object('ok',false,'code','invalid-request'); end if;
  else
    -- Stop forged approval, role, account or eligibility claims.
@@ -438,7 +438,7 @@ begin
    end if;
  end if;
  if p_action not in ('settings.read','jerseys.read','competitions.read','messages.read',
-                     'team.members','duties.board','invite.list') then
+                     'team.members','volunteers.list','admin.status','duties.board','invite.list') then
    insert into tm_private.audit_events(user_id,team_id,action,resource_id,decision,reason_code)
     values(p_actor,p_team,'stage3d5.'||p_action,
       coalesce(ref,p_team),'ALLOW','exact-team-adult-management');
@@ -837,6 +837,20 @@ grant execute on function public.tm_stage3d5_team(uuid,text,text,text,jsonb) to 
     returning resource_version into row_version;
    if row_version is null then return jsonb_build_object('ok',false,'code','stale-version'); end if;
    records:=jsonb_build_object('version',row_version);
+ 
+ elsif p_action='volunteers.list' then
+   select coalesce(jsonb_agg(jsonb_build_object(
+     'personId',l.person_id,'name',coalesce(prof.display_name,l.person_id))
+     order by l.person_id),'[]'::jsonb) into records
+   from tm_private.role_grants g
+     join tm_private.account_person_links l on l.user_id=g.user_id
+     left join tm_private.account_profiles prof on prof.user_id=g.user_id
+   where g.team_id=p_team and g.role='team_volunteer' and g.status='active'
+     and g.approved_by is not null and g.approved_by<>g.user_id
+     and l.status='verified' and l.verified_by is not null
+     and l.verified_by<>l.user_id and (g.expires_at is null or now_at<g.expires_at);
+ elsif p_action='admin.status' then
+   records:=jsonb_build_object('canAdmin',admin_ok,'role',p_role);
  elsif p_action='team.members' then
    select coalesce(jsonb_agg(jsonb_build_object(
       'personId',p.person_id,'name',coalesce(prof.display_name,''),
