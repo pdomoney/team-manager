@@ -1,7 +1,11 @@
 -- Stage 3D.5 complete, disposable management and authority exercise.
 -- Invented adults only; everything rolled back.
 begin;
-alter table auth.users add column email text;
+-- Previous disposable first-team test left unrelated synthetic rows.
+-- Clear only inside this rollback transaction, never on the real project.
+truncate table tm_private.accounts,tm_private.teams,tm_private.persons cascade;
+delete from auth.users;
+alter table auth.users add column if not exists email text;
 insert into auth.users(id,email,email_confirmed_at) values
 ('11111111-1111-4111-8111-111111111111','owner@fictional.test',now()),
 ('22222222-2222-4222-8222-222222222222','manager@fictional.test',now()),
