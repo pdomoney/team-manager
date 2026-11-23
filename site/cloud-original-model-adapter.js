@@ -83,9 +83,10 @@ export function projectCloudTeamToOriginalModel({
    edition:plain(c.season)||season,start:plain(c.beginsOn),
    end:plain(c.endsOn),venue:plain(c.venue),organiser:plain(c.organiser),
    status:c.status==='completed'?'completed':'planned',bylaws:[],
-   entries:[{id:'team-entry:'+c.competitionId,teamId,seasonId:season,
-     division:plain(c.division),pool:'',status:c.status==='withdrawn'?
-       'withdrawn':'entered'}]
+   // Planning a tournament is NOT the same as entering it.
+   entries:c.status==='planned'?[]:[{id:'team-entry:'+c.competitionId,
+     teamId,seasonId:season,division:plain(c.division),pool:'',
+     status:c.status==='withdrawn'?'withdrawn':'entered'}]
   });
  });
  const workspace={...result,clubs:[],competitions:sourceComps,teams:[],
