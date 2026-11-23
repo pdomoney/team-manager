@@ -58,7 +58,7 @@ function button(label,fn,parent,{primary=false,disabled=false}={}){
   const b=h('button',{className:'cloud-btn'+(primary?' primary':''),
     text:label,attrs:{type:'button'},parent});b.disabled=disabled;b.addEventListener('click',fn);return b;
 }
-function actions(parent){return h('div',{className:'cloud-actions',parent});}
+function actions(parent=main){return h('div',{className:'cloud-actions',parent});}
 function form(parent,submit){
   const f=h('form',{className:'cloud-form',parent});
   f.addEventListener('submit',async e=>{
