@@ -42,7 +42,10 @@ export function createCloudManagementExperience({
       if(section==='Settings')await settings(ctx,loading,canAdmin);
       if(section==='Jerseys')await jerseys(ctx,loading,canAdmin);
       if(section==='Competitions')await competitions(ctx,loading,canAdmin);
-      if(section==='Messages')await messages(ctx,loading,canAdmin);
+      // A Coach keeps coaching communications after a Manager takes over
+      // administrative duties; the server still revalidates the selected grant.
+      if(section==='Messages')await messages(ctx,loading,
+        ctx.roles?.some(r=>r==='team_coach'||r==='team_manager'));
       if(section==='Volunteer tally')await duties(ctx,loading,canAdmin);
       if(section==='People')await people(ctx,loading);
       if(section==='Clubs and teams')await teams(ctx,loading);
