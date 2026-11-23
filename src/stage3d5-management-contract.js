@@ -12,9 +12,9 @@ const ACTIONS=new Set(['settings.read','settings.save','jerseys.read','jerseys.i
  'jerseys.return','competitions.read','competitions.create','competitions.update',
  'competitions.fixture','competitions.fixtures','messages.read','messages.prepare','messages.confirm',
  'team.members','volunteers.list','admin.status','duties.board','duties.assign','duties.withdraw','invite.list','invite.issue','invite.review-adult',
- 'invite.activate','invite.revoke']);
+ 'invite.activate','invite.revoke','player.team.read']);
 const reads=new Set(['settings.read','jerseys.read','competitions.read','competitions.fixtures',
- 'messages.read','team.members','volunteers.list','admin.status','duties.board','invite.list']);
+ 'messages.read','team.members','volunteers.list','admin.status','duties.board','invite.list','player.team.read']);
 const keys=(o,k)=>Object.keys(o).every(key=>k.includes(key));
 const str=(v,max)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
 const optional=(v,max)=>v===undefined||str(v,max);
@@ -30,9 +30,12 @@ const own=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&
 export function validateStage3D5(input){
  if(!own(input)||!keys(input,['teamId','role','action','input'])||
   !ID.test(input.teamId||'')||
-  !['team_coach','team_manager'].includes(input.role)||
+  !['team_coach','team_manager','team_player'].includes(input.role)||
   !ACTIONS.has(input.action)||!own(input.input))return null;
  const action=input.action,x=input.input;
+ // A verified Player may read only the curated team summary, never management
+ // settings, invitation records or another role's operations.
+ if((input.role==='team_player')!==(action==='player.team.read'))return null;
  if(reads.has(action)){if(Object.keys(x).length)return null;}
  else if(action==='settings.save'){
   if(!keys(x,['teamLabel','trainingVenue','trainingStart','trainingEnd',
