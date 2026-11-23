@@ -41,6 +41,13 @@ def bind(ctx):
  def provider(route):
   who=actor(route.request)
   path=route.request.url.split('supabase.co',1)[-1].split('?',1)[0]
+  if path=='/auth/v1/token' and route.request.method=='POST':
+   body=json.loads(route.request.post_data or '{}')
+   if body.get('email')=='owner@example.test':
+    return respond(route,{'access_token':owner_token,
+      'refresh_token':'synthetic-refresh-token-long-123',
+      'expires_in':3600})
+   return respond(route,{},401)
   if not who:return respond(route,{},401)
   if path=='/auth/v1/user':
    return respond(route,{'id':'11111111-1111-4111-8111-111111111111' if who=='owner' else
@@ -104,6 +111,22 @@ def session(browser,token,width):
 try:
  with sync_playwright() as p:
   browser=getattr(p,engine).launch()
+  # A real first-team password sign-in lands directly on Platform, not on a
+  # permission chooser or the old account overview.
+  login_ctx=browser.new_context(viewport={'width':390,'height':844})
+  bind(login_ctx)
+  login_page=login_ctx.new_page()
+  login_page.on('pageerror',lambda error:errors.append(str(error)))
+  login_page.goto(base+'cloud-access.html')
+  login_page.locator('#cloud-email').fill('owner@example.test')
+  login_page.locator('#cloud-password').fill('synthetic-password-only')
+  login_page.get_by_role('button',name='Sign in').click()
+  login_page.wait_for_url(base+'cloud-team.html')
+  login_page.get_by_role('heading',name='Invite an adult').wait_for()
+  checks.ok(login_page.locator('#club-chips').get_by_role(
+    'button',name='Platform').get_attribute('aria-pressed')=='true',
+    'fresh founder login opens Platform automatically')
+  login_ctx.close()
   for width in (390,1280):
    start_ops=len(operations)
    c,page=session(browser,owner_token,width)
