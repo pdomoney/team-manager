@@ -105,6 +105,7 @@ try:
  with sync_playwright() as p:
   browser=getattr(p,engine).launch()
   for width in (390,1280):
+   start_ops=len(operations)
    c,page=session(browser,owner_token,width)
    page.locator('#club-chips button').first.wait_for()
    checks.ok(page.locator('#role-context').count()==0,
@@ -113,8 +114,8 @@ try:
      'button',name='Platform').get_attribute('aria-pressed')=='true',
      f'[{width}] Owner lands on Platform with same login')
    page.get_by_role('heading',name='Invite an adult').wait_for()
-   checks.ok(not any(w=='owner' for w,t,r,a in operations),
-     f'[{width}] Platform Owner did not read any Coach team data')
+   checks.ok(not any(w=='owner' for w,t,r,a in operations[start_ops:]),
+     f'[{width}] Platform Owner did not read any Coach team data before team selection')
    page.get_by_label('Recipient email').fill('manager-new@example.test')
    page.get_by_label('Team role').select_option('team_manager')
    page.get_by_role('button',name='Approve and send invitation').click()
