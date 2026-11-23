@@ -32,22 +32,25 @@ export function createCloudManagementExperience({
     place(section,ctx);
     const loading=info('Loading '+section.toLowerCase()+' for this team…');
     try{
-      if(section==='Settings')await settings(ctx,loading);
-      if(section==='Jerseys')await jerseys(ctx,loading);
-      if(section==='Competitions')await competitions(ctx,loading);
-      if(section==='Messages')await messages(ctx,loading);
-      if(section==='Volunteer tally')await duties(ctx,loading);
+      const rights=await query(ctx,'admin.status');
+      const canAdmin=rights.canAdmin===true;
+      if(section==='Settings')await settings(ctx,loading,canAdmin);
+      if(section==='Jerseys')await jerseys(ctx,loading,canAdmin);
+      if(section==='Competitions')await competitions(ctx,loading,canAdmin);
+      if(section==='Messages')await messages(ctx,loading,canAdmin);
+      if(section==='Volunteer tally')await duties(ctx,loading,canAdmin);
       if(section==='People')await people(ctx,loading);
       if(section==='Clubs and teams')await teams(ctx,loading);
     }catch(e){
       if(ensure(ctx)){loading.textContent=explain(e);report(e);}
     }
   }
-  async function settings(ctx,loading){
+  async function settings(ctx,loading,canAdmin){
     const x=await query(ctx,'settings.read');
     loading.remove();
     const c=card('Team settings');
     info('These are shared settings for '+ctx.club+' · '+ctx.season+'. Your personal screen preferences stay on this device.',c);
+    if(canAdmin){
     const f=form(c,async d=>use(ctx,'settings.save',{
       teamLabel:text(d.get('teamLabel')).trim(),
       trainingVenue:text(d.get('trainingVenue')).trim(),
@@ -69,6 +72,11 @@ export function createCloudManagementExperience({
     h('span',{text:' Jerseys are lent and must be returned',parent:label});
     h('button',{className:'cloud-btn primary',text:'Save team settings',
       attrs:{type:'submit'},parent:f});
+    }else{
+      info('An approved Team Manager now handles shared team settings. You can still view the current settings.',c);
+      info('Training: '+(x.trainingVenue||'Not set')+' '+(x.trainingStart||'')+
+        '–'+(x.trainingEnd||'')+' · Contact: '+(x.contactName||'Not set'),c);
+    }
     const layout=card('Screen layout');
     info('A visual preference on this device. It does not modify team data or permissions.',layout);
     const a=actions(layout);
@@ -83,14 +91,14 @@ export function createCloudManagementExperience({
         (value==='compact')?'true':'false');
     }
   }
-  async function jerseys(ctx,loading){
+  async function jerseys(ctx,loading,canAdmin){
     const [members,issued]=await Promise.all([
       query(ctx,'team.members'),query(ctx,'jerseys.read')]);
     loading.remove();
     const c=card('Jersey numbers and issue history');
     info('Jerseys are assigned to an existing active player for this team and season. Issuing a jersey does not verify sporting eligibility.',c);
     const active=members.filter(m=>m.status==='active');
-    if(active.length){
+    if(active.length&&canAdmin){
       const f=form(c,async d=>use(ctx,'jerseys.issue',{
         personId:text(d.get('personId')),jerseyNo:text(d.get('jerseyNo')).trim()
       },()=>open('Jerseys'),'Jersey issued.'));
@@ -98,7 +106,8 @@ export function createCloudManagementExperience({
       field(f,'Jersey number','jerseyNo',{max:3});
       h('button',{className:'cloud-btn primary',text:'Issue jersey',
         attrs:{type:'submit'},parent:f});
-    }else info('No active players yet. Add and approve a player in Team before issuing jerseys.',c);
+    }else if(!active.length)info('No active players yet. Add and approve a player in Team before issuing jerseys.',c);
+    else info('Jersey allocation is currently handled by the approved Team Manager.',c);
     const history=card('Current and historical issues');
     if(!issued.length)info('No jerseys issued yet.',history);
     for(const item of issued){
@@ -106,16 +115,17 @@ export function createCloudManagementExperience({
       const member=members.find(m=>m.personId===item.personId);
       h('strong',{text:'#'+item.jerseyNo+' · '+(member?.name||item.personId),parent:row});
       info('Season '+item.season+' · '+(item.returnedAt?'Returned':'Issued'),row);
-      if(!item.returnedAt)button('Mark returned',()=>void use(ctx,'jerseys.return',{
+      if(!item.returnedAt&&canAdmin)button('Mark returned',()=>void use(ctx,'jerseys.return',{
         issueId:item.issueId,expectedVersion:item.version
       },()=>open('Jerseys'),'Jersey return recorded.'),actions(row));
     }
   }
-  async function competitions(ctx,loading){
+  async function competitions(ctx,loading,canAdmin){
     const competitions=await query(ctx,'competitions.read');
     loading.remove();
     const c=card('Create a league, tournament or carnival');
     info('Record this team’s entry and local fixtures. Official competition draws and eligibility must be confirmed by the competition authority.',c);
+    if(canAdmin){
     const f=form(c,async d=>use(ctx,'competitions.create',{
       name:text(d.get('name')).trim(),format:text(d.get('format')),
       division:text(d.get('division')).trim(),organiser:text(d.get('organiser')).trim(),
@@ -133,6 +143,7 @@ export function createCloudManagementExperience({
     field(f,'Ends','endsOn',{type:'date',required:false});
     h('button',{className:'cloud-btn primary',text:'Create competition',
       attrs:{type:'submit'},parent:f});
+    }else info('A verified Team Manager is currently responsible for team competition entries.',c);
     const list=card('Team entries and competitions');
     if(!competitions.length)info('No tournaments or leagues recorded for this team yet.',list);
     for(const entry of competitions){
@@ -140,6 +151,7 @@ export function createCloudManagementExperience({
       h('strong',{text:entry.name,parent:row});
       info(entry.format+' · '+entry.season+' · '+(entry.division||'No grade')+
         ' · '+entry.status,row);
+      if(canAdmin){
       const f=form(row,async d=>use(ctx,'competitions.update',{
         competitionId:entry.competitionId,name:entry.name,format:entry.format,
         division:entry.division||'',organiser:entry.organiser||'',
@@ -165,6 +177,7 @@ export function createCloudManagementExperience({
       field(fixture,'Starts','startsAt',{type:'datetime-local'});
       h('button',{className:'cloud-btn',text:'Add team-recorded fixture',
         attrs:{type:'submit'},parent:fixture});
+      }
     }
   }
   const templates=[
@@ -172,11 +185,12 @@ export function createCloudManagementExperience({
     ['match','Next match'],['results','Results'],['cancel','Training cancelled'],
     ['custom','Write your own']
   ];
-  async function messages(ctx,loading){
+  async function messages(ctx,loading,canAdmin){
     const history=await query(ctx,'messages.read');
     loading.remove();
     const c=card('New message');
     info('Prepare a WhatsApp message for your team group, or Share/Copy it. Team Manager cannot automatically send messages or confirm WhatsApp delivery.',c);
+    if(canAdmin){
     const f=form(c,async d=>{
       const body=text(d.get('body')).trim();
       const saved=await query(ctx,'messages.prepare',{
@@ -221,6 +235,7 @@ export function createCloudManagementExperience({
     selected.addEventListener('change',populate);populate();
     h('button',{className:'cloud-btn primary',text:'Prepare and log message',
       attrs:{type:'submit'},parent:f});
+    }else info('The appointed Team Manager handles new team messages. You can review the logged messages.',c);
     const log=card('Message log');
     if(!history.length)info('No messages prepared yet.',log);
     for(const item of history){
@@ -228,7 +243,7 @@ export function createCloudManagementExperience({
       h('strong',{text:item.audience+' · '+item.status,parent:row});
       info(item.body,row);
       info('WhatsApp and sharing are manual. Only your confirmation changes the status.',row);
-      if(item.status==='prepared'){
+      if(item.status==='prepared'&&canAdmin){
         const a=actions(row);
         button('Open in WhatsApp',()=>window.open(
           'https://wa.me/?text='+encodeURIComponent(item.body),'_blank','noopener'),a);
@@ -264,7 +279,7 @@ export function createCloudManagementExperience({
       info('Team status: '+p.status,row);
     }
   }
-  async function duties(ctx,loading){
+  async function duties(ctx,loading,canAdmin){
     const [items,members]=await Promise.all([
       query(ctx,'duties.board'),query(ctx,'team.members')]);
     loading.remove();
@@ -281,14 +296,14 @@ export function createCloudManagementExperience({
       const p=members.find(p=>p.personId===d.personId);
       h('strong',{text:p?.name||d.personId,parent:row});
       info(d.type+' · '+d.status+' · completed '+byPerson.get(d.personId),row);
-      if(['assigned','confirmed'].includes(d.status))
+      if(canAdmin&&['assigned','confirmed'].includes(d.status))
         button('Withdraw',()=>void use(ctx,'duties.withdraw',{
           dutyId:d.dutyId,expectedVersion:d.version
         },()=>open('Volunteer tally'),'Volunteer duty withdrawn.'),actions(row));
     }
     const volunteers=await query(ctx,'volunteers.list');
     const sessions=(getSchedule?.()||[]).filter(s=>s.status==='planned');
-    if(volunteers.length&&sessions.length){
+    if(canAdmin&&volunteers.length&&sessions.length){
       const f=form(c,async d=>use(ctx,'duties.assign',{
         sessionId:text(d.get('sessionId')),personId:text(d.get('personId')),
         type:text(d.get('type'))
