@@ -1042,7 +1042,11 @@ function renderProfilePanel(parent=main){
 }
 
 const managementExperience=createCloudManagementExperience({
-  api:management,getContext:()=>state.context,getSchedule:()=>state.schedule,
+  api:management,getContext:()=>state.context,
+  getSchedule:ctx=>{
+    if(state.context?.key!==ctx?.key)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+    return action('schedule.read',ctx.teamId);
+  },getTeamLabel:ctx=>teamContextLabel(ctx),
   ui:{h,card,info,button,actions,form,field,selectField,title,clear,message,explain},
   onBack:()=>switchTab('more'),onReport:()=>openReports(),
   onNotices:()=>switchTab('more'),onTeam:()=>switchTab('team')
