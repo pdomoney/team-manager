@@ -71,7 +71,7 @@ export function projectedCloudSession(s,{timeZone='Australia/Sydney'}={}){
     dateISO:format({year:'numeric',month:'2-digit',day:'2-digit'}).split('/').reverse().join('-'),
     dateLabel:format({weekday:'long',day:'numeric',month:'long',year:'numeric'}),
     dayLabel:format({weekday:'short',day:'numeric',month:'short'}),
-    startLabel:format({hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase().replace(':00',''),
+    startLabel:format({hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase().replace(':00','').replace(/\s+(am|pm)$/,'$1'),
     venue:s.locationLabel||'',
     focus:s.focus||'',
     notes:s.notes||''
