@@ -183,7 +183,7 @@ begin
 end $$;
 -- Curated Player summary: only independently reviewed adult and exact-team
 -- verified participation, never an arbitrary signed-in account or other team.
-do $
+do $$
 declare
  coach uuid:='11111111-1111-4111-8111-111111111111';
  player uuid:='33333333-3333-4333-8333-333333333333';
@@ -230,5 +230,5 @@ begin
    'player.team.read','{}'::jsonb);
  if r->>'code'<>'scope-denied' then raise exception 'Revoked Player still had access'; end if;
  raise notice 'PASS Phase 1 Player: exact team and adult review, curated roster and fixtures, cross-team and revocation denied';
-end $;
+end $$;
 rollback;
