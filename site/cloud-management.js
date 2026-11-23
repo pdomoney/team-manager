@@ -18,11 +18,14 @@ export function createCloudManagementClient({identity,fetchImpl=fetch,origin}={}
   throw new TypeError('invalid-origin');
  async function call(ctx,action,input={}){
   if(!own(ctx)||!own(input)||typeof action!=='string'||
-    !['team_coach','team_manager'].some(role=>ctx.roles?.includes(role)))
+    !(action==='player.team.read'?ctx.roles?.includes('team_player'):
+      ['team_coach','team_manager'].some(role=>ctx.roles?.includes(role))))
    throw fail('scope-denied');
   const grants=await identity.myTeamContexts();
-  const role=['team_manager','team_coach'].find(role=>
-    ctx.roles.includes(role)&&grants.some(g=>g.teamId===ctx.teamId&&g.role===role));
+  const eligible=action==='player.team.read'?['team_player']:
+    ['team_manager','team_coach'];
+  const role=eligible.find(role=>ctx.roles.includes(role)&&
+    grants.some(g=>g.teamId===ctx.teamId&&g.role===role));
   if(!role)throw fail('access-revoked');
   const bearer=await identity.verifiedBearer();
   let response;
