@@ -1,6 +1,6 @@
 -- Stage 3D.5 Phase 1: Coaching messages remain available when an approved
- Team Manager takes over team administration. This does not elevate
- team membership, sporting eligibility, Club Admin or Platform authority.
+-- Team Manager takes over team administration. This does not elevate
+-- team membership, sporting eligibility, Club Admin or Platform authority.
 -- Exact-team GoTrue, active grant, accepted policy and message author checks
 -- remain enforced by the existing service-only RPC and staff helper.
 create or replace function public.tm_stage3d5_team(
