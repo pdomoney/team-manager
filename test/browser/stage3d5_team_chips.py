@@ -90,8 +90,34 @@ def bind(ctx):
   if action in ['schedule.read','roster.read','notices.read','duty.read']:
    return respond(route,{'ok':True,'code':'permitted','data':[]})
   return respond(route,{'ok':False,'code':'role-denied'},403)
+ def management(route):
+  who=actor(route.request)
+  data=json.loads(route.request.post_data or '{}')
+  team=data.get('teamId');role=data.get('role');action=data.get('action')
+  if not who or not any(t==team and r==role for t,c,ss,r in grants[who]):
+   return respond(route,{'ok':False,'code':'scope-denied'},403)
+  if action=='admin.status':
+   return respond(route,{'ok':True,'code':'permitted','data':{
+    'canAdmin':role=='team_manager','role':role}})
+  if action in ('team.members','volunteers.list','jerseys.read',
+    'competitions.read','messages.read','duties.board','invite.list'):
+   return respond(route,{'ok':True,'code':'permitted','data':[]})
+  if action=='settings.read':
+   return respond(route,{'ok':True,'code':'permitted','data':{
+    'teamLabel':'Mixed 20','trainingVenue':'','trainingStart':'',
+    'trainingEnd':'','contactName':'','contactEmail':'','jerseyLoan':False,
+    'version':0}})
+  if action in ('settings.save','competitions.create','messages.prepare'):
+   if role!='team_manager':
+    return respond(route,{'ok':False,'code':'role-denied'},403)
+   response={'version':1}
+   if action=='competitions.create':response={'competitionId':'competition-'+'a'*32,'version':0}
+   if action=='messages.prepare':response={'messageId':'message-'+'a'*32,'status':'prepared'}
+   return respond(route,{'ok':True,'code':'committed','data':response})
+  return respond(route,{'ok':False,'code':'invalid-request'},403)
  ctx.route('https://stage3d3-example.supabase.co/**',provider)
  ctx.route('**/api/stage3d4/v1/owner',owner)
+ ctx.route('**/api/stage3d5/v1/team',management)
  ctx.route('**/api/stage1/v1/operation',operation)
  ctx.route('**/api/stage3b/v1/operation',operation)
  ctx.route('**/api/stage3/v1/onboarding',lambda r:respond(r,{'ok':True,'code':'permitted','data':[]}))
