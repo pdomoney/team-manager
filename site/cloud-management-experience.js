@@ -7,7 +7,7 @@ import {originalJerseyReportFromCloud,originalJerseyInventoryFromCloud,
 // menu vocabulary and exact-team server records, never the fictional demo vault.
 // The Host owns navigation state; each async screen discards stale team results.
 export function createCloudManagementExperience({
-  api,getContext,getSchedule,getTeamLabel,ui,onBack,onReport,onNotices,onTeam
+  api,getContext,getSchedule,getTeamLabel,publishMessageNotice,ui,onBack,onReport,onNotices,onTeam
 }){
   const {h,card,info,button,actions,form,field,selectField,title,clear,message,explain}=ui;
   const permitted=()=>getContext()?.kind==='team'&&
@@ -219,11 +219,36 @@ export function createCloudManagementExperience({
     if(canAdmin){
     const f=form(c,async d=>{
       const body=text(d.get('body')).trim();
+      const audience=text(d.get('audience'));
+      const postNotice=d.get('postNotice')==='yes';
+      const noticeBody=body.replace(/[\r\n]+/g,' ').replace(/ {2,}/g,' ');
+      if(postNotice&&noticeBody.length>1000){
+        message('The noticeboard allows up to 1,000 characters. Shorten the message or untick noticeboard before preparing it.',true);
+        return;
+      }
       const saved=await query(ctx,'messages.prepare',{
-        audience:text(d.get('audience')),channel:'whatsapp',body
+        audience,channel:'whatsapp',body
       });
       if(!ensure(ctx))return;
-      message('Message prepared and logged. Open WhatsApp, then confirm whether it was sent.');
+      let noticeStatus='not requested';
+      if(postNotice){
+        try{
+          const outcome=await publishMessageNotice(ctx,{
+            title:TEAM_MESSAGE_TEMPLATES[selected.value]||'Team message',
+            body:noticeBody,audience
+          });
+          noticeStatus=outcome.status;
+        }catch{
+          noticeStatus='unavailable';
+        }
+      }
+      if(!ensure(ctx))return;
+      message('Message prepared and logged. '+(noticeStatus==='published'?
+        'A notice was published for the selected team. ':
+        noticeStatus==='draft-only'?'The notice was saved as a draft but could not be published. ':
+        noticeStatus==='unavailable'?'The notice was not confirmed; review Noticeboard. ':'')+
+        'Open WhatsApp and confirm manually whether it was sent.',
+        noticeStatus==='draft-only'||noticeStatus==='unavailable');
       const preview=card('Prepared message');
       h('p',{text:body,parent:preview});
       const a=actions(preview);
@@ -293,6 +318,11 @@ export function createCloudManagementExperience({
     selected.addEventListener('change',populate);
     sessionSelect.addEventListener('change',populate);
     populate();
+    const labelNotice=h('label',{parent:f,className:'cloud-checkbox-row'});
+    const check=h('input',{attrs:{name:'postNotice',type:'checkbox',value:'yes'},parent:labelNotice});
+    check.checked=true;
+    h('span',{text:"Also post it on the app's noticeboard",parent:labelNotice});
+    info('Noticeboard text uses the same content without line breaks. WhatsApp is not sent automatically.',f);
     h('button',{className:'cloud-btn primary',text:'Prepare and log message',
       attrs:{type:'submit'},parent:f});
     }else info('The appointed Team Manager handles new team messages. You can review the logged messages.',c);
