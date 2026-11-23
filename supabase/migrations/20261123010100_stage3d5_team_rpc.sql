@@ -315,6 +315,8 @@ begin
    elsif p_action='invite.activate' then
       if v_inv.status<>'claimed' or v_inv.claimed_by is null
          or v_inv.claimed_by=p_actor or v_inv.grant_id is null or v_inv.person_id is null
+         or not exists(select 1 from tm_private.accounts ac
+           where ac.user_id=v_inv.claimed_by and ac.status='active')
          or not exists(select 1 from tm_private.registration_adult_reviews r
            where r.user_id=v_inv.claimed_by and r.state='approved'
             and r.reviewed_by<>v_inv.claimed_by)
