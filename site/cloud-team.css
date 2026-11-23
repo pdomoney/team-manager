@@ -70,6 +70,7 @@
 .cloud-actions a.cloud-btn{display:inline-flex;align-items:center;justify-content:center;
   text-align:center;min-height:44px;text-decoration:none;white-space:normal}
 
+ .cloud-overview-number{font:700 30px var(--font-m);color:var(--pitch)}
 /* Stage 3D.5: the established team-chip and sidebar navigation now has a
    verified Supabase source. These are UI affordances, never role grants. */
 .cloud-context-controls{display:grid;gap:8px;margin:12px 0 0}
