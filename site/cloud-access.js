@@ -39,6 +39,7 @@ function showGuest() {
   $('cloud-link-providers').hidden=true;pendingOtpEmail='';
   $('cloud-policy-link').hidden=true;
   $('cloud-owner-link').hidden=true;
+  $('cloud-invitations-link').hidden=true;
 }
 function showUser(user, contexts, owner = false, checked = true) {
   form.hidden = true;
@@ -47,6 +48,7 @@ function showUser(user, contexts, owner = false, checked = true) {
   $('cloud-otp-verify').hidden=true;
   account.hidden = false;
   $('cloud-policy-link').hidden=true;
+  $('cloud-invitations-link').hidden=true;
   $('cloud-link-providers').hidden=!(extraAuthEnabled&&checked&&(contexts.length||owner));
   $('cloud-identity').textContent = 'Signed in as ' + user.email;
   teams.replaceChildren();
@@ -110,7 +112,10 @@ async function loadAccess() {
          policy.canProceed!==true){
         const ownerState=await checkOwnerSetup();
         if(ownerState)showRestrictedOwner(user,ownerState);
-        else showUser(user,[],false,false);
+        else {
+          showUser(user,[],false,false);
+          $('cloud-invitations-link').hidden=false;
+        }
         if(policy?.code==='acceptance-required')
           $('cloud-policy-link').hidden=false;
         showMessage(policy?.code==='acceptance-required'
@@ -130,7 +135,10 @@ async function loadAccess() {
   } catch (error) {
     const ownerState=await checkOwnerSetup();
     if(ownerState)showRestrictedOwner(user,ownerState);
-    else showUser(user,[],false,false);
+    else {
+      showUser(user,[],false,false);
+      $('cloud-invitations-link').hidden=false;
+    }
     showMessage(ownerState
       ? 'Your Owner and Coach setup is recorded, but normal team records remain unavailable until registration is approved.'
       : error.code === 'server-not-ready'
