@@ -89,7 +89,12 @@ try:
       checks.ok(not page.locator('#cloud-workspace-link').is_visible(),
         f'[{width}] no team workspace permission before acceptance')
       page.goto(base+'cloud-team.html')
-      page.get_by_role('heading',name='Team access awaiting registration').wait_for()
+      try:
+        page.get_by_role('heading',name='Team access awaiting registration').wait_for(timeout=7000)
+      except Exception:
+        print('DIAGNOSTIC pending-workspace body:',page.locator('body').inner_text()[:1800])
+        print('DIAGNOSTIC pending-workspace pageerrors:',errors)
+        raise
       checks.ok(page.get_by_text('Coach grant recorded',exact=False).count()==1,
         f'[{width}] pending Coach grant is disclosed without a working team role')
       checks.ok(not page.locator('#context-controls').is_visible(),
