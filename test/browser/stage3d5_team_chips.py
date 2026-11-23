@@ -90,8 +90,34 @@ def bind(ctx):
   if action in ['schedule.read','roster.read','notices.read','duty.read']:
    return respond(route,{'ok':True,'code':'permitted','data':[]})
   return respond(route,{'ok':False,'code':'role-denied'},403)
+ def management(route):
+  who=actor(route.request)
+  data=json.loads(route.request.post_data or '{}')
+  team=data.get('teamId');role=data.get('role');action=data.get('action')
+  if not who or not any(t==team and r==role for t,c,ss,r in grants[who]):
+   return respond(route,{'ok':False,'code':'scope-denied'},403)
+  if action=='admin.status':
+   return respond(route,{'ok':True,'code':'permitted','data':{
+    'canAdmin':role=='team_manager','role':role}})
+  if action in ('team.members','volunteers.list','jerseys.read',
+    'competitions.read','messages.read','duties.board','invite.list'):
+   return respond(route,{'ok':True,'code':'permitted','data':[]})
+  if action=='settings.read':
+   return respond(route,{'ok':True,'code':'permitted','data':{
+    'teamLabel':'Mixed 20','trainingVenue':'','trainingStart':'',
+    'trainingEnd':'','contactName':'','contactEmail':'','jerseyLoan':False,
+    'version':0}})
+  if action in ('settings.save','competitions.create','messages.prepare'):
+   if role!='team_manager':
+    return respond(route,{'ok':False,'code':'role-denied'},403)
+   response={'version':1}
+   if action=='competitions.create':response={'competitionId':'competition-'+'a'*32,'version':0}
+   if action=='messages.prepare':response={'messageId':'message-'+'a'*32,'status':'prepared'}
+   return respond(route,{'ok':True,'code':'committed','data':response})
+  return respond(route,{'ok':False,'code':'invalid-request'},403)
  ctx.route('https://stage3d3-example.supabase.co/**',provider)
  ctx.route('**/api/stage3d4/v1/owner',owner)
+ ctx.route('**/api/stage3d5/v1/team',management)
  ctx.route('**/api/stage1/v1/operation',operation)
  ctx.route('**/api/stage3b/v1/operation',operation)
  ctx.route('**/api/stage3/v1/onboarding',lambda r:respond(r,{'ok':True,'code':'permitted','data':[]}))
@@ -155,6 +181,11 @@ try:
      f'[{width}] exact-team Coach grants used for roster')
    checks.ok(('owner','stgeorge-mixed20','team_volunteer','duty.read') in operations,
      f'[{width}] same-team volunteer grant used separately')
+   page.get_by_role('button',name='More',exact=True).first.click()
+   page.get_by_role('button',name='Settings').click()
+   page.get_by_role('heading',name='Team settings').wait_for()
+   checks.ok(page.get_by_role('button',name='Save team settings').count()==0,
+     f'[{width}] Coach sees read-only settings while approved Manager owns team admin')
    page.locator('#club-chips').get_by_role('button',name='Rangers Club').click()
    page.locator('#team-chips button').first.click()
    page.get_by_role('heading',name='Home').wait_for()
@@ -176,6 +207,27 @@ try:
      f'[{width}] Team Manager goes straight to approved team')
    checks.ok(page.locator('#team-chips button').count()==1,
      f'[{width}] Manager sees one selected team')
+   page.get_by_role('button',name='More',exact=True).first.click()
+   page.get_by_role('heading',name='Team management').wait_for()
+   checks.ok(page.get_by_role('button',name='Settings').count()==1 and
+     page.get_by_role('button',name='Competitions').count()==1 and
+     page.get_by_role('button',name='Messages').count()==1 and
+     page.get_by_role('button',name='Jerseys').count()==1,
+     f'[{width}] connected management More contains established functions')
+   page.get_by_role('button',name='Settings').click()
+   page.get_by_role('heading',name='Team settings').wait_for()
+   page.get_by_role('button',name='All management tools').click()
+   page.get_by_role('button',name='Competitions').click()
+   page.get_by_role('heading',name='Create a league, tournament or carnival').wait_for()
+   page.get_by_role('button',name='All management tools').click()
+   page.get_by_role('button',name='Messages').click()
+   page.get_by_role('heading',name='New message').wait_for()
+   page.get_by_role('button',name='All management tools').click()
+   page.get_by_role('button',name='Jerseys').click()
+   page.get_by_role('heading',name='Jersey numbers and issue history').wait_for()
+   checks.ok(page.get_by_text('No active players yet').count()==1,
+     f'[{width}] jersey workflow uses real-team empty state, not fictional players')
+   page.get_by_role('button',name='All management tools').click()
    checks.ok(page.locator('body').evaluate('(el)=>el.scrollWidth<=innerWidth+2'),
      f'[{width}] Manager layout fits')
    c.close()
