@@ -11,15 +11,15 @@ const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ACTIONS=new Set(['settings.read','settings.save','jerseys.read','jerseys.issue',
  'jerseys.return','competitions.read','competitions.create','competitions.update',
  'competitions.fixture','messages.read','messages.prepare','messages.confirm',
- 'team.members','invite.list','invite.issue','invite.review-adult',
+ 'team.members','volunteers.list','admin.status','duties.board','duties.assign','duties.withdraw','invite.list','invite.issue','invite.review-adult',
  'invite.activate','invite.revoke']);
 const reads=new Set(['settings.read','jerseys.read','competitions.read',
- 'messages.read','team.members','invite.list']);
+ 'messages.read','team.members','volunteers.list','admin.status','duties.board','invite.list']);
 const keys=(o,k)=>Object.keys(o).every(key=>k.includes(key));
 const str=(v,max)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
 const optional=(v,max)=>v===undefined||str(v,max);
 const num=v=>Number.isSafeInteger(v)&&v>=0&&v<=999999999;
-const date=v=>v===undefined||(typeof v==='string'&&
+const date=v=>v===undefined||v===''||(typeof v==='string'&&
   /^20\d{2}-\d{2}-\d{2}$/.test(v)&&
   !Number.isNaN(Date.parse(v+'T00:00:00Z')));
 const stamp=v=>typeof v==='string'&&/^20\d{2}-\d{2}-\d{2}T/.test(v)&&
@@ -76,6 +76,15 @@ export function validateStage3D5(input){
   if(!keys(x,['messageId','status','expectedVersion'])||
     !MSG.test(x.messageId||'')||!['sent','not-sent'].includes(x.status)||
     !num(x.expectedVersion))return null;
+ }else if(action==='duties.assign'){
+  if(!keys(x,['sessionId','personId','type'])||!ID.test(x.sessionId||'')||
+    !ID.test(x.personId||'')||
+    !['general_help','setup','equipment','scorer_support'].includes(x.type))
+    return null;
+ }else if(action==='duties.withdraw'){
+  if(!keys(x,['dutyId','expectedVersion'])||
+    !/^duty-[0-9a-f]{32}$/.test(x.dutyId||'')||!num(x.expectedVersion))
+    return null;
  }else if(action==='invite.issue'){
   if(!keys(x,['role','email'])||!['team_player','team_volunteer'].includes(x.role)||
     !email(x.email))return null;
