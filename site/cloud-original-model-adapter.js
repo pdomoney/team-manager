@@ -96,11 +96,21 @@ export function projectCloudTeamToOriginalModel({
 }
 export function originalJerseyReportFromCloud(input){
  const {team,complete,omissions}=projectCloudTeamToOriginalModel(input);
- return {...M.jerseyReport(team,input.context.season),complete,omissions};
+ const active=new Set(input.members.filter(p=>p.status==='active').map(p=>p.personId));
+ const calculated=M.jerseyReport(team,input.context.season);
+ // Original model treats an unseasoned person as active by default. Unlike
+ // the encrypted workspace, Supabase supplies an EXPLICIT participation state.
+ const rows=calculated.rows.map(p=>({...p,inSquad:active.has(p.id)}));
+ return {...calculated,rows,gone:rows.filter(p=>!p.inSquad&&p.status==='out').length,
+   complete,omissions};
 }
 export function originalJerseyInventoryFromCloud(input){
  const {team,complete,omissions}=projectCloudTeamToOriginalModel(input);
- return {...M.jerseyInventory(team),complete,omissions};
+ const active=new Set(input.members.filter(p=>p.status==='active').map(p=>p.personId));
+ const calculated=M.jerseyInventory(team);
+ const rows=calculated.rows.map(p=>({...p,inSquad:active.has(p.id)}));
+ return {...calculated,rows,formerPlayers:rows.filter(p=>!p.inSquad).length,
+   complete,omissions};
 }
 export function originalTeamCompetitionsFromCloud(input){
  const {team,workspace}=projectCloudTeamToOriginalModel(input);
