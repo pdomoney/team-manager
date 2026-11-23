@@ -19,9 +19,7 @@ export const TEAM_MESSAGE_TEMPLATES=Object.freeze({
 const safe=x=>typeof x==='string'?x:'';
 const nonempty=x=>safe(x).trim();
 const singleSpace=x=>nonempty(x).replace(/\s+/g,' ');
-const validDay=x=>/^\d{4}-\d{2}-\d{2}$/.test(x||'')&&
-  new Date(x+'T00:00:00Z').toISOString().slice(0,10)===x;
-const text=x=>safe(x).slice(0,1200);
+const text=x=>safe(x);
 export function trainingReminderText({
   teamName,session=null,dateLabel='',timeLabel='',venue='',focus='',notes=''
 }={}){
@@ -44,7 +42,7 @@ export function trainingCancellationText({session=null,dateLabel='',timeLabel=''
 export function availabilityRequestText({teamName,events=[],contactName=''}={}){
   const name=singleSpace(teamName);
   if(!name)throw new TypeError('team-name-required');
-  if(!Array.isArray(events)||events.length>50)throw new TypeError('invalid-events');
+  if(!Array.isArray(events))throw new TypeError('invalid-events');
   if(!events.length)return '📋 *Availability — '+name+
     '*\n\n(Nothing in the next two weeks. Add training or a match and it will fill in here.)';
   const lines=events.map(e=>{
