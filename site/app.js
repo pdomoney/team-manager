@@ -103,6 +103,7 @@ import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-ba
 import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
 import * as M from './model.js';
 import {TEAM_ICONS,teamIconSvg} from './shared-team-icons.js';
+import {TEAM_SETTINGS_SECTIONS as SETTINGS_SECS} from './shared-team-settings.js';
 import { TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
   availabilityRequestText } from './shared-team-messages.js';
 import { selectedTeamManagement } from './management-home.js';
@@ -8101,12 +8102,7 @@ function settingsBody() {
 }
 // Settings in sections, each opened on its own and saved on its own (it used to be one form five
 // screens long with the Save button halfway down).
-const SETTINGS_SECS = [
-  ['team', 'Team', 'Name, club, sport and rules'], ['season', 'Season and tournament', 'The tournament and its dates'],
-  ['contacts', 'Contacts', 'Team contact and team staff'], ['training', 'Training', 'Usual venue and times'],
-  ['field', 'Field', 'Zones and channels on the Lineup field'], ['players', 'Jerseys', 'Whether jerseys are lent and handed back'],
-  ['publishing', 'Publishing', 'Players’ access, passwords and GitHub'], ['backup', 'Backup', 'Export, import and this phone'],
-  ['layout', 'Screen layout', 'Width and display density on this device'], ['teams', 'Teams', 'Run more than one team'], ['testlib', 'Test data', 'The test library and a data check to compare devices']];
+
 function settingsSummary(k) {
   const T = data.team, club = M.clubOf(ws, data);
   const fmtR = (a, b) => [a, b].filter(Boolean).map(fmtTime).join('–');
