@@ -169,4 +169,54 @@ begin
  then raise exception 'Management mutations missing audit evidence';end if;
  raise notice 'PASS Stage3D5: Owner+Coach, settings, jerseys, competitions, manual messages, team invitations, takeover/fallback, cross-team and revocation';
 end $$;
+-- Curated Player summary: only independently reviewed adult and exact-team
+-- verified participation, never an arbitrary signed-in account or other team.
+do $
+declare
+ coach uuid:='11111111-1111-4111-8111-111111111111';
+ player uuid:='33333333-3333-4333-8333-333333333333';
+ outsider uuid:='44444444-4444-4444-8444-444444444444';
+ r jsonb;
+begin
+ if has_function_privilege('authenticated',
+   'public.tm_stage3d5_player_team(uuid,text,text,text,jsonb)','EXECUTE') then
+   raise exception 'Player RPC exposed to direct browser client'; end if;
+ r:=public.tm_stage3d5_player_team(outsider,'stgeorge-mixed20','team_player',
+   'player.team.read','{}'::jsonb);
+ if r->>'code'<>'scope-denied' then raise exception 'Stranger saw player summary'; end if;
+ insert into tm_private.accounts(user_id,status) values(player,'active');
+ insert into tm_private.registration_adult_reviews(
+   user_id,reviewed_by,reviewed_at,evidence_ref,state)
+ values(player,coach,now(),'evidence-ref/fictional-player-review','approved');
+ insert into tm_private.registration_acceptances(
+   user_id,policy_id,terms_accepted,privacy_acknowledged,marketing_opt_in)
+ values(player,'fictional-stg3d5-policy',true,true,false);
+ insert into tm_private.account_person_links(
+   user_id,person_id,status,verified_by,verified_at)
+ values(player,'player-p','verified',coach,now());
+ insert into tm_private.account_profiles(user_id,display_name)
+ values(player,'Verified Player');
+ insert into tm_private.role_grants(grant_id,user_id,team_id,role,status,approved_by,approved_at)
+ values('grant-player-phase1',player,'stgeorge-mixed20','team_player','active',coach,now());
+ r:=public.tm_stage3d5_player_team(player,'other-team','team_player',
+   'player.team.read','{}'::jsonb);
+ if r->>'code'<>'scope-denied' then raise exception 'Cross-team Player access'; end if;
+ r:=public.tm_stage3d5_player_team(player,'stgeorge-mixed20','team_manager',
+   'player.team.read','{}'::jsonb);
+ if r->>'code'<>'invalid-request' then raise exception 'Player forged Manager role'; end if;
+ r:=public.tm_stage3d5_player_team(player,'stgeorge-mixed20','team_player',
+   'player.team.read','{}'::jsonb);
+ if r->>'code'<>'permitted' or r->'data'->>'rosterEligible'<>'1'
+   or r->'data'->>'rosterShown'<>'1'
+   or r->'data'->'roster'->0->>'displayName'<>'Verified Player'
+   or jsonb_array_length(r->'data'->'competitions')<>1
+   or jsonb_array_length(r->'data'->'fixtures')<>1
+   or (r->'data')::text ~ '11111111-1111-4111-8111-111111111111'
+ then raise exception 'Verified Player summary is missing, expanded or unsanitised %',r;end if;
+ update tm_private.role_grants set status='revoked' where grant_id='grant-player-phase1';
+ r:=public.tm_stage3d5_player_team(player,'stgeorge-mixed20','team_player',
+   'player.team.read','{}'::jsonb);
+ if r->>'code'<>'scope-denied' then raise exception 'Revoked Player still had access'; end if;
+ raise notice 'PASS Phase 1 Player: exact team and adult review, curated roster and fixtures, cross-team and revocation denied';
+end $;
 rollback;
