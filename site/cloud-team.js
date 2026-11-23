@@ -658,7 +658,7 @@ function renderMyInvitations(){
     });
   }).catch(()=>{
     if(epoch!==state.epoch)return;
-    loading.textContent='Team invitations are unavailable until the approved onboarding service is installed.';
+    loading.textContent='Invitations could not be verified. Please refresh or contact the Platform Owner. No team permission has been granted.';
   });
 }
 function renderTeamInvitations(ctx){
@@ -840,6 +840,7 @@ async function initialise(keep=false){
     info('Your identity is verified, but no team working context is currently available. Review registration requirements and any independently approved invitations.');
     h('a',{className:'cloud-btn',text:'Registration and privacy',
       attrs:{href:'cloud-registration.html'},parent:main});
+    info('Already invited? You can review and claim an invitation for your verified email before the current registration policy is acknowledged. Claiming creates no active team permission.');
     renderMyInvitations();renderProfilePanel();return;}
   const ix=choices.findIndex(c=>c.role+'|'+c.teamId===previous);
   if(ix>=0||choices.length===1){selectContext(ix>=0?ix:0);return;}
