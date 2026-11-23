@@ -726,16 +726,24 @@ function renderDutyBoard(ctx){
     });
   }).catch(e=>{if(epoch!==state.epoch)return;loading.textContent=explain(e);});
 }
+function openNoticeboard(){
+  if(!canReadNotices())return;
+  state.epoch++;clear();
+  title('Noticeboard',contextLabel(state.context));
+  button('Back to More',()=>switchTab('more'),actions());
+  renderNotices('noticeboard');
+}
 function renderNotices(place='more'){
   if(!canReadNotices())return;
   const c=card(place==='home'?'Latest team notices':'Team notices');
-  if(place==='more'&&canManage()){
+  if(place!=='home'&&canManage()){
     const f=form(c,async d=>{
       const result=await mutation('notice.create',state.context.teamId,0,{command:{
         title:String(d.get('title')).trim(),body:String(d.get('body')).trim(),
         audience:String(d.get('audience'))}});
       message('Notice saved as a draft. Review it before publishing.');
-      await showTab();
+      if(place==='noticeboard')openNoticeboard();
+      else await showTab();
     });
     field(f,'Notice title','title',{max:100});
     const label=h('label',{text:'Notice message',parent:f});
@@ -761,7 +769,8 @@ function renderNotices(place='more'){
         const change=async(operation,command)=>{
           try{await mutation(operation,n.noticeId,n.version,{command});
             message(operation==='notice.publish'?'Notice published to its approved audience.':'Notice archived.');
-            await showTab();}
+            if(place==='noticeboard')openNoticeboard();
+            else await showTab();}
           catch(e){message(explain(e),true);}
         };
         if(n.status==='draft')button('Publish notice',()=>void change('notice.publish',{op:'publish'}),a,{primary:true});
@@ -1130,11 +1139,8 @@ function renderMore(){
     const add=(name,description,artwork)=>moreEntry(menu,name,description,
       ()=>void managementExperience.open(name),artwork);
     add('Messages','WhatsApp messages and the message log','chat');
-    moreEntry(menu,'Noticeboard','Post notices for players to see on Home',()=>{
-      clear();title('Noticeboard',contextLabel(state.context));
-      button('All management tools',()=>switchTab('more'),actions());
-      renderNotices();
-    },'clip');
+    moreEntry(menu,'Noticeboard','Post notices for players to see on Home',
+      openNoticeboard,'clip');
     add('Volunteer tally','Who has helped, and how often','check');
     moreEntry(menu,'Reports','Attendance, results, volunteering and loose ends',
       ()=>void openReports(),'chart');
@@ -1145,9 +1151,16 @@ function renderMore(){
     add('Settings','Team, field, team contact and screen layout','cog');
   }else if(!isOwner()){
     const menu=card('Your team');
-    info('Your current team role has read-only access to approved notices and activities.',menu);
+    menu.classList.add('cloud-more-list');
+    if(hasRole('team_player')){
+      info('Select your team to see the approved squad, competition entries and fixtures.',menu);
+      moreEntry(menu,'Our team','Verified squad and tournament participation',
+        ()=>switchTab('team'),'team');
+    }else info('Only the activities and notices approved for your team role are available.',menu);
+    if(canReadNotices())moreEntry(menu,'Noticeboard',
+      'Team notices published for your permitted audience',openNoticeboard,'clip');
   }
-  if(canReadNotices())renderNotices();
+  if(canReadNotices()&&!MANAGEMENT_PARITY)renderNotices();
   // Preserve the accepted Stage 3B/3C synthetic management journey. The
   // richer Supabase views activate only in the approved first-team runtime.
   if(canManage()&&!MANAGEMENT_PARITY){
