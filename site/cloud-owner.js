@@ -35,9 +35,14 @@ async function run(action,detail={}){
   document.querySelectorAll('button').forEach(b=>b.disabled=true);
   try{
     const res=await call(action,detail);
-    status(action==='invite.issue'?'Invitation '+res.delivery+'. Access has not been granted.':
-      'Saved. Your current permissions have been checked.');
     await refresh();
+    if(action==='invite.issue'||action==='invite.approve'){
+      status(res.delivery==='sent'
+        ? 'Invitation approved and email delivery reported sent. The recipient must still claim it, complete adult verification, acknowledge the current policy and receive a separate role activation.'
+        : res.delivery==='existing-account'
+          ? 'Invitation approved for an existing account. Ask the verified recipient to sign in and claim it. No team access has been granted.'
+          : 'Invitation approved, but email delivery FAILED. No invitation email was confirmed. Check the approved email provider and cancel/reissue after fixing it.');
+    }else status('Saved. Your current permissions have been checked.');
   }catch(e){status(e.message);}
   finally{busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);}
 }
