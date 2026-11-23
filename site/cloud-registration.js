@@ -48,9 +48,11 @@ async function start(){
   }
   if(result.code!=='acceptance-required'||result.ok!==true||
      result.canProceed!==false||!result.policy){
-    message(result.code==='adult-review-required'
-      ? 'Your adult identity review is not complete. Contact your authorised team administrator.'
-      : 'Registration is not yet available for this account.');
+    message(result.code==='policy-unavailable'
+      ? 'No approved application terms and privacy notice are active yet. Existing Owner and Coach grants remain recorded, but team access must stay restricted until the reviewed documents are available and acknowledged.'
+      : result.code==='adult-review-required'
+        ? 'Your adult identity review is not complete. Contact your authorised team administrator.'
+        : 'Registration is not yet available for this account.');
     return;
   }
   const p=result.policy;

@@ -1,6 +1,7 @@
 // Stage 2 connected first-team workspace. This never opens the legacy encrypted
 // demo vault or reuses its synthetic role picker as a production permission.
-import {CLOUD_SUPABASE,CLOUD_STAGE3C_MODE} from './cloud-public-config.js';
+import {CLOUD_SUPABASE,CLOUD_STAGE3C_MODE,CLOUD_STAGE3D3_POLICY_REQUIRED} from './cloud-public-config.js';
+import {verifiedOwnerSetup} from './cloud-owner-status.js';
 import {createCloudIdentityClient} from './cloud-identity.js';
 import {createCloudOnboardingClient} from './cloud-onboarding.js';
 import {teamContextLabel} from './first-live-team.js';
@@ -780,10 +781,46 @@ function switchTab(tab){
   if(isOwner()&&!['home','more'].includes(tab))return;
   state.tab=tab;state.preview=null;notice.hidden=true;drawTabs();void showTab();
 }
+async function initialOwnerReadiness(){
+  if(CLOUD_STAGE3D3_POLICY_REQUIRED!==true)return null;
+  return verifiedOwnerSetup({identity:auth,fetchImpl:fetch.bind(window)});
+}
+function showOwnerRegistrationPending(current,founder){
+  state.epoch++;state.user=current;state.context=null;state.contexts=[];
+  state.tab='home';
+  $('context-controls').hidden=true;
+  $('cloud-nav').hidden=true;
+  $('active-context').textContent='Registration pending';
+  clear();
+  title('Team access awaiting registration','Account permissions');
+  info('Your Platform Owner grant is verified. A team role can be recorded without giving access to protected team data.');
+  const roles=card('Recorded roles and first team');
+  info('Platform Owner · verified platform administration',roles);
+  if(founder.team){
+    const team=founder.team;
+    info(team.clubRef+' · '+team.teamId+' · '+team.sportRef+' · '+team.seasonRef,roles);
+    info(founder.coachAssigned
+      ? 'Coach grant recorded for this team. It cannot be used for team records until the current approved terms and privacy notice are acknowledged.'
+      : 'First team created. Your initial Coach grant has not been assigned.',roles);
+  }else info('No first team has been created.',roles);
+  const a=actions(roles);
+  h('a',{className:'cloud-btn',text:'Platform Owner setup',
+    attrs:{href:'cloud-owner.html'},parent:a});
+  h('a',{className:'cloud-btn',text:'Registration and privacy',
+    attrs:{href:'cloud-registration.html'},parent:a});
+  const next=card('Why access is restricted');
+  info('No team roster, attendance, invitations or profile changes are available until the approved registration requirements are complete. Your existing role grants remain recorded.',next);
+}
 async function initialise(keep=false){
   const current=await auth.currentUser();
   if(!current){location.replace('cloud-access.html');return;}
-  const grants=await auth.myTeamContexts();
+  let grants;
+  try{grants=await auth.myTeamContexts();}
+  catch(e){
+    const founder=await initialOwnerReadiness();
+    if(founder){showOwnerRegistrationPending(current,founder);return;}
+    throw e;
+  }
   let owner=false;
   try{owner=await auth.myOperatorAccess();}catch{/* fail closed, without losing team grants */}
   const choices=[...(owner?[{role:'platform_owner',teamId:'platform',club:'',
@@ -794,9 +831,15 @@ async function initialise(keep=false){
     h('option',{text:contextLabel(c),attrs:{value:i},parent:picker}));
   $('context-controls').hidden=!choices.length;
   $('cloud-nav').hidden=!choices.length;
-  if(!choices.length){state.epoch++;state.context=null;clear();
-    title('No active access','Account permissions');
-    info('You can set up your own profile, but team access requires an independently approved grant.');
+  if(!choices.length){
+    const founder=await initialOwnerReadiness();
+    if(founder){showOwnerRegistrationPending(current,founder);return;}
+    state.epoch++;state.context=null;clear();
+    $('active-context').textContent='No currently available team context';
+    title('No currently available team context','Account permissions');
+    info('Your identity is verified, but no team working context is currently available. Review registration requirements and any independently approved invitations.');
+    h('a',{className:'cloud-btn',text:'Registration and privacy',
+      attrs:{href:'cloud-registration.html'},parent:main});
     renderMyInvitations();renderProfilePanel();return;}
   const ix=choices.findIndex(c=>c.role+'|'+c.teamId===previous);
   if(ix>=0||choices.length===1){selectContext(ix>=0?ix:0);return;}

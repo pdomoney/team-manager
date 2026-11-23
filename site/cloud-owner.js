@@ -96,6 +96,13 @@ async function refresh(){
     if(!data.invitations.length)element('p',list,'No administrator-approved invitations.');
     else data.invitations.forEach(x=>invitationRow(x,list));
   }
+  status(!data.team
+    ? 'Your Platform Owner permission is verified. Create your first team to continue.'
+    : !data.coachAssigned
+      ? 'Your first team is recorded. Assign your Coach role to continue.'
+      : data.policyReady
+        ? 'Your Platform Owner and Coach roles are recorded. Registration requirements are active.'
+        : 'Your Platform Owner and Coach roles are recorded. Team data remains restricted until an approved registration policy is active and acknowledged.');
 }
 $('owner-create-team').addEventListener('submit',e=>{
   e.preventDefault();

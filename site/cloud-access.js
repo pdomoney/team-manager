@@ -1,6 +1,7 @@
 import { CLOUD_SUPABASE, CLOUD_STAGE3D2_AUTH_ENABLED, CLOUD_STAGE3D3_POLICY_REQUIRED } from './cloud-public-config.js';
 import { createCloudIdentityClient } from './cloud-identity.js';
 import {teamDisplayName} from './first-live-team.js';
+import {verifiedOwnerSetup} from './cloud-owner-status.js';
 
 const $ = id => document.getElementById(id);
 const form = $('cloud-login');
@@ -72,17 +73,27 @@ function showUser(user, contexts, owner = false, checked = true) {
     ? 'Open your team workspace' : 'Set up your profile';
 }
 async function checkOwnerSetup(){
-  try{
-    const token=await client.verifiedBearer();
-    const res=await fetch('/api/stage3d4/v1/owner',{
-      method:'POST',cache:'no-store',redirect:'error',credentials:'omit',
-      headers:{'Content-Type':'application/json',
-        Authorization:'Bearer '+token},
-      body:JSON.stringify({action:'status'})
-    });
-    const data=await res.json();
-    $('cloud-owner-link').hidden=!(res.ok&&data?.ok===true&&data?.code==='ready');
-  }catch{ $('cloud-owner-link').hidden=true; }
+  const state=await verifiedOwnerSetup({
+    identity:client,fetchImpl:fetch.bind(window)
+  });
+  $('cloud-owner-link').hidden=!state;
+  return state;
+}
+function showRestrictedOwner(user,ownerState){
+  // The founder's two recorded grants exist independently of policy access.
+  // Never present them as active working contexts until the policy gate passes.
+  showUser(user,[],true,false);
+  $('cloud-team-message').textContent=ownerState.team
+    ? 'Your Platform Owner permission and first-team setup are verified. Team records are restricted until approved terms and privacy notices are active and acknowledged.'
+    : 'Your Platform Owner permission is verified. Complete first-team setup before using team records.';
+  if(ownerState.team){
+    const li=document.createElement('li');
+    li.textContent=ownerState.coachAssigned
+      ? 'Coach role recorded · '+ownerState.team.clubRef+' · '+ownerState.team.seasonRef+' · awaiting registration policy'
+      : 'First team created · '+ownerState.team.clubRef+' · '+ownerState.team.seasonRef+' · Coach assignment pending';
+    teams.append(li);
+  }
+  workspaceLink.hidden=true;
 }
 async function loadAccess() {
   const user = await client.currentUser();
@@ -97,13 +108,16 @@ async function loadAccess() {
       const policy=await response.json();
       if(response.status!==200||policy?.code!=='accepted'||
          policy.canProceed!==true){
-        showUser(user,[],false,false);
-        await checkOwnerSetup();
+        const ownerState=await checkOwnerSetup();
+        if(ownerState)showRestrictedOwner(user,ownerState);
+        else showUser(user,[],false,false);
         if(policy?.code==='acceptance-required')
           $('cloud-policy-link').hidden=false;
         showMessage(policy?.code==='acceptance-required'
           ? 'Review and acknowledge the approved terms and privacy notice before team access.'
-          : 'Team access is unavailable until your individual registration requirements are approved.');
+          : ownerState&&policy?.code==='policy-unavailable'
+            ? 'Your team and Coach grant are recorded. No approved registration policy is active yet. Team records remain protected.'
+            : 'Team access is unavailable until your individual registration requirements are approved.');
         return;
       }
     }
@@ -114,10 +128,14 @@ async function loadAccess() {
     await checkOwnerSetup();
     showMessage('Identity verified. Team permissions are checked separately for each role and team.');
   } catch (error) {
-    showUser(user, [], false, false);
-    showMessage(error.code === 'server-not-ready'
-      ? 'The read-only database endpoint has not been installed. Your identity is verified; team access is not yet available.'
-      : 'Team access could not be verified. No permissions have been granted.');
+    const ownerState=await checkOwnerSetup();
+    if(ownerState)showRestrictedOwner(user,ownerState);
+    else showUser(user,[],false,false);
+    showMessage(ownerState
+      ? 'Your Owner and Coach setup is recorded, but normal team records remain unavailable until registration is approved.'
+      : error.code === 'server-not-ready'
+        ? 'The read-only database endpoint has not been installed. Your identity is verified; team access is not yet available.'
+        : 'Team access could not be verified. No permissions have been granted.');
   }
 }
 async function beginProvider(provider,link=false){

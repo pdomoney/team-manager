@@ -15,3 +15,16 @@
 .owner-actions button:focus-visible { outline: 3px solid #187447; outline-offset: 2px; }
 .owner-back { display: inline-block; margin-top: 20px; }
 @media(max-width:700px){.owner-summary{padding:14px}.owner-actions button{flex:1}}
+
+/* Keep the registration action in its own flow row at all viewport widths. */
+#owner-policy-pending{overflow-wrap:anywhere}
+#owner-policy-pending p{line-height:1.5}
+.owner-summary-action{margin-top:18px;display:flex;align-items:flex-start}
+.owner-summary-action .access-secondary{display:inline-flex;align-items:center;
+  justify-content:center;min-height:46px;max-width:100%;white-space:normal;
+  line-height:1.35;text-align:center;text-decoration:none}
+#owner-coach-action{min-height:46px;padding:11px 16px;border-radius:8px;
+  font-weight:700;line-height:1.35;white-space:normal}
+@media(max-width:450px){
+  .owner-summary-action .access-secondary{width:100%}
+}

@@ -117,6 +117,10 @@ jobs:
         env:
           STAGE3D3_BROWSER_ENGINE: chromium
         run: python3 test/browser/stage3d3_registration.py
+      - name: Stage 3D.4 founder policy readiness and responsive layout on Chromium
+        env:
+          STAGE3D4_BROWSER_ENGINE: chromium
+        run: python3 test/browser/stage3d4_readiness.py
       - name: Preserve browser qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -180,3 +184,7 @@ jobs:
         env:
           STAGE3D3_BROWSER_ENGINE: webkit
         run: python3 test/browser/stage3d3_registration.py
+      - name: Stage 3D.4 founder policy readiness and responsive layout on WebKit
+        env:
+          STAGE3D4_BROWSER_ENGINE: webkit
+        run: python3 test/browser/stage3d4_readiness.py

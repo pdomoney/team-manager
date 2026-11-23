@@ -65,3 +65,7 @@
  .cloud-main{padding:13px 12px 30px}
  .cloud-row{flex-wrap:wrap}
 }
+
+/* Accessible navigation to pending registration without an active team context. */
+.cloud-actions a.cloud-btn{display:inline-flex;align-items:center;justify-content:center;
+  text-align:center;min-height:44px;text-decoration:none;white-space:normal}
