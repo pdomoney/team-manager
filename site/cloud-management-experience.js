@@ -38,6 +38,7 @@ export function createCloudManagementExperience({
       if(section==='Messages')await messages(ctx,loading);
       if(section==='Volunteer tally')await duties(ctx,loading);
       if(section==='People')await people(ctx,loading);
+      if(section==='Clubs and teams')await teams(ctx,loading);
     }catch(e){
       if(ensure(ctx)){loading.textContent=explain(e);report(e);}
     }
@@ -239,6 +240,18 @@ export function createCloudManagementExperience({
         },()=>open('Messages'),'Marked not sent.'),a);
       }
     }
+  }
+  async function teams(ctx,loading){
+    const status=await query(ctx,'admin.status');
+    loading.remove();
+    const club=card(ctx.club);
+    info('You are viewing the exact approved team '+ctx.season+
+      '. Team permissions are independent of Platform and Club administration.',club);
+    info('Your working roles: '+ctx.roles.join(' / '),club);
+    button('Open team and squad',()=>onTeam(),actions(club),{primary:true});
+    if(status.canAdmin)button('Edit team settings',()=>void open('Settings'),actions(club));
+    else info('A Team Manager now handles ordinary team membership and settings.',club);
+    info('Creating other clubs or appointing a Club Administrator requires separately approved organisation authority.',club);
   }
   async function people(ctx,loading){
     const members=await query(ctx,'team.members');loading.remove();
