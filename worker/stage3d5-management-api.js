@@ -7,7 +7,7 @@ import {validateStage3D5,isStage3D5Read} from '../src/stage3d5-management-contra
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE=new Set(['invalid-request','scope-denied','role-denied',
   'stale-version','already-assigned','invite-unavailable','verified-identity-required',
-  'activation-preflight-denied','person-not-verified','grant-unavailable',
+  'activation-preflight-denied','person-not-verified','volunteer-not-verified','grant-unavailable',
   'committed','permitted']);
 const obj=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{
