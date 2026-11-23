@@ -10,10 +10,10 @@ const EVIDENCE=/^evidence-ref\/[A-Za-z0-9._/-]{12,100}$/;
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ACTIONS=new Set(['settings.read','settings.save','jerseys.read','jerseys.issue',
  'jerseys.return','competitions.read','competitions.create','competitions.update',
- 'competitions.fixture','messages.read','messages.prepare','messages.confirm',
+ 'competitions.fixture','competitions.fixtures','messages.read','messages.prepare','messages.confirm',
  'team.members','volunteers.list','admin.status','duties.board','duties.assign','duties.withdraw','invite.list','invite.issue','invite.review-adult',
  'invite.activate','invite.revoke']);
-const reads=new Set(['settings.read','jerseys.read','competitions.read',
+const reads=new Set(['settings.read','jerseys.read','competitions.read','competitions.fixtures',
  'messages.read','team.members','volunteers.list','admin.status','duties.board','invite.list']);
 const keys=(o,k)=>Object.keys(o).every(key=>k.includes(key));
 const str=(v,max)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
