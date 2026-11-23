@@ -964,19 +964,50 @@ function renderProfilePanel(parent=main){
   });
 }
 
+const managementExperience=createCloudManagementExperience({
+  api:management,getContext:()=>state.context,getSchedule:()=>state.schedule,
+  ui:{h,card,info,button,actions,form,field,selectField,title,clear,message,explain},
+  onBack:()=>switchTab('more'),onReport:()=>openReports(),
+  onNotices:()=>switchTab('more'),onTeam:()=>switchTab('team')
+});
+function moreEntry(parent,name,description,handler){
+  const row=h('div',{className:'cloud-more-item',parent});
+  const b=button(name,handler,row);
+  b.className='cloud-more-link';
+  h('p',{text:description,parent:row});
+  h('span',{className:'cloud-more-chevron',text:'›',parent:row});
+}
 function renderMore(){
-  const c=card('Signed-in account');
-  h('p',{text:state.user?.email||'Signed in',parent:c});
-  info('All team records come from the server for one selected role and team. Nothing is copied into the legacy encrypted demo.',c);
+  if(canManage()){
+    const menu=card('Team management');
+    menu.classList.add('cloud-more-list');
+    const add=(name,description)=>moreEntry(menu,name,description,
+      ()=>void managementExperience.open(name));
+    add('Messages','WhatsApp-assisted messages, Share, Copy and manual sent log');
+    moreEntry(menu,'Noticeboard','Post notices for players, volunteers and staff',()=>{
+      clear();title('Noticeboard',contextLabel(state.context));
+      button('All management tools',()=>switchTab('more'),actions());
+      renderNotices();
+    });
+    add('Volunteer tally','Verified assignments and volunteer help');
+    moreEntry(menu,'Reports','Attendance, results, volunteering and outstanding actions',
+      ()=>void openReports());
+    add('Competitions','Leagues, tournaments and team entries');
+    add('Clubs and teams','Your authorised clubs and team settings');
+    add('People','Verified player names and squad associations');
+    add('Jerseys','Jersey numbers, issue and returns');
+    add('Settings','Team contact, training, jerseys and screen layout');
+  }else if(!isOwner()){
+    const menu=card('Your team');
+    info('Your current team role has read-only access to approved notices and activities.',menu);
+  }
+  if(canReadNotices())renderNotices();
+  const account=card('My account');
+  h('p',{text:state.user?.email||'Signed in',parent:account});
+  info('All team permissions come from your independently approved server grants. Choosing another team never combines access.',account);
   renderProfilePanel();
   renderMyInvitations();
-  if(canReadNotices())renderNotices();
-  if(canManage()){
-    const reports=card('Reports');
-    info('Attendance, availability and duties for your selected team.',reports);
-    button('Open team reports',()=>void openReports(),reports,{primary:true});
-  }
-  const a=actions(c);
+  const a=actions(account);
   button('Refresh permissions and team data',async()=>{
     try{await initialise(true);message('Current grants refreshed.');}
     catch(e){message(explain(e),true);}},a);
