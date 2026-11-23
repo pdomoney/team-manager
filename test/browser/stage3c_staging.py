@@ -70,7 +70,7 @@ with sync_playwright() as p:
     pg.get_by_role('heading',name='Home').wait_for()
     checks.ok(pg.locator('#active-context').inner_text().startswith('Coach'),
       f'[{width}] exact Coach team loads in isolated staging')
-    checks.ok(pg.locator('button[data-tab="tactics"]').is_hidden(),
+    checks.ok(pg.locator('#cloud-nav button[data-tab="tactics"]').is_hidden(),
       f'[{width}] Stage 4 Tactics not advertised in management trial')
     checks.ok('play.published.read' not in calls,
       f'[{width}] no Stage 4 reads triggered from Home')

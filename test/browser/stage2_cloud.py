@@ -151,16 +151,12 @@ engine=os.getenv('STAGE2_BROWSER_ENGINE','chromium')
 with sync_playwright() as p:
     browser=getattr(p,engine).launch()
     coach_ctx,coach=new_page(browser,OWNER_TOKEN)
-    checks.ok(coach.locator('#role-context option').count()==3,
-        'one login exposes a neutral choice plus separate Owner and Coach grants')
-    checks.ok('Choose your role and team' in coach.locator('main').inner_text(),
-        'multi-role account must explicitly choose one context')
+    checks.ok(coach.locator('#club-chips button').count()==2,
+        'one signed-in account has Platform and one authorised club chip')
     checks.ok('Fictional drills' not in coach.locator('main').inner_text(),
-        'no private records until a role is chosen')
-    coach.locator('#role-context').select_option('0')
-    checks.ok('Platform administration' in coach.locator('main').inner_text(),
-        'Owner mode has no automatic team data view')
-    coach.locator('#role-context').select_option('1')
+        'Platform Owner starts with no private team records')
+    coach.get_by_role('button',name='Fictional Comets',exact=True).click()
+    coach.locator('#team-chips button').first.click()
     coach.get_by_role('button',name='Manage training').click()
     coach.get_by_role('heading',name='Sessions').wait_for()
     checks.ok('Fictional drills' in coach.locator('main').inner_text(),
@@ -180,14 +176,15 @@ with sync_playwright() as p:
     coach.get_by_text('Published revision').wait_for()
     checks.ok(len(published)==1,
         'Head Coach published a reviewed revision with source untouched')
-    coach.locator('#role-context').select_option('0')
+    coach.locator('#club-chips').get_by_role('button',name='Platform').click()
     checks.ok('Fictional drills' not in coach.locator('main').inner_text(),
-        'Switching to Owner drops Coach records')
+        'Selecting Platform clears Coach records and privileges')
     coach_ctx.close()
 
     player_ctx,player=new_page(browser,PLAYER_TOKEN)
-    checks.ok(player.locator('#role-context option').count()==1,
-        'Player has only their own team role')
+    checks.ok(player.locator('#club-chips button').count()==1 and
+        player.locator('#team-chips button').count()==1,
+        'Player is automatically placed in their sole approved team')
     player.get_by_role('button',name='Reply to training').click()
     player.get_by_role('button',name='Maybe').first.click()
     player.get_by_text('My response: maybe').first.wait_for()

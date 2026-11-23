@@ -126,10 +126,22 @@ try:
       page.get_by_role('button',name='Record acknowledgement').click()
       page.get_by_role('link',name='Continue to team access').wait_for()
       page.goto(base+'cloud-team.html')
-      page.get_by_role('heading',name='Choose your role and team').wait_for()
-      checks.ok(page.get_by_role('button',name='Platform Owner',exact=False).count()==1
-        and page.get_by_role('button',name='Coach',exact=False).count()==1,
-        f'[{width}] two independent Owner and Coach contexts after policy acceptance')
+      page.get_by_role('heading',name='Home').wait_for()
+      checks.ok(page.locator('#club-chips').get_by_role(
+        'button',name='Platform').get_attribute('aria-pressed')=='true',
+        f'[{width}] founder opens the Platform without profile switching')
+      checks.ok(page.locator('#club-chips').get_by_role('button',name='St George Oztag').count()==1,
+        f'[{width}] founded team appears as an authorised club chip')
+      page.locator('#club-chips').get_by_role('button',name='St George Oztag').click()
+      page.locator('#team-chips button').first.click()
+      page.get_by_role('heading',name='Home').wait_for()
+      checks.ok('Coach' in page.locator('#active-context').inner_text(),
+        f'[{width}] team selection applies the Coach grant automatically')
+      checks.ok(page.locator('#role-context').count()==0,
+        f'[{width}] no role or profile switcher remains')
+      page.locator('#club-chips').get_by_role('button',name='Platform').click()
+      checks.ok('Platform Owner' in page.locator('#active-context').inner_text(),
+        f'[{width}] returning to Platform does not expose team data')
       checks.ok(page.locator('body').evaluate('(el)=>el.scrollWidth<=innerWidth+2'),
         f'[{width}] accepted team page has no horizontal clipping')
       ctx.close()

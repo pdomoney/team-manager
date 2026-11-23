@@ -5,12 +5,15 @@ import {verifiedOwnerSetup} from './cloud-owner-status.js';
 import {createCloudIdentityClient} from './cloud-identity.js';
 import {createCloudOnboardingClient} from './cloud-onboarding.js';
 import {teamContextLabel} from './first-live-team.js';
+import {buildTeamNavigation,hasTeamRole,roleForAction,reviewerContext,
+  clubsForNavigation,visibleSections} from './cloud-team-contexts.js';
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
 
 const $=id=>document.getElementById(id);
-const main=$('cloud-main'),notice=$('cloud-alert'),picker=$('role-context');
+const main=$('cloud-main'),notice=$('cloud-alert');
+const clubs=$('club-chips'),teams=$('team-chips');
 const auth=createCloudIdentityClient({...CLOUD_SUPABASE,
   fetchImpl:fetch.bind(window),storage:sessionStorage});
 const ops=createCloudOperationsClient({identity:auth,fetchImpl:fetch.bind(window),
@@ -21,16 +24,18 @@ const ROLE_NAMES=Object.freeze({
   team_manager:'Manager',team_player:'Player',team_volunteer:'Volunteer',
   team_play_viewer:'Play viewer'
 });
-const state={user:null,contexts:[],context:null,founderTeamId:null,tab:'home',epoch:0,
+const state={user:null,contexts:[],context:null,activeClub:null,isPlatformOwner:false,
+  founderTeamId:null,tab:'home',epoch:0,
   schedule:[],roster:[],duties:[],drafts:[],published:[],notices:[],preview:null,busy:false};
-const canEditSchedule=()=>['team_coach','team_manager','team_assistant'].includes(state.context?.role);
-const canRoster=()=>['team_coach','team_manager'].includes(state.context?.role);
+const hasRole=(...roles)=>hasTeamRole(state.context,...roles);
+const canEditSchedule=()=>hasRole('team_coach','team_manager','team_assistant');
+const canRoster=()=>hasRole('team_coach','team_manager');
 const canManage=canRoster;
-const canReadNotices=()=>['team_coach','team_manager','team_assistant','team_player','team_volunteer'].includes(state.context?.role);
-const canViewTactics=()=>!CLOUD_STAGE3C_MODE&&['team_coach','team_assistant','team_manager',
-  'team_player','team_play_viewer'].includes(state.context?.role);
-const canDraft=()=>['team_coach','team_assistant'].includes(state.context?.role);
-const isOwner=()=>state.context?.role==='platform_owner';
+const canReadNotices=()=>hasRole('team_coach','team_manager','team_assistant','team_player','team_volunteer');
+const playsDeferred=()=>CLOUD_STAGE3C_MODE||CLOUD_STAGE3D3_POLICY_REQUIRED;
+const canViewTactics=()=>!playsDeferred()&&hasRole('team_coach','team_assistant','team_manager','team_player','team_play_viewer');
+const canDraft=()=>!playsDeferred()&&hasRole('team_coach','team_assistant');
+const isOwner=()=>state.context?.kind==='platform';
 const escapeText=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;',
   '>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function h(tag,{className,text,attrs={},parent}={}){
@@ -96,27 +101,68 @@ function title(name,subtitle){
   h('p',{className:'cloud-eyebrow',text:subtitle,parent:main});
   h('h2',{text:name,parent:main});
 }
-function contextLabel(c){return c.role==='platform_owner'?'Platform Owner · platform administration':
-  (ROLE_NAMES[c.role]||c.role)+' · '+teamContextLabel(c);}
-function selectContext(index){
-  state.epoch++;notice.hidden=true;state.context=state.contexts[index]||null;
+function contextLabel(c){
+  if(c.kind==='platform')return 'Platform Owner · platform administration';
+  const roleNames=c.roles.map(role=>ROLE_NAMES[role]||role);
+  return roleNames.join(' / ')+' · '+teamContextLabel(c);
+}
+function chip(parent,label,pressed,handler){
+  const b=button(label,handler,parent);
+  b.className='cloud-scope-chip';b.setAttribute('aria-pressed',pressed?'true':'false');
+  return b;
+}
+function drawContextChips(){
+  clubs.replaceChildren();teams.replaceChildren();
+  const active=state.context;
+  if(state.isPlatformOwner)chip(clubs,'Platform',isOwner(),()=>selectContext('platform'));
+  for(const club of clubsForNavigation(state.contexts)){
+    chip(clubs,club,state.activeClub===club,()=>{
+      // A club alone is not a team permission. Clear previous team's private
+      // records before revealing another club's team chips.
+      state.epoch++;state.context=null;state.activeClub=club;
+      state.schedule=[];state.roster=[];state.duties=[];state.notices=[];
+      state.drafts=[];state.published=[];state.preview=null;
+      $('active-context').textContent='Choose a team · '+club;
+      $('cloud-nav').hidden=true;$('cloud-desktop-nav').hidden=true;
+      clear();title('Choose an authorised team',club);
+      info('Select a team chip to open only the functions approved for that team.');
+      drawContextChips();
+    });
+  }
+  const selectedClub=state.activeClub;
+  if(selectedClub)for(const team of state.contexts.filter(c=>c.kind==='team'&&c.club===selectedClub))
+    chip(teams,teamContextLabel(team)+' · '+team.season,
+      active?.key===team.key,()=>selectContext(team.key));
+}
+function selectContext(key){
+  const next=state.contexts.find(c=>c.key===key);
+  if(!next)return;
+  state.epoch++;notice.hidden=true;state.context=next;
+  state.activeClub=next.kind==='team'?next.club:null;
   state.schedule=[];state.roster=[];state.duties=[];state.notices=[];state.drafts=[];
   state.published=[];state.preview=null;
-  $('active-context').textContent=state.context?contextLabel(state.context):'No active access';
-  picker.value=String(index);
-  state.tab='home';drawTabs();void showTab();
+  $('active-context').textContent=contextLabel(next);
+  $('cloud-nav').hidden=false;$('cloud-desktop-nav').hidden=false;
+  state.tab='home';drawContextChips();drawTabs();void showTab();
 }
 function drawTabs(){
-  const owner=isOwner();
-  for(const b of $('cloud-nav').querySelectorAll('button')){
-    b.hidden=(CLOUD_STAGE3C_MODE&&b.dataset.tab==='tactics')||
-      (owner&&b.dataset.tab!=='home'&&b.dataset.tab!=='more');
-    b.setAttribute('aria-current',state.tab===b.dataset.tab?'page':'false');
+  const allowed=visibleSections(state.context,{playsDeferred:playsDeferred()});
+  // Mobile tabs fill the available width for the actual selected team's
+  // permissions; hidden sections never leave blank navigation columns.
+  $('cloud-nav').style.gridTemplateColumns='repeat('+Math.max(1,allowed.length)+',minmax(0,1fr))';
+  for(const id of ['cloud-nav','cloud-desktop-nav']){
+    for(const b of $(id).querySelectorAll('button')){
+      b.hidden=!allowed.includes(b.dataset.tab);
+      b.setAttribute('aria-current',state.tab===b.dataset.tab?'page':'false');
+    }
   }
 }
 async function action(name,resource,payload={}){
-  if(!state.context||isOwner())throw Object.assign(new Error('no-team-context'),{code:'scope-denied'});
-  return ops.operation(state.context,name,resource,payload);
+  // Selecting a team never grants permissions. Resolve one eligible role for
+  // this operation only, and require the trusted backend to recheck that grant.
+  const role=roleForAction(state.context,name);
+  if(!role)throw Object.assign(new Error('no-eligible-team-grant'),{code:'scope-denied'});
+  return ops.operation({...state.context,role},name,resource,payload);
 }
 async function mutation(name,resource,expectedVersion,detail){
   const payload={mutationId:newMutationId(),expectedVersion,...detail};
@@ -135,21 +181,23 @@ function when(s){
 }
 async function loadForTab(tab,epoch){
   const c=state.context;
-  if(!c||c.role==='platform_owner')return;
-  const need=async(a,key)=>{const records=await action(a,c.teamId);
-    if(state.epoch===epoch)state[key]=records;};
+  if(!c||isOwner())return;
+  const need=async(actionName,key)=>{
+    const records=await action(actionName,c.teamId);
+    if(state.epoch===epoch)state[key]=records;
+  };
   if(tab==='home'){
-    if(c.role==='team_volunteer')await need('duty.read','duties');
-    else if(c.role==='team_play_viewer'){
-      if(!CLOUD_STAGE3C_MODE)await need('play.published.read','published');
-    }
-    else await need('schedule.read','schedule');
-  }else if(tab==='schedule'&&c.role!=='team_volunteer'&&c.role!=='team_play_viewer'){
+    if(roleForAction(c,'schedule.read'))await need('schedule.read','schedule');
+    if(canRoster())await need('roster.read','roster');
+    if(roleForAction(c,'duty.read'))await need('duty.read','duties');
+    if(canViewTactics()&&!roleForAction(c,'schedule.read'))
+      await need('play.published.read','published');
+  }else if(tab==='schedule'&&roleForAction(c,'schedule.read')){
     await need('schedule.read','schedule');
   }else if(tab==='team'){
     if(canRoster())await need('roster.read','roster');
-    if(c.role==='team_volunteer')await need('duty.read','duties');
-    if(c.role==='team_manager')await need('schedule.read','schedule');
+    if(roleForAction(c,'duty.read'))await need('duty.read','duties');
+    if(hasRole('team_manager'))await need('schedule.read','schedule');
   }else if(tab==='tactics'){
     if(canViewTactics())await need('play.published.read','published');
     if(canDraft())await need('play.draft.read','drafts');
@@ -169,14 +217,7 @@ async function showTab(){
     loading.remove();
   }
   if(isOwner()){
-    if(state.tab==='more')renderMore();else{
-      const panel=card('Platform administration');
-      info('Your authorised Platform Owner context does not automatically open private team, player, volunteer or safeguarding records.',panel);
-      info('To work as a Coach, select your separately approved team role above.',panel);
-      info('Use restricted administration to configure the first team and review adult team invitations.',panel);
-      button('Open Platform Owner administration',
-        ()=>location.assign('cloud-owner.html'),panel,{primary:true});
-    }
+    await renderOwnerDashboard(epoch);
     return;
   }
   switch(state.tab){
@@ -187,43 +228,193 @@ async function showTab(){
     case 'more':renderMore();break;
   }
 }
+// Platform administration is part of the signed-in workspace, not a different
+// profile. Only the trusted Owner endpoint can issue/review/revoke invitations.
+async function ownerCall(action,details={}){
+  const bearer=await auth.verifiedBearer();
+  let response;
+  try{response=await fetch('/api/stage3d4/v1/owner',{
+    method:'POST',mode:'same-origin',credentials:'omit',cache:'no-store',
+    redirect:'error',headers:{Authorization:'Bearer '+bearer,
+      'Content-Type':'application/json'},
+    body:JSON.stringify({action,...details})
+  });}catch{throw Object.assign(new Error('service-unavailable'),{code:'service-unavailable'});}
+  let result;try{result=await response.json();}catch{throw Error('invalid-owner-response');}
+  if(!response.ok||result?.ok!==true)
+    throw Object.assign(new Error('owner-action-denied'),{code:result?.code||'scope-denied'});
+  return result;
+}
+function ownerInvitationStatus(delivery){
+  if(delivery==='sent')return 'Provider reported invitation sent. Team access still requires claim, review, policy acknowledgement and activation.';
+  if(delivery==='existing-account')return 'Existing account invited. Ask the recipient to sign in and claim.';
+  if(delivery==='failed')return 'Email delivery failed. No recipient invitation was confirmed; check the provider before retrying.';
+  return 'Saved; refresh to verify the next invitation action.';
+}
+async function ownerMutation(action,details={}){
+  const result=await ownerCall(action,details);
+  message(action==='invite.issue'||action==='invite.approve'?
+    ownerInvitationStatus(result.delivery):'Owner action saved and recorded.');
+  void showTab();
+}
+function ownerInvitationRow(item,parent){
+  const row=h('div',{className:'cloud-owner-invite-item',parent});
+  h('strong',{text:item.email+' · '+(ROLE_NAMES[item.role]||item.role),parent:row});
+  info('Status: '+item.status+' · Email: '+(item.delivery||'not sent'),row);
+  const controls=actions(row);
+  const confirmAndRun=(label,action)=>{
+    button(label,()=>{
+      if(!confirm(label+' for this exact team and adult?'))return;
+      void ownerMutation(action,{invitationId:item.invitationId})
+        .catch(e=>message(explain(e),true));
+    },controls);
+  };
+  if(item.status==='proposed')
+    confirmAndRun('Approve and send','invite.approve');
+  if(item.status==='approved'||item.status==='claimed'){
+    button('Record verified adult review',()=>{
+      const evidenceRef=prompt('Private, independently verified adult evidence reference (evidence-ref/...)');
+      if(!evidenceRef)return;
+      if(!/^evidence-ref\/[A-Za-z0-9._/-]{12,100}$/.test(evidenceRef)){
+        message('A valid private verification evidence reference is required.',true);return;
+      }
+      void ownerMutation('invite.review-adult',{invitationId:item.invitationId,
+        evidenceRef}).catch(e=>message(explain(e),true));
+    },controls);
+    confirmAndRun('Cancel invitation','invite.cancel');
+  }
+  if(item.status==='claimed')confirmAndRun('Activate verified role','invite.activate');
+  if(item.status==='activated')confirmAndRun('Revoke role','invite.revoke');
+}
+async function renderOwnerDashboard(epoch){
+  if(state.tab==='more'){renderMore();return;}
+  const loading=info('Checking your Platform Owner administration…');
+  let data;
+  try{data=await ownerCall('status');}
+  catch(e){
+    if(epoch!==state.epoch)return;
+    loading.textContent='Owner administration could not be verified. No changes were made.';
+    message(explain(e),true);return;
+  }
+  if(epoch!==state.epoch)return;
+  loading.remove();
+  const summary=h('div',{className:'cloud-owner-overview',parent:main});
+  const account=card('Platform account',summary);
+  h('strong',{text:state.user?.email||'Verified account',parent:account});
+  info('Your platform administration is separate from your team permissions.',account);
+  const team=card('First approved team',summary);
+  if(data.team){
+    h('strong',{text:data.team.clubRef,parent:team});
+    info(data.team.teamId+' · '+data.team.seasonRef+' · '+data.team.sportRef,team);
+    info(data.coachAssigned?'Your Coach grant is active and team-scoped.':
+      'Your Coach grant is awaiting assignment.',team);
+  }else info('No first team recorded.',team);
+  const invites=card('Adult invitations',summary);
+  h('strong',{text:String(data.invitations?.length||0),parent:invites});
+  info('Approved team invitations; none grants access before activation.',invites);
+  if(!data.policyReady){
+    const gate=card('Registration requirements');
+    info('You must acknowledge the current approved Terms and Privacy Notice before inviting people.',gate);
+    h('a',{className:'cloud-btn',text:'Review registration documents',
+      attrs:{href:'cloud-registration.html'},parent:gate});
+    return;
+  }
+  if(!data.team){
+    const setup=card('Initial team setup');
+    info('Only the restricted first-team setup flow can create the initial team.',setup);
+    h('a',{className:'cloud-btn',text:'Open first-team setup',
+      attrs:{href:'cloud-owner.html'},parent:setup});
+    return;
+  }
+  const grid=h('div',{className:'cloud-owner-actions',parent:main});
+  const invite=card('Invite an adult',grid);
+  info('Invite a Manager, Coach, Assistant Coach, adult Player or Volunteer to the existing team. Invitation is not an active team role.',invite);
+  const f=form(invite,async d=>{
+    if(!confirm('Send this invitation to an approved adult for '+data.team.clubRef+'?'))return;
+    const result=await ownerCall('invite.issue',{
+      email:String(d.get('email')||'').trim(),
+      role:String(d.get('role')||'')
+    });
+    message(ownerInvitationStatus(result.delivery));
+    void showTab();
+  });
+  field(f,'Recipient email','email',{type:'email',max:254});
+  selectField(f,'Team role','role',[
+    ['team_manager','Manager'],['team_coach','Coach'],
+    ['team_assistant','Assistant Coach'],['team_player','Adult Player'],
+    ['team_volunteer','Volunteer']
+  ]);
+  h('button',{className:'cloud-btn primary',text:'Approve and send invitation',
+    attrs:{type:'submit'},parent:f});
+  const active=card('Pending and active invitations',grid);
+  if(!data.invitations?.length)info('No invitations yet. Invite your first adult Team Manager.',active);
+  else for(const item of data.invitations)ownerInvitationRow(item,active);
+  const help=card('Administration and team access');
+  info('Use the club and team chips above to switch to the Coach functions for an approved team. Platform Owner never receives automatic access to private team records.',help);
+  h('a',{className:'cloud-btn',text:'View detailed first-team administration',
+    attrs:{href:'cloud-owner.html'},parent:actions(help)});
+}
+
 function renderHome(){
   const c=state.context;
-  const banner=card('Your working team');
-  h('p',{text:c.club+' · '+c.sport+' · '+c.season,parent:banner});
-  info('Only records for this exact team and selected role are shown.',banner);
-  if(c.role==='team_volunteer'){
-    const d=card('Your assigned duties');h('p',{text:state.duties.length+' assignment(s)',parent:d});
-    button('View your duties',()=>switchTab('team'),d,{primary:true});
-  }else if(c.role==='team_play_viewer'){
-    const d=card('Selected role');
-    if(CLOUD_STAGE3C_MODE)info('Play-only access is deferred until Stage 4. Choose an approved management role to continue.',d);
-    else{
-      h('p',{text:state.published.length+' published play(s)',parent:d});
-      button('Watch published plays',()=>switchTab('tactics'),d,{primary:true});
-    }
-  }else{
-    const d=card('Upcoming sessions');
-    const upcoming=state.schedule.filter(s=>s.status!=='cancelled')
-      .slice().sort((a,b)=>String(a.startsAt||'').localeCompare(String(b.startsAt||''))).slice(0,4);
-    readList(d,upcoming,(s,row)=>{
-      h('strong',{text:s.title||s.kind||'Team session',parent:row});
-      h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:''),parent:row});
-      if(c.role==='team_player')h('p',{text:'My availability: '+(s.myAvailability||'not answered'),parent:row});
+  const banner=card(teamContextLabel(c)+' · '+c.season);
+  info('Your available functions reflect the grants on this team, not your permissions on other teams.',banner);
+  const overview=h('div',{className:'cloud-grid',parent:main});
+  const upcoming=state.schedule.filter(item=>item.status!=='cancelled')
+    .slice().sort((a,b)=>String(a.startsAt||'').localeCompare(String(b.startsAt||'')));
+  if(roleForAction(c,'schedule.read')){
+    const sessions=card('Upcoming activities',overview);
+    h('p',{className:'cloud-overview-number',text:String(upcoming.length),parent:sessions});
+    info('Team sessions and authorised activities',sessions);
+    button('View schedule',()=>switchTab('schedule'),sessions);
+  }
+  if(canRoster()){
+    const members=card('Squad placements',overview);
+    h('p',{className:'cloud-overview-number',text:String(state.roster.length),parent:members});
+    info('Existing team nominations and placements',members);
+    button('Open squad',()=>switchTab('team'),members);
+  }
+  if(roleForAction(c,'duty.read')){
+    const duty=card('My volunteer duties',overview);
+    h('p',{className:'cloud-overview-number',text:String(state.duties.length),parent:duty});
+    info('Only your verified assignments are available',duty);
+    button('View your duties',()=>switchTab('team'),duty);
+  }
+  const actionable=card('Outstanding actions');
+  if(canEditSchedule()&&!upcoming.length)
+    info('No scheduled activities yet. Create the first training session for this team.',actionable);
+  else if(hasRole('team_player'))
+    info('Review your upcoming sessions and record your own availability.',actionable);
+  else if(roleForAction(c,'duty.read'))
+    info('Review your assigned volunteer duties and confirm your response.',actionable);
+  else info('Team work, approvals and reports are available from the navigation below.',actionable);
+  const quick=actions(actionable);
+  if(canEditSchedule())button('Manage training',()=>switchTab('schedule'),quick,{primary:true});
+  else if(roleForAction(c,'schedule.read'))
+    button('Reply to training',()=>switchTab('schedule'),quick,{primary:true});
+  if(canRoster())button('Team and invitations',()=>switchTab('team'),quick);
+  if(canManage())button('Reports',()=>void openReports(),quick);
+  if(roleForAction(c,'duty.read'))button('My duties',()=>switchTab('team'),quick);
+  if(roleForAction(c,'schedule.read')){
+    const section=card('Upcoming sessions');
+    readList(section,upcoming.slice(0,5),(item,row)=>{
+      h('strong',{text:item.title||item.kind||'Team session',parent:row});
+      h('small',{text:when(item.startsAt)+(item.locationLabel?' · '+item.locationLabel:''),parent:row});
+      if(hasRole('team_player'))
+        h('p',{text:'My availability: '+(item.myAvailability||'Not answered'),parent:row});
     });
-    button(c.role==='team_player'?'Reply to training':'Manage training',()=>switchTab('schedule'),d,{primary:true});
+    button('View all sessions',()=>switchTab('schedule'),actions(section));
   }
   if(canReadNotices())renderNotices('home');
 }
 function renderSchedule(){
-  if(state.context.role==='team_volunteer'||state.context.role==='team_play_viewer'){
+  if(!roleForAction(state.context,'schedule.read')){
     info('Your current role does not include the team schedule.');return;
   }
   const list=card('Sessions');
   readList(list,state.schedule,(s,row)=>{
     h('strong',{text:s.title||s.kind||'Session',parent:row});
     h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:''),parent:row});
-    if(state.context.role==='team_player'){
+    if(hasRole('team_player')){
       h('p',{text:'My response: '+(s.myAvailability||'Not answered'),parent:row});
       const a=actions(row);
       for(const reply of ['yes','no','maybe'])
@@ -347,7 +538,7 @@ async function openAttendance(s){
       h('strong',{text:'Player reference '+p.personId,parent:row});
       h('small',{text:'Reply: '+(p.response||'Not answered')+
         ' · source: '+(p.source||'none'),parent:row});
-      if(state.context.role!=='team_manager')return;
+      if(!hasRole('team_manager'))return;
       const f=form(row,async d=>{
         await mutation('availability.transcribe',s.sessionId,p.version,{command:{
           personId:p.personId,response:String(d.get('response')),
@@ -409,7 +600,7 @@ function renderTeam(){
     field(f,'Existing or new candidate reference (no personal details)','personId');
     h('button',{className:'cloud-btn primary',text:'Nominate player',attrs:{type:'submit'},parent:f});
   }
-  if(c.role==='team_manager'){
+  if(hasRole('team_manager')){
     const v=card('Assign verified volunteer duty');
     info('A valid independently approved volunteer grant and verified person link are required.',v);
     const f=form(v,async d=>{
@@ -425,7 +616,7 @@ function renderTeam(){
     h('button',{className:'cloud-btn primary',text:'Assign duty',attrs:{type:'submit'},
       parent:f});
   }
-  if(c.role==='team_volunteer'){
+  if(hasRole('team_volunteer')&&!roleForAction(c,'schedule.read')){
     const v=card('Your verified assignments');
     readList(v,state.duties,(d,row)=>{
       h('strong',{text:'Assignment '+d.dutyId,parent:row});
@@ -441,10 +632,10 @@ function renderTeam(){
       }
     });
   }
-  if(c.role==='team_player'||c.role==='team_play_viewer')
+  if(!canRoster()&&hasRole('team_player','team_play_viewer'))
     info('Private squad and volunteer information is not available to this role.');
-  if(c.role==='team_manager')renderDutyBoard(c);
-    if(['team_coach','team_manager'].includes(c.role))renderTeamInvitations(c);
+  if(hasRole('team_manager'))renderDutyBoard(c);
+    if(hasRole('team_coach','team_manager'))renderTeamInvitations(c);
 }
 function renderDutyBoard(ctx){
   const c=card('Team volunteer duty board');
@@ -575,7 +766,7 @@ function renderTactics(){
     const a=actions(row);
     button('Preview',()=>viewPlay(p),a);
     button('Edit coaching instructions',()=>editPlayInstructions(p),a);
-    if(c.role==='team_coach'&&p.revisionStatus==='draft')
+    if(hasRole('team_coach')&&p.revisionStatus==='draft')
       button('Publish reviewed revision',async()=>{
         if(!confirm('Publish this reviewed E5 revision to the selected team?'))return;
         try{await mutation('play.publish',p.playId,p.version,{revisionId:p.revisionId});
@@ -661,11 +852,16 @@ function renderMyInvitations(){
     loading.textContent='Invitations could not be verified. Please refresh or contact the Platform Owner. No team permission has been granted.';
   });
 }
-function renderTeamInvitations(ctx){
+function renderTeamInvitations(team){
+  const ctx=reviewerContext(team);
+  if(!ctx)return;
   const panel=card('Team account invitations');
   if(state.founderTeamId===ctx.teamId){
     info('Your initial Coach grant is for coaching this team, not administrator approval. To invite, review or revoke adult accounts, switch to your separate Platform Owner role and use restricted administration.',panel);
-    h('a',{className:'cloud-btn',text:'Open Platform Owner invitations',
+    if(state.isPlatformOwner)
+      button('Open Platform administration',()=>selectContext('platform'),
+        actions(panel),{primary:true});
+    else h('a',{className:'cloud-btn',text:'Open Platform Owner invitations',
       attrs:{href:'cloud-owner.html'},parent:actions(panel)});
     return;
   }
@@ -782,9 +978,7 @@ function renderMore(){
   },a);
 }
 function switchTab(tab){
-  if(!['home','schedule','team','tactics','more'].includes(tab)||
-     (CLOUD_STAGE3C_MODE&&tab==='tactics'))return;
-  if(isOwner()&&!['home','more'].includes(tab))return;
+  if(!visibleSections(state.context,{playsDeferred:playsDeferred()}).includes(tab))return;
   state.tab=tab;state.preview=null;notice.hidden=true;drawTabs();void showTab();
 }
 async function initialOwnerReadiness(){
@@ -797,6 +991,7 @@ function showOwnerRegistrationPending(current,founder){
   state.tab='home';
   $('context-controls').hidden=true;
   $('cloud-nav').hidden=true;
+  $('cloud-desktop-nav').hidden=true;
   $('active-context').textContent='Registration pending';
   clear();
   title('Team access awaiting registration','Account permissions');
@@ -829,50 +1024,42 @@ async function initialise(keep=false){
     throw e;
   }
   let owner=false;
-  try{owner=await auth.myOperatorAccess();}catch{/* fail closed, without losing team grants */}
-  const choices=[...(owner?[{role:'platform_owner',teamId:'platform',club:'',
-    sport:'',season:''}]:[]),...grants];
-  const previous=keep&&state.context?state.context.role+'|'+state.context.teamId:null;
-  state.user=current;state.contexts=choices;
-  // Founder/Coach scopes remain distinct, even when the founder has both
-  // grants. The Coach workspace must never imply that it approves invites.
-  const founder=await initialOwnerReadiness();
+  try{owner=await auth.myOperatorAccess();}
+  catch{/* unavailable Owner RPC cannot create an Owner permission */}
+  const choices=buildTeamNavigation(grants,owner);
+  const previous=keep&&state.context?state.context.key:null;
+  state.user=current;state.contexts=choices;state.isPlatformOwner=owner;
+  const founder=owner?await initialOwnerReadiness():null;
   state.founderTeamId=founder?.team?.teamId||null;
-  picker.replaceChildren();choices.forEach((c,i)=>
-    h('option',{text:contextLabel(c),attrs:{value:i},parent:picker}));
   $('context-controls').hidden=!choices.length;
   $('cloud-nav').hidden=!choices.length;
+  $('cloud-desktop-nav').hidden=!choices.length;
   if(!choices.length){
-    const founder=await initialOwnerReadiness();
-    if(founder){showOwnerRegistrationPending(current,founder);return;}
-    state.epoch++;state.context=null;clear();
-    $('active-context').textContent='No currently available team context';
-    title('No currently available team context','Account permissions');
-    info('Your identity is verified, but no team working context is currently available. Review registration requirements and any independently approved invitations.');
+    const fallback=await initialOwnerReadiness();
+    if(fallback){showOwnerRegistrationPending(current,fallback);return;}
+    state.epoch++;state.context=null;state.activeClub=null;clear();
+    $('active-context').textContent='No currently available team';
+    title('No currently available team','Account permissions');
+    info('Your identity is verified, but no approved active team is assigned. Review registration or claim your approved invitation.');
     h('a',{className:'cloud-btn',text:'Registration and privacy',
       attrs:{href:'cloud-registration.html'},parent:main});
-    info('Already invited? You can review and claim an invitation for your verified email before the current registration policy is acknowledged. Claiming creates no active team permission.');
-    renderMyInvitations();renderProfilePanel();return;}
-  const ix=choices.findIndex(c=>c.role+'|'+c.teamId===previous);
-  if(ix>=0||choices.length===1){selectContext(ix>=0?ix:0);return;}
-  // Multiple grants: never automatically operate as Owner or Coach.
-  state.epoch++;state.context=null;state.tab='home';state.schedule=[];state.roster=[];
-  state.duties=[];state.notices=[];state.drafts=[];state.published=[];state.preview=null;
-  $('cloud-nav').hidden=true;
-  $('active-context').textContent='Choose one active role and team';
-  picker.insertBefore(h('option',{text:'Choose a role and team',
-    attrs:{value:'',disabled:'true'}}),picker.firstChild);
-  picker.value='';
-  clear();title('Choose your role and team','Signed-in account');
-  info('One login can hold more than one approved role. Select a single working context; permissions are never combined.');
-  const list=card('Your available contexts');
-  for(const [i,ctx] of choices.entries())
-    button(contextLabel(ctx),()=>{ $('cloud-nav').hidden=false;selectContext(i);},list);
-
+    renderMyInvitations();renderProfilePanel();return;
+  }
+  // A Platform Owner opens Platform. Everyone else lands directly in their
+  // first approved team. There is no explicit role/profile selection step.
+  const target=choices.find(c=>c.key===previous)?.key||
+    (owner?'platform':choices.find(c=>c.kind==='team')?.key);
+  selectContext(target);
 }
-$('cloud-nav').addEventListener('click',e=>{
-  const b=e.target.closest('button[data-tab]');if(b)switchTab(b.dataset.tab);
+for(const id of ['cloud-nav','cloud-desktop-nav']){
+  $(id).addEventListener('click',e=>{
+    const b=e.target.closest('button[data-tab]');
+    if(b)switchTab(b.dataset.tab);
+  });
+}
+initialise().catch(e=>{
+  clear();title('Unable to verify access','Account');info(explain(e));
+  $('cloud-nav').hidden=true;
+  $('cloud-desktop-nav').hidden=true;
+  $('context-controls').hidden=true;
 });
-picker.addEventListener('change',()=>{if(picker.value!==''){$('cloud-nav').hidden=false;selectContext(Number(picker.value));}});
-initialise().catch(e=>{clear();title('Unable to verify access','Account');
-  info(explain(e));$('cloud-nav').hidden=true;$('context-controls').hidden=true;});

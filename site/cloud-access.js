@@ -146,6 +146,16 @@ async function loadAccess() {
         : 'Team access could not be verified. No permissions have been granted.');
   }
 }
+// Connected first-team sign-in opens the authorised management application
+// immediately. Stage 3D.3 still blocks team data until approved registration;
+// an invited person without grants can claim their email-scoped invitation there.
+async function enterAfterSignIn(){
+  if(CLOUD_STAGE3D3_POLICY_REQUIRED===true){
+    location.replace('cloud-team.html');
+    return;
+  }
+  await loadAccess();
+}
 async function beginProvider(provider,link=false){
   if(busy||!extraAuthEnabled)return;
   setBusy(true);
@@ -202,7 +212,7 @@ $('cloud-otp-verify').addEventListener('submit',async event=>{
   try{
     await client.verifyEmailOtp(pendingOtpEmail,$('cloud-otp-token').value.trim());
     $('cloud-otp-token').value='';pendingOtpEmail='';
-    await loadAccess();
+    await enterAfterSignIn();
   }catch{
     $('cloud-otp-token').value='';
     showMessage('That code could not be verified. Check the code or request a new one.');
@@ -219,7 +229,7 @@ form.addEventListener('submit', async event => {
     const password = $('cloud-password').value;
     await client.signInWithPassword(email, password);
     $('cloud-password').value = '';
-    await loadAccess();
+    await enterAfterSignIn();
   } catch (error) {
     showGuest();
     showMessage(error.code === 'invalid-input'
@@ -273,7 +283,7 @@ setup.addEventListener('submit',async event=>{
     $('cloud-confirm-password').value='';
     setup.hidden=true;
     showMessage('Password saved. Your account is ready to continue.');
-    await loadAccess();
+    await enterAfterSignIn();
   }catch{
     showMessage('Password could not be saved. The link may have expired.');
   }finally{busy=false;control.disabled=false;}
@@ -290,6 +300,10 @@ async function start(){
     }
     try{
       const outcome=await client.completeOAuth(callback.href);
+      if(!outcome.linked&&CLOUD_STAGE3D3_POLICY_REQUIRED===true){
+        location.replace('cloud-team.html');
+        return;
+      }
       await loadAccess();
       showMessage(outcome.linked
         ? 'Additional sign-in method linked to your existing account. Team permissions are unchanged.'

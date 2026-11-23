@@ -125,6 +125,10 @@ jobs:
         env:
           STAGE3D4B_BROWSER_ENGINE: chromium
         run: python3 test/browser/stage3d4b_invitation_claim.py
+      - name: Stage 3D.5 unified management team chips on Chromium
+        env:
+          STAGE3D5_BROWSER_ENGINE: chromium
+        run: python3 test/browser/stage3d5_team_chips.py
       - name: Preserve browser qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -196,3 +200,7 @@ jobs:
         env:
           STAGE3D4B_BROWSER_ENGINE: webkit
         run: python3 test/browser/stage3d4b_invitation_claim.py
+      - name: Stage 3D.5 unified management team chips on WebKit
+        env:
+          STAGE3D5_BROWSER_ENGINE: webkit
+        run: python3 test/browser/stage3d5_team_chips.py
