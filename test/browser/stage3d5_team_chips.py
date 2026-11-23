@@ -202,6 +202,27 @@ try:
      f'[{width}] Team Manager goes straight to approved team')
    checks.ok(page.locator('#team-chips button').count()==1,
      f'[{width}] Manager sees one selected team')
+   page.get_by_role('button',name='More',exact=True).first.click()
+   page.get_by_role('heading',name='Team management').wait_for()
+   checks.ok(page.get_by_role('button',name='Settings').count()==1 and
+     page.get_by_role('button',name='Competitions').count()==1 and
+     page.get_by_role('button',name='Messages').count()==1 and
+     page.get_by_role('button',name='Jerseys').count()==1,
+     f'[{width}] connected management More contains established functions')
+   page.get_by_role('button',name='Settings').click()
+   page.get_by_role('heading',name='Team settings').wait_for()
+   page.get_by_role('button',name='All management tools').click()
+   page.get_by_role('button',name='Competitions').click()
+   page.get_by_role('heading',name='Create a league, tournament or carnival').wait_for()
+   page.get_by_role('button',name='All management tools').click()
+   page.get_by_role('button',name='Messages').click()
+   page.get_by_role('heading',name='New message').wait_for()
+   page.get_by_role('button',name='All management tools').click()
+   page.get_by_role('button',name='Jerseys').click()
+   page.get_by_role('heading',name='Jersey numbers and issue history').wait_for()
+   checks.ok(page.get_by_text('No active players yet').count()==1,
+     f'[{width}] jersey workflow uses real-team empty state, not fictional players')
+   page.get_by_role('button',name='All management tools').click()
    checks.ok(page.locator('body').evaluate('(el)=>el.scrollWidth<=innerWidth+2'),
      f'[{width}] Manager layout fits')
    c.close()
