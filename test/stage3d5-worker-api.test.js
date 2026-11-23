@@ -82,11 +82,12 @@ test('Team-level Player invitation only sends after SQL approval, never returns 
  const r=await handleStage3D5Team(req('invite.issue',{
   email:'player@fictional.test',role:'team_player'}),env,f.fetchImpl);
  assert.equal(r.status,200);
- assert.deepEqual(await r.json(),{ok:true,code:'committed',
+ const data=await r.json();
+ assert.deepEqual(data,{ok:true,code:'committed',
   data:{invitationId:id,delivery:'sent'}});
  assert(f.calls.some(x=>x.path==='/auth/v1/invite'));
  assert(f.calls.some(x=>x.path==='/rest/v1/rpc/tm_stage3_delivery_result'));
- assert(!JSON.stringify(await r.json()).includes('player@fictional.test'));
+ assert(!JSON.stringify(data).includes('player@fictional.test'));
  const no=provider({rpc:()=>({ok:false,code:'role-denied'})});
  const blocked=await handleStage3D5Team(req('invite.issue',{
   email:'player@fictional.test',role:'team_player'}),env,no.fetchImpl);
