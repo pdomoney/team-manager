@@ -98,6 +98,16 @@ begin
  if exists(select 1 from tm_private.team_competitions where official_verified)
  then raise exception 'Team authored authoritative competition draw';end if;
  r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
+  'competitions.fixtures','{}'::jsonb);
+ if r->>'code'<>'permitted' or jsonb_array_length(r->'data')<>1
+   or r->'data'->0->>'official'<>'false'
+   or r->'data'->0->>'title'<>'vs Fictional Lions'
+   or r->'data'->0->>'competitionId'<>id
+ then raise exception 'Team local fixture read failed %',r;end if;
+ r:=public.tm_stage3d5_team(coach,'other-team','team_coach',
+  'competitions.fixtures','{}'::jsonb);
+ if r->>'code'<>'scope-denied' then raise exception 'Foreign team fixture read succeeded';end if;
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
   'messages.prepare','{"audience":"players","channel":"whatsapp",
     "body":"Check your training availability."}'::jsonb);
  if r->>'code'<>'committed' then raise exception 'Message prepare failed';end if;
