@@ -181,6 +181,11 @@ try:
      f'[{width}] exact-team Coach grants used for roster')
    checks.ok(('owner','stgeorge-mixed20','team_volunteer','duty.read') in operations,
      f'[{width}] same-team volunteer grant used separately')
+   page.get_by_role('button',name='More',exact=True).first.click()
+   page.get_by_role('button',name='Settings').click()
+   page.get_by_role('heading',name='Team settings').wait_for()
+   checks.ok(page.get_by_role('button',name='Save team settings').count()==0,
+     f'[{width}] Coach sees read-only settings while approved Manager owns team admin')
    page.locator('#club-chips').get_by_role('button',name='Rangers Club').click()
    page.locator('#team-chips button').first.click()
    page.get_by_role('heading',name='Home').wait_for()
