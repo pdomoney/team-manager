@@ -121,6 +121,10 @@ jobs:
         env:
           STAGE3D4_BROWSER_ENGINE: chromium
         run: python3 test/browser/stage3d4_readiness.py
+      - name: Stage 3D.4B invited adult claim before policy on Chromium
+        env:
+          STAGE3D4B_BROWSER_ENGINE: chromium
+        run: python3 test/browser/stage3d4b_invitation_claim.py
       - name: Preserve browser qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -188,3 +192,7 @@ jobs:
         env:
           STAGE3D4_BROWSER_ENGINE: webkit
         run: python3 test/browser/stage3d4_readiness.py
+      - name: Stage 3D.4B invited adult claim before policy on WebKit
+        env:
+          STAGE3D4B_BROWSER_ENGINE: webkit
+        run: python3 test/browser/stage3d4b_invitation_claim.py
