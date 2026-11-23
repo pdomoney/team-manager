@@ -782,7 +782,7 @@ function switchTab(tab){
   state.tab=tab;state.preview=null;notice.hidden=true;drawTabs();void showTab();
 }
 async function initialOwnerReadiness(){
-  if(CLOUD_STAGE3D3_POLICY_REQUIRED!==true||CLOUD_STAGE3C_MODE)return null;
+  if(CLOUD_STAGE3D3_POLICY_REQUIRED!==true)return null;
   return verifiedOwnerSetup({identity:auth,fetchImpl:fetch.bind(window)});
 }
 function showOwnerRegistrationPending(current,founder){
