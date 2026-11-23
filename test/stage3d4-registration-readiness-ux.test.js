@@ -52,6 +52,8 @@ test('first-team role is never added to ordinary team context before policy',()=
   const sql=readFileSync('supabase/migrations/20261121010000_stage3d4_founder_admin.sql','utf8');
   assert.match(teamSource,/showOwnerRegistrationPending\(current,founder\)/);
   assert.match(teamSource,/CLOUD_STAGE3D3_POLICY_REQUIRED!==true/);
+  assert.doesNotMatch(teamSource,/CLOUD_STAGE3D3_POLICY_REQUIRED!==true\\|\\|CLOUD_STAGE3C_MODE/,
+    'connected Stage 3D.3 intentionally preserves Stage 3C tactics presentation flag');
   assert.match(teamSource,/Coach grant recorded/);
   assert.match(login,/showRestrictedOwner/);
   assert.match(login,/workspaceLink.hidden=true/);
