@@ -145,7 +145,9 @@ export function createCloudManagementExperience({
     }
   }
   async function competitions(ctx,loading,canAdmin){
-    const competitions=await query(ctx,'competitions.read');
+    const [competitions,fixtures]=await Promise.all([
+      query(ctx,'competitions.read'),query(ctx,'competitions.fixtures')]);
+    if(!ensure(ctx))return;
     const entries=originalTeamCompetitionsFromCloud({
       context:{...ctx,teamName:getTeamLabel(ctx)},competitions});
     loading.remove();
@@ -179,6 +181,17 @@ export function createCloudManagementExperience({
       h('strong',{text:entry.name,parent:row});
       info(entry.format+' · '+entry.season+' · '+(entry.division||'No grade')+
         ' · '+entry.status,row);
+      const localFixtures=fixtures.filter(item=>item.competitionId===entry.competitionId);
+      if(!localFixtures.length)info('No team-recorded fixtures for this competition.',row);
+      for(const item of localFixtures){
+        const fixtureRow=h('div',{className:'cloud-list-item',parent:row});
+        h('strong',{text:item.title||'Team fixture',parent:fixtureRow});
+        info((item.startsAt?new Date(item.startsAt).toLocaleString('en-AU',
+          {dateStyle:'medium',timeStyle:'short'}):'Time TBC')+
+          (item.locationLabel?' · '+item.locationLabel:'')+
+          ' · '+item.status,fixtureRow);
+        info('Team-recorded fixture, not an official competition draw',fixtureRow);
+      }
       if(canAdmin){
       const f=form(row,async d=>use(ctx,'competitions.update',{
         competitionId:entry.competitionId,name:entry.name,format:entry.format,
