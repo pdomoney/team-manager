@@ -364,7 +364,7 @@ function renderHome(){
     const duty=card('My volunteer duties',overview);
     h('p',{className:'cloud-overview-number',text:String(state.duties.length),parent:duty});
     info('Only your verified assignments are available',duty);
-    button('View duties',()=>switchTab('team'),duty);
+    button('View your duties',()=>switchTab('team'),duty);
   }
   const actionable=card('Outstanding actions');
   if(canEditSchedule()&&!upcoming.length)
