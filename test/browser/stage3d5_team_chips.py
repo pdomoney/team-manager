@@ -53,8 +53,10 @@ def bind(ctx):
    return respond(route,{},401)
   if not who:return respond(route,{},401)
   if path=='/auth/v1/user':
-   return respond(route,{'id':'11111111-1111-4111-8111-111111111111' if who=='owner' else
-      '22222222-2222-4222-8222-222222222222',
+   return respond(route,{'id':{
+      'owner':'11111111-1111-4111-8111-111111111111',
+      'manager':'22222222-2222-4222-8222-222222222222',
+      'player':'33333333-3333-4333-8333-333333333333'}[who],
     'email':who+'@example.test','email_confirmed_at':'2026-11-23T00:00:00Z'})
   if path=='/rest/v1/rpc/tm_my_operator_context':
    return respond(route,{'isOwner':who=='owner'})
