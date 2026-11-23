@@ -213,6 +213,132 @@ async function showTab(){
     case 'more':renderMore();break;
   }
 }
+// Platform administration is part of the signed-in workspace, not a different
+// profile. Only the trusted Owner endpoint can issue/review/revoke invitations.
+async function ownerCall(action,details={}){
+  const bearer=await auth.verifiedBearer();
+  let response;
+  try{response=await fetch('/api/stage3d4/v1/owner',{
+    method:'POST',mode:'same-origin',credentials:'omit',cache:'no-store',
+    redirect:'error',headers:{Authorization:'Bearer '+bearer,
+      'Content-Type':'application/json'},
+    body:JSON.stringify({action,...details})
+  });}catch{throw Object.assign(new Error('service-unavailable'),{code:'service-unavailable'});}
+  let result;try{result=await response.json();}catch{throw Error('invalid-owner-response');}
+  if(!response.ok||result?.ok!==true)
+    throw Object.assign(new Error('owner-action-denied'),{code:result?.code||'scope-denied'});
+  return result;
+}
+function ownerInvitationStatus(delivery){
+  if(delivery==='sent')return 'Provider reported invitation sent. Team access still requires claim, review, policy acknowledgement and activation.';
+  if(delivery==='existing-account')return 'Existing account invited. Ask the recipient to sign in and claim.';
+  if(delivery==='failed')return 'Email delivery failed. No recipient invitation was confirmed; check the provider before retrying.';
+  return 'Saved; refresh to verify the next invitation action.';
+}
+async function ownerMutation(action,details={}){
+  const result=await ownerCall(action,details);
+  message(action==='invite.issue'||action==='invite.approve'?
+    ownerInvitationStatus(result.delivery):'Owner action saved and recorded.');
+  void showTab();
+}
+function ownerInvitationRow(item,parent){
+  const row=h('div',{className:'cloud-owner-invite-item',parent});
+  h('strong',{text:item.email+' · '+(ROLE_NAMES[item.role]||item.role),parent:row});
+  info('Status: '+item.status+' · Email: '+(item.delivery||'not sent'),row);
+  const controls=actions(row);
+  const confirmAndRun=(label,action)=>{
+    button(label,()=>{
+      if(!confirm(label+' for this exact team and adult?'))return;
+      void ownerMutation(action,{invitationId:item.invitationId})
+        .catch(e=>message(explain(e),true));
+    },controls);
+  };
+  if(item.status==='proposed')
+    confirmAndRun('Approve and send','invite.approve');
+  if(item.status==='approved'||item.status==='claimed'){
+    button('Record verified adult review',()=>{
+      const evidenceRef=prompt('Private, independently verified adult evidence reference (evidence-ref/...)');
+      if(!evidenceRef)return;
+      if(!/^evidence-ref\/[A-Za-z0-9._/-]{12,100}$/.test(evidenceRef)){
+        message('A valid private verification evidence reference is required.',true);return;
+      }
+      void ownerMutation('invite.review-adult',{invitationId:item.invitationId,
+        evidenceRef}).catch(e=>message(explain(e),true));
+    },controls);
+    confirmAndRun('Cancel invitation','invite.cancel');
+  }
+  if(item.status==='claimed')confirmAndRun('Activate verified role','invite.activate');
+  if(item.status==='activated')confirmAndRun('Revoke role','invite.revoke');
+}
+async function renderOwnerDashboard(epoch){
+  if(state.tab==='more'){renderMore();return;}
+  const loading=info('Checking your Platform Owner administration…');
+  let data;
+  try{data=await ownerCall('status');}
+  catch(e){
+    if(epoch!==state.epoch)return;
+    loading.textContent='Owner administration could not be verified. No changes were made.';
+    message(explain(e),true);return;
+  }
+  if(epoch!==state.epoch)return;
+  loading.remove();
+  const summary=h('div',{className:'cloud-owner-overview',parent:main});
+  const account=card('Platform account',summary);
+  h('strong',{text:state.user?.email||'Verified account',parent:account});
+  info('Your platform administration is separate from your team permissions.',account);
+  const team=card('First approved team',summary);
+  if(data.team){
+    h('strong',{text:data.team.clubRef,parent:team});
+    info(data.team.teamId+' · '+data.team.seasonRef+' · '+data.team.sportRef,team);
+    info(data.coachAssigned?'Your Coach grant is active and team-scoped.':
+      'Your Coach grant is awaiting assignment.',team);
+  }else info('No first team recorded.',team);
+  const invites=card('Adult invitations',summary);
+  h('strong',{text:String(data.invitations?.length||0),parent:invites});
+  info('Approved team invitations; none grants access before activation.',invites);
+  if(!data.policyReady){
+    const gate=card('Registration requirements');
+    info('You must acknowledge the current approved Terms and Privacy Notice before inviting people.',gate);
+    h('a',{className:'cloud-btn',text:'Review registration documents',
+      attrs:{href:'cloud-registration.html'},parent:gate});
+    return;
+  }
+  if(!data.team){
+    const setup=card('Initial team setup');
+    info('Only the restricted first-team setup flow can create the initial team.',setup);
+    h('a',{className:'cloud-btn',text:'Open first-team setup',
+      attrs:{href:'cloud-owner.html'},parent:setup});
+    return;
+  }
+  const grid=h('div',{className:'cloud-owner-actions',parent:main});
+  const invite=card('Invite an adult',grid);
+  info('Invite a Manager, Coach, Assistant Coach, adult Player or Volunteer to the existing team. Invitation is not an active team role.',invite);
+  const f=form(invite,async d=>{
+    if(!confirm('Send this invitation to an approved adult for '+data.team.clubRef+'?'))return;
+    const result=await ownerCall('invite.issue',{
+      email:String(d.get('email')||'').trim(),
+      role:String(d.get('role')||'')
+    });
+    message(ownerInvitationStatus(result.delivery));
+    void showTab();
+  });
+  field(f,'Recipient email','email',{type:'email',max:254});
+  selectField(f,'Team role','role',[
+    ['team_manager','Manager'],['team_coach','Coach'],
+    ['team_assistant','Assistant Coach'],['team_player','Adult Player'],
+    ['team_volunteer','Volunteer']
+  ]);
+  h('button',{className:'cloud-btn primary',text:'Approve and send invitation',
+    attrs:{type:'submit'},parent:f});
+  const active=card('Pending and active invitations',grid);
+  if(!data.invitations?.length)info('No invitations yet. Invite your first adult Team Manager.',active);
+  else for(const item of data.invitations)ownerInvitationRow(item,active);
+  const help=card('Administration and team access');
+  info('Use the club and team chips above to switch to the Coach functions for an approved team. Platform Owner never receives automatic access to private team records.',help);
+  h('a',{className:'cloud-btn',text:'View detailed first-team administration',
+    attrs:{href:'cloud-owner.html'},parent:actions(help)});
+}
+
 function renderHome(){
   const c=state.context;
   const banner=card('Your working team');
