@@ -69,3 +69,53 @@
 /* Accessible navigation to pending registration without an active team context. */
 .cloud-actions a.cloud-btn{display:inline-flex;align-items:center;justify-content:center;
   text-align:center;min-height:44px;text-decoration:none;white-space:normal}
+
+/* Stage 3D.5: the established team-chip and sidebar navigation now has a
+   verified Supabase source. These are UI affordances, never role grants. */
+.cloud-context-controls{display:grid;gap:8px;margin:12px 0 0}
+.cloud-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:0}
+.cloud-team-chips{padding-left:2px}
+.cloud-chips button{font:700 14px var(--font-b);min-height:44px;padding:10px 16px;
+ border:1px solid #9bb3a5;background:#fff;color:var(--pitch);
+ border-radius:999px;cursor:pointer;white-space:normal;text-align:left}
+.cloud-chips button[aria-pressed="true"]{background:#e0f2e6;border:2px solid #176b43;
+ padding:9px 15px}
+.cloud-chips button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.cloud-workspace-layout{display:grid;grid-template-columns:minmax(0,1fr);min-height:calc(100vh - 169px)}
+.cloud-main{width:100%;max-width:1160px;margin:0 auto;padding:26px 24px 100px;
+ align-content:start}
+.cloud-main .cloud-card{padding:20px;border-radius:13px}
+.cloud-main h2{font-size:clamp(26px,3vw,34px);margin:0 0 10px}
+.cloud-main .cloud-intro{line-height:1.5}
+.cloud-owner-overview{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px}
+.cloud-owner-overview .cloud-card{min-width:0}
+.cloud-owner-overview strong{font-size:23px;color:var(--pitch)}
+.cloud-owner-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.cloud-owner-actions .cloud-card{min-width:0}
+.cloud-owner-actions .cloud-form input,.cloud-owner-actions .cloud-form select{width:100%}
+.cloud-owner-invite-item{display:grid;gap:8px;border:1px solid var(--line);padding:13px;
+ border-radius:10px;overflow-wrap:anywhere}
+.cloud-owner-invite-item p{color:var(--muted)}
+.cloud-desktop-nav{display:none}
+.cloud-desktop-nav button{display:block;width:100%;min-height:46px;border:0;
+ background:transparent;color:var(--muted);font:600 15px var(--font-b);
+ padding:12px 16px;text-align:left;cursor:pointer}
+.cloud-desktop-nav button[aria-current="page"]{background:var(--ok-soft);
+ color:var(--pitch);box-shadow:inset 3px 0 var(--ok);font-weight:700}
+.cloud-desktop-nav button:focus-visible{outline:3px solid var(--gold);outline-offset:-3px}
+.cloud-nav{grid-template-columns:repeat(5,minmax(0,1fr))}
+.cloud-nav button[hidden],.cloud-desktop-nav button[hidden]{display:none}
+@media(min-width:780px){
+ .cloud-workspace-layout{grid-template-columns:214px minmax(0,1fr)}
+ .cloud-desktop-nav:not([hidden]){display:block;background:#fff;
+   border-right:1px solid var(--line);padding:16px 6px 30px}
+ .cloud-nav{display:none}
+ .cloud-alert{bottom:20px}
+}
+@media(max-width:779px){
+ .cloud-main{padding:18px 14px 108px}
+ .cloud-chips{flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x proximity;
+   padding:2px 1px 8px;scrollbar-width:thin}
+ .cloud-chips button{flex:none;scroll-snap-align:start}
+ .cloud-owner-actions{grid-template-columns:minmax(0,1fr)}
+}
