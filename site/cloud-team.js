@@ -651,7 +651,9 @@ function renderTeam(){
       }
     });
   }
-  if(!canRoster()&&hasRole('team_player','team_play_viewer'))
+  if(!canRoster()&&hasRole('team_player'))
+    info('Private player records, contact details and volunteer assignments are not available to Players. Verified team display names appear below.',main);
+  else if(!canRoster()&&hasRole('team_play_viewer'))
     info('Private squad and volunteer information is not available to this role.');
   if(hasRole('team_manager')&&!MANAGEMENT_PARITY)renderDutyBoard(c);
   if(MANAGEMENT_PARITY&&hasRole('team_coach','team_manager')){
