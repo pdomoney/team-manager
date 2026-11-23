@@ -102,6 +102,8 @@ import { clubNameKey, managedClubCandidates, clubLinkPreview, applyClubDirectory
 import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-badges.js';
 import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
 import * as M from './model.js';
+import { TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
+  availabilityRequestText } from './shared-team-messages.js';
 import { selectedTeamManagement } from './management-home.js';
 import { managementWorkingContext } from './management-context.js';
 import { localPeopleNamespace, localPeopleReviewView, acceptLocalPeopleLink, undoLocalPeopleLink } from './people-ui.js';
@@ -6761,14 +6763,17 @@ function offerCancelMessage(s) {
 }
 
 /* ---------- Messages (coach) ---------- */
-const TEMPLATES = { reminder: 'Training reminder', availability: 'Availability check', match: 'Next match', results: 'Results', cancelled: 'Training cancelled', lineup: 'Lineup', help: 'Help needed', countdown: 'Countdown', invite: 'App invite', blank: 'Blank' };
+const TEMPLATES = TEAM_MESSAGE_TEMPLATES;
 function buildTemplate(t) {
   const T = data.team, s = sessionById(state.msgSession) || nextSession();
-  if (t === 'reminder') {
-    if (!s) return `🏉 *Training — ${T.name}*\n\n(Add a training session first and it will fill in here.)`;
-    return `🏉 *Training — ${T.name}*\n📅 ${fmtLong(s.date)}\n⏰ ${fmtRange(s)}\n📍 ${s.venue || T.trainingVenue || 'TBC'}${s.focus ? `\n🎯 Focus: ${s.focus}` : ''}${s.notes ? `\n📝 ${s.notes}` : ''}\n\nReply 👍 if you're coming, or let me know if you can't make it.`;
-  }
-  if (t === 'cancelled') return s ? `⚠️ *Training cancelled*\nTraining on ${fmtLong(s.date)} (${fmtRange(s)}) is off.\n\nReason: \n\nSee you at the next one.` : `⚠️ *Training cancelled*\n\n`;
+  if (t === 'reminder') return trainingReminderText({
+    teamName:T.name,session:s,dateLabel:s?fmtLong(s.date):'',
+    timeLabel:s?fmtRange(s):'',venue:s?.venue||T.trainingVenue||'',
+    focus:s?.focus||'',notes:s?.notes||''
+  });
+  if (t === 'cancelled') return trainingCancellationText({
+    session:s,dateLabel:s?fmtLong(s.date):'',timeLabel:s?fmtRange(s):''
+  });
   if (t === 'lineup') return lineupText(curLineup());
   if (t === 'help') return helpNeededText();
   if (t === 'availability') return availabilityText(state.msgEvent);
@@ -6780,12 +6785,18 @@ function buildTemplate(t) {
 }
 // Ask for replies about one session or match, or everything in the next two weeks.
 function availabilityText(ev) {
-  const T = data.team, today = todayISO(), until = M.addDays(today, 14), c = T.tasksContact || {};
-  const one = ev && rsvpTarget(ev.kind, ev.id);
-  const list = one ? [{ kind: ev.kind, x: one }] : M.agenda(data, today, 14).filter(it => !it.cancelled && it.kind !== 'task' && it.date <= until && (it.kind === 'session' || it.x.status === 'scheduled'));
-  if (!list.length) return `📋 *Availability — ${T.name}*\n\n(Nothing in the next two weeks. Add training or a match and it will fill in here.)`;
-  const line = it => `• ${fmtDay(it.x.date)}${it.x.start ? ` ${fmtTime(it.x.start)}` : ''}: ${it.kind === 'match' ? `match vs ${it.x.opponent || 'TBC'}` : 'training'}`;
-  return `📋 *Availability — ${T.name}*\nPlease reply *YES*, *NO* or *MAYBE* for:\n${list.map(line).join('\n')}\n\nReply here${c.name ? ` or message ${c.name}` : ''}, or use the buttons in the team app (Schedule). Thanks!`;
+  const T=data.team,today=todayISO(),until=M.addDays(today,14),c=T.tasksContact||{};
+  const one=ev&&rsvpTarget(ev.kind,ev.id);
+  const list=one?[{kind:ev.kind,x:one}]:
+    M.agenda(data,today,14).filter(it=>!it.cancelled&&it.kind!=='task'&&
+      it.date<=until&&(it.kind==='session'||it.x.status==='scheduled'));
+  return availabilityRequestText({teamName:T.name,contactName:c.name,
+    events:list.map(it=>({
+      kind:it.kind,dateLabel:fmtDay(it.x.date),
+      startLabel:it.x.start?fmtTime(it.x.start):'',
+      opponent:it.x.opponent||''
+    }))
+  });
 }
 function viewMessages() {
   if (state.msgDraft === null) state.msgDraft = buildTemplate(state.msgTpl);
