@@ -200,7 +200,8 @@ begin
  on conflict (user_id) do update set status='active';
  insert into tm_private.registration_adult_reviews(
    user_id,reviewed_by,reviewed_at,evidence_ref,state)
- values(player,coach,now(),'evidence-ref/fictional-player-review','approved');
+ values(player,coach,now(),'evidence-ref/fictional-player-review','approved')
+ on conflict (user_id) do nothing;
  insert into tm_private.registration_acceptances(
    user_id,policy_id,terms_accepted,privacy_acknowledged,marketing_opt_in)
  values(player,'fictional-stg3d5-policy',true,true,false);
