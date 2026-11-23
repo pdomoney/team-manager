@@ -1079,6 +1079,13 @@ function renderMore(){
     info('Your current team role has read-only access to approved notices and activities.',menu);
   }
   if(canReadNotices())renderNotices();
+  // Preserve the accepted Stage 3B/3C synthetic management journey. The
+  // richer Supabase views activate only in the approved first-team runtime.
+  if(canManage()&&!MANAGEMENT_PARITY){
+    const reports=card('Reports');
+    info('Attendance, availability and duties for your selected team.',reports);
+    button('Open team reports',()=>void openReports(),reports,{primary:true});
+  }
   const account=card('My account');
   h('p',{text:state.user?.email||'Signed in',parent:account});
   info('All team permissions come from your independently approved server grants. Choosing another team never combines access.',account);
