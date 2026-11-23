@@ -5,12 +5,15 @@ import {verifiedOwnerSetup} from './cloud-owner-status.js';
 import {createCloudIdentityClient} from './cloud-identity.js';
 import {createCloudOnboardingClient} from './cloud-onboarding.js';
 import {teamContextLabel} from './first-live-team.js';
+import {buildTeamNavigation,hasTeamRole,roleForAction,reviewerContext,
+  clubsForNavigation,visibleSections} from './cloud-team-contexts.js';
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
 
 const $=id=>document.getElementById(id);
-const main=$('cloud-main'),notice=$('cloud-alert'),picker=$('role-context');
+const main=$('cloud-main'),notice=$('cloud-alert');
+const clubs=$('club-chips'),teams=$('team-chips');
 const auth=createCloudIdentityClient({...CLOUD_SUPABASE,
   fetchImpl:fetch.bind(window),storage:sessionStorage});
 const ops=createCloudOperationsClient({identity:auth,fetchImpl:fetch.bind(window),
@@ -21,16 +24,18 @@ const ROLE_NAMES=Object.freeze({
   team_manager:'Manager',team_player:'Player',team_volunteer:'Volunteer',
   team_play_viewer:'Play viewer'
 });
-const state={user:null,contexts:[],context:null,founderTeamId:null,tab:'home',epoch:0,
+const state={user:null,contexts:[],context:null,activeClub:null,isPlatformOwner:false,
+  founderTeamId:null,tab:'home',epoch:0,
   schedule:[],roster:[],duties:[],drafts:[],published:[],notices:[],preview:null,busy:false};
-const canEditSchedule=()=>['team_coach','team_manager','team_assistant'].includes(state.context?.role);
-const canRoster=()=>['team_coach','team_manager'].includes(state.context?.role);
+const hasRole=(...roles)=>hasTeamRole(state.context,...roles);
+const canEditSchedule=()=>hasRole('team_coach','team_manager','team_assistant');
+const canRoster=()=>hasRole('team_coach','team_manager');
 const canManage=canRoster;
-const canReadNotices=()=>['team_coach','team_manager','team_assistant','team_player','team_volunteer'].includes(state.context?.role);
-const canViewTactics=()=>!CLOUD_STAGE3C_MODE&&['team_coach','team_assistant','team_manager',
-  'team_player','team_play_viewer'].includes(state.context?.role);
-const canDraft=()=>['team_coach','team_assistant'].includes(state.context?.role);
-const isOwner=()=>state.context?.role==='platform_owner';
+const canReadNotices=()=>hasRole('team_coach','team_manager','team_assistant','team_player','team_volunteer');
+const playsDeferred=()=>CLOUD_STAGE3C_MODE||CLOUD_STAGE3D3_POLICY_REQUIRED;
+const canViewTactics=()=>!playsDeferred()&&hasRole('team_coach','team_assistant','team_manager','team_player','team_play_viewer');
+const canDraft=()=>!playsDeferred()&&hasRole('team_coach','team_assistant');
+const isOwner=()=>state.context?.kind==='platform';
 const escapeText=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;',
   '>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function h(tag,{className,text,attrs={},parent}={}){
@@ -96,27 +101,55 @@ function title(name,subtitle){
   h('p',{className:'cloud-eyebrow',text:subtitle,parent:main});
   h('h2',{text:name,parent:main});
 }
-function contextLabel(c){return c.role==='platform_owner'?'Platform Owner · platform administration':
-  (ROLE_NAMES[c.role]||c.role)+' · '+teamContextLabel(c);}
-function selectContext(index){
-  state.epoch++;notice.hidden=true;state.context=state.contexts[index]||null;
+function contextLabel(c){
+  if(c.kind==='platform')return 'Platform Owner · platform administration';
+  const roleNames=c.roles.map(role=>ROLE_NAMES[role]||role);
+  return roleNames.join(' / ')+' · '+teamContextLabel(c);
+}
+function chip(parent,label,pressed,handler){
+  const b=button(label,handler,parent);
+  b.className='cloud-scope-chip';b.setAttribute('aria-pressed',pressed?'true':'false');
+  return b;
+}
+function drawContextChips(){
+  clubs.replaceChildren();teams.replaceChildren();
+  const active=state.context;
+  if(state.isPlatformOwner)chip(clubs,'Platform',isOwner(),()=>selectContext('platform'));
+  for(const club of clubsForNavigation(state.contexts)){
+    chip(clubs,club,state.activeClub===club,()=>{
+      state.activeClub=club;drawContextChips();
+    });
+  }
+  const selectedClub=state.activeClub;
+  if(selectedClub)for(const team of state.contexts.filter(c=>c.kind==='team'&&c.club===selectedClub))
+    chip(teams,teamContextLabel(team)+' · '+team.season,
+      active?.key===team.key,()=>selectContext(team.key));
+}
+function selectContext(key){
+  const next=state.contexts.find(c=>c.key===key);
+  if(!next)return;
+  state.epoch++;notice.hidden=true;state.context=next;
+  state.activeClub=next.kind==='team'?next.club:null;
   state.schedule=[];state.roster=[];state.duties=[];state.notices=[];state.drafts=[];
   state.published=[];state.preview=null;
-  $('active-context').textContent=state.context?contextLabel(state.context):'No active access';
-  picker.value=String(index);
-  state.tab='home';drawTabs();void showTab();
+  $('active-context').textContent=contextLabel(next);
+  state.tab='home';drawContextChips();drawTabs();void showTab();
 }
 function drawTabs(){
-  const owner=isOwner();
-  for(const b of $('cloud-nav').querySelectorAll('button')){
-    b.hidden=(CLOUD_STAGE3C_MODE&&b.dataset.tab==='tactics')||
-      (owner&&b.dataset.tab!=='home'&&b.dataset.tab!=='more');
-    b.setAttribute('aria-current',state.tab===b.dataset.tab?'page':'false');
+  const allowed=visibleSections(state.context,{playsDeferred:playsDeferred()});
+  for(const id of ['cloud-nav','cloud-desktop-nav']){
+    for(const b of $(id).querySelectorAll('button')){
+      b.hidden=!allowed.includes(b.dataset.tab);
+      b.setAttribute('aria-current',state.tab===b.dataset.tab?'page':'false');
+    }
   }
 }
 async function action(name,resource,payload={}){
-  if(!state.context||isOwner())throw Object.assign(new Error('no-team-context'),{code:'scope-denied'});
-  return ops.operation(state.context,name,resource,payload);
+  // Selecting a team never grants permissions. Resolve one eligible role for
+  // this operation only, and require the trusted backend to recheck that grant.
+  const role=roleForAction(state.context,name);
+  if(!role)throw Object.assign(new Error('no-eligible-team-grant'),{code:'scope-denied'});
+  return ops.operation({...state.context,role},name,resource,payload);
 }
 async function mutation(name,resource,expectedVersion,detail){
   const payload={mutationId:newMutationId(),expectedVersion,...detail};
@@ -169,14 +202,7 @@ async function showTab(){
     loading.remove();
   }
   if(isOwner()){
-    if(state.tab==='more')renderMore();else{
-      const panel=card('Platform administration');
-      info('Your authorised Platform Owner context does not automatically open private team, player, volunteer or safeguarding records.',panel);
-      info('To work as a Coach, select your separately approved team role above.',panel);
-      info('Use restricted administration to configure the first team and review adult team invitations.',panel);
-      button('Open Platform Owner administration',
-        ()=>location.assign('cloud-owner.html'),panel,{primary:true});
-    }
+    await renderOwnerDashboard(epoch);
     return;
   }
   switch(state.tab){
