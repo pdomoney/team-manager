@@ -1,8 +1,11 @@
+import {TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
+  availabilityRequestText,projectedCloudSession,nextCloudTraining,
+  cloudAvailabilityEvents} from './shared-team-messages.js';
 // Stage 3D.5 connected management surfaces. Uses the established Team Manager
 // menu vocabulary and exact-team server records, never the fictional demo vault.
 // The Host owns navigation state; each async screen discards stale team results.
 export function createCloudManagementExperience({
-  api,getContext,getSchedule,ui,onBack,onReport,onNotices,onTeam
+  api,getContext,getSchedule,getTeamLabel,ui,onBack,onReport,onNotices,onTeam
 }){
   const {h,card,info,button,actions,form,field,selectField,title,clear,message,explain}=ui;
   const permitted=()=>getContext()?.kind==='team'&&
@@ -180,13 +183,14 @@ export function createCloudManagementExperience({
       }
     }
   }
-  const templates=[
-    ['reminder','Training reminder'],['availability','Availability check'],
-    ['match','Next match'],['results','Results'],['cancel','Training cancelled'],
-    ['custom','Write your own']
-  ];
+  // The established ten-template vocabulary is shared with the original app.
+  // Only templates backed by verified connected event data are active here.
+  const templates=Object.entries(TEAM_MESSAGE_TEMPLATES).filter(([key])=>
+    ['reminder','availability','match','cancelled','blank'].includes(key));
   async function messages(ctx,loading,canAdmin){
-    const history=await query(ctx,'messages.read');
+    const [history,schedule]=await Promise.all([
+      query(ctx,'messages.read'),getSchedule(ctx)]);
+    if(!ensure(ctx))return;
     loading.remove();
     const c=card('New message');
     info('Prepare a WhatsApp message for your team group, or Share/Copy it. Team Manager cannot automatically send messages or confirm WhatsApp delivery.',c);
@@ -216,23 +220,57 @@ export function createCloudManagementExperience({
       },()=>open('Messages'),'Message marked not sent.'),a);
     });
     const selected=selectField(f,'Message type','template',templates);
-    const audience=selectField(f,'Audience','audience',[
+    selectField(f,'Audience','audience',[
       ['all','Whole team'],['players','Players'],['volunteers','Volunteers']]);
     const label=h('label',{text:'Message',parent:f});
     const area=h('textarea',{attrs:{name:'body',maxlength:1500,required:true,rows:6},parent:label});
-    const populate=()=>{
-      const team=ctx.club+' '+ctx.season;
-      const choices={
-        reminder:'Training reminder · '+team+'\nPlease check your next training session and reply with your availability.',
-        availability:'Availability check · '+team+'\nPlease reply YES, NO or MAYBE for the next scheduled activity.',
-        match:'Next match · '+team+'\nPlease confirm availability for our next match.',
-        results:'Match results · '+team+'\nPlease see the team noticeboard for updates.',
-        cancel:'Training cancelled · '+team+'\nPlease check the team schedule for the latest update.',
-        custom:''
-      };
-      if(!area.value.trim()||selected.value!=='custom')area.value=choices[selected.value]||'';
+    const teamName=getTeamLabel(ctx);
+    const clock=new Date();
+    const training=schedule.filter(s=>s.kind==='training'&&
+      Number.isFinite(new Date(s.startsAt).getTime()))
+      .sort((a,b)=>a.startsAt.localeCompare(b.startsAt));
+    const next=nextCloudTraining(training,{now:clock});
+    const current=next||training.find(s=>s.status==='cancelled')||null;
+    const sessionSelect=selectField(f,'Training session','sessionId',
+      training.map(s=>[s.sessionId,
+        projectedCloudSession(s)?.dateLabel||'Unscheduled training']));
+    const compose=()=>{
+      const kind=selected.value;
+      const session=training.find(s=>s.sessionId===sessionSelect.value)||current;
+      const projected=projectedCloudSession(session);
+      if(kind==='reminder')return trainingReminderText({
+        teamName,session:projected,dateLabel:projected?.dateLabel||'',
+        timeLabel:projected?.startLabel||'',venue:projected?.venue||'',
+        focus:projected?.focus||'',notes:projected?.notes||''
+      });
+      if(kind==='cancelled')return trainingCancellationText({
+        session:projected,dateLabel:projected?.dateLabel||'',
+        timeLabel:projected?.startLabel||''
+      });
+      if(kind==='availability')return availabilityRequestText({
+        teamName,events:cloudAvailabilityEvents(schedule,{now:clock})
+      });
+      if(kind==='match'){
+        const match=schedule.filter(s=>s.kind==='match'&&s.status!=='cancelled'&&
+          s.status!=='postponed'&&new Date(s.startsAt)>=clock)
+          .sort((a,b)=>a.startsAt.localeCompare(b.startsAt))[0];
+        const p=projectedCloudSession(match);
+        return p?'🏉 *'+teamName+' vs '+(match.opponent||'TBC')+'*'+
+          '\n📅 '+p.dateLabel+', '+p.startLabel+'\n📍 '+(p.venue||'Venue TBC')+
+          '\n\nReply *YES*, *NO* or *MAYBE* if you haven’t yet.':
+          '🏉 *Next match — '+teamName+'*\n\n(Add a match and it will fill in here.)';
+      }
+      return '';
     };
-    selected.addEventListener('change',populate);populate();
+    const populate=()=>{
+      const isTraining=['reminder','cancelled'].includes(selected.value);
+      sessionSelect.parentElement.hidden=!isTraining||!training.length;
+      area.value=compose();
+    };
+    if(next)sessionSelect.value=next.sessionId;
+    selected.addEventListener('change',populate);
+    sessionSelect.addEventListener('change',populate);
+    populate();
     h('button',{className:'cloud-btn primary',text:'Prepare and log message',
       attrs:{type:'submit'},parent:f});
     }else info('The appointed Team Manager handles new team messages. You can review the logged messages.',c);
@@ -302,7 +340,7 @@ export function createCloudManagementExperience({
         },()=>open('Volunteer tally'),'Volunteer duty withdrawn.'),actions(row));
     }
     const volunteers=await query(ctx,'volunteers.list');
-    const sessions=(getSchedule?.()||[]).filter(s=>s.status==='planned');
+    const sessions=(await getSchedule(ctx)).filter(s=>s.status==='planned');
     if(canAdmin&&volunteers.length&&sessions.length){
       const f=form(c,async d=>use(ctx,'duties.assign',{
         sessionId:text(d.get('sessionId')),personId:text(d.get('personId')),
