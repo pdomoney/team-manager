@@ -1,6 +1,8 @@
 import {TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
   availabilityRequestText,projectedCloudSession,nextCloudTraining,
   cloudAvailabilityEvents} from './shared-team-messages.js';
+import {originalJerseyReportFromCloud,originalJerseyInventoryFromCloud,
+  originalTeamCompetitionsFromCloud} from './cloud-original-model-adapter.js';
 // Stage 3D.5 connected management surfaces. Uses the established Team Manager
 // menu vocabulary and exact-team server records, never the fictional demo vault.
 // The Host owns navigation state; each async screen discards stale team results.
@@ -100,6 +102,22 @@ export function createCloudManagementExperience({
     loading.remove();
     const c=card('Jersey numbers and issue history');
     info('Jerseys are assigned to an existing active player for this team and season. Issuing a jersey does not verify sporting eligibility.',c);
+    // Reuse the ORIGINAL Team Manager model for season and outstanding
+    // inventory, rather than rebuilding counts in the connected interface.
+    const projection={context:{...ctx,teamName:getTeamLabel(ctx)},members,
+      jerseys:issued};
+    const original=originalJerseyReportFromCloud(projection);
+    const inventory=originalJerseyInventoryFromCloud(projection);
+    const totals=card('Jersey inventory');
+    if(!inventory.complete){
+      info('Some jersey issues cannot be linked to a team person record. Inventory is incomplete; reconcile these records before relying on the totals.',totals);
+      info(inventory.omissions.length+' outstanding record(s) need identity review.',totals);
+    }else{
+      info('Season '+ctx.season+': '+original.out+' issued and outstanding, '+
+        original.returned+' returned. Total outstanding across seasons: '+
+        inventory.outstanding+'; held by former team members: '+
+        inventory.formerPlayers+'.',totals);
+    }
     const active=members.filter(m=>m.status==='active');
     if(active.length&&canAdmin){
       const f=form(c,async d=>use(ctx,'jerseys.issue',{
@@ -125,6 +143,8 @@ export function createCloudManagementExperience({
   }
   async function competitions(ctx,loading,canAdmin){
     const competitions=await query(ctx,'competitions.read');
+    const entries=originalTeamCompetitionsFromCloud({
+      context:{...ctx,teamName:getTeamLabel(ctx)},competitions});
     loading.remove();
     const c=card('Create a league, tournament or carnival');
     info('Record this team’s entry and local fixtures. Official competition draws and eligibility must be confirmed by the competition authority.',c);
@@ -148,6 +168,8 @@ export function createCloudManagementExperience({
       attrs:{type:'submit'},parent:f});
     }else info('A verified Team Manager is currently responsible for team competition entries.',c);
     const list=card('Team entries and competitions');
+    info('The original Team Manager season-entry model confirms '+entries.length+
+      ' entered or withdrawn competition record(s) for this team. Planned competitions do not imply an official team entry.',list);
     if(!competitions.length)info('No tournaments or leagues recorded for this team yet.',list);
     for(const entry of competitions){
       const row=h('section',{className:'cloud-list-item',parent:list});
