@@ -1,6 +1,8 @@
 import {TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
   availabilityRequestText,projectedCloudSession,nextCloudTraining,
-  cloudAvailabilityEvents} from './shared-team-messages.js';
+  cloudAvailabilityEvents,nextMatchMessageText,competitionCountdownText,
+  manualTeamTemplateText,containsUnfilledTemplate,accountInvitationText
+} from './shared-team-messages.js';
 import {originalJerseyReportFromCloud,originalJerseyInventoryFromCloud,
   originalTeamCompetitionsFromCloud} from './cloud-original-model-adapter.js';
 // Stage 3D.5 connected management surfaces. Uses the established Team Manager
@@ -223,11 +225,10 @@ export function createCloudManagementExperience({
   }
   // The established ten-template vocabulary is shared with the original app.
   // Only templates backed by verified connected event data are active here.
-  const templates=Object.entries(TEAM_MESSAGE_TEMPLATES).filter(([key])=>
-    ['reminder','availability','match','cancelled','blank'].includes(key));
+  const templates=Object.entries(TEAM_MESSAGE_TEMPLATES);
   async function messages(ctx,loading,canAdmin){
-    const [history,schedule]=await Promise.all([
-      query(ctx,'messages.read'),getSchedule(ctx)]);
+    const [history,schedule,competitions]=await Promise.all([
+      query(ctx,'messages.read'),getSchedule(ctx),query(ctx,'competitions.read')]);
     if(!ensure(ctx))return;
     loading.remove();
     const c=card('New message');
@@ -237,6 +238,10 @@ export function createCloudManagementExperience({
       const body=text(d.get('body')).trim();
       const audience=text(d.get('audience'));
       const postNotice=d.get('postNotice')==='yes';
+      if(!body||containsUnfilledTemplate(body)){
+        message('Complete the factual details in this template before preparing or sharing it.',true);
+        return;
+      }
       const noticeBody=body.replace(/[\r\n]+/g,' ').replace(/ {2,}/g,' ');
       if(postNotice&&noticeBody.length>1000){
         message('The noticeboard allows up to 1,000 characters. Shorten the message or untick noticeboard before preparing it.',true);
@@ -318,11 +323,24 @@ export function createCloudManagementExperience({
           s.status!=='postponed'&&new Date(s.startsAt)>=clock)
           .sort((a,b)=>a.startsAt.localeCompare(b.startsAt))[0];
         const p=projectedCloudSession(match);
-        return p?'🏉 *'+teamName+' vs '+(match.opponent||'TBC')+'*'+
-          '\n📅 '+p.dateLabel+', '+p.startLabel+'\n📍 '+(p.venue||'Venue TBC')+
-          '\n\nReply *YES*, *NO* or *MAYBE* if you haven’t yet.':
-          '🏉 *Next match — '+teamName+'*\n\n(Add a match and it will fill in here.)';
+        return nextMatchMessageText({teamName,match,dateLabel:p?.dateLabel||'',
+          timeLabel:p?.startLabel||'',venue:p?.venue||'',
+          opponent:match?.opponent||(match?.title||'').replace(/^vs\s+/i,'')});
       }
+      if(['lineup','results','help'].includes(kind))
+        return manualTeamTemplateText(kind,{teamName});
+      if(kind==='countdown'){
+        const today=new Intl.DateTimeFormat('en-AU',{
+          timeZone:'Australia/Sydney',year:'numeric',month:'2-digit',day:'2-digit'
+        }).format(clock).split('/').reverse().join('-');
+        const target=competitions.filter(c=>c.status!=='withdrawn'&&c.beginsOn&&
+          c.beginsOn>=today).sort((a,b)=>a.beginsOn.localeCompare(b.beginsOn))[0];
+        return competitionCountdownText({teamName,competition:target,todayISO:today})||
+          '⏳ *Countdown — '+teamName+'*\n\n[Enter a verified upcoming competition date before sending]';
+      }
+      if(kind==='invite')return accountInvitationText({
+        teamName,url:new URL('cloud-access.html',location.origin+'/').href
+      });
       return '';
     };
     const populate=()=>{
@@ -349,7 +367,11 @@ export function createCloudManagementExperience({
       h('strong',{text:item.audience+' · '+item.status,parent:row});
       info(item.body,row);
       info('WhatsApp and sharing are manual. Only your confirmation changes the status.',row);
-      if(item.status==='prepared'&&canAdmin){
+      if(canAdmin)button('Use again',()=>{
+        selected.value='blank';area.value=item.body;
+        area.focus();area.scrollIntoView({block:'center',behavior:'smooth'});
+      },actions(row));
+      if(item.status==='prepared'&&canAdmin&&item.canConfirm){
         const a=actions(row);
         button('Open in WhatsApp',()=>window.open(
           'https://wa.me/?text='+encodeURIComponent(item.body),'_blank','noopener'),a);
