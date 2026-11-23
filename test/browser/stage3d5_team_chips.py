@@ -5,7 +5,7 @@ import harness
 from harness import Check,serve
 from playwright.sync_api import sync_playwright
 
-sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=harness.REPO,text=True).strip()
+sha=subprocess.check_output(['git','-c','safe.directory='+harness.REPO,'rev-parse','HEAD'],cwd=harness.REPO,text=True).strip()
 env=dict(os.environ,
  STAGE3D3_SOURCE_SHA=sha,
  STAGE3D3_SUPABASE_URL='https://stage3d3-example.supabase.co',
