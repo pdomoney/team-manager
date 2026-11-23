@@ -197,7 +197,8 @@ begin
  elsif p_action='messages.read' then
    select coalesce(jsonb_agg(jsonb_build_object('messageId',m.message_id,
      'audience',m.audience,'channel',m.channel,'body',m.content,
-     'status',m.status,'createdAt',m.created_at,'version',m.version)
+     'status',m.status,'canConfirm',(m.author_id=p_actor),
+     'createdAt',m.created_at,'version',m.version)
      order by m.created_at desc),'[]'::jsonb) into records
    from tm_private.team_message_log m where m.team_id=p_team;
  elsif p_action='messages.prepare' then
