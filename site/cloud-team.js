@@ -866,6 +866,75 @@ function renderMyInvitations(){
     loading.textContent='Invitations could not be verified. Please refresh or contact the Platform Owner. No team permission has been granted.';
   });
 }
+function renderTeamMemberInvitations(team,panel){
+  const epoch=state.epoch;
+  info('Team membership is managed here. A Head Coach handles ordinary Player and Volunteer approvals while no Team Manager is appointed. Coach or Manager appointments still require Club Admin or Platform approval.',panel);
+  const status=info('Checking your current team administration authority…',panel);
+  void management.call(team,'admin.status').then(async rights=>{
+    if(epoch!==state.epoch)return;
+    status.remove();
+    if(!rights.canAdmin){
+      info('A verified Team Manager is appointed to this team. Membership approvals and volunteer duties now belong to that Team Manager; your Coach functions remain available.',panel);
+      return;
+    }
+    const f=form(panel,async d=>{
+      if(!confirm('Invite this verified adult to '+teamContextLabel(team)+'?'))return;
+      const result=await management.call(team,'invite.issue',{
+        email:String(d.get('email')||'').trim(),role:String(d.get('role')||'')
+      });
+      message(ownerInvitationStatus(result.delivery));await showTab();
+    });
+    field(f,'Adult invitee email','email',{type:'email',max:254});
+    selectField(f,'Team access','role',[
+      ['team_player','Adult Player'],['team_volunteer','Adult Volunteer']]);
+    h('button',{className:'cloud-btn primary',text:'Invite to this team',
+      attrs:{type:'submit'},parent:f});
+    const records=await management.call(team,'invite.list');
+    if(epoch!==state.epoch)return;
+    const section=h('div',{className:'cloud-list',parent:panel});
+    if(!records.length)info('No pending adult Player or Volunteer invitations.',section);
+    for(const item of records){
+      const row=h('section',{className:'cloud-list-item',parent:section});
+      h('strong',{text:item.email+' · '+(ROLE_NAMES[item.role]||item.role),parent:row});
+      info('Status: '+item.status+' · delivery: '+(item.delivery||'not sent'),row);
+      const controls=actions(row);
+      if(['approved','claimed'].includes(item.status)){
+        button('Record verified adult review',()=>{
+          const evidenceRef=prompt('Verified adult identity evidence reference (evidence-ref/...)');
+          if(!evidenceRef||!/^evidence-ref\/[A-Za-z0-9._/-]{12,100}$/.test(evidenceRef)){
+            message('A private identity-verification reference is required.',true);return;
+          }
+          void management.call(team,'invite.review-adult',{
+            invitationId:item.invitationId,evidenceRef
+          }).then(()=>{message('Adult identity review recorded.');void showTab();})
+            .catch(e=>message(explain(e),true));
+        },controls);
+      }
+      if(item.status==='claimed'){
+        button('Activate verified team member',()=>{
+          if(!confirm('Confirm this is the verified adult, accepted policy, correct team and appropriate Player/Volunteer role?'))return;
+          void management.call(team,'invite.activate',{
+            invitationId:item.invitationId
+          }).then(()=>{message('Team member activated.');void showTab();})
+            .catch(e=>message(explain(e),true));
+        },controls,{primary:true});
+      }
+      if(['approved','claimed','activated'].includes(item.status)){
+        button(item.status==='activated'?'Revoke team access':'Cancel invitation',()=>{
+          if(!confirm('Withdraw only this invitation and its team-level role?'))return;
+          void management.call(team,'invite.revoke',{
+            invitationId:item.invitationId
+          }).then(()=>{message('Team access or invitation revoked.');void showTab();})
+            .catch(e=>message(explain(e),true));
+        },controls);
+      }
+    }
+    const a=actions(panel);
+    if(state.isPlatformOwner)button('Appoint a Team Manager or Coach (Platform)',
+      ()=>selectContext('platform'),a);
+    else info('Team Manager or Coach appointments require an authorised Club Administrator or Platform Owner.',panel);
+  }).catch(e=>{if(epoch!==state.epoch)return;status.textContent=explain(e);});
+}
 function renderTeamInvitations(team){
   const ctx=reviewerContext(team);
   if(!ctx)return;
