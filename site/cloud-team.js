@@ -8,6 +8,8 @@ import {teamContextLabel} from './first-live-team.js';
 import {buildTeamNavigation,hasTeamRole,roleForAction,reviewerContext,
   clubsForNavigation,visibleSections} from './cloud-team-contexts.js';
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
+import {createCloudManagementClient} from './cloud-management.js';
+import {createCloudManagementExperience} from './cloud-management-experience.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
 
@@ -19,6 +21,8 @@ const auth=createCloudIdentityClient({...CLOUD_SUPABASE,
 const ops=createCloudOperationsClient({identity:auth,fetchImpl:fetch.bind(window),
   origin:location.origin});
 const onboarding=createCloudOnboardingClient({identity:auth,fetchImpl:fetch.bind(window),origin:location.origin});
+const management=createCloudManagementClient({identity:auth,fetchImpl:fetch.bind(window),
+  origin:location.origin});
 const ROLE_NAMES=Object.freeze({
   platform_owner:'Platform Owner',team_coach:'Coach',team_assistant:'Assistant Coach',
   team_manager:'Manager',team_player:'Player',team_volunteer:'Volunteer',
@@ -26,7 +30,7 @@ const ROLE_NAMES=Object.freeze({
 });
 const state={user:null,contexts:[],context:null,activeClub:null,isPlatformOwner:false,
   founderTeamId:null,tab:'home',epoch:0,
-  schedule:[],roster:[],duties:[],drafts:[],published:[],notices:[],preview:null,busy:false};
+  schedule:[],roster:[],members:[],duties:[],drafts:[],published:[],notices:[],preview:null,busy:false};
 const hasRole=(...roles)=>hasTeamRole(state.context,...roles);
 const canEditSchedule=()=>hasRole('team_coach','team_manager','team_assistant');
 const canRoster=()=>hasRole('team_coach','team_manager');
@@ -117,10 +121,12 @@ function drawContextChips(){
   if(state.isPlatformOwner)chip(clubs,'Platform',isOwner(),()=>selectContext('platform'));
   for(const club of clubsForNavigation(state.contexts)){
     chip(clubs,club,state.activeClub===club,()=>{
-      // A club alone is not a team permission. Clear previous team's private
-      // records before revealing another club's team chips.
+      const matches=state.contexts.filter(c=>c.kind==='team'&&c.club===club);
+      if(matches.length===1){selectContext(matches[0].key);return;}
+      // Clubs with more than one authorised team require exact team selection.
+      // Clear previous team's private records before revealing team chips.
       state.epoch++;state.context=null;state.activeClub=club;
-      state.schedule=[];state.roster=[];state.duties=[];state.notices=[];
+      state.schedule=[];state.roster=[];state.members=[];state.duties=[];state.notices=[];
       state.drafts=[];state.published=[];state.preview=null;
       $('active-context').textContent='Choose a team · '+club;
       $('cloud-nav').hidden=true;$('cloud-desktop-nav').hidden=true;
@@ -139,7 +145,7 @@ function selectContext(key){
   if(!next)return;
   state.epoch++;notice.hidden=true;state.context=next;
   state.activeClub=next.kind==='team'?next.club:null;
-  state.schedule=[];state.roster=[];state.duties=[];state.notices=[];state.drafts=[];
+  state.schedule=[];state.roster=[];state.members=[];state.duties=[];state.notices=[];state.drafts=[];
   state.published=[];state.preview=null;
   $('active-context').textContent=contextLabel(next);
   $('cloud-nav').hidden=false;$('cloud-desktop-nav').hidden=false;
@@ -195,9 +201,13 @@ async function loadForTab(tab,epoch){
   }else if(tab==='schedule'&&roleForAction(c,'schedule.read')){
     await need('schedule.read','schedule');
   }else if(tab==='team'){
-    if(canRoster())await need('roster.read','roster');
+    if(canRoster()){
+      await need('roster.read','roster');
+      const members=await management.call(c,'team.members');
+      if(state.epoch===epoch)state.members=members;
+    }
     if(roleForAction(c,'duty.read'))await need('duty.read','duties');
-    if(hasRole('team_manager'))await need('schedule.read','schedule');
+    if(hasRole('team_manager','team_coach'))await need('schedule.read','schedule');
   }else if(tab==='tactics'){
     if(canViewTactics())await need('play.published.read','published');
     if(canDraft())await need('play.draft.read','drafts');
