@@ -147,6 +147,9 @@ function selectContext(key){
 }
 function drawTabs(){
   const allowed=visibleSections(state.context,{playsDeferred:playsDeferred()});
+  // Mobile tabs fill the available width for the actual selected team's
+  // permissions; hidden sections never leave blank navigation columns.
+  $('cloud-nav').style.gridTemplateColumns='repeat('+Math.max(1,allowed.length)+',minmax(0,1fr))';
   for(const id of ['cloud-nav','cloud-desktop-nav']){
     for(const b of $(id).querySelectorAll('button')){
       b.hidden=!allowed.includes(b.dataset.tab);
