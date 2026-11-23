@@ -124,19 +124,27 @@
 /* Stage 3D.5 corrective: preserve the established dense More navigation and
    readable team-specific settings on desktop, phone and keyboard. */
 .cloud-more-list{padding:0;overflow:hidden}
-.cloud-more-list>h3{padding:18px 19px 14px;margin:0;border-bottom:1px solid var(--line)}
-.cloud-more-item{position:relative;padding:14px 52px 14px 18px;min-height:82px;
- border-bottom:1px solid var(--line);background:#fff}
+.cloud-more-list>h3{padding:14px 18px;margin:0;border-bottom:1px solid var(--line)}
+.cloud-more-item.pick{appearance:none;display:flex;align-items:center;gap:12px;
+ text-align:left;width:100%;position:relative;padding:14px 14px;min-height:78px;
+ border:0;border-bottom:1px solid var(--line);background:#fff;cursor:pointer;
+ font-family:var(--font-b);color:var(--ink)}
 .cloud-more-item:last-child{border-bottom:0}
-.cloud-more-link{display:block;text-align:left;background:transparent!important;
- border:0!important;color:var(--ink)!important;font:700 18px var(--font-b)!important;
- padding:4px 0!important;min-height:36px}
-.cloud-more-item p{font:500 13px/1.5 var(--font-b);color:var(--muted);
- margin:0!important;max-width:650px}
-.cloud-more-chevron{position:absolute;right:19px;top:24px;
- color:var(--pitch);font:30px/1 var(--font-b);pointer-events:none}
-.cloud-more-link:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
-.cloud-more-item:hover{background:#f6f9f6}
+.cloud-more-icon.more-ic{width:44px;height:44px;display:grid;place-items:center;
+ flex:none;background:#f5f6f3;border-radius:12px;color:var(--pitch)}
+.cloud-more-content{display:grid;min-width:0;flex:1;gap:4px}
+.cloud-more-content .name{display:block;font:700 19px/1.25 var(--font-d);color:var(--ink)}
+.cloud-more-content .tagline{font:600 14px/1.4 var(--font-b);color:var(--muted)}
+.cloud-more-arrow{display:grid;place-items:center;color:var(--muted);margin-left:auto}
+.cloud-more-item:hover{background:#f7f8f4}
+.cloud-more-item:focus-visible{outline:3px solid var(--gold);outline-offset:-3px}
+.cloud-more-item[hidden]{display:none}
+@media(max-width:600px){
+ .cloud-more-item.pick{min-height:74px;padding:12px;gap:10px}
+ .cloud-more-icon.more-ic{width:40px;height:40px}
+ .cloud-more-content .name{font-size:18px}
+ .cloud-more-content .tagline{font-size:13px}
+}
 .cloud-list-item{overflow-wrap:anywhere}
 .cloud-list-item .cloud-form{margin-top:14px}
 .cloud-list-item+.cloud-list-item{margin-top:9px}

@@ -139,6 +139,12 @@ begin
   'invite.issue','{"role":"team_player","email":"another@fictional.test"}'::jsonb);
  if r->>'code'<>'invalid-request' then
   raise exception 'Coach bypassed appointed Manager';end if;
+ -- A Manager appointment must NOT disable independently granted Coach messages.
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
+  'messages.prepare','{"audience":"players","channel":"whatsapp",
+    "body":"Coach reminder while Manager handles administration."}'::jsonb);
+ if r->>'code'<>'committed' then
+  raise exception 'Coach lost team messaging after Manager appointment %',r;end if;
  r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager',
   'settings.read','{}'::jsonb);
  if r->>'code'<>'permitted' then raise exception 'Manager lacked team settings';end if;

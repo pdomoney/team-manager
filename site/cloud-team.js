@@ -10,6 +10,7 @@ import {buildTeamNavigation,hasTeamRole,roleForAction,reviewerContext,
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
 import {createCloudManagementClient} from './cloud-management.js';
 import {createCloudManagementExperience} from './cloud-management-experience.js';
+import {teamIconSvg} from './shared-team-icons.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
 
@@ -1042,38 +1043,66 @@ function renderProfilePanel(parent=main){
 }
 
 const managementExperience=createCloudManagementExperience({
-  api:management,getContext:()=>state.context,getSchedule:()=>state.schedule,
+  api:management,getContext:()=>state.context,
+  getSchedule:ctx=>{
+    if(state.context?.key!==ctx?.key)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+    return action('schedule.read',ctx.teamId);
+  },getTeamLabel:ctx=>teamContextLabel(ctx),
+  publishMessageNotice:async(ctx,{title,body,audience})=>{
+    if(state.context?.key!==ctx?.key)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+    // The existing validated notice endpoint is team scoped and requires
+    // independent Coach/Manager approval. No external messaging API is used.
+    const created=await mutation('notice.create',ctx.teamId,0,{
+      command:{title,body,audience}});
+    if(state.context?.key!==ctx?.key)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+    try{
+      await mutation('notice.publish',created.resourceId,created.version,
+        {command:{op:'publish'}});
+      return {status:'published'};
+    }catch(e){
+      // Draft exists even if publish fails. Do not claim a full rollback.
+      return {status:'draft-only',error:e?.code||'request-denied'};
+    }
+  },
   ui:{h,card,info,button,actions,form,field,selectField,title,clear,message,explain},
   onBack:()=>switchTab('more'),onReport:()=>openReports(),
   onNotices:()=>switchTab('more'),onTeam:()=>switchTab('team')
 });
-function moreEntry(parent,name,description,handler){
-  const row=h('div',{className:'cloud-more-item',parent});
-  const b=button(name,handler,row);
-  b.className='cloud-more-link';
-  h('p',{text:description,parent:row});
-  h('span',{className:'cloud-more-chevron',text:'›',parent:row});
+function moreEntry(parent,name,description,handler,artwork){
+  // Original Team Manager pick/more-item structure and original SVG artwork.
+  // All SVG paths originate in the fixed shared icon catalogue, never user data.
+  const item=button('',handler,parent);
+  item.className='cloud-more-item pick more-item';
+  const artworkSlot=h('span',{className:'more-ic cloud-more-icon',parent:item});
+  artworkSlot.innerHTML=teamIconSvg(artwork,22);
+  const content=h('span',{className:'grow cloud-more-content',parent:item});
+  h('span',{className:'name',text:name,parent:content});
+  h('span',{className:'tagline',text:description,parent:content});
+  const arrow=h('span',{className:'cloud-more-arrow',parent:item});
+  arrow.innerHTML=teamIconSvg('chevron-right',18);
+  item.setAttribute('aria-label',name);
+  return item;
 }
 function renderMore(){
   if(canManage()&&MANAGEMENT_PARITY){
     const menu=card('Team management');
     menu.classList.add('cloud-more-list');
-    const add=(name,description)=>moreEntry(menu,name,description,
-      ()=>void managementExperience.open(name));
-    add('Messages','WhatsApp-assisted messages, Share, Copy and manual sent log');
-    moreEntry(menu,'Noticeboard','Post notices for players, volunteers and staff',()=>{
+    const add=(name,description,artwork)=>moreEntry(menu,name,description,
+      ()=>void managementExperience.open(name),artwork);
+    add('Messages','WhatsApp messages and the message log','chat');
+    moreEntry(menu,'Noticeboard','Post notices for players to see on Home',()=>{
       clear();title('Noticeboard',contextLabel(state.context));
       button('All management tools',()=>switchTab('more'),actions());
       renderNotices();
-    });
-    add('Volunteer tally','Verified assignments and volunteer help');
-    moreEntry(menu,'Reports','Attendance, results, volunteering and outstanding actions',
-      ()=>void openReports());
-    add('Competitions','Leagues, tournaments and team entries');
-    add('Clubs and teams','Your authorised clubs and team settings');
-    add('People','Verified player names and squad associations');
-    add('Jerseys','Jersey numbers, issue and returns');
-    add('Settings','Team contact, training, jerseys and screen layout');
+    },'clip');
+    add('Volunteer tally','Who has helped, and how often','check');
+    moreEntry(menu,'Reports','Attendance, results, volunteering and loose ends',
+      ()=>void openReports(),'chart');
+    add('Competitions','Leagues, tournaments and team entries','chart');
+    add('Clubs and teams','Your authorised clubs and team settings','team');
+    add('People','Verified player names and squad associations','team');
+    add('Jerseys','Jersey numbers, issue and returns','team');
+    add('Settings','Team, field, team contact and screen layout','cog');
   }else if(!isOwner()){
     const menu=card('Your team');
     info('Your current team role has read-only access to approved notices and activities.',menu);

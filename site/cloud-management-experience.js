@@ -1,8 +1,13 @@
+import {TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
+  availabilityRequestText,projectedCloudSession,nextCloudTraining,
+  cloudAvailabilityEvents} from './shared-team-messages.js';
+import {originalJerseyReportFromCloud,originalJerseyInventoryFromCloud,
+  originalTeamCompetitionsFromCloud} from './cloud-original-model-adapter.js';
 // Stage 3D.5 connected management surfaces. Uses the established Team Manager
 // menu vocabulary and exact-team server records, never the fictional demo vault.
 // The Host owns navigation state; each async screen discards stale team results.
 export function createCloudManagementExperience({
-  api,getContext,getSchedule,ui,onBack,onReport,onNotices,onTeam
+  api,getContext,getSchedule,getTeamLabel,publishMessageNotice,ui,onBack,onReport,onNotices,onTeam
 }){
   const {h,card,info,button,actions,form,field,selectField,title,clear,message,explain}=ui;
   const permitted=()=>getContext()?.kind==='team'&&
@@ -37,7 +42,10 @@ export function createCloudManagementExperience({
       if(section==='Settings')await settings(ctx,loading,canAdmin);
       if(section==='Jerseys')await jerseys(ctx,loading,canAdmin);
       if(section==='Competitions')await competitions(ctx,loading,canAdmin);
-      if(section==='Messages')await messages(ctx,loading,canAdmin);
+      // A Coach keeps coaching communications after a Manager takes over
+      // administrative duties; the server still revalidates the selected grant.
+      if(section==='Messages')await messages(ctx,loading,
+        ctx.roles?.some(r=>r==='team_coach'||r==='team_manager'));
       if(section==='Volunteer tally')await duties(ctx,loading,canAdmin);
       if(section==='People')await people(ctx,loading);
       if(section==='Clubs and teams')await teams(ctx,loading);
@@ -97,6 +105,22 @@ export function createCloudManagementExperience({
     loading.remove();
     const c=card('Jersey numbers and issue history');
     info('Jerseys are assigned to an existing active player for this team and season. Issuing a jersey does not verify sporting eligibility.',c);
+    // Reuse the ORIGINAL Team Manager model for season and outstanding
+    // inventory, rather than rebuilding counts in the connected interface.
+    const projection={context:{...ctx,teamName:getTeamLabel(ctx)},members,
+      jerseys:issued};
+    const original=originalJerseyReportFromCloud(projection);
+    const inventory=originalJerseyInventoryFromCloud(projection);
+    const totals=card('Jersey inventory');
+    if(!inventory.complete){
+      info('Some jersey issues cannot be linked to a team person record. Inventory is incomplete; reconcile these records before relying on the totals.',totals);
+      info(inventory.omissions.length+' outstanding record(s) need identity review.',totals);
+    }else{
+      info('Season '+ctx.season+': '+original.out+' issued and outstanding, '+
+        original.returned+' returned. Total outstanding across seasons: '+
+        inventory.outstanding+'; held by former team members: '+
+        inventory.formerPlayers+'.',totals);
+    }
     const active=members.filter(m=>m.status==='active');
     if(active.length&&canAdmin){
       const f=form(c,async d=>use(ctx,'jerseys.issue',{
@@ -122,6 +146,8 @@ export function createCloudManagementExperience({
   }
   async function competitions(ctx,loading,canAdmin){
     const competitions=await query(ctx,'competitions.read');
+    const entries=originalTeamCompetitionsFromCloud({
+      context:{...ctx,teamName:getTeamLabel(ctx)},competitions});
     loading.remove();
     const c=card('Create a league, tournament or carnival');
     info('Record this team’s entry and local fixtures. Official competition draws and eligibility must be confirmed by the competition authority.',c);
@@ -145,6 +171,8 @@ export function createCloudManagementExperience({
       attrs:{type:'submit'},parent:f});
     }else info('A verified Team Manager is currently responsible for team competition entries.',c);
     const list=card('Team entries and competitions');
+    info('The original Team Manager season-entry model confirms '+entries.length+
+      ' entered or withdrawn competition record(s) for this team. Planned competitions do not imply an official team entry.',list);
     if(!competitions.length)info('No tournaments or leagues recorded for this team yet.',list);
     for(const entry of competitions){
       const row=h('section',{className:'cloud-list-item',parent:list});
@@ -180,24 +208,50 @@ export function createCloudManagementExperience({
       }
     }
   }
-  const templates=[
-    ['reminder','Training reminder'],['availability','Availability check'],
-    ['match','Next match'],['results','Results'],['cancel','Training cancelled'],
-    ['custom','Write your own']
-  ];
+  // The established ten-template vocabulary is shared with the original app.
+  // Only templates backed by verified connected event data are active here.
+  const templates=Object.entries(TEAM_MESSAGE_TEMPLATES).filter(([key])=>
+    ['reminder','availability','match','cancelled','blank'].includes(key));
   async function messages(ctx,loading,canAdmin){
-    const history=await query(ctx,'messages.read');
+    const [history,schedule]=await Promise.all([
+      query(ctx,'messages.read'),getSchedule(ctx)]);
+    if(!ensure(ctx))return;
     loading.remove();
     const c=card('New message');
     info('Prepare a WhatsApp message for your team group, or Share/Copy it. Team Manager cannot automatically send messages or confirm WhatsApp delivery.',c);
     if(canAdmin){
     const f=form(c,async d=>{
       const body=text(d.get('body')).trim();
+      const audience=text(d.get('audience'));
+      const postNotice=d.get('postNotice')==='yes';
+      const noticeBody=body.replace(/[\r\n]+/g,' ').replace(/ {2,}/g,' ');
+      if(postNotice&&noticeBody.length>1000){
+        message('The noticeboard allows up to 1,000 characters. Shorten the message or untick noticeboard before preparing it.',true);
+        return;
+      }
       const saved=await query(ctx,'messages.prepare',{
-        audience:text(d.get('audience')),channel:'whatsapp',body
+        audience,channel:'whatsapp',body
       });
       if(!ensure(ctx))return;
-      message('Message prepared and logged. Open WhatsApp, then confirm whether it was sent.');
+      let noticeStatus='not requested';
+      if(postNotice){
+        try{
+          const outcome=await publishMessageNotice(ctx,{
+            title:TEAM_MESSAGE_TEMPLATES[selected.value]||'Team message',
+            body:noticeBody,audience
+          });
+          noticeStatus=outcome.status;
+        }catch{
+          noticeStatus='unavailable';
+        }
+      }
+      if(!ensure(ctx))return;
+      message('Message prepared and logged. '+(noticeStatus==='published'?
+        'A notice was published for the selected team. ':
+        noticeStatus==='draft-only'?'The notice was saved as a draft but could not be published. ':
+        noticeStatus==='unavailable'?'The notice was not confirmed; review Noticeboard. ':'')+
+        'Open WhatsApp and confirm manually whether it was sent.',
+        noticeStatus==='draft-only'||noticeStatus==='unavailable');
       const preview=card('Prepared message');
       h('p',{text:body,parent:preview});
       const a=actions(preview);
@@ -216,23 +270,62 @@ export function createCloudManagementExperience({
       },()=>open('Messages'),'Message marked not sent.'),a);
     });
     const selected=selectField(f,'Message type','template',templates);
-    const audience=selectField(f,'Audience','audience',[
+    selectField(f,'Audience','audience',[
       ['all','Whole team'],['players','Players'],['volunteers','Volunteers']]);
     const label=h('label',{text:'Message',parent:f});
     const area=h('textarea',{attrs:{name:'body',maxlength:1500,required:true,rows:6},parent:label});
-    const populate=()=>{
-      const team=ctx.club+' '+ctx.season;
-      const choices={
-        reminder:'Training reminder · '+team+'\nPlease check your next training session and reply with your availability.',
-        availability:'Availability check · '+team+'\nPlease reply YES, NO or MAYBE for the next scheduled activity.',
-        match:'Next match · '+team+'\nPlease confirm availability for our next match.',
-        results:'Match results · '+team+'\nPlease see the team noticeboard for updates.',
-        cancel:'Training cancelled · '+team+'\nPlease check the team schedule for the latest update.',
-        custom:''
-      };
-      if(!area.value.trim()||selected.value!=='custom')area.value=choices[selected.value]||'';
+    const teamName=getTeamLabel(ctx);
+    const clock=new Date();
+    const training=schedule.filter(s=>s.kind==='training'&&
+      Number.isFinite(new Date(s.startsAt).getTime()))
+      .sort((a,b)=>a.startsAt.localeCompare(b.startsAt));
+    const next=nextCloudTraining(training,{now:clock});
+    const current=next||training.find(s=>s.status==='cancelled')||null;
+    const sessionSelect=selectField(f,'Training session','sessionId',
+      training.map(s=>[s.sessionId,
+        projectedCloudSession(s)?.dateLabel||'Unscheduled training']));
+    const compose=()=>{
+      const kind=selected.value;
+      const session=training.find(s=>s.sessionId===sessionSelect.value)||current;
+      const projected=projectedCloudSession(session);
+      if(kind==='reminder')return trainingReminderText({
+        teamName,session:projected,dateLabel:projected?.dateLabel||'',
+        timeLabel:projected?.startLabel||'',venue:projected?.venue||'',
+        focus:projected?.focus||'',notes:projected?.notes||''
+      });
+      if(kind==='cancelled')return trainingCancellationText({
+        session:projected,dateLabel:projected?.dateLabel||'',
+        timeLabel:projected?.startLabel||''
+      });
+      if(kind==='availability')return availabilityRequestText({
+        teamName,events:cloudAvailabilityEvents(schedule,{now:clock})
+      });
+      if(kind==='match'){
+        const match=schedule.filter(s=>s.kind==='match'&&s.status!=='cancelled'&&
+          s.status!=='postponed'&&new Date(s.startsAt)>=clock)
+          .sort((a,b)=>a.startsAt.localeCompare(b.startsAt))[0];
+        const p=projectedCloudSession(match);
+        return p?'🏉 *'+teamName+' vs '+(match.opponent||'TBC')+'*'+
+          '\n📅 '+p.dateLabel+', '+p.startLabel+'\n📍 '+(p.venue||'Venue TBC')+
+          '\n\nReply *YES*, *NO* or *MAYBE* if you haven’t yet.':
+          '🏉 *Next match — '+teamName+'*\n\n(Add a match and it will fill in here.)';
+      }
+      return '';
     };
-    selected.addEventListener('change',populate);populate();
+    const populate=()=>{
+      const isTraining=['reminder','cancelled'].includes(selected.value);
+      sessionSelect.parentElement.hidden=!isTraining||!training.length;
+      area.value=compose();
+    };
+    if(next)sessionSelect.value=next.sessionId;
+    selected.addEventListener('change',populate);
+    sessionSelect.addEventListener('change',populate);
+    populate();
+    const labelNotice=h('label',{parent:f,className:'cloud-checkbox-row'});
+    const check=h('input',{attrs:{name:'postNotice',type:'checkbox',value:'yes'},parent:labelNotice});
+    check.checked=true;
+    h('span',{text:"Also post it on the app's noticeboard",parent:labelNotice});
+    info('Noticeboard text uses the same content without line breaks. WhatsApp is not sent automatically.',f);
     h('button',{className:'cloud-btn primary',text:'Prepare and log message',
       attrs:{type:'submit'},parent:f});
     }else info('The appointed Team Manager handles new team messages. You can review the logged messages.',c);
@@ -302,7 +395,7 @@ export function createCloudManagementExperience({
         },()=>open('Volunteer tally'),'Volunteer duty withdrawn.'),actions(row));
     }
     const volunteers=await query(ctx,'volunteers.list');
-    const sessions=(getSchedule?.()||[]).filter(s=>s.status==='planned');
+    const sessions=(await getSchedule(ctx)).filter(s=>s.status==='planned');
     if(canAdmin&&volunteers.length&&sessions.length){
       const f=form(c,async d=>use(ctx,'duties.assign',{
         sessionId:text(d.get('sessionId')),personId:text(d.get('personId')),

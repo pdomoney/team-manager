@@ -102,6 +102,9 @@ import { clubNameKey, managedClubCandidates, clubLinkPreview, applyClubDirectory
 import { crewBadges, crewBadgesBySport, badgeSummary, badgeSvg } from './crew-badges.js';
 import { TEST_LIBRARY_VERSION, fixStamps, dataCheck } from './test-library.js';
 import * as M from './model.js';
+import {TEAM_ICONS,teamIconSvg} from './shared-team-icons.js';
+import { TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
+  availabilityRequestText } from './shared-team-messages.js';
 import { selectedTeamManagement } from './management-home.js';
 import { managementWorkingContext } from './management-context.js';
 import { localPeopleNamespace, localPeopleReviewView, acceptLocalPeopleLink, undoLocalPeopleLink } from './people-ui.js';
@@ -710,32 +713,7 @@ function signOutNow() {
 /* =========================================================
    RENDER
    ========================================================= */
-const ICON = {
-  plus: '<path d="M12 5v14M5 12h14"/>',
-  chat: '<path d="M20.5 11.5a8 8 0 0 1-11.6 7.2L3.5 20l1.4-4.8a8 8 0 1 1 15.6-3.7z"/>',
-  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
-  close: '<path d="M6 6l12 12M18 6 6 18"/>',
-  share: '<path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M5 13v6.5h14V13"/>',
-  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
-  dots: '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
-  clip: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11l2 2 4-4M9 17h6"/>',
-  lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
-  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
-  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
-  cog: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
-  team: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.5c2.5.1 4.2 1.8 5 5"/>',
-  rsvp: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5 1.6 0 3 .5 4.1 1.3"/><path d="M15 17.5l2 2 4.5-4.5"/>',
-  layers: '<path d="M12 3.5 2.5 8.5 12 13.5l9.5-5z"/><path d="M2.5 12.5l9.5 5 9.5-5"/><path d="M2.5 16.5l9.5 5 9.5-5"/>',
-  'chevron-right': '<path d="M9 6l6 6-6 6"/>',
-  'chevron-down': '<path d="M6 9l6 6 6-6"/>',
-  minus: '<path d="M5 12h14"/>',
-  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/>',
-  edit: '<path d="M4 20h4L19.3 8.7a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 7.5l3 3"/>',
-  trash: '<path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
-  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-  field: '<rect x="4.5" y="3" width="15" height="18" rx="1.5"/><path d="M4.5 12h15"/><circle cx="12" cy="12" r="2.5"/>',
-  back: '<path d="M15 6l-6 6 6 6"/>'
-};
+const ICON = TEAM_ICONS;
 // Page-specific card/list preference lives on this device only, not in team records.
 const CARD_PAGES = ['plays', 'helpers', 'crew', 'matches'];
 const cardMode = page => state.cardViews[page] === 'list' ? 'list' : 'cards';
@@ -743,7 +721,7 @@ const cardClass = page => cardMode(page) === 'list' ? 'view-list' : 'view-cards'
 const cardToggle = page => `<div class="card-mode" role="group" aria-label="${esc(viewLabel(page))} display">
   <button type="button" data-act="card-view" data-page="${page}" data-mode="cards" aria-pressed="${cardMode(page) === 'cards'}">Cards</button>
   <button type="button" data-act="card-view" data-page="${page}" data-mode="list" aria-pressed="${cardMode(page) === 'list'}">List</button></div>`;
-const icon = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
+const icon = (n,s=20)=>teamIconSvg(n,s);
 const gBadge = p => { const g = p.gender === 'F' ? 'F' : p.gender === 'M' ? 'M' : 'U'; return `<span class="g ${g}" title="${g === 'F' ? 'Female' : g === 'M' ? 'Male' : 'Gender not set'}">${g === 'U' ? '?' : g}</span>`; };
 const jersey = p => `<span class="jersey ${p.number ? '' : 'none'}">${esc(p.number || initials(p))}</span>`;
 // A player's photo with their number on it (coach only); the number badge when there's no photo.
@@ -6761,14 +6739,17 @@ function offerCancelMessage(s) {
 }
 
 /* ---------- Messages (coach) ---------- */
-const TEMPLATES = { reminder: 'Training reminder', availability: 'Availability check', match: 'Next match', results: 'Results', cancelled: 'Training cancelled', lineup: 'Lineup', help: 'Help needed', countdown: 'Countdown', invite: 'App invite', blank: 'Blank' };
+const TEMPLATES = TEAM_MESSAGE_TEMPLATES;
 function buildTemplate(t) {
   const T = data.team, s = sessionById(state.msgSession) || nextSession();
-  if (t === 'reminder') {
-    if (!s) return `🏉 *Training — ${T.name}*\n\n(Add a training session first and it will fill in here.)`;
-    return `🏉 *Training — ${T.name}*\n📅 ${fmtLong(s.date)}\n⏰ ${fmtRange(s)}\n📍 ${s.venue || T.trainingVenue || 'TBC'}${s.focus ? `\n🎯 Focus: ${s.focus}` : ''}${s.notes ? `\n📝 ${s.notes}` : ''}\n\nReply 👍 if you're coming, or let me know if you can't make it.`;
-  }
-  if (t === 'cancelled') return s ? `⚠️ *Training cancelled*\nTraining on ${fmtLong(s.date)} (${fmtRange(s)}) is off.\n\nReason: \n\nSee you at the next one.` : `⚠️ *Training cancelled*\n\n`;
+  if (t === 'reminder') return trainingReminderText({
+    teamName:T.name,session:s,dateLabel:s?fmtLong(s.date):'',
+    timeLabel:s?fmtRange(s):'',venue:s?.venue||T.trainingVenue||'',
+    focus:s?.focus||'',notes:s?.notes||''
+  });
+  if (t === 'cancelled') return trainingCancellationText({
+    session:s,dateLabel:s?fmtLong(s.date):'',timeLabel:s?fmtRange(s):''
+  });
   if (t === 'lineup') return lineupText(curLineup());
   if (t === 'help') return helpNeededText();
   if (t === 'availability') return availabilityText(state.msgEvent);
@@ -6780,12 +6761,18 @@ function buildTemplate(t) {
 }
 // Ask for replies about one session or match, or everything in the next two weeks.
 function availabilityText(ev) {
-  const T = data.team, today = todayISO(), until = M.addDays(today, 14), c = T.tasksContact || {};
-  const one = ev && rsvpTarget(ev.kind, ev.id);
-  const list = one ? [{ kind: ev.kind, x: one }] : M.agenda(data, today, 14).filter(it => !it.cancelled && it.kind !== 'task' && it.date <= until && (it.kind === 'session' || it.x.status === 'scheduled'));
-  if (!list.length) return `📋 *Availability — ${T.name}*\n\n(Nothing in the next two weeks. Add training or a match and it will fill in here.)`;
-  const line = it => `• ${fmtDay(it.x.date)}${it.x.start ? ` ${fmtTime(it.x.start)}` : ''}: ${it.kind === 'match' ? `match vs ${it.x.opponent || 'TBC'}` : 'training'}`;
-  return `📋 *Availability — ${T.name}*\nPlease reply *YES*, *NO* or *MAYBE* for:\n${list.map(line).join('\n')}\n\nReply here${c.name ? ` or message ${c.name}` : ''}, or use the buttons in the team app (Schedule). Thanks!`;
+  const T=data.team,today=todayISO(),until=M.addDays(today,14),c=T.tasksContact||{};
+  const one=ev&&rsvpTarget(ev.kind,ev.id);
+  const list=one?[{kind:ev.kind,x:one}]:
+    M.agenda(data,today,14).filter(it=>!it.cancelled&&it.kind!=='task'&&
+      it.date<=until&&(it.kind==='session'||it.x.status==='scheduled'));
+  return availabilityRequestText({teamName:T.name,contactName:c.name,
+    events:list.map(it=>({
+      kind:it.kind,dateLabel:fmtDay(it.x.date),
+      startLabel:it.x.start?fmtTime(it.x.start):'',
+      opponent:it.x.opponent||''
+    }))
+  });
 }
 function viewMessages() {
   if (state.msgDraft === null) state.msgDraft = buildTemplate(state.msgTpl);

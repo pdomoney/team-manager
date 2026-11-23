@@ -214,6 +214,11 @@ try:
      page.get_by_role('button',name='Messages').count()==1 and
      page.get_by_role('button',name='Jerseys').count()==1,
      f'[{width}] connected management More contains established functions')
+   checks.ok(page.locator('.cloud-more-item .more-ic svg').count()>=8 and
+     page.locator('.cloud-more-item .cloud-more-arrow svg').count()>=8,
+     f'[{width}] original illustrated More rows and chevrons are restored')
+   checks.ok(page.get_by_role('button',name='Messages').get_attribute('aria-label')=='Messages',
+     f'[{width}] original-style navigation keeps accessible button names')
    page.get_by_role('button',name='Settings').click()
    page.get_by_role('heading',name='Team settings').wait_for()
    page.get_by_role('button',name='All management tools').click()
