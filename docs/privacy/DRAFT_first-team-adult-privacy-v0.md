@@ -19,6 +19,12 @@ The initial connected trial **does not authorise collection of under-18 accounts
 
 Information is processed only for approved account authentication, selected-team operations, team access control, support, auditing and protection against misuse. Platform Owner administration is different from a Coach's team access. Team roles do not automatically grant access to private roster/contact information. Invitations do not constitute active roles. Marketing is optional and OFF by default.
 
+### Free-account plays considered for template reuse
+
+**Proposed feature, not yet active:** plays created or saved on a Free Account may be reviewed and adapted by the Team Manager platform operator for inclusion in its reusable play-template library, including where the creator saved them as private drafts. Eligible play material includes tactical diagrams, movements, phases, timing and coaching instructions. The proposed licence and its prospective effective-date requirement are described in the draft Terms of Use, section 6.
+
+The operator must not distribute identifiable player/member information, confidential coaching records or unapproved personal information as part of templates. Any template reuse requires a defined collection and retention process, minimisation and de-identification review, creator notice and suitable privacy controls. The operator must confirm the exact operational process, recipients and retention period **before publication or collection**: **[TEMPLATE REVIEW PROCESS, RETENTION AND CONTACT TO CONFIRM]**. No existing private play is made public by this draft.
+
 ## 4. Collection, disclosure and processors
 
 Account identity and authentication use Supabase; the connected management service uses Cloudflare Workers. The actual provider contracts, Sydney-region processing configuration, potential overseas transfers, email delivery supplier and onward disclosures must be verified and described before approval: **[PROCESSORS, HOST REGIONS, INTERNATIONAL TRANSFERS AND CONTRACTS TO CONFIRM]**. Do not infer that every service request or log stays in Australia.
