@@ -141,7 +141,8 @@ export function manualTeamTemplateText(kind,{teamName}={}){
    ' — '+name+'*\n\n'+template.placeholder;
 }
 export function containsUnfilledTemplate(textValue){
- return Object.values(MANUAL_TEAM_TEMPLATES).some(x=>safe(textValue).includes(x.placeholder));
+ return Object.values(MANUAL_TEAM_TEMPLATES).some(x=>safe(textValue).includes(x.placeholder))||
+  /\[(?:Enter|Choose) [^\]\r\n]{1,120}\]/.test(safe(textValue));
 }
 export function accountInvitationText({teamName,url}={}){
  const name=singleSpace(teamName);
