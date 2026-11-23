@@ -21,7 +21,7 @@ const ROLE_NAMES=Object.freeze({
   team_manager:'Manager',team_player:'Player',team_volunteer:'Volunteer',
   team_play_viewer:'Play viewer'
 });
-const state={user:null,contexts:[],context:null,tab:'home',epoch:0,
+const state={user:null,contexts:[],context:null,founderTeamId:null,tab:'home',epoch:0,
   schedule:[],roster:[],duties:[],drafts:[],published:[],notices:[],preview:null,busy:false};
 const canEditSchedule=()=>['team_coach','team_manager','team_assistant'].includes(state.context?.role);
 const canRoster=()=>['team_coach','team_manager'].includes(state.context?.role);
@@ -658,11 +658,17 @@ function renderMyInvitations(){
     });
   }).catch(()=>{
     if(epoch!==state.epoch)return;
-    loading.textContent='Team invitations are unavailable until the approved onboarding service is installed.';
+    loading.textContent='Invitations could not be verified. Please refresh or contact the Platform Owner. No team permission has been granted.';
   });
 }
 function renderTeamInvitations(ctx){
   const panel=card('Team account invitations');
+  if(state.founderTeamId===ctx.teamId){
+    info('Your initial Coach grant is for coaching this team, not administrator approval. To invite, review or revoke adult accounts, switch to your separate Platform Owner role and use restricted administration.',panel);
+    h('a',{className:'cloud-btn',text:'Open Platform Owner invitations',
+      attrs:{href:'cloud-owner.html'},parent:actions(panel)});
+    return;
+  }
   info('This is for approved adult account trials. Invitation proposals never grant access. A second Coach or Manager with their own verified role must approve.',panel);
   const formNode=form(panel,async d=>{
     const result=await onboarding.propose(ctx,String(d.get('email')||'').trim(),
@@ -787,6 +793,7 @@ async function initialOwnerReadiness(){
 }
 function showOwnerRegistrationPending(current,founder){
   state.epoch++;state.user=current;state.context=null;state.contexts=[];
+  state.founderTeamId=founder.team?.teamId||null;
   state.tab='home';
   $('context-controls').hidden=true;
   $('cloud-nav').hidden=true;
@@ -827,6 +834,10 @@ async function initialise(keep=false){
     sport:'',season:''}]:[]),...grants];
   const previous=keep&&state.context?state.context.role+'|'+state.context.teamId:null;
   state.user=current;state.contexts=choices;
+  // Founder/Coach scopes remain distinct, even when the founder has both
+  // grants. The Coach workspace must never imply that it approves invites.
+  const founder=await initialOwnerReadiness();
+  state.founderTeamId=founder?.team?.teamId||null;
   picker.replaceChildren();choices.forEach((c,i)=>
     h('option',{text:contextLabel(c),attrs:{value:i},parent:picker}));
   $('context-controls').hidden=!choices.length;
@@ -840,6 +851,7 @@ async function initialise(keep=false){
     info('Your identity is verified, but no team working context is currently available. Review registration requirements and any independently approved invitations.');
     h('a',{className:'cloud-btn',text:'Registration and privacy',
       attrs:{href:'cloud-registration.html'},parent:main});
+    info('Already invited? You can review and claim an invitation for your verified email before the current registration policy is acknowledged. Claiming creates no active team permission.');
     renderMyInvitations();renderProfilePanel();return;}
   const ix=choices.findIndex(c=>c.role+'|'+c.teamId===previous);
   if(ix>=0||choices.length===1){selectContext(ix>=0?ix:0);return;}

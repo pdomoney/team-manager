@@ -5,6 +5,7 @@ import {handleStage2PlayRequest} from './stage2-play-api.js';
 import {handleStage3Onboarding} from './stage3-onboarding-api.js';
 import {handleStage3D3Registration,stage3D3PolicyGate} from './stage3d3-registration.js';
 import {handleStage3D4Owner} from './stage3d4-owner-api.js';
+import {prePolicyInvitationAction} from './stage3d4b-invitation-gate.js';
 
 export default {
   async fetch(request, env) {
@@ -32,8 +33,16 @@ export default {
     if(path.startsWith('/api/stage3d3/')) return handleStage3D3Registration(request,env);
     if(path.startsWith('/api/stage1/')||path.startsWith('/api/stage3b/')||
        path.startsWith('/api/stage3/')){
-      const denied=await stage3D3PolicyGate(request,env);
-      if(denied)return denied;
+      // A verified invitee must be able to find and claim their own invitation
+      // before an app account, adult review and policy receipt can exist.
+      // Every other API operation remains policy-gated. The downstream
+      // onboarding handler and private SQL still check the actual identity,
+      // invitation email, expiry, team, role and activated-state boundaries.
+      const prePolicy=await prePolicyInvitationAction(request,env);
+      if(!prePolicy){
+        const denied=await stage3D3PolicyGate(request,env);
+        if(denied)return denied;
+      }
     }
     if (path.startsWith('/api/stage1/')) return handleStage1Request(request,env);
     if (path.startsWith('/api/stage3b/')) return handleStage1Request(request,env);
