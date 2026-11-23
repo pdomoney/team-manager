@@ -382,7 +382,7 @@ begin
    if p_action='invite.review-adult' then
       v_evidence:=obj->>'evidenceRef';
       if v_inv.status not in ('approved','claimed')
-        or v_evidence !~ '^evidence-ref/[A-Za-z0-9._/-]{12,100}$'
+        or coalesce(v_evidence,'') !~ '^evidence-ref/[A-Za-z0-9._/-]{12,100}
       then return jsonb_build_object('ok',false,'code','invalid-request'); end if;
       select u.id into v_user from auth.users u where lower(u.email)=v_inv.email
          and u.email_confirmed_at is not null limit 1;
@@ -445,7 +445,79 @@ begin
  end if;
  return jsonb_build_object('ok',true,
    'code',case when p_action in ('settings.read','jerseys.read',
-     'competitions.read','messages.read','team.members','invite.list')
+     'competitions.read','messages.read','team.members','volunteers.list',
+      'admin.status','duties.board','invite.list')
+     then 'permitted' else 'committed' end,'data',records);
+end;
+$$;
+revoke all on function public.tm_stage3d5_team(uuid,text,text,text,jsonb)
+ from public,anon,authenticated;
+grant execute on function public.tm_stage3d5_team(uuid,text,text,text,jsonb) to service_role;
+
+      then return jsonb_build_object('ok',false,'code','invalid-request'); end if;
+      select u.id into v_user from auth.users u where lower(u.email)=v_inv.email
+         and u.email_confirmed_at is not null limit 1;
+      if v_user is null or v_user=p_actor then
+        return jsonb_build_object('ok',false,'code','verified-identity-required'); end if;
+      insert into tm_private.accounts(user_id,status) values(v_user,'active')
+        on conflict(user_id) do nothing;
+      insert into tm_private.registration_adult_reviews(
+        user_id,reviewed_by,reviewed_at,evidence_ref,state)
+        values(v_user,p_actor,now_at,v_evidence,'approved')
+        on conflict(user_id) do nothing;
+      records:=jsonb_build_object('invitationId',ref);
+   elsif p_action='invite.activate' then
+      if v_inv.status<>'claimed' or v_inv.claimed_by is null
+         or v_inv.claimed_by=p_actor or v_inv.grant_id is null or v_inv.person_id is null
+         or not exists(select 1 from tm_private.registration_adult_reviews r
+           where r.user_id=v_inv.claimed_by and r.state='approved'
+            and r.reviewed_by<>v_inv.claimed_by)
+         or not exists(select 1 from tm_private.registration_acceptances a
+           join tm_private.registration_policy_versions p on p.policy_id=a.policy_id
+           where a.user_id=v_inv.claimed_by and p.status='active'
+             and a.terms_accepted and a.privacy_acknowledged)
+      then return jsonb_build_object('ok',false,'code','activation-preflight-denied'); end if;
+      update tm_private.account_person_links set status='verified',
+         verified_by=p_actor,verified_at=now_at
+        where user_id=v_inv.claimed_by and person_id=v_inv.person_id and status='pending';
+      if not found and not exists(select 1 from tm_private.account_person_links l
+        where l.user_id=v_inv.claimed_by and l.person_id=v_inv.person_id
+         and l.status='verified' and l.verified_by<>l.user_id) then
+       return jsonb_build_object('ok',false,'code','person-not-verified'); end if;
+      if v_inv.team_role='team_player' then
+        insert into tm_private.participations(team_id,person_id,kind,status,
+         verified_by,verified_at) values(p_team,v_inv.person_id,'player','active',p_actor,now_at)
+         on conflict(team_id,person_id) do update set status='active',
+           verified_by=excluded.verified_by,verified_at=excluded.verified_at;
+      end if;
+      update tm_private.role_grants set status='active',approved_by=p_actor,approved_at=now_at
+       where grant_id=v_inv.grant_id and user_id=v_inv.claimed_by
+         and team_id=p_team and role=v_inv.team_role and status='proposed';
+      if not found then return jsonb_build_object('ok',false,'code','grant-unavailable'); end if;
+      update tm_private.team_invitations set status='activated',updated_at=now_at
+       where invitation_id=ref;
+      records:=jsonb_build_object('invitationId',ref);
+   else
+      if v_inv.status not in ('approved','claimed','activated') then
+       return jsonb_build_object('ok',false,'code','invite-unavailable'); end if;
+      update tm_private.team_invitations set status='revoked',updated_at=now_at where invitation_id=ref;
+      if v_inv.grant_id is not null then
+        update tm_private.role_grants set status='revoked'
+        where grant_id=v_inv.grant_id and team_id=p_team and status in ('proposed','active');
+      end if;
+      records:=jsonb_build_object('invitationId',ref);
+   end if;
+ end if;
+ if p_action not in ('settings.read','jerseys.read','competitions.read','messages.read',
+                     'team.members','volunteers.list','admin.status','duties.board','invite.list') then
+   insert into tm_private.audit_events(user_id,team_id,action,resource_id,decision,reason_code)
+    values(p_actor,p_team,'stage3d5.'||p_action,
+      coalesce(ref,p_team),'ALLOW','exact-team-adult-management');
+ end if;
+ return jsonb_build_object('ok',true,
+   'code',case when p_action in ('settings.read','jerseys.read',
+     'competitions.read','messages.read','team.members','volunteers.list',
+      'admin.status','duties.board','invite.list')
      then 'permitted' else 'committed' end,'data',records);
 end;
 $$;
