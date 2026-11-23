@@ -36,6 +36,7 @@ const canEditSchedule=()=>hasRole('team_coach','team_manager','team_assistant');
 const canRoster=()=>hasRole('team_coach','team_manager');
 const canManage=canRoster;
 const canReadNotices=()=>hasRole('team_coach','team_manager','team_assistant','team_player','team_volunteer');
+const MANAGEMENT_PARITY=CLOUD_STAGE3D3_POLICY_REQUIRED===true&&CLOUD_STAGE3C_MODE!==true;
 const playsDeferred=()=>CLOUD_STAGE3C_MODE||CLOUD_STAGE3D3_POLICY_REQUIRED;
 const canViewTactics=()=>!playsDeferred()&&hasRole('team_coach','team_assistant','team_manager','team_player','team_play_viewer');
 const canDraft=()=>!playsDeferred()&&hasRole('team_coach','team_assistant');
@@ -203,8 +204,10 @@ async function loadForTab(tab,epoch){
   }else if(tab==='team'){
     if(canRoster()){
       await need('roster.read','roster');
-      const members=await management.call(c,'team.members');
-      if(state.epoch===epoch)state.members=members;
+      if(MANAGEMENT_PARITY){
+        const members=await management.call(c,'team.members');
+        if(state.epoch===epoch)state.members=members;
+      }
     }
     if(roleForAction(c,'duty.read'))await need('duty.read','duties');
     if(hasRole('team_manager','team_coach'))await need('schedule.read','schedule');
@@ -588,7 +591,8 @@ function renderTeam(){
     const roster=card('Squad nominations');
     info('Nomination and placement do not verify registration, payment or competition eligibility.',roster);
     readList(roster,state.roster,(p,row)=>{
-      h('strong',{text:p.personId,parent:row});
+      const member=state.members.find(m=>m.personId===p.personId);
+      h('strong',{text:member?.name||p.personId,parent:row});
       h('small',{text:p.status+' · version '+p.version,parent:row});
       if(p.status==='pending')button('Approve team placement',async()=>{
         if(!confirm('Approve team placement only? Registration, payment and competition eligibility remain separate.'))return;
@@ -866,6 +870,10 @@ function renderTeamInvitations(team){
   const ctx=reviewerContext(team);
   if(!ctx)return;
   const panel=card('Team account invitations');
+  if(MANAGEMENT_PARITY){
+    renderTeamMemberInvitations(team,panel);
+    return;
+  }
   if(state.founderTeamId===ctx.teamId){
     info('Your initial Coach grant is for coaching this team, not administrator approval. To invite, review or revoke adult accounts, switch to your separate Platform Owner role and use restricted administration.',panel);
     if(state.isPlatformOwner)
@@ -978,7 +986,7 @@ function moreEntry(parent,name,description,handler){
   h('span',{className:'cloud-more-chevron',text:'›',parent:row});
 }
 function renderMore(){
-  if(canManage()){
+  if(canManage()&&MANAGEMENT_PARITY){
     const menu=card('Team management');
     menu.classList.add('cloud-more-list');
     const add=(name,description)=>moreEntry(menu,name,description,
