@@ -6,6 +6,7 @@ import {handleStage3Onboarding} from './stage3-onboarding-api.js';
 import {handleStage3D3Registration,stage3D3PolicyGate} from './stage3d3-registration.js';
 import {handleStage3D4Owner} from './stage3d4-owner-api.js';
 import {prePolicyInvitationAction} from './stage3d4b-invitation-gate.js';
+import {handleStage3D5Team} from './stage3d5-management-api.js';
 
 export default {
   async fetch(request, env) {
@@ -30,6 +31,11 @@ export default {
         status:404,headers:{'Cache-Control':'no-store',
           'X-Content-Type-Options':'nosniff'}});
     if(path.startsWith('/api/stage3d4/')) return handleStage3D4Owner(request,env);
+    if(path.startsWith('/api/stage3d5/')) {
+      const denied=await stage3D3PolicyGate(request,env);
+      if(denied)return denied;
+      return handleStage3D5Team(request,env);
+    }
     if(path.startsWith('/api/stage3d3/')) return handleStage3D3Registration(request,env);
     if(path.startsWith('/api/stage1/')||path.startsWith('/api/stage3b/')||
        path.startsWith('/api/stage3/')){
