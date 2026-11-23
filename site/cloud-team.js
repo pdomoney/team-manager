@@ -36,7 +36,7 @@ const canEditSchedule=()=>hasRole('team_coach','team_manager','team_assistant');
 const canRoster=()=>hasRole('team_coach','team_manager');
 const canManage=canRoster;
 const canReadNotices=()=>hasRole('team_coach','team_manager','team_assistant','team_player','team_volunteer');
-const MANAGEMENT_PARITY=CLOUD_STAGE3D3_POLICY_REQUIRED===true&&CLOUD_STAGE3C_MODE!==true;
+const MANAGEMENT_PARITY=CLOUD_STAGE3D3_POLICY_REQUIRED===true;
 const playsDeferred=()=>CLOUD_STAGE3C_MODE||CLOUD_STAGE3D3_POLICY_REQUIRED;
 const canViewTactics=()=>!playsDeferred()&&hasRole('team_coach','team_assistant','team_manager','team_player','team_play_viewer');
 const canDraft=()=>!playsDeferred()&&hasRole('team_coach','team_assistant');
