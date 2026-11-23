@@ -158,6 +158,18 @@ begin
  r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager',
   'settings.read','{}'::jsonb);
  if r->>'code'<>'permitted' then raise exception 'Manager lacked team settings';end if;
+ r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager',
+   'messages.read','{}'::jsonb);
+ if r->>'code'<>'permitted' or
+   exists(select 1 from jsonb_array_elements(r->'data') msg
+     where msg->>'canConfirm'='true')
+ then raise exception 'Manager could confirm another Coach message';end if;
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
+   'messages.read','{}'::jsonb);
+ if r->>'code'<>'permitted' or
+   not exists(select 1 from jsonb_array_elements(r->'data') msg
+     where msg->>'canConfirm'='true')
+ then raise exception 'Coach could not confirm own messages';end if;
  update tm_private.role_grants set status='revoked' where grant_id='grant-manager';
  r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager',
   'team.members','{}'::jsonb);
