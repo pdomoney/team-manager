@@ -939,9 +939,7 @@ function renderMore(){
   },a);
 }
 function switchTab(tab){
-  if(!['home','schedule','team','tactics','more'].includes(tab)||
-     (CLOUD_STAGE3C_MODE&&tab==='tactics'))return;
-  if(isOwner()&&!['home','more'].includes(tab))return;
+  if(!visibleSections(state.context,{playsDeferred:playsDeferred()}).includes(tab))return;
   state.tab=tab;state.preview=null;notice.hidden=true;drawTabs();void showTab();
 }
 async function initialOwnerReadiness(){
@@ -954,6 +952,7 @@ function showOwnerRegistrationPending(current,founder){
   state.tab='home';
   $('context-controls').hidden=true;
   $('cloud-nav').hidden=true;
+  $('cloud-desktop-nav').hidden=true;
   $('active-context').textContent='Registration pending';
   clear();
   title('Team access awaiting registration','Account permissions');
@@ -986,50 +985,42 @@ async function initialise(keep=false){
     throw e;
   }
   let owner=false;
-  try{owner=await auth.myOperatorAccess();}catch{/* fail closed, without losing team grants */}
-  const choices=[...(owner?[{role:'platform_owner',teamId:'platform',club:'',
-    sport:'',season:''}]:[]),...grants];
-  const previous=keep&&state.context?state.context.role+'|'+state.context.teamId:null;
-  state.user=current;state.contexts=choices;
-  // Founder/Coach scopes remain distinct, even when the founder has both
-  // grants. The Coach workspace must never imply that it approves invites.
-  const founder=await initialOwnerReadiness();
+  try{owner=await auth.myOperatorAccess();}
+  catch{/* unavailable Owner RPC cannot create an Owner permission */}
+  const choices=buildTeamNavigation(grants,owner);
+  const previous=keep&&state.context?state.context.key:null;
+  state.user=current;state.contexts=choices;state.isPlatformOwner=owner;
+  const founder=owner?await initialOwnerReadiness():null;
   state.founderTeamId=founder?.team?.teamId||null;
-  picker.replaceChildren();choices.forEach((c,i)=>
-    h('option',{text:contextLabel(c),attrs:{value:i},parent:picker}));
   $('context-controls').hidden=!choices.length;
   $('cloud-nav').hidden=!choices.length;
+  $('cloud-desktop-nav').hidden=!choices.length;
   if(!choices.length){
-    const founder=await initialOwnerReadiness();
-    if(founder){showOwnerRegistrationPending(current,founder);return;}
-    state.epoch++;state.context=null;clear();
-    $('active-context').textContent='No currently available team context';
-    title('No currently available team context','Account permissions');
-    info('Your identity is verified, but no team working context is currently available. Review registration requirements and any independently approved invitations.');
+    const fallback=await initialOwnerReadiness();
+    if(fallback){showOwnerRegistrationPending(current,fallback);return;}
+    state.epoch++;state.context=null;state.activeClub=null;clear();
+    $('active-context').textContent='No currently available team';
+    title('No currently available team','Account permissions');
+    info('Your identity is verified, but no approved active team is assigned. Review registration or claim your approved invitation.');
     h('a',{className:'cloud-btn',text:'Registration and privacy',
       attrs:{href:'cloud-registration.html'},parent:main});
-    info('Already invited? You can review and claim an invitation for your verified email before the current registration policy is acknowledged. Claiming creates no active team permission.');
-    renderMyInvitations();renderProfilePanel();return;}
-  const ix=choices.findIndex(c=>c.role+'|'+c.teamId===previous);
-  if(ix>=0||choices.length===1){selectContext(ix>=0?ix:0);return;}
-  // Multiple grants: never automatically operate as Owner or Coach.
-  state.epoch++;state.context=null;state.tab='home';state.schedule=[];state.roster=[];
-  state.duties=[];state.notices=[];state.drafts=[];state.published=[];state.preview=null;
-  $('cloud-nav').hidden=true;
-  $('active-context').textContent='Choose one active role and team';
-  picker.insertBefore(h('option',{text:'Choose a role and team',
-    attrs:{value:'',disabled:'true'}}),picker.firstChild);
-  picker.value='';
-  clear();title('Choose your role and team','Signed-in account');
-  info('One login can hold more than one approved role. Select a single working context; permissions are never combined.');
-  const list=card('Your available contexts');
-  for(const [i,ctx] of choices.entries())
-    button(contextLabel(ctx),()=>{ $('cloud-nav').hidden=false;selectContext(i);},list);
-
+    renderMyInvitations();renderProfilePanel();return;
+  }
+  // A Platform Owner opens Platform. Everyone else lands directly in their
+  // first approved team. There is no explicit role/profile selection step.
+  const target=choices.find(c=>c.key===previous)?.key||
+    (owner?'platform':choices.find(c=>c.kind==='team')?.key);
+  selectContext(target);
 }
-$('cloud-nav').addEventListener('click',e=>{
-  const b=e.target.closest('button[data-tab]');if(b)switchTab(b.dataset.tab);
+for(const id of ['cloud-nav','cloud-desktop-nav']){
+  $(id).addEventListener('click',e=>{
+    const b=e.target.closest('button[data-tab]');
+    if(b)switchTab(b.dataset.tab);
+  });
+}
+initialise().catch(e=>{
+  clear();title('Unable to verify access','Account');info(explain(e));
+  $('cloud-nav').hidden=true;
+  $('cloud-desktop-nav').hidden=true;
+  $('context-controls').hidden=true;
 });
-picker.addEventListener('change',()=>{if(picker.value!==''){$('cloud-nav').hidden=false;selectContext(Number(picker.value));}});
-initialise().catch(e=>{clear();title('Unable to verify access','Account');
-  info(explain(e));$('cloud-nav').hidden=true;$('context-controls').hidden=true;});
