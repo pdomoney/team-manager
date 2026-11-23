@@ -29,11 +29,27 @@ Each person must use their own account, keep their credentials private, avoid sh
 
 Users must access only information authorised for their specific role, club and team. They must not use the service to harass others, upload unlawful content, disclose unrelated private records, bypass controls or use information for unapproved marketing. Volunteer and safeguarding activities require the relevant independent checks, not merely a role label.
 
-## 6. Availability, corrections and service changes
+## 6. Plays created using Free Accounts: licence for reusable templates
+
+**Free Account** means an individual or team account using Team Manager without a paid subscription when a play is created or saved. **Play Content** means the user's original tactical play material, including diagrams, player-position markers, movements, paths, phases, timing, animations, instructions and coaching annotations. It does **not** include personal information about identifiable people, confidential account information or third-party material that the user cannot lawfully license.
+
+**A play created or saved using any Free Account may be collected by the Team Manager platform operator and used as a reusable template.** This applies to eligible Play Content whether the creator has marked the play as shared or kept it as a private draft. The operator may select, access, collect, copy, retain, edit, adapt, combine, anonymise, reproduce, display, publish and distribute that Play Content as a starter play, coaching example or template for other Team Manager users. Templates may be offered through free or paid features.
+
+For that purpose, by creating or saving Play Content in a Free Account **after the effective date of these Terms and agreeing to them**, the creator grants the platform operator a non-exclusive, worldwide, royalty-free, continuing licence, with permission to sublicense the resulting templates to other Team Manager users and service providers solely as needed for this purpose. No additional payment is owed for a template use under this licence. Subject to applicable law and the rights below, the licence for Play Content validly contributed during a Free Account period continues if the account is later upgraded, closed or deleted; changing to a paid plan does not undo previously granted template rights.
+
+**The creator retains ownership** of copyright in their original Play Content and may continue using or licensing it elsewhere. The creator must have the necessary rights to contribute the material and must not include another person's protected work without appropriate permission. The operator must respect applicable moral rights, including attribution and integrity, and must not falsely identify a creator or imply their endorsement.
+
+Before any template is shared beyond the originating account, the operator must remove or replace identifiable player or member names, contact details, personal notes, health or safeguarding information and other confidential data. If a play cannot be safely separated from such information, it must not be published as a template. This licence is **not** permission to expose private team/member records or override role-based access controls.
+
+The licence described here applies to plays created or saved **while using a Free Account**, not automatically to material first created solely under a paid subscription. Previously created plays are **not retroactively licensed** solely because these Terms are later published; a valid new agreement or other lawful permission is required for those works. The operator may choose which eligible plays to turn into templates but is not required to collect or publish every play.
+
+**Before activation:** the platform operator must prominently disclose this Free Account condition at play creation and when accepting these Terms, verify the treatment of private drafts and moral rights with legal counsel, and implement privacy-safe extraction and review. This draft grants no live collection or publication authority.
+
+## 7. Availability, corrections and service changes
 
 During this limited trial, service availability and recovery terms require separate operational approval: **[TRIAL SUPPORT, INCIDENT PROCESS, SERVICE LIMITATIONS, RETENTION TO CONFIRM]**. The operator must publish a method to request data corrections, role review and account closure. Material changes to the terms require a new reviewed version and fresh acknowledgement where required.
 
-## 7. Privacy, complaints and governing rules
+## 8. Privacy, complaints and governing rules
 
 Use of personal information is addressed in the separately approved Privacy Notice. **[LEGAL REVIEW REQUIRED: governing law, consumer rights, liability, complaints and disputes, any mandatory provisions]**. Nothing in this draft overrides applicable Australian law.
 
