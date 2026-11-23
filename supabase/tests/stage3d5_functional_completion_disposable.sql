@@ -196,7 +196,8 @@ begin
  r:=public.tm_stage3d5_player_team(outsider,'stgeorge-mixed20','team_player',
    'player.team.read','{}'::jsonb);
  if r->>'code'<>'scope-denied' then raise exception 'Stranger saw player summary'; end if;
- insert into tm_private.accounts(user_id,status) values(player,'active');
+ insert into tm_private.accounts(user_id,status) values(player,'active')
+ on conflict (user_id) do update set status='active';
  insert into tm_private.registration_adult_reviews(
    user_id,reviewed_by,reviewed_at,evidence_ref,state)
  values(player,coach,now(),'evidence-ref/fictional-player-review','approved');
