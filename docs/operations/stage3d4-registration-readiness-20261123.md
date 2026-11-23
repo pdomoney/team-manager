@@ -26,6 +26,13 @@
 5. In the existing Team Manager registration UI, the Owner must read and acknowledge BOTH current documents. Marketing remains OFF unless explicitly opted into. Then the application may expose the already-recorded Platform Owner and Team Coach **as two separately selectable contexts**. Test read-only entry, wrong-role denial, revocation and no unauthorised roster access. No new Coach grant or generic `user` role is required.
 6. Introduce an approved independently verified adult Team Manager/invite journey separately. An activated team Coach role alone does not satisfy legal authorisation, suitability, payment or sporting eligibility. Juniors, guardians, emergency contacts and private fields remain blocked until relevant decisions/release gates pass.
 
+## Free-account play-template licence: product owner proposal
+
+- The draft adult Terms of Use section 6 now proposes that the platform operator may collect **any original play created or saved under a Free Account** and reuse/adapt it as a template, including in paid offerings. The licence also encompasses private drafts, but **does not transfer creator copyright** or authorise distribution of identifiable people, private team data or unlicensed third-party work.
+- This is a **new prospective product/IP policy**, not an already implemented play-harvesting or publishing workflow. No data is collected, inspected, copied or exported as part of this PR.
+- Before activation: identify operator legal entity; legal review of licensing, copyright moral rights, transparent free-tier notice, privacy/personal-information separation and applicable contract rules; build an independently reviewable safe template-selection process. Do not retroactively claim existing play contributions.
+- Preserve existing protected E5/play-editor access, encrypted ciphertext and role gates. A drafted terms clause alone must never make private play files accessible to other accounts.
+
 ## Qualification / owner acceptance
 
 - Source Node tests: successful pending Owner status, denied/forged/wrong-team status, policy-not-ready message, structural layout regression.
