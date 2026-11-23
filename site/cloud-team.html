@@ -19,13 +19,22 @@
       <a class="cloud-team-back" href="cloud-access.html">Account</a>
     </div>
     <div class="cloud-context-controls" id="context-controls" hidden>
-      <label for="role-context">Working role and team</label>
-      <select id="role-context" aria-label="Select your active role and team"></select>
+      <nav id="club-chips" class="cloud-chips" aria-label="Your authorised clubs and platform"></nav>
+      <nav id="team-chips" class="cloud-chips cloud-team-chips" aria-label="Your authorised teams"></nav>
     </div>
   </header>
-  <main class="cloud-main" id="cloud-main">
-    <p role="status">Verifying your account and team permissions…</p>
-  </main>
+  <div class="cloud-workspace-layout">
+    <nav class="cloud-desktop-nav" id="cloud-desktop-nav" aria-label="Management sections" hidden>
+      <button type="button" data-tab="home">Home</button>
+      <button type="button" data-tab="schedule">Schedule</button>
+      <button type="button" data-tab="team">Team</button>
+      <button type="button" data-tab="tactics">Tactics</button>
+      <button type="button" data-tab="more">More</button>
+    </nav>
+    <main class="cloud-main" id="cloud-main">
+      <p role="status">Verifying your account and team permissions…</p>
+    </main>
+  </div>
   <nav class="cloud-nav" id="cloud-nav" aria-label="Sections" hidden>
     <button type="button" data-tab="home">Home</button>
     <button type="button" data-tab="schedule">Schedule</button>
