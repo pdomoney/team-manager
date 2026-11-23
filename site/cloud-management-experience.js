@@ -2,7 +2,7 @@
 // menu vocabulary and exact-team server records, never the fictional demo vault.
 // The Host owns navigation state; each async screen discards stale team results.
 export function createCloudManagementExperience({
-  api,getContext,ui,onBack,onReport,onNotices,onTeam
+  api,getContext,getSchedule,ui,onBack,onReport,onNotices,onTeam
 }){
   const {h,card,info,button,actions,form,field,selectField,title,clear,message,explain}=ui;
   const permitted=()=>getContext()?.kind==='team'&&
@@ -273,8 +273,23 @@ export function createCloudManagementExperience({
           dutyId:d.dutyId,expectedVersion:d.version
         },()=>open('Volunteer tally'),'Volunteer duty withdrawn.'),actions(row));
     }
-    const sessions=await query(ctx,'duties.board');
-    info('To create a new assignment, first add a training session and verify an adult volunteer for the team.',c);
+    const volunteers=await query(ctx,'volunteers.list');
+    const sessions=(getSchedule?.()||[]).filter(s=>s.status==='planned');
+    if(volunteers.length&&sessions.length){
+      const f=form(c,async d=>use(ctx,'duties.assign',{
+        sessionId:text(d.get('sessionId')),personId:text(d.get('personId')),
+        type:text(d.get('type'))
+      },()=>open('Volunteer tally'),'Verified volunteer duty assigned.'));
+      selectField(f,'Session','sessionId',sessions.map(s=>[
+        s.sessionId,(s.title||s.kind)+' · '+(s.startsAt||'Time TBC')]));
+      selectField(f,'Verified volunteer','personId',
+        volunteers.map(v=>[v.personId,v.name||v.personId]));
+      selectField(f,'Non-accredited task','type',[
+        ['general_help','General help'],['setup','Setup'],['equipment','Equipment'],
+        ['scorer_support','Scorer support']]);
+      h('button',{className:'cloud-btn primary',text:'Assign duty',
+        attrs:{type:'submit'},parent:f});
+    }else info('Add a training session and approve a verified adult Volunteer before assigning duties.',c);
   }
   return Object.freeze({open,permitted});
 }
