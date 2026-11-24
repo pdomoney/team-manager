@@ -5,7 +5,7 @@ const own=x=>x&&typeof x==='object'&&!Array.isArray(x);
 const ERRORS=new Set(['invalid-request','scope-denied','role-denied','stale-version',
  'already-assigned','invite-unavailable','verified-identity-required',
  'activation-preflight-denied','person-not-verified','grant-unavailable',
- 'unauthenticated','network-unavailable','service-unavailable']);
+ 'unauthenticated','network-unavailable','service-unavailable','participation-not-verified']);
 const fail=code=>Object.assign(new Error(code),{code});
 export function createCloudManagementClient({identity,fetchImpl=fetch,origin}={}){
  if(!identity||typeof identity.verifiedBearer!=='function'||
@@ -17,13 +17,12 @@ export function createCloudManagementClient({identity,fetchImpl=fetch,origin}={}
    base.pathname!=='/'||base.search||base.hash||base.username||base.password)
   throw new TypeError('invalid-origin');
  async function call(ctx,action,input={}){
-  if(!own(ctx)||!own(input)||typeof action!=='string'||
-    !(action==='player.team.read'?ctx.roles?.includes('team_player'):
-      ['team_coach','team_manager'].some(role=>ctx.roles?.includes(role))))
+  const playerRead=['player.team.read','player.match.selection.read'].includes(action);
+  const coachWrite=['match.selection.save','match.selection.publish','match.selection.withdraw'].includes(action);
+  const eligible=playerRead?['team_player']:coachWrite?['team_coach']:['team_manager','team_coach'];
+  if(!own(ctx)||!own(input)||typeof action!=='string'||!eligible.some(role=>ctx.roles?.includes(role)))
    throw fail('scope-denied');
   const grants=await identity.myTeamContexts();
-  const eligible=action==='player.team.read'?['team_player']:
-    ['team_manager','team_coach'];
   const role=eligible.find(role=>ctx.roles.includes(role)&&
     grants.some(g=>g.teamId===ctx.teamId&&g.role===role));
   if(!role)throw fail('access-revoked');

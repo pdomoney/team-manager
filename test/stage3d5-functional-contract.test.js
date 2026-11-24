@@ -89,3 +89,15 @@ test('competition edits preserve optional dates and reject impossible or reverse
  for(const [beginsOn,endsOn] of [['2027-02-29',''],['2027-04-31',''],['2027-03-05','2027-03-01']])
   assert.equal(validateStage3D5(req('competitions.update',{...base,beginsOn,endsOn})),null);
 });
+
+test('match squad contract separates staff reads, Coach writes and Player publication reads',()=>{
+ const sessionId='fixture-local',value={sessionId,expectedVersion:0,fixtureVersion:0,personIds:['player-p']};
+ assert(validateStage3D5(req('match.selection.save',value)));
+ assert(validateStage3D5(req('match.selection.read',{sessionId},'stgeorge-mixed20','team_manager')));
+ assert(validateStage3D5(req('player.match.selection.read',{sessionId},'stgeorge-mixed20','team_player')));
+ assert.equal(validateStage3D5(req('match.selection.save',value,'stgeorge-mixed20','team_manager')),null);
+ assert.equal(validateStage3D5(req('match.selection.save',{...value,personIds:['player-p','player-p']})),null);
+ assert.equal(validateStage3D5(req('match.selection.save',{...value,score:10})),null);
+ assert.equal(validateStage3D5(req('match.selection.publish',value)),null);
+ assert.equal(validateStage3D5(req('match.selection.read',{sessionId},'stgeorge-mixed20','team_player')),null);
+});
