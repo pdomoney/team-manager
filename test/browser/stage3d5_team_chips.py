@@ -543,7 +543,7 @@ try:
    page.get_by_role('button',name='Publish match squad').wait_for()
    checks.ok(match_selections['event-example-match']['state']=='draft',
      f'[{width}] Coach persists selection as draft first')
-   page.once('dialog',lambda d:d.accept())
+   # session() already accepts confirmation dialogs; do not register twice.
    page.get_by_role('button',name='Publish match squad').click()
    page.get_by_role('heading',name='Published match squad').wait_for()
    checks.ok(match_selections['event-example-match']['state']=='published',
@@ -586,8 +586,11 @@ try:
      f'[{width}] Player reads published names without coaching controls')
    page.get_by_role('button',name='Back to schedule').click()
    cancelled=page.locator('.cloud-list-item').filter(has_text='Cancelled training example')
+   # Returning from a squad view reloads the authorised schedule asynchronously.
+   # Wait for the actual session row, not for the assertion to become true.
+   cancelled.get_by_text('Cancelled training example',exact=True).wait_for(state='visible')
    checks.ok(cancelled.get_by_text('Availability replies are closed',exact=False).count()==1 and
-     cancelled.get_by_role('button',name='Yes',exact=True).count()==0,
+     all(cancelled.get_by_role('button',name=reply,exact=True).count()==0 for reply in ('Yes','No','Maybe')),
      f'[{width}] cancelled sessions cannot be answered')
    page.get_by_role('button',name='Team',exact=True).first.click()
    page.get_by_role('heading',name='Our team').wait_for()
