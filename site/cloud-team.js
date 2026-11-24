@@ -559,6 +559,7 @@ async function openAttendance(s){
         if(!d.get('status'))throw Object.assign(new Error(),{code:'invalid-input'});
         await mutation('attendance.record',s.sessionId,p.version,
           {command:{personId:p.personId,status:String(d.get('status'))}});
+        if(ctx!==state.context||epoch!==state.epoch)return;
         message('Attendance recorded.');await openAttendance(s);
       });
       selectField(f,'Attendance','status',[
@@ -581,6 +582,7 @@ async function openAttendance(s){
         await mutation('availability.transcribe',s.sessionId,p.version,{command:{
           personId:p.personId,response:String(d.get('response')),
           source:String(d.get('source'))}});
+        if(ctx!==state.context||epoch!==state.epoch)return;
         message('External availability response recorded with provenance.');
         await openAttendance(s);
       });
@@ -609,6 +611,7 @@ function editTraining(s){
       locationLabel:String(d.get('locationLabel')).trim()};
     if(start!==initialStart)command.startsAt=date.toISOString();
     await mutation('schedule.edit',s.sessionId,s.version,{command});
+    if(ctx!==state.context||epoch!==state.epoch)return;
     message('Training changes saved.');await showTab();
   });
   field(f,'Title','title',{value:s.title||''});
