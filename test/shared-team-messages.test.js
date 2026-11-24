@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
  TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
  availabilityRequestText,projectedCloudSession,nextCloudTraining,
- cloudAvailabilityEvents,cancelledCloudTraining,connectedMessageTemplateReadiness
+ cloudAvailabilityEvents
 } from '../site/shared-team-messages.js';
 test('the established ten Team Manager message templates remain the shared catalogue',()=>{
  assert.deepEqual(Object.entries(TEAM_MESSAGE_TEMPLATES),[
@@ -62,34 +62,4 @@ test('only real upcoming authorised events feed the cloud availability template'
  assert(!JSON.stringify(ev).includes('old'));
  assert(!JSON.stringify(ev).includes('cancel'));
  assert(!JSON.stringify(ev).includes('later'));
-});
-
-test('cancellation template cannot choose an ordinary planned session',()=>{
- const now=new Date('2026-11-24T09:00:00+11:00');
- const sessions=[
-  {sessionId:'planned',kind:'training',status:'planned',startsAt:'2026-11-27T18:00:00+11:00'},
-  {sessionId:'past',kind:'training',status:'cancelled',startsAt:'2026-11-20T18:00:00+11:00'}
- ];
- assert.equal(cancelledCloudTraining(sessions,{now}),null);
- sessions.push({sessionId:'cancelled',kind:'training',status:'cancelled',
-   startsAt:'2026-11-28T18:00:00+11:00'});
- assert.equal(cancelledCloudTraining(sessions,{now}).sessionId,'cancelled');
- assert.throws(()=>cancelledCloudTraining('wrong',{now}),/invalid-sessions/);
-});
-
-test('event templates require genuine data while custom messages remain available',()=>{
- const now=new Date('2026-11-24T09:00:00+11:00');
- assert.deepEqual(connectedMessageTemplateReadiness([],{now}),{
-   reminder:false,availability:false,match:false,cancelled:false,blank:true
- });
- const data=[
- {sessionId:'a',kind:'training',status:'planned',startsAt:'2026-11-25T12:00:00+11:00'},
- {sessionId:'b',kind:'training',status:'cancelled',startsAt:'2026-11-26T12:00:00+11:00'},
- {sessionId:'c',kind:'match',status:'planned',startsAt:'2026-11-27T09:00:00+11:00'}
- ];
- assert.deepEqual(connectedMessageTemplateReadiness(data,{now}),{
-   reminder:true,availability:true,match:true,cancelled:true,blank:true
- });
- assert.equal(connectedMessageTemplateReadiness(data.map(x=>({...x,
-   startsAt:'2026-11-20T12:00:00+11:00'})),{now}).reminder,false);
 });

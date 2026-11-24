@@ -127,8 +127,8 @@ export function teamRecordedMatchesFromSchedule({context,sessions}={}){
  if(!ID.test(teamId||''))throw new TypeError('invalid-team-context');
  const rows=scopedRows(sessions,teamId,'sessions');
  return Object.freeze(rows.filter(s=>s?.kind==='match'&&
-   typeof s.sessionId==='string'&&
-   Number.isFinite(new Date(s.startsAt).getTime()))
+   ID.test(s.sessionId||'')&&
+   typeof s.startsAt==='string'&&Number.isFinite(new Date(s.startsAt).getTime()))
    .map(s=>Object.freeze({
      sessionId:s.sessionId,
      title:plain(s.title).trim()||'Team match',
@@ -138,5 +138,5 @@ export function teamRecordedMatchesFromSchedule({context,sessions}={}){
      // Event-origin is authoritative, not the absence of a provider ID.
      source:s.sessionId.startsWith('event-')?'team-recorded':'unverified',
      competitionId:null,official:false
-   })).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)));
+   })).sort((a,b)=>Date.parse(a.startsAt)-Date.parse(b.startsAt)||a.sessionId.localeCompare(b.sessionId)));
 }

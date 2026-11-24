@@ -10,13 +10,17 @@ const EVIDENCE=/^evidence-ref\/[A-Za-z0-9._/-]{12,100}$/;
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ACTIONS=new Set(['settings.read','settings.save','jerseys.read','jerseys.issue',
  'jerseys.return','competitions.read','competitions.create','competitions.update',
- 'competitions.fixture','messages.read','messages.prepare','messages.confirm',
+ 'competitions.fixture','competitions.fixtures','messages.read','messages.prepare','messages.confirm',
  'team.members','volunteers.list','admin.status','duties.board','duties.assign','duties.withdraw','invite.list','invite.issue','invite.review-adult',
- 'invite.activate','invite.revoke']);
-const reads=new Set(['settings.read','jerseys.read','competitions.read',
- 'messages.read','team.members','volunteers.list','admin.status','duties.board','invite.list']);
+ 'invite.activate','invite.revoke','player.team.read']);
+const reads=new Set(['settings.read','jerseys.read','competitions.read','competitions.fixtures',
+ 'messages.read','team.members','volunteers.list','admin.status','duties.board','invite.list','player.team.read']);
 const keys=(o,k)=>Object.keys(o).every(key=>k.includes(key));
 const str=(v,max)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
+// Only composed messages may contain line breaks. Keep the stricter validation
+// for every other field; normalise browser CRLF to LF without flattening text.
+const messageBody=v=>typeof v==='string'&&v.length<=1500&&
+  !/[\u0000-\u0009\u000b\u000c\u000e-\u001f\u007f]|\r(?!\n)/.test(v)&&!!v.trim();
 const optional=(v,max)=>v===undefined||str(v,max);
 const num=v=>Number.isSafeInteger(v)&&v>=0&&v<=999999999;
 const date=v=>v===undefined||v===''||(typeof v==='string'&&
@@ -30,9 +34,12 @@ const own=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&
 export function validateStage3D5(input){
  if(!own(input)||!keys(input,['teamId','role','action','input'])||
   !ID.test(input.teamId||'')||
-  !['team_coach','team_manager'].includes(input.role)||
+  !['team_coach','team_manager','team_player'].includes(input.role)||
   !ACTIONS.has(input.action)||!own(input.input))return null;
  const action=input.action,x=input.input;
+ // A verified Player may read only the curated team summary, never management
+ // settings, invitation records or another role's operations.
+ if((input.role==='team_player')!==(action==='player.team.read'))return null;
  if(reads.has(action)){if(Object.keys(x).length)return null;}
  else if(action==='settings.save'){
   if(!keys(x,['teamLabel','trainingVenue','trainingStart','trainingEnd',
@@ -71,7 +78,7 @@ export function validateStage3D5(input){
   if(!keys(x,['audience','channel','body'])||
     !['players','volunteers','all'].includes(x.audience)||
     !['whatsapp','share','copy'].includes(x.channel)||
-    !str(x.body,1500)||!x.body.trim())return null;
+    !messageBody(x.body))return null;
  }else if(action==='messages.confirm'){
   if(!keys(x,['messageId','status','expectedVersion'])||
     !MSG.test(x.messageId||'')||!['sent','not-sent'].includes(x.status)||
@@ -95,7 +102,7 @@ export function validateStage3D5(input){
   if(!keys(x,['invitationId'])||!INVITE.test(x.invitationId||''))return null;
  }
  return Object.freeze({teamId:input.teamId,role:input.role,action,
-   input:Object.freeze({...x,...(action==='invite.issue'?
+   input:Object.freeze({...x,...(action==='messages.prepare'?{body:x.body.replace(/\r\n/g,'\n')}: {}),...(action==='invite.issue'?
      {email:x.email.trim().toLowerCase()}: {})})});
 }
 export const isStage3D5Read=action=>reads.has(action);

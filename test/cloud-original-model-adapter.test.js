@@ -2,8 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   projectCloudTeamToOriginalModel,originalJerseyReportFromCloud,
-  originalJerseyInventoryFromCloud,originalTeamCompetitionsFromCloud,
-  teamRecordedMatchesFromSchedule
+  originalJerseyInventoryFromCloud,originalTeamCompetitionsFromCloud,teamRecordedMatchesFromSchedule
 } from '../site/cloud-original-model-adapter.js';
 const context={teamId:'stgeorge-mixed20',club:'St George Oztag',
  teamName:'St George Mixed 20',sport:'oztag',season:'2027'};
@@ -89,4 +88,16 @@ test('team fixture schedule projection never fabricates official draw or competi
  assert.throws(()=>teamRecordedMatchesFromSchedule({...input,
   sessions:[...input.sessions,{sessionId:'bad',teamId:'other-team',kind:'match',
     startsAt:'2027-03-03T12:00:00+11:00'}]}),/cross-team/);
+});
+
+
+test('match dates sort by actual instant and exclude invalid dates and training',()=>{
+ const rows=teamRecordedMatchesFromSchedule({context,sessions:[
+  {sessionId:'later',kind:'match',startsAt:'2027-03-03T04:00:00Z'},
+  {sessionId:'event-earlier',kind:'match',startsAt:'2027-03-03T13:00:00+11:00',status:'cancelled'},
+  {sessionId:'bad',kind:'match',startsAt:null},
+  {sessionId:'training',kind:'training',startsAt:'2027-03-03T01:00:00Z'}
+ ]});
+ assert.deepEqual(rows.map(r=>r.sessionId),['event-earlier','later']);
+ assert.equal(rows[0].status,'cancelled');
 });
