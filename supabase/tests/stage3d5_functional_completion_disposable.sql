@@ -87,7 +87,7 @@ begin
  r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
   'competitions.create','{"name":"Winter Oztag","format":"tournament",
    "division":"Mixed 20","organiser":"Fictional League",
-   "venue":"Main field","status":"entered"}'::jsonb);
+   "venue":"Main field","beginsOn":"","endsOn":"","status":"entered"}'::jsonb);
  if r->>'code'<>'committed' then raise exception 'Competition creation failed %',r;end if;
  id:=r->'data'->>'competitionId';
  r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
@@ -120,6 +120,34 @@ begin
  r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
   'messages.confirm',jsonb_build_object('messageId',id,'status','sent','expectedVersion',0));
  if r->>'code'<>'committed' then raise exception 'Manual message confirmation failed';end if;
+ -- Real RPC persistence: cancel an actual planned training, retain it in schedule.
+ r:=public.tm_stage1_operation(coach,'stgeorge-mixed20','team_coach','schedule.edit',
+   'stgeorge-mixed20','{"mutationId":"phase1-create-training-001","expectedVersion":0,
+   "command":{"op":"create","kind":"training","title":"Phase 1 training","startsAt":"2027-02-22T18:00:00+11:00"}}'::jsonb,repeat('1',64));
+ if r->>'code'<>'committed' then raise exception 'Phase 1 training creation failed %',r; end if;
+ id:=r->>'resourceId';
+ r:=public.tm_stage1_operation(coach,'stgeorge-mixed20','team_coach','schedule.edit',id,
+   '{"mutationId":"phase1-cancel-training-001","expectedVersion":0,"command":{"op":"cancel"}}'::jsonb,repeat('2',64));
+ if r->>'code'<>'committed' then raise exception 'Phase 1 training cancellation failed %',r; end if;
+ r:=public.tm_stage1_operation(coach,'stgeorge-mixed20','team_coach','schedule.read','stgeorge-mixed20','{}'::jsonb,null);
+ if r->>'code'<>'permitted' or not exists(select 1 from jsonb_array_elements(r->'data') x
+   where x->>'sessionId'=id and x->>'status'='cancelled') then raise exception 'Cancelled training omitted %',r; end if;
+ insert into tm_private.sessions(session_id,team_id,kind,starts_at,title)
+ values('phase1-match','stgeorge-mixed20','match','2027-02-25T18:00:00+11:00','External fixture'),
+       ('phase1-foreign','other-team','match','2027-02-25T18:00:00+11:00','Foreign fixture');
+ r:=public.tm_stage3b_operation(coach,'stgeorge-mixed20','team_coach','availability.board','phase1-match','{}'::jsonb,null);
+ if r->>'code'<>'permitted' or jsonb_array_length(r->'data')<>1 then raise exception 'Match availability missing %',r; end if;
+ r:=public.tm_stage3b_operation(coach,'stgeorge-mixed20','team_coach','availability.board','phase1-foreign','{}'::jsonb,null);
+ if r->>'code'<>'resource-out-of-scope' then raise exception 'Foreign availability exposed %',r; end if;
+ r:=public.tm_stage3b_operation(coach,'stgeorge-mixed20','team_coach','availability.transcribe','phase1-match',
+   '{"mutationId":"phase1-coach-reply-001","expectedVersion":0,"command":{"personId":"player-p","response":"yes","source":"phone"}}'::jsonb,repeat('3',64));
+ if r->>'code'<>'committed' then raise exception 'Coach fallback failed %',r; end if;
+ r:=public.tm_stage3b_operation(coach,'stgeorge-mixed20','team_coach','event.change','phase1-match',
+   '{"mutationId":"phase1-external-event-001","expectedVersion":0,"command":{"op":"cancel"}}'::jsonb,repeat('4',64));
+ if r->>'code'<>'stale-or-external-event' then raise exception 'Official fixture changed %',r; end if;
+ r:=public.tm_stage3b_operation(coach,'stgeorge-mixed20','team_coach','availability.transcribe',id,
+   '{"mutationId":"phase1-cancelled-reply-001","expectedVersion":0,"command":{"personId":"player-p","response":"yes","source":"phone"}}'::jsonb,repeat('5',64));
+ if r->>'code'<>'invalid-availability' then raise exception 'Cancelled training accepted reported reply %',r; end if;
  r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
   'invite.issue','{"role":"team_player","email":"player@fictional.test"}'::jsonb);
  if r->>'code'<>'committed' then raise exception 'Coach member invite failed %',r;end if;
@@ -152,6 +180,15 @@ begin
   'invite.issue','{"role":"team_player","email":"another@fictional.test"}'::jsonb);
  if r->>'code'<>'invalid-request' then
   raise exception 'Coach bypassed appointed Manager';end if;
+ -- Same operation, same team: appointed Manager takes over, Coach is denied.
+ r:=public.tm_stage3b_operation(coach,'stgeorge-mixed20','team_coach','availability.transcribe','phase1-match',
+   '{"mutationId":"phase1-coach-denied-001","expectedVersion":0,"command":{"personId":"player-p","response":"no","source":"phone"}}'::jsonb,repeat('6',64));
+ if r->>'code'<>'role-denied' then raise exception 'Coach retained Manager transcription after appointment %',r; end if;
+ r:=public.tm_stage3b_operation(manager,'stgeorge-mixed20','team_manager','availability.transcribe','phase1-match',
+   '{"mutationId":"phase1-manager-reply-001","expectedVersion":0,"command":{"personId":"player-p","response":"no","source":"email"}}'::jsonb,repeat('7',64));
+ if r->>'code'<>'committed' then raise exception 'Manager transcription failed %',r; end if;
+ r:=public.tm_stage3b_operation(manager,'stgeorge-mixed20','team_manager','availability.board','phase1-match','{}'::jsonb,null);
+ if r->'data'->0->>'response'<>'no' or r->'data'->0->>'source'<>'email' then raise exception 'Match response provenance missing %',r; end if;
  -- A Manager appointment must NOT disable independently granted Coach messages.
  r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
   'messages.prepare','{"audience":"players","channel":"whatsapp",
@@ -230,6 +267,15 @@ begin
    or jsonb_array_length(r->'data'->'fixtures')<>1
    or (r->'data')::text ~ '11111111-1111-4111-8111-111111111111'
  then raise exception 'Verified Player summary is missing, expanded or unsanitised %',r;end if;
+ r:=public.tm_stage1_operation(player,'stgeorge-mixed20','team_player','schedule.read','stgeorge-mixed20','{}'::jsonb,null);
+ if r->>'code'<>'permitted' or not exists(select 1 from jsonb_array_elements(r->'data') x
+   where x->>'status'='cancelled' and x->>'kind'='training')
+   or exists(select 1 from jsonb_array_elements(r->'data') x where x->>'sessionId'='phase1-foreign')
+ then raise exception 'Player cancelled-session visibility or team isolation failed %',r; end if;
+ r:=public.tm_stage1_operation(player,'stgeorge-mixed20','team_player','availability.reply',
+   (select session_id from tm_private.sessions where team_id='stgeorge-mixed20' and title='Phase 1 training'),
+   '{"mutationId":"phase1-player-cancelled-001","expectedVersion":0,"response":"yes"}'::jsonb,repeat('8',64));
+ if r->>'code'<>'session-unavailable' then raise exception 'Player answered cancelled training %',r; end if;
  update tm_private.role_grants set status='revoked' where grant_id='grant-player-phase1';
  r:=public.tm_stage3d5_player_team(player,'stgeorge-mixed20','team_player',
    'player.team.read','{}'::jsonb);
