@@ -140,3 +140,28 @@ export function teamRecordedMatchesFromSchedule({context,sessions}={}){
      competitionId:null,official:false
    })).sort((a,b)=>Date.parse(a.startsAt)-Date.parse(b.startsAt)||a.sessionId.localeCompare(b.sessionId)));
 }
+
+/** Join only exact-team member display names to the authoritative register.
+ * Never drop unnamed register rows or infer identity from matching names.
+ */
+export function namedTrainingRegister({context,rows,members}={}){
+ const teamId=context?.teamId;
+ if(!ID.test(teamId||''))throw new TypeError('invalid-team-context');
+ const records=scopedRows(rows,teamId,'register'), people=scopedRows(members,teamId,'members');
+ const byId=new Map(), seen=new Set();
+ for(const p of people){
+  if(!ID.test(p.personId||''))throw new TypeError('invalid-person');
+  const name=plain(p.name).trim();
+  if(byId.has(p.personId))byId.set(p.personId,'');
+  else byId.set(p.personId,p.status==='active'?name:'');
+ }
+ let unnamed=0;
+ const named=records.map(p=>{
+  if(!ID.test(p.personId||'')||seen.has(p.personId))throw new TypeError('ambiguous-register');
+  seen.add(p.personId);
+  const name=byId.get(p.personId)||'';
+  if(!name)unnamed++;
+  return {...p,displayName:name||'Player reference '+p.personId};
+ });
+ return {rows:named,eligible:records.length,shown:named.length,unnamed};
+}

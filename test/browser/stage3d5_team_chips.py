@@ -32,7 +32,7 @@ grants={
  'player':[('stgeorge-mixed20','St George Oztag','2027','team_player')]
 }
 operations=[];invitations=[]
-message_log=[];notice_log=[];schedule_rows=[]
+message_log=[];notice_log=[];schedule_rows=[];attendance_rows=[];member_rows=[]
 def respond(route,body,status=200):
  return route.fulfill(status=status,content_type='application/json',body=json.dumps(body))
 def bind(ctx):
@@ -95,6 +95,27 @@ def bind(ctx):
    return respond(route,{'ok':False,'code':'role-denied'},403)
   if action=='schedule.read':
    return respond(route,{'ok':True,'code':'permitted','data':schedule_rows if team=='stgeorge-mixed20' else []})
+  if action=='schedule.edit' and role in ('team_coach','team_manager') and team=='stgeorge-mixed20':
+   value=payload['payload'];command=value['command']
+   if command['op']=='create':
+    row=dict(command,sessionId='training-example',status='planned',version=0)
+    schedule_rows.append(row)
+   else:
+    row=next((s for s in schedule_rows if s['sessionId']==payload['resourceId']),None)
+    if not row or row['version']!=value['expectedVersion'] or row['status']!='planned':
+     return respond(route,{'ok':False,'code':'stale-or-protected-session'},409)
+    row.update({k:v for k,v in command.items() if k!='op'});row['version']+=1
+   return respond(route,{'ok':True,'code':'committed','resourceId':row['sessionId'],'version':row['version']})
+  if action in ('attendance.read','availability.board') and role in ('team_coach','team_manager') and team=='stgeorge-mixed20' and payload['resourceId']=='training-example':
+   rows=attendance_rows if action=='attendance.read' else [{'personId':p['personId'],'response':None,'source':'none','version':0} for p in attendance_rows]
+   return respond(route,{'ok':True,'code':'permitted','data':rows})
+  if action=='attendance.record' and role in ('team_coach','team_manager') and team=='stgeorge-mixed20' and payload['resourceId']=='training-example':
+   value=payload['payload'];command=value['command']
+   row=next((p for p in attendance_rows if p['personId']==command['personId']),None)
+   if not row or row['version']!=value['expectedVersion']:
+    return respond(route,{'ok':False,'code':'stale-attendance'},409)
+   row['status']=command['status'];row['version']+=1
+   return respond(route,{'ok':True,'code':'committed','resourceId':payload['resourceId'],'version':row['version']})
   if action=='availability.reply' and role=='team_player' and team=='stgeorge-mixed20':
    row=next((s for s in schedule_rows if s['sessionId']==payload['resourceId']),None)
    value=payload['payload']
@@ -153,7 +174,9 @@ def bind(ctx):
     return respond(route,{'ok':False,'code':'stale-version'},409)
    m['status']=value['status'];m['version']+=1
    return respond(route,{'ok':True,'code':'committed','data':{'messageId':m['messageId'],'status':m['status'],'version':m['version']}})
-  if action in ('team.members','volunteers.list','jerseys.read',
+  if action=='team.members' and role in ('team_coach','team_manager'):
+   return respond(route,{'ok':True,'code':'permitted','data':member_rows if team=='stgeorge-mixed20' else []})
+  if action in ('volunteers.list','jerseys.read',
     'competitions.read','competitions.fixtures','duties.board','invite.list'):
    return respond(route,{'ok':True,'code':'permitted','data':[]})
   if action=='settings.read':
@@ -207,7 +230,7 @@ try:
     'fresh founder login opens Platform automatically')
   login_ctx.close()
   for width in (390,1280):
-   message_log.clear();notice_log.clear();schedule_rows.clear()
+   message_log.clear();notice_log.clear();schedule_rows.clear();attendance_rows.clear();member_rows.clear()
    start_ops=len(operations)
    c,page=session(browser,owner_token,width)
    page.locator('#club-chips button').first.wait_for()
@@ -325,6 +348,50 @@ try:
    checks.ok(page.locator('body').evaluate('(el)=>el.scrollWidth<=innerWidth+2'),
      f'[{width}] Manager layout fits')
    c.close()
+   # A fresh Manager session creates and reschedules a training session, then
+   # a separately signed-in Coach reads the persisted training and records roll call.
+   member_rows.extend([{'personId':'person-example','name':'Verified Example Player','status':'active'},
+     {'personId':'person-unnamed','name':'','status':'active'}])
+   attendance_rows.extend([{'personId':'person-example','status':None,'version':0},
+     {'personId':'person-unnamed','status':None,'version':0}])
+   c,page=session(browser,manager_token,width)
+   page.get_by_role('button',name='Schedule',exact=True).first.click()
+   training_form=page.locator('form').filter(has=page.get_by_role('button',name='Create training',exact=True))
+   training_form.get_by_label('Session title').fill('Example training')
+   training_form.get_by_label('Start date and time').fill('2027-02-20T18:00')
+   training_form.get_by_label('Location',exact=True).fill('Example field')
+   training_form.get_by_role('button',name='Create training',exact=True).click()
+   training=page.locator('.cloud-list-item').filter(has_text='Example training')
+   training.get_by_role('button',name='Edit',exact=True).click()
+   start_field=page.get_by_label('Start date and time')
+   checks.ok(start_field.input_value()=='2027-02-20T18:00',
+     f'[{width}] existing training time is prefilled on edit')
+   start_field.fill('2027-02-21T19:00')
+   expected_start=page.evaluate("() => new Date('2027-02-21T19:00').toISOString()")
+   page.get_by_role('button',name='Save changes').click()
+   training.get_by_role('button',name='Attendance and responses').wait_for()
+   checks.ok(len(schedule_rows)==1 and schedule_rows[0]['version']==1 and
+     schedule_rows[0]['startsAt']==expected_start and schedule_rows[0]['locationLabel']=='Example field',
+     f'[{width}] Manager created and rescheduled training through existing API')
+   c.close()
+   c,page=session(browser,owner_token,width)
+   page.locator('#club-chips').get_by_role('button',name='St George Oztag').click()
+   page.locator('#team-chips button').first.click()
+   page.get_by_role('button',name='Schedule',exact=True).first.click()
+   page.locator('.cloud-list-item').filter(has_text='Example training').get_by_role('button',name='Attendance and responses').click()
+   page.get_by_role('heading',name='Training roll call').wait_for()
+   roll=page.locator('.cloud-list-item').filter(has_text='Verified Example Player').filter(has=page.get_by_role('button',name='Save attendance'))
+   checks.ok(roll.get_by_label('Attendance').input_value()=='' and
+     page.get_by_text('Player reference person-unnamed',exact=True).count()==2,
+     f'[{width}] Coach sees named roll call, unnamed records retained and no default attendance')
+   roll.get_by_label('Attendance').select_option('present')
+   roll.get_by_role('button',name='Save attendance').click()
+   roll.get_by_text('Attendance: present',exact=True).wait_for()
+   checks.ok(attendance_rows[0]['status']=='present' and
+     ('owner','stgeorge-mixed20','team_coach','attendance.record') in operations,
+     f'[{width}] exact Coach attendance mutation persists and reads back')
+   c.close()
+   schedule_rows.clear()
    # Player reads and updates only their own planned availability; cancelled
    # events remain visible but cannot generate a new reply.
    schedule_rows.extend([
