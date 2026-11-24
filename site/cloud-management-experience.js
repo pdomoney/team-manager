@@ -271,6 +271,7 @@ export function createCloudManagementExperience({
       ]).value=entry.status;
       h('button',{className:'cloud-btn',text:'Save entry status',
         attrs:{type:'submit'},parent:f});
+      if(!['planned','entered'].includes(entry.status))continue;
       const fixture=form(row,async d=>{
         const date=new Date(text(d.get('startsAt')));
         if(!Number.isFinite(date.valueOf()))throw Error('invalid-request');
@@ -399,8 +400,7 @@ export function createCloudManagementExperience({
           '[Choose an upcoming training or match before sending]';
       }
       if(kind==='match'){
-        const match=schedule.filter(s=>s.kind==='match'&&s.status!=='cancelled'&&
-          s.status!=='postponed'&&new Date(s.startsAt)>=clock)
+        const match=schedule.filter(s=>s.kind==='match'&&s.status==='planned'&&new Date(s.startsAt)>=clock)
           .sort((a,b)=>a.startsAt.localeCompare(b.startsAt))[0];
         const p=projectedCloudSession(match);
         if(!p)return '[Choose an upcoming match before sending]';

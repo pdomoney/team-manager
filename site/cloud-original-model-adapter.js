@@ -136,7 +136,7 @@ export function teamRecordedMatchesFromSchedule({context,sessions}={}){
      status:plain(s.status)||'unknown',
      locationLabel:plain(s.locationLabel),
      // Event-origin is authoritative, not the absence of a provider ID.
-     source:s.sessionId.startsWith('event-')?'team-recorded':'unverified',
+     source:['team-friendly','team-activity'].includes(s.managementOrigin)?'team-recorded':'unverified',
      competitionId:null,official:false
    })).sort((a,b)=>Date.parse(a.startsAt)-Date.parse(b.startsAt)||a.sessionId.localeCompare(b.sessionId)));
 }

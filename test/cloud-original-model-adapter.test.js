@@ -74,7 +74,7 @@ test('does not infer any official fixture or registered player eligibility',()=>
 
 test('team fixture schedule projection never fabricates official draw or competition entry',()=>{
  const input={context,sessions:[
-  {sessionId:'event-abc',teamId:context.teamId,kind:'match',
+  {sessionId:'event-abc',teamId:context.teamId,kind:'match',managementOrigin:'team-friendly',
     startsAt:'2027-03-03T12:00:00+11:00',title:'vs Eagles',status:'planned'},
   {sessionId:'official-abc',teamId:context.teamId,kind:'match',
     startsAt:'2027-03-04T12:00:00+11:00',title:'vs Hawks',status:'planned'},
@@ -113,4 +113,12 @@ test('register retains every eligible row, uses verified exact ID names and coun
  assert.equal(namedTrainingRegister({context,rows,members:[base.members[0],base.members[0]]}).unnamed,3);
  assert.throws(()=>namedTrainingRegister({context,rows,members:[{...base.members[0],teamId:'foreign'}]}),/cross-team/);
  assert.throws(()=>namedTrainingRegister({context,rows:[rows[0],rows[0]],members:base.members}),/ambiguous-register/);
+});
+
+test('an event-prefixed external match is not inferred to be team-controlled',()=>{
+ const rows=teamRecordedMatchesFromSchedule({context,sessions:[
+  {sessionId:'event-external',kind:'match',managementOrigin:'external',startsAt:'2027-03-03T10:00:00Z'},
+  {sessionId:'fixture-local',kind:'match',managementOrigin:'team-activity',startsAt:'2027-03-03T11:00:00Z'}
+ ]});
+ assert.deepEqual(rows.map(x=>x.source),['unverified','team-recorded']);
 });

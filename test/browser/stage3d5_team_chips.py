@@ -395,7 +395,7 @@ try:
    # Player reads and updates only their own planned availability; cancelled
    # events remain visible but cannot generate a new reply.
    schedule_rows.extend([
-    {'sessionId':'event-example-match','kind':'match','title':'Example friendly',
+    {'sessionId':'event-example-match','kind':'match','title':'Example friendly','managementOrigin':'team-friendly',
      'startsAt':'2027-02-20T08:00:00+11:00','status':'planned',
      'locationLabel':'Example field','myAvailability':'maybe','myAvailabilityVersion':0},
     {'sessionId':'cancelled-example','kind':'training','title':'Cancelled training example',
