@@ -2,7 +2,7 @@ import {TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
   availabilityRequestText,projectedCloudSession,nextCloudTraining,
   cloudAvailabilityEvents,cancelledCloudTraining} from './shared-team-messages.js';
 import {originalJerseyReportFromCloud,originalJerseyInventoryFromCloud,
-  originalTeamCompetitionsFromCloud} from './cloud-original-model-adapter.js';
+  originalTeamCompetitionsFromCloud,teamRecordedMatchesFromSchedule} from './cloud-original-model-adapter.js';
 // Stage 3D.5 connected management surfaces. Uses the established Team Manager
 // menu vocabulary and exact-team server records, never the fictional demo vault.
 // The Host owns navigation state; each async screen discards stale team results.
@@ -145,7 +145,10 @@ export function createCloudManagementExperience({
     }
   }
   async function competitions(ctx,loading,canAdmin){
-    const competitions=await query(ctx,'competitions.read');
+    const [competitions,schedule]=await Promise.all([
+      query(ctx,'competitions.read'),getSchedule(ctx)]);
+    if(!ensure(ctx))return;
+    const teamMatches=teamRecordedMatchesFromSchedule({context:ctx,sessions:schedule});
     const entries=originalTeamCompetitionsFromCloud({
       context:{...ctx,teamName:getTeamLabel(ctx)},competitions});
     loading.remove();
@@ -206,6 +209,20 @@ export function createCloudManagementExperience({
       h('button',{className:'cloud-btn',text:'Add team-recorded fixture',
         attrs:{type:'submit'},parent:fixture});
       }
+    }
+    const matches=card('Team match schedule');
+    info('These are the selected team’s recorded matches from its existing Schedule. They are not automatically linked to a competition entry or verified as an official draw.',matches);
+    if(!teamMatches.length)info('No team match dates have been recorded yet.',matches);
+    for(const match of teamMatches){
+      const row=h('div',{className:'cloud-list-item',parent:matches});
+      h('strong',{text:match.title,parent:row});
+      info(new Date(match.startsAt).toLocaleString('en-AU',{
+        timeZone:'Australia/Sydney',day:'numeric',month:'short',
+        year:'numeric',hour:'numeric',minute:'2-digit'
+      })+' · '+match.status+(match.locationLabel?' · '+match.locationLabel:''),row);
+      info(match.source==='team-recorded'?
+        'Team-recorded fixture, not an official draw':
+        'Source not confirmed; check the competition authority',row);
     }
   }
   // The established ten-template vocabulary is shared with the original app.
