@@ -631,10 +631,12 @@ async function openMatchSquad(s,player){
           if(!current())return;
           const latest=await read();
           if(!current())return;
-          if(!latest.current||latest.version!==data.version)throw Object.assign(new Error(),{code:'stale-version'});
+          if(!latest.current||latest.version!==data.version||latest.fixtureVersion!==s.version)
+            throw Object.assign(new Error(),{code:'stale-version'});
           const body=publishedMatchSquadText({teamName:teamContextLabel(ctx),match:s,players:latest.publishedPlayers});
           if(body.length>1500)throw Object.assign(new Error(),{code:'invalid-input'});
-          await managementExperience.open('Messages',{body,audience:'players'});
+          await managementExperience.open('Messages',{body,sessionId:s.sessionId,
+            version:latest.version,fixtureVersion:latest.fixtureVersion});
         }catch(e){if(current())message(explain(e),true);}
       },actions(published));
     }else info('No current published squad for this match.',panel);

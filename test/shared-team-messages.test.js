@@ -63,3 +63,14 @@ test('only real upcoming authorised events feed the cloud availability template'
  assert(!JSON.stringify(ev).includes('cancel'));
  assert(!JSON.stringify(ev).includes('later'));
 });
+
+test('published administrative squad message has names but no inferred positions or result',async()=>{
+ const {publishedMatchSquadText}=await import('../site/shared-team-messages.js');
+ const input={teamName:'Mixed 20',match:{kind:'match',title:'vs Lions',status:'planned',startsAt:'2027-02-20T08:00:00+11:00'},players:[{displayName:'Verified Player'}]};
+ const body=publishedMatchSquadText(input);
+ assert.match(body,/Selected match squad/);
+ assert.match(body,/Verified Player/);
+ assert.match(body,/positions and interchange to be confirmed/);
+ assert.throws(()=>publishedMatchSquadText({...input,players:[]}));
+ assert.throws(()=>publishedMatchSquadText({...input,match:{...input.match,status:'cancelled'}}));
+});

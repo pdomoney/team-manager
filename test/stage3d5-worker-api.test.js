@@ -27,7 +27,7 @@ function provider({rpc=()=>({ok:true,code:'permitted',data:[]}),user={
   const u=new URL(url),body=opts.body?JSON.parse(opts.body):null;
   calls.push({path:u.pathname,body,headers:opts.headers});
   if(u.pathname==='/auth/v1/user')return reply(user);
-  if(u.pathname==='/rest/v1/rpc/tm_stage3d5_team')return reply(rpc(body));
+  if(['/rest/v1/rpc/tm_stage3d5_team','/rest/v1/rpc/tm_stage3d5_match'].includes(u.pathname))return reply(rpc(body));
   if(u.pathname==='/auth/v1/invite')return reply({},emailStatus);
   if(u.pathname==='/rest/v1/rpc/tm_stage3_delivery_result')return reply({ok:true});
   throw Error('Unknown upstream route '+u.pathname);
@@ -113,4 +113,15 @@ test('real multiline message reaches exact-team RPC; control characters never re
  const bad=await handleStage3D5Team(req('messages.prepare',{audience:'players',channel:'whatsapp',body:'a\u001bb'}),env,no.fetchImpl);
  assert.equal(bad.status,400);
  assert.equal(no.calls.length,0);
+});
+
+test('match selection reaches service RPC with verified actor and exact team',async()=>{
+ const f=provider({rpc:()=>({ok:true,code:'committed',data:{version:1,state:'draft'}})});
+ const result=await handleStage3D5Team(req('match.selection.save',{sessionId:'match-a',personIds:['player-p'],expectedVersion:0,fixtureVersion:0}),env,f.fetchImpl);
+ assert.equal(result.status,200);
+ const call=f.calls.find(x=>x.path==='/rest/v1/rpc/tm_stage3d5_match');
+ assert.equal(call.body.p_actor,USER);
+ assert.equal(call.body.p_team,'stgeorge-mixed20');
+ assert.equal(call.body.p_role,'team_coach');
+ assert.deepEqual(call.body.p_input.personIds,['player-p']);
 });

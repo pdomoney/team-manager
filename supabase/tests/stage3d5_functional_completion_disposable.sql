@@ -343,6 +343,39 @@ begin
  if r->>'code'<>'committed' then raise exception 'Notice archive failed %',r; end if;
  r:=public.tm_stage3b_operation(player,'stgeorge-mixed20','team_player','notices.read','stgeorge-mixed20','{}'::jsonb,null);
  if r->>'code'<>'permitted' or jsonb_array_length(r->'data')<>0 then raise exception 'Archived notice still visible %',r; end if;
+ -- Connected match selection: saved draft, published Player view, stale and foreign denial.
+ if has_table_privilege('authenticated','tm_private.team_match_selections','SELECT') or
+    has_function_privilege('authenticated','public.tm_stage3d5_match(uuid,text,text,text,jsonb)','EXECUTE')
+ then raise exception 'Match squad exposed to direct browser'; end if;
+ r:=public.tm_stage3d5_match(coach,'stgeorge-mixed20','team_coach','match.selection.save',
+   '{"sessionId":"phase1-match","expectedVersion":0,"fixtureVersion":0,"personIds":["player-p","player-p"]}'::jsonb);
+ if r->>'code'<>'participation-not-verified' then raise exception 'Duplicate selection accepted %',r; end if;
+ r:=public.tm_stage3d5_match(coach,'stgeorge-mixed20','team_coach','match.selection.save',
+   '{"sessionId":"phase1-match","expectedVersion":0,"fixtureVersion":0,"personIds":["volunteer-p"]}'::jsonb);
+ if r->>'code'<>'participation-not-verified' then raise exception 'Volunteer selected as Player %',r; end if;
+ r:=public.tm_stage3d5_match(coach,'stgeorge-mixed20','team_coach','match.selection.save',
+   '{"sessionId":"phase1-match","expectedVersion":0,"fixtureVersion":0,"personIds":["player-p"]}'::jsonb);
+ if r->>'code'<>'committed' or r->'data'->>'version'<>'1' then raise exception 'Match squad draft failed %',r; end if;
+ r:=public.tm_stage3d5_match(player,'stgeorge-mixed20','team_player','player.match.selection.read','{"sessionId":"phase1-match"}'::jsonb);
+ if r->'data'->>'state'<>'unavailable' or jsonb_array_length(r->'data'->'players')<>0
+ then raise exception 'Player saw draft %',r; end if;
+ r:=public.tm_stage3d5_match(coach,'stgeorge-mixed20','team_coach','match.selection.publish',
+   '{"sessionId":"phase1-match","expectedVersion":0,"fixtureVersion":0}'::jsonb);
+ if r->>'code'<>'stale-version' then raise exception 'Stale publish accepted %',r; end if;
+ r:=public.tm_stage3d5_match(coach,'stgeorge-mixed20','team_coach','match.selection.publish',
+   '{"sessionId":"phase1-match","expectedVersion":1,"fixtureVersion":0}'::jsonb);
+ if r->>'code'<>'committed' then raise exception 'Match squad publish failed %',r; end if;
+ r:=public.tm_stage3d5_match(player,'stgeorge-mixed20','team_player','player.match.selection.read','{"sessionId":"phase1-match"}'::jsonb);
+ if r->'data'->>'state'<>'published' or r->'data'->'players'->0->>'displayName'<>'Verified Player'
+ or (r->'data')::text like '%player-p%' then raise exception 'Published squad missing or private ID leaked %',r; end if;
+ r:=public.tm_stage3d5_match(player,'stgeorge-mixed20','team_player','player.match.selection.read','{"sessionId":"phase1-foreign"}'::jsonb);
+ if r->>'code'<>'scope-denied' then raise exception 'Foreign match disclosed %',r; end if;
+ update tm_private.sessions set resource_version=resource_version+1 where session_id='phase1-match';
+ r:=public.tm_stage3d5_match(player,'stgeorge-mixed20','team_player','player.match.selection.read','{"sessionId":"phase1-match"}'::jsonb);
+ if r->'data'->>'state'<>'unavailable' then raise exception 'Old selection exposed after fixture change %',r; end if;
+ r:=public.tm_stage3d5_match(coach,'stgeorge-mixed20','team_coach','match.selection.withdraw',
+   '{"sessionId":"phase1-match","expectedVersion":2,"fixtureVersion":1}'::jsonb);
+ if r->>'code'<>'committed' then raise exception 'Selection withdrawal failed %',r; end if;
  update tm_private.role_grants set status='revoked' where grant_id='grant-player-phase1';
  r:=public.tm_stage3d5_player_team(player,'stgeorge-mixed20','team_player',
    'player.team.read','{}'::jsonb);
