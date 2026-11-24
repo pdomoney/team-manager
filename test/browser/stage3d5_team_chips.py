@@ -260,13 +260,18 @@ try:
    page.get_by_role('button',name='More',exact=True).first.click()
    page.get_by_role('heading',name='Your team').wait_for()
    checks.ok(page.locator('.cloud-more-item').get_by_role('button',name='Noticeboard').count()==0 and
-     page.locator('.cloud-more-item').count()>=3,
+     page.locator('.cloud-more-item').count()>=4,
      f'[{width}] Player has direct links to notices and schedule')
    checks.ok(page.get_by_role('button',name='Competitions').count()==0 and
      page.get_by_role('button',name='Jerseys').count()==0,
      f'[{width}] Player does not gain Coach-only management controls')
    page.locator('.cloud-more-item').get_by_text('Noticeboard',exact=True).click()
    page.get_by_role('heading',name='Noticeboard').wait_for()
+   page.get_by_role('button',name='All team tools').click()
+   page.locator('.cloud-more-item').get_by_text('Match dates',exact=True).click()
+   page.get_by_role('heading',name='Team match dates').wait_for()
+   checks.ok(page.get_by_text('No match dates are recorded for this team yet.').count()==1,
+     f'[{width}] Player sees genuine empty match schedule, not invented tournaments')
    page.get_by_role('button',name='All team tools').click()
    page.locator('.cloud-more-item').get_by_text('Schedule',exact=True).click()
    page.get_by_role('heading',name='Schedule').wait_for()
