@@ -22,12 +22,14 @@ checks=Check();errors=[]
 engine=os.getenv('STAGE3D5_BROWSER_ENGINE','chromium')
 owner_token='synthetic-owner-token-long-123456789'
 manager_token='synthetic-manager-token-long-123456789'
+player_token='synthetic-player-token-long-123456789'
 grants={
  'owner':[
   ('stgeorge-mixed20','St George Oztag','2027','team_coach'),
   ('stgeorge-mixed20','St George Oztag','2027','team_volunteer'),
   ('rangers-manager','Rangers Club','2027','team_manager')],
- 'manager':[('stgeorge-mixed20','St George Oztag','2027','team_manager')]
+ 'manager':[('stgeorge-mixed20','St George Oztag','2027','team_manager')],
+ 'player':[('stgeorge-mixed20','St George Oztag','2027','team_player')]
 }
 operations=[];invitations=[]
 def respond(route,body,status=200):
@@ -37,6 +39,7 @@ def bind(ctx):
   header=req.headers.get('authorization','')
   if owner_token in header:return 'owner'
   if manager_token in header:return 'manager'
+  if player_token in header:return 'player'
   return None
  def provider(route):
   who=actor(route.request)
@@ -50,8 +53,9 @@ def bind(ctx):
    return respond(route,{},401)
   if not who:return respond(route,{},401)
   if path=='/auth/v1/user':
-   return respond(route,{'id':'11111111-1111-4111-8111-111111111111' if who=='owner' else
-      '22222222-2222-4222-8222-222222222222',
+   return respond(route,{'id':{'owner':'11111111-1111-4111-8111-111111111111',
+     'manager':'22222222-2222-4222-8222-222222222222',
+     'player':'33333333-3333-4333-8333-333333333333'}[who],
     'email':who+'@example.test','email_confirmed_at':'2026-11-23T00:00:00Z'})
   if path=='/rest/v1/rpc/tm_my_operator_context':
    return respond(route,{'isOwner':who=='owner'})
@@ -88,7 +92,11 @@ def bind(ctx):
   if not who or not any(t==team and r==role for t,c,s,r in grants[who]):
    return respond(route,{'ok':False,'code':'role-denied'},403)
   if action in ['schedule.read','roster.read','notices.read','duty.read']:
-   return respond(route,{'ok':True,'code':'permitted','data':[]})
+   rows=[{'sessionId':'session-abc','teamId':'stgeorge-mixed20',
+     'title':'Team training','kind':'training','status':'planned',
+     'startsAt':'2027-03-03T18:00:00+11:00',
+     'myAvailability':'maybe','myAvailabilityVersion':0}] if action=='schedule.read' and who=='player' else []
+   return respond(route,{'ok':True,'code':'permitted','data':rows})
   return respond(route,{'ok':False,'code':'role-denied'},403)
  def management(route):
   who=actor(route.request)
@@ -235,6 +243,28 @@ try:
    page.get_by_role('button',name='All management tools').click()
    checks.ok(page.locator('body').evaluate('(el)=>el.scrollWidth<=innerWidth+2'),
      f'[{width}] Manager layout fits')
+   c.close()
+   c,page=session(browser,player_token,width)
+   page.get_by_role('heading',name='Home').wait_for()
+   checks.ok('Player' in page.locator('#active-context').inner_text(),
+     f'[{width}] verified Player opens own approved team automatically')
+   page.get_by_role('button',name='More',exact=True).first.click()
+   page.get_by_role('heading',name='Your team').wait_for()
+   checks.ok(page.get_by_role('button',name='Noticeboard').count()==1 and
+     page.get_by_role('button',name='Schedule').count()==1,
+     f'[{width}] Player has direct links to notices and schedule')
+   checks.ok(page.get_by_role('button',name='Competitions').count()==0 and
+     page.get_by_role('button',name='Jerseys').count()==0,
+     f'[{width}] Player does not gain Coach-only management controls')
+   page.get_by_role('button',name='Noticeboard').click()
+   page.get_by_role('heading',name='Noticeboard').wait_for()
+   page.get_by_role('button',name='All team tools').click()
+   page.get_by_role('button',name='Schedule').click()
+   page.get_by_role('heading',name='Schedule').wait_for()
+   checks.ok(('player','stgeorge-mixed20','team_player','schedule.read') in operations,
+     f'[{width}] Player schedule uses only verified Player grant')
+   checks.ok(page.locator('body').evaluate('(el)=>el.scrollWidth<=innerWidth+2'),
+     f'[{width}] Player navigation fits mobile and desktop')
    c.close()
   browser.close()
 finally:server.shutdown()
