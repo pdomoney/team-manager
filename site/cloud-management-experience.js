@@ -368,7 +368,7 @@ export function createCloudManagementExperience({
     };
     const labelNotice=h('label',{parent:f,className:'cloud-checkbox-row'});
     const check=h('input',{attrs:{name:'postNotice',type:'checkbox',value:'yes'},parent:labelNotice});
-    check.checked=true;
+    check.checked=false;
     h('span',{text:"Also post it on the app's noticeboard",parent:labelNotice});
     info('Noticeboard text uses the same content without line breaks. WhatsApp is not sent automatically.',f);
     h('button',{className:'cloud-btn primary',text:'Prepare and log message',
