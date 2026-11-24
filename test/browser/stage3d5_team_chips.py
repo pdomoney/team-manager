@@ -338,21 +338,27 @@ try:
    page.get_by_role('heading',name='Create a league, tournament or carnival').wait_for()
    create=page.locator('form').filter(has=page.get_by_role('button',name='Create competition',exact=True))
    create.get_by_label('Competition name').fill('Example carnival')
-   create.get_by_label('Format',exact=True).select_option('carnival')
+   # Implicit select labels include option text on WebKit. Scope by form and
+   # stable field name, as for the existing message template controls.
+   create.locator('select[name=format]').select_option('carnival')
+   checks.ok(create.locator('select[name=format]').input_value()=='carnival',
+     f'[{width}] tournament format selection is applied')
    create.get_by_role('button',name='Create competition',exact=True).click()
    entry=page.locator('.cloud-list-item').filter(has=page.get_by_text('Example carnival',exact=True))
    entry.get_by_text('Edit competition and participation').click()
    edit=entry.locator('form').filter(has=page.get_by_role('button',name='Save competition and entry',exact=True))
-   checks.ok(edit.get_by_label('Competition name').input_value()=='Example carnival',
+   checks.ok(edit.get_by_label('Competition name').input_value()=='Example carnival' and
+     edit.locator('select[name=format]').input_value()=='carnival' and
+     edit.locator('select[name=status]').input_value()=='planned',
      f'[{width}] existing tournament details are prefilled')
    edit.get_by_label('Venue',exact=True).fill('Updated venue')
-   edit.get_by_label('Participation').select_option('entered')
+   edit.locator('select[name=status]').select_option('entered')
    edit.get_by_role('button',name='Save competition and entry',exact=True).click()
    entry.get_by_text('carnival · 2027 · No grade · entered',exact=True).wait_for()
    checks.ok(competition_rows[0]['venue']=='Updated venue' and competition_rows[0]['version']==1,
      f'[{width}] existing tournament and entry update persisted')
    entry.get_by_text('Edit competition and participation').click()
-   edit.get_by_label('Participation').select_option('withdrawn')
+   edit.locator('select[name=status]').select_option('withdrawn')
    edit.get_by_role('button',name='Save competition and entry',exact=True).click()
    entry.get_by_text('carnival · 2027 · No grade · withdrawn',exact=True).wait_for()
    checks.ok(entry.get_by_role('button',name='Add team-recorded fixture').count()==0,
