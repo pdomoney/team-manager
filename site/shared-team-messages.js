@@ -84,6 +84,16 @@ export function nextCloudTraining(sessions, options={}){
     Number.isFinite(new Date(s.startsAt).getTime())&&new Date(s.startsAt)>=clock)
     .sort((a,b)=>a.startsAt.localeCompare(b.startsAt))[0]||null;
 }
+// Cancellation and reminder selection must remain separate. In particular,
+ // an ordinary planned session must never produce a false cancellation notice.
+export function cancelledCloudTraining(sessions,{now=new Date()}={}){
+ if(!Array.isArray(sessions))throw new TypeError('invalid-sessions');
+ if(!(now instanceof Date)||!Number.isFinite(now.getTime()))throw new TypeError('invalid-now');
+ return sessions.filter(s=>s?.kind==='training'&&s.status==='cancelled'&&
+   typeof s.startsAt==='string'&&Number.isFinite(new Date(s.startsAt).getTime())&&
+   new Date(s.startsAt)>=now)
+   .sort((a,b)=>a.startsAt.localeCompare(b.startsAt))[0]||null;
+}
 export function cloudAvailabilityEvents(sessions,{now=new Date(),timeZone='Australia/Sydney'}={}){
   if(!Array.isArray(sessions))throw new TypeError('invalid-sessions');
   if(!(now instanceof Date)||!Number.isFinite(now.getTime()))throw new TypeError('invalid-now');
