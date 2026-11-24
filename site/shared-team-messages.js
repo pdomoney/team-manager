@@ -80,9 +80,19 @@ export function projectedCloudSession(s,{timeZone='Australia/Sydney'}={}){
 export function nextCloudTraining(sessions, options={}){
   if(!Array.isArray(sessions))throw new TypeError('invalid-sessions');
   const clock=options.now instanceof Date?options.now:new Date();
-  return sessions.filter(s=>s?.kind==='training'&&s.status!=='cancelled'&&
+  return sessions.filter(s=>s?.kind==='training'&&s.status==='planned'&&
     Number.isFinite(new Date(s.startsAt).getTime())&&new Date(s.startsAt)>=clock)
     .sort((a,b)=>a.startsAt.localeCompare(b.startsAt))[0]||null;
+}
+// Cancellation and reminder selection must remain separate. In particular,
+ // an ordinary planned session must never produce a false cancellation notice.
+export function cancelledCloudTraining(sessions,{now=new Date()}={}){
+ if(!Array.isArray(sessions))throw new TypeError('invalid-sessions');
+ if(!(now instanceof Date)||!Number.isFinite(now.getTime()))throw new TypeError('invalid-now');
+ return sessions.filter(s=>s?.kind==='training'&&s.status==='cancelled'&&
+   typeof s.startsAt==='string'&&Number.isFinite(new Date(s.startsAt).getTime())&&
+   new Date(s.startsAt)>=now)
+   .sort((a,b)=>a.startsAt.localeCompare(b.startsAt))[0]||null;
 }
 export function cloudAvailabilityEvents(sessions,{now=new Date(),timeZone='Australia/Sydney'}={}){
   if(!Array.isArray(sessions))throw new TypeError('invalid-sessions');
@@ -97,4 +107,59 @@ export function cloudAvailabilityEvents(sessions,{now=new Date(),timeZone='Austr
       return {kind:s.kind==='match'?'match':'session',dateLabel:p.dayLabel,
         startLabel:p.startLabel,opponent:s.opponent||''};
     }).slice(0,40);
+}
+
+
+// Original Team Manager match message structure, with real team-scoped data.
+// Never treat a team-recorded fixture as an official draw.
+export function nextMatchMessageText({
+ teamName,match=null,dateLabel='',timeLabel='',venue='',opponent='',round='',notes=''
+}={}){
+ const name=singleSpace(teamName);
+ if(!name)throw new TypeError('team-name-required');
+ if(!match)return '🏉 *Next match — '+name+'*\n\n(Add a match and it will fill in here.)';
+ if(!dateLabel)throw new TypeError('match-date-required');
+ return '🏉 *'+name+' vs '+(singleSpace(opponent)||'TBC')+'*'+
+  '\n📅 '+dateLabel+(timeLabel?', '+timeLabel:'')+
+  '\n📍 '+(singleSpace(venue)||'Venue TBC')+
+  (singleSpace(round)?'\n🏆 '+round:'')+
+  (singleSpace(notes)?'\n📝 '+notes:'')+
+  '\n\nReply *YES*, *NO* or *MAYBE* if you haven’t yet.';
+}
+export function competitionCountdownText({teamName,competition=null,todayISO}={}){
+ const name=singleSpace(teamName);
+ if(!name)throw new TypeError('team-name-required');
+ const day=competition?.beginsOn;
+ if(typeof day!=='string'||!/^\d{4}-\d\d-\d\d$/.test(day)||
+    !/^\d{4}-\d\d-\d\d$/.test(todayISO||''))return null;
+ const ms=Date.parse(day+'T00:00:00Z')-Date.parse(todayISO+'T00:00:00Z');
+ if(!Number.isFinite(ms)||ms<0)return null;
+ const days=Math.round(ms/86400000);
+ return '⏳ *'+days+' days* until '+singleSpace(competition.name)+
+   (singleSpace(competition.venue)?' at '+singleSpace(competition.venue):'')+
+   ' — '+name+'.\n\nEvery session counts from here. Let’s keep turning up. 💪';
+}
+export const MANUAL_TEAM_TEMPLATES=Object.freeze({
+ results:{label:'Results',placeholder:'[Enter verified results before sending]'},
+ lineup:{label:'Lineup',placeholder:'[Enter the confirmed team lineup before sending]'},
+ help:{label:'Help needed',placeholder:'[Describe the actual help needed before sending]'}
+});
+export function manualTeamTemplateText(kind,{teamName}={}){
+ const template=MANUAL_TEAM_TEMPLATES[kind],name=singleSpace(teamName);
+ if(!template||!name)throw new TypeError('invalid-manual-template');
+ return ({results:'🏉',lineup:'📋',help:'🙋'})[kind]+' *'+template.label+
+   ' — '+name+'*\n\n'+template.placeholder;
+}
+export function containsUnfilledTemplate(textValue){
+ return Object.values(MANUAL_TEAM_TEMPLATES).some(x=>safe(textValue).includes(x.placeholder))||
+  /\[(?:Enter|Choose) [^\]\r\n]{1,120}\]/.test(safe(textValue));
+}
+export function accountInvitationText({teamName,url}={}){
+ const name=singleSpace(teamName);
+ let link;
+ try{link=new URL(url);}catch{throw new TypeError('invalid-signin-url');}
+ if(link.protocol!=='https:'||link.username||link.password||link.search||link.hash||
+    !link.pathname.endsWith('/cloud-access.html'))throw new TypeError('invalid-signin-url');
+ return '👋 Here’s the '+name+' team app: training, team notices and availability.\n\n'+
+   link.href+'\n\nYour account must have its own verified invitation and approved team role before you can access team information. Ask the Team Manager if you have not received one.';
 }

@@ -98,10 +98,23 @@ begin
  if exists(select 1 from tm_private.team_competitions where official_verified)
  then raise exception 'Team authored authoritative competition draw';end if;
  r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
-  'messages.prepare','{"audience":"players","channel":"whatsapp",
-    "body":"Check your training availability."}'::jsonb);
+  'competitions.fixtures','{}'::jsonb);
+ if r->>'code'<>'permitted' or jsonb_array_length(r->'data')<>1
+   or r->'data'->0->>'official'<>'false'
+   or r->'data'->0->>'title'<>'vs Fictional Lions'
+   or r->'data'->0->>'competitionId'<>id
+ then raise exception 'Team local fixture read failed %',r;end if;
+ r:=public.tm_stage3d5_team(coach,'other-team','team_coach',
+  'competitions.fixtures','{}'::jsonb);
+ if r->>'code'<>'scope-denied' then raise exception 'Foreign team fixture read succeeded';end if;
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
+  'messages.prepare',jsonb_build_object('audience','players','channel','whatsapp',
+    'body',E'Training update\nCheck your training availability.'));
  if r->>'code'<>'committed' then raise exception 'Message prepare failed';end if;
  id:=r->'data'->>'messageId';
+ if not exists(select 1 from tm_private.team_message_log where message_id=id
+   and content=E'Training update\nCheck your training availability.')
+ then raise exception 'Multiline message was altered in storage';end if;
  if exists(select 1 from tm_private.team_message_log where status='sent')
  then raise exception 'WhatsApp incorrectly auto-confirmed sent';end if;
  r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
@@ -148,6 +161,18 @@ begin
  r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager',
   'settings.read','{}'::jsonb);
  if r->>'code'<>'permitted' then raise exception 'Manager lacked team settings';end if;
+ r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager',
+   'messages.read','{}'::jsonb);
+ if r->>'code'<>'permitted' or
+   exists(select 1 from jsonb_array_elements(r->'data') msg
+     where msg->>'canConfirm'='true')
+ then raise exception 'Manager could confirm another Coach message';end if;
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
+   'messages.read','{}'::jsonb);
+ if r->>'code'<>'permitted' or
+   not exists(select 1 from jsonb_array_elements(r->'data') msg
+     where msg->>'canConfirm'='true')
+ then raise exception 'Coach could not confirm own messages';end if;
  update tm_private.role_grants set status='revoked' where grant_id='grant-manager';
  r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager',
   'team.members','{}'::jsonb);
@@ -158,5 +183,57 @@ begin
    where team_id='stgeorge-mixed20' and action like 'stage3d5.%')<7
  then raise exception 'Management mutations missing audit evidence';end if;
  raise notice 'PASS Stage3D5: Owner+Coach, settings, jerseys, competitions, manual messages, team invitations, takeover/fallback, cross-team and revocation';
+end $$;
+-- Curated Player summary: only independently reviewed adult and exact-team
+-- verified participation, never an arbitrary signed-in account or other team.
+do $$
+declare
+ coach uuid:='11111111-1111-4111-8111-111111111111';
+ player uuid:='33333333-3333-4333-8333-333333333333';
+ outsider uuid:='44444444-4444-4444-8444-444444444444';
+ r jsonb;
+begin
+ if has_function_privilege('authenticated',
+   'public.tm_stage3d5_player_team(uuid,text,text,text,jsonb)','EXECUTE') then
+   raise exception 'Player RPC exposed to direct browser client'; end if;
+ r:=public.tm_stage3d5_player_team(outsider,'stgeorge-mixed20','team_player',
+   'player.team.read','{}'::jsonb);
+ if r->>'code'<>'scope-denied' then raise exception 'Stranger saw player summary'; end if;
+ insert into tm_private.accounts(user_id,status) values(player,'active')
+ on conflict (user_id) do update set status='active';
+ insert into tm_private.registration_adult_reviews(
+   user_id,reviewed_by,reviewed_at,evidence_ref,state)
+ values(player,coach,now(),'evidence-ref/fictional-player-review','approved')
+ on conflict (user_id) do nothing;
+ insert into tm_private.registration_acceptances(
+   user_id,policy_id,terms_accepted,privacy_acknowledged,marketing_opt_in)
+ values(player,'fictional-stg3d5-policy',true,true,false);
+ insert into tm_private.account_person_links(
+   user_id,person_id,status,verified_by,verified_at)
+ values(player,'player-p','verified',coach,now());
+ insert into tm_private.account_profiles(user_id,display_name)
+ values(player,'Verified Player');
+ insert into tm_private.role_grants(grant_id,user_id,team_id,role,status,approved_by,approved_at)
+ values('grant-player-phase1',player,'stgeorge-mixed20','team_player','active',coach,now());
+ r:=public.tm_stage3d5_player_team(player,'other-team','team_player',
+   'player.team.read','{}'::jsonb);
+ if r->>'code'<>'scope-denied' then raise exception 'Cross-team Player access'; end if;
+ r:=public.tm_stage3d5_player_team(player,'stgeorge-mixed20','team_manager',
+   'player.team.read','{}'::jsonb);
+ if r->>'code'<>'invalid-request' then raise exception 'Player forged Manager role'; end if;
+ r:=public.tm_stage3d5_player_team(player,'stgeorge-mixed20','team_player',
+   'player.team.read','{}'::jsonb);
+ if r->>'code'<>'permitted' or r->'data'->>'rosterEligible'<>'1'
+   or r->'data'->>'rosterShown'<>'1'
+   or r->'data'->'roster'->0->>'displayName'<>'Verified Player'
+   or jsonb_array_length(r->'data'->'competitions')<>1
+   or jsonb_array_length(r->'data'->'fixtures')<>1
+   or (r->'data')::text ~ '11111111-1111-4111-8111-111111111111'
+ then raise exception 'Verified Player summary is missing, expanded or unsanitised %',r;end if;
+ update tm_private.role_grants set status='revoked' where grant_id='grant-player-phase1';
+ r:=public.tm_stage3d5_player_team(player,'stgeorge-mixed20','team_player',
+   'player.team.read','{}'::jsonb);
+ if r->>'code'<>'scope-denied' then raise exception 'Revoked Player still had access'; end if;
+ raise notice 'PASS Phase 1 Player: exact team and adult review, curated roster and fixtures, cross-team and revocation denied';
 end $$;
 rollback;

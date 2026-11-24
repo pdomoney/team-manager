@@ -6,7 +6,7 @@ import {delivery} from './stage3-onboarding-api.js';
 import {validateStage3D5,isStage3D5Read} from '../src/stage3d5-management-contract.js';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE=new Set(['invalid-request','scope-denied','role-denied',
-  'stale-version','already-assigned','invite-unavailable','verified-identity-required',
+  'stale-version','already-assigned','participation-not-verified','invite-unavailable','verified-identity-required',
   'activation-preflight-denied','person-not-verified','volunteer-not-verified','grant-unavailable',
   'committed','permitted']);
 const obj=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -48,7 +48,8 @@ export async function handleStage3D5Team(request,env,fetchImpl=fetch){
   if(!user||!UUID.test(user.id||'')||
     !(user.email_confirmed_at||user.confirmed_at))
     return deny('unauthenticated',401);
-  const result=await remote(fetchImpl,env.SUPABASE_URL+'/rest/v1/rpc/tm_stage3d5_team',{
+  const rpc=op.action==='player.team.read'?'tm_stage3d5_player_team':'tm_stage3d5_team';
+  const result=await remote(fetchImpl,env.SUPABASE_URL+'/rest/v1/rpc/'+rpc,{
     method:'POST',headers:{...adminHeaders(env),'Content-Type':'application/json'},
     body:JSON.stringify({p_actor:user.id,p_team:op.teamId,p_role:op.role,
       p_action:op.action,p_input:op.input})

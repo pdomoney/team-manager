@@ -99,3 +99,18 @@ test('New route rejects unauthenticated request while preserving existing policy
   'Content-Type':'application/json'},body:'{}'}),env);
  assert.equal(r.status,401);
 });
+
+test('real multiline message reaches exact-team RPC; control characters never reach provider',async()=>{
+ const body='🏉 *Training — Mixed 20*\n📅 Friday\n📍 Field 2\n\nReply YES';
+ const f=provider({rpc:()=>({ok:true,code:'committed',data:{messageId:'message-'+'a'.repeat(32),status:'prepared'}})});
+ const r=await handleStage3D5Team(req('messages.prepare',{audience:'players',channel:'whatsapp',body}),env,f.fetchImpl);
+ assert.equal(r.status,200);
+ const rpc=f.calls.find(x=>x.path==='/rest/v1/rpc/tm_stage3d5_team');
+ assert.equal(rpc.body.p_actor,USER);
+ assert.equal(rpc.body.p_team,'stgeorge-mixed20');
+ assert.equal(rpc.body.p_input.body,body);
+ const no=provider();
+ const bad=await handleStage3D5Team(req('messages.prepare',{audience:'players',channel:'whatsapp',body:'a\u001bb'}),env,no.fetchImpl);
+ assert.equal(bad.status,400);
+ assert.equal(no.calls.length,0);
+});

@@ -31,7 +31,7 @@ const ROLE_NAMES=Object.freeze({
 });
 const state={user:null,contexts:[],context:null,activeClub:null,isPlatformOwner:false,
   founderTeamId:null,tab:'home',epoch:0,
-  schedule:[],roster:[],members:[],duties:[],drafts:[],published:[],notices:[],preview:null,busy:false};
+  schedule:[],roster:[],members:[],duties:[],drafts:[],published:[],notices:[],playerTeam:null,preview:null,busy:false};
 const hasRole=(...roles)=>hasTeamRole(state.context,...roles);
 const canEditSchedule=()=>hasRole('team_coach','team_manager','team_assistant');
 const canRoster=()=>hasRole('team_coach','team_manager');
@@ -129,7 +129,7 @@ function drawContextChips(){
       // Clear previous team's private records before revealing team chips.
       state.epoch++;state.context=null;state.activeClub=club;
       state.schedule=[];state.roster=[];state.members=[];state.duties=[];state.notices=[];
-      state.drafts=[];state.published=[];state.preview=null;
+      state.drafts=[];state.published=[];state.playerTeam=null;state.preview=null;
       $('active-context').textContent='Choose a team · '+club;
       $('cloud-nav').hidden=true;$('cloud-desktop-nav').hidden=true;
       clear();title('Choose an authorised team',club);
@@ -148,7 +148,7 @@ function selectContext(key){
   state.epoch++;notice.hidden=true;state.context=next;
   state.activeClub=next.kind==='team'?next.club:null;
   state.schedule=[];state.roster=[];state.members=[];state.duties=[];state.notices=[];state.drafts=[];
-  state.published=[];state.preview=null;
+  state.published=[];state.playerTeam=null;state.preview=null;
   $('active-context').textContent=contextLabel(next);
   $('cloud-nav').hidden=false;$('cloud-desktop-nav').hidden=false;
   state.tab='home';drawContextChips();drawTabs();void showTab();
@@ -211,6 +211,10 @@ async function loadForTab(tab,epoch){
       }
     }
     if(roleForAction(c,'duty.read'))await need('duty.read','duties');
+    if(MANAGEMENT_PARITY&&hasRole('team_player')){
+      const snapshot=await management.call(c,'player.team.read');
+      if(state.epoch===epoch)state.playerTeam=snapshot;
+    }
     if(hasRole('team_manager','team_coach'))await need('schedule.read','schedule');
   }else if(tab==='tactics'){
     if(canViewTactics())await need('play.published.read','published');
@@ -615,7 +619,7 @@ function renderTeam(){
     field(f,'Existing or new candidate reference (no personal details)','personId');
     h('button',{className:'cloud-btn primary',text:'Nominate player',attrs:{type:'submit'},parent:f});
   }
-  if(hasRole('team_manager')){
+  if(hasRole('team_manager')&&!MANAGEMENT_PARITY){
     const v=card('Assign verified volunteer duty');
     info('A valid independently approved volunteer grant and verified person link are required.',v);
     const f=form(v,async d=>{
@@ -647,10 +651,48 @@ function renderTeam(){
       }
     });
   }
-  if(!canRoster()&&hasRole('team_player','team_play_viewer'))
+  if(!canRoster()&&hasRole('team_player'))
+    info('Private player records, contact details and volunteer assignments are not available to Players. Verified team display names appear below.',main);
+  else if(!canRoster()&&hasRole('team_play_viewer'))
     info('Private squad and volunteer information is not available to this role.');
-  if(hasRole('team_manager'))renderDutyBoard(c);
+  if(hasRole('team_manager')&&!MANAGEMENT_PARITY)renderDutyBoard(c);
+  if(MANAGEMENT_PARITY&&hasRole('team_coach','team_manager')){
+    const duties=card('Volunteer assignments');
+    info('Coach covers team administration until a verified Team Manager is appointed. Current permission is rechecked before each action.',duties);
+    button('Manage volunteer duties',()=>void managementExperience.open('Volunteer tally'),
+      actions(duties),{primary:true});
+  }
+  if(MANAGEMENT_PARITY&&hasRole('team_player'))renderPlayerTeamSnapshot();
     if(hasRole('team_coach','team_manager'))renderTeamInvitations(c);
+}
+function renderPlayerTeamSnapshot(){
+  const snapshot=state.playerTeam;
+  if(!snapshot){
+    info('Your verified squad and tournament details are not available. Refresh your permissions and team data.');return;
+  }
+  const squad=card('Our team');
+  info('Only independently verified adult participant display names are shown. Other private player details are never included.',squad);
+  if(!snapshot.roster?.length)info('No approved player display names are available.',squad);
+  for(const item of snapshot.roster||[]){
+    const row=h('div',{className:'cloud-list-item',parent:squad});
+    h('strong',{text:item.displayName,parent:row});
+  }
+  if(snapshot.rosterOmittedUnverified)
+    info(snapshot.rosterOmittedUnverified+' active squad member(s) are not displayed because their name is not independently verified.',squad);
+  const comps=card('Tournaments and competitions');
+  info('Team-recorded competition entries and fixtures. Official competition draws require confirmation from the organiser.',comps);
+  if(!snapshot.competitions?.length)info('No competition entries have been published for this team.',comps);
+  for(const item of snapshot.competitions||[]){
+    const row=h('div',{className:'cloud-list-item',parent:comps});
+    h('strong',{text:item.name,parent:row});
+    info([item.format,item.division,item.status,item.venue].filter(Boolean).join(' · '),row);
+    for(const fixture of (snapshot.fixtures||[]).filter(f=>f.competitionId===item.competitionId)){
+      const event=h('div',{className:'cloud-list-item',parent:row});
+      h('strong',{text:fixture.title||'Team-recorded fixture',parent:event});
+      info(when(fixture.startsAt)+(fixture.locationLabel?' · '+fixture.locationLabel:''),event);
+      info('Team recorded, not an official draw',event);
+    }
+  }
 }
 function renderDutyBoard(ctx){
   const c=card('Team volunteer duty board');
@@ -686,16 +728,24 @@ function renderDutyBoard(ctx){
     });
   }).catch(e=>{if(epoch!==state.epoch)return;loading.textContent=explain(e);});
 }
+function openNoticeboard(){
+  if(!canReadNotices())return;
+  state.epoch++;clear();
+  title('Noticeboard',contextLabel(state.context));
+  button('Back to More',()=>switchTab('more'),actions());
+  renderNotices('noticeboard');
+}
 function renderNotices(place='more'){
   if(!canReadNotices())return;
   const c=card(place==='home'?'Latest team notices':'Team notices');
-  if(place==='more'&&canManage()){
+  if(place!=='home'&&canManage()){
     const f=form(c,async d=>{
       const result=await mutation('notice.create',state.context.teamId,0,{command:{
         title:String(d.get('title')).trim(),body:String(d.get('body')).trim(),
         audience:String(d.get('audience'))}});
       message('Notice saved as a draft. Review it before publishing.');
-      await showTab();
+      if(place==='noticeboard')openNoticeboard();
+      else await showTab();
     });
     field(f,'Notice title','title',{max:100});
     const label=h('label',{text:'Notice message',parent:f});
@@ -716,12 +766,13 @@ function renderNotices(place='more'){
         h('strong',{text:n.title,parent:row});
         h('small',{text:n.audience+' · '+n.status,parent:row});
         h('p',{text:n.body,parent:row});
-        if(place!=='more'||!canManage())return;
+        if(place==='home'||!canManage()||n.status==='archived')return;
         const a=actions(row);
         const change=async(operation,command)=>{
           try{await mutation(operation,n.noticeId,n.version,{command});
             message(operation==='notice.publish'?'Notice published to its approved audience.':'Notice archived.');
-            await showTab();}
+            if(place==='noticeboard')openNoticeboard();
+            else await showTab();}
           catch(e){message(explain(e),true);}
         };
         if(n.status==='draft')button('Publish notice',()=>void change('notice.publish',{op:'publish'}),a,{primary:true});
@@ -1090,11 +1141,8 @@ function renderMore(){
     const add=(name,description,artwork)=>moreEntry(menu,name,description,
       ()=>void managementExperience.open(name),artwork);
     add('Messages','WhatsApp messages and the message log','chat');
-    moreEntry(menu,'Noticeboard','Post notices for players to see on Home',()=>{
-      clear();title('Noticeboard',contextLabel(state.context));
-      button('All management tools',()=>switchTab('more'),actions());
-      renderNotices();
-    },'clip');
+    moreEntry(menu,'Noticeboard','Post notices for players to see on Home',
+      openNoticeboard,'clip');
     add('Volunteer tally','Who has helped, and how often','check');
     moreEntry(menu,'Reports','Attendance, results, volunteering and loose ends',
       ()=>void openReports(),'chart');
@@ -1105,9 +1153,16 @@ function renderMore(){
     add('Settings','Team, field, team contact and screen layout','cog');
   }else if(!isOwner()){
     const menu=card('Your team');
-    info('Your current team role has read-only access to approved notices and activities.',menu);
+    menu.classList.add('cloud-more-list');
+    if(hasRole('team_player')){
+      info('Select your team to see the approved squad, competition entries and fixtures.',menu);
+      moreEntry(menu,'Our team','Verified squad and tournament participation',
+        ()=>switchTab('team'),'team');
+    }else info('Only the activities and notices approved for your team role are available.',menu);
+    if(canReadNotices())moreEntry(menu,'Noticeboard',
+      'Team notices published for your permitted audience',openNoticeboard,'clip');
   }
-  if(canReadNotices())renderNotices();
+  if(canReadNotices()&&!MANAGEMENT_PARITY)renderNotices();
   // Preserve the accepted Stage 3B/3C synthetic management journey. The
   // richer Supabase views activate only in the approved first-team runtime.
   if(canManage()&&!MANAGEMENT_PARITY){
