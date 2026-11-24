@@ -28,8 +28,11 @@ TODAY_MATCH = """(() => { const D = window.__team.data, t = new Date(), iso = t.
   return 'm-today'; })()"""
 
 def prepare_today_match(pg):
-    noon = pg.evaluate("() => { const t=new Date(); t.setHours(12,0,0,0); return t.getTime(); }")
+    # Use an ISO timestamp to avoid the JavaScript milliseconds / Python
+    # numeric seconds mismatch in Playwright's clock API.
+    noon = pg.evaluate("() => { const t=new Date(); t.setHours(12,0,0,0); return t.toISOString(); }")
     pg.clock.set_fixed_time(noon)
+    assert pg.evaluate("() => new Date().toISOString()") == noon, "Synthetic browser clock does not match local noon"
     pg.evaluate(TODAY_MATCH)
 
 def setup(pg):
