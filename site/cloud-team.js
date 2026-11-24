@@ -11,6 +11,7 @@ import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
 import {createCloudManagementClient} from './cloud-management.js';
 import {createCloudManagementExperience} from './cloud-management-experience.js';
 import {teamIconSvg} from './shared-team-icons.js';
+import {teamRecordedMatchesFromSchedule} from './cloud-original-model-adapter.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
 
@@ -1083,6 +1084,32 @@ function moreEntry(parent,name,description,handler,artwork){
   item.setAttribute('aria-label',name);
   return item;
 }
+function renderMyMatchDates(){
+  const ctx=state.context;
+  if(!roleForAction(ctx,'schedule.read'))return;
+  const epoch=++state.epoch;
+  clear();title('Team match dates',teamContextLabel(ctx)+' · '+ctx.season);
+  button('All team tools',()=>switchTab('more'),actions());
+  const content=card('Recorded match dates');
+  info('These matches come from your approved team schedule. Local team records are not an official competition draw.',content);
+  const loading=info('Loading your authorised matches…',content);
+  void action('schedule.read',ctx.teamId).then(sessions=>{
+    if(epoch!==state.epoch||state.context?.key!==ctx.key)return;
+    loading.remove();
+    const rows=teamRecordedMatchesFromSchedule({context:ctx,sessions});
+    if(!rows.length)info('No match dates are recorded for this team yet.',content);
+    readList(content,rows,(m,row)=>{
+      h('strong',{text:m.title,parent:row});
+      h('small',{text:when(m.startsAt)+(m.locationLabel?' · '+m.locationLabel:'')+
+        ' · '+m.status,parent:row});
+      info(m.source==='team-recorded'?'Team-recorded date, not an official draw':
+        'Check the competition authority for the official draw',row);
+    });
+  }).catch(e=>{
+    if(epoch!==state.epoch||state.context?.key!==ctx.key)return;
+    loading.textContent=explain(e);
+  });
+}
 function renderMore(){
   if(canManage()&&MANAGEMENT_PARITY){
     const menu=card('Team management');
@@ -1118,6 +1145,9 @@ function renderMore(){
       ()=>switchTab('schedule'),'clock');
     if(hasRole('team_player'))moreEntry(menu,'Team',
       'Your approved team and squad information',()=>switchTab('team'),'team');
+    if(roleForAction(state.context,'schedule.read'))
+      moreEntry(menu,'Match dates','Your team match dates (confirm official fixtures)',
+        ()=>void renderMyMatchDates(),'chart');
     info('Your available functions are based on approved team grants. Private Coach and Manager records are not shared.',menu);
   }
   if(canReadNotices())renderNotices();
