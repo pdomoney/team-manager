@@ -1,6 +1,6 @@
 import {TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
   availabilityRequestText,projectedCloudSession,nextCloudTraining,
-  cloudAvailabilityEvents,cancelledCloudTraining} from './shared-team-messages.js';
+  cloudAvailabilityEvents,cancelledCloudTraining,connectedMessageTemplateReadiness} from './shared-team-messages.js';
 import {originalJerseyReportFromCloud,originalJerseyInventoryFromCloud,
   originalTeamCompetitionsFromCloud,teamRecordedMatchesFromSchedule} from './cloud-original-model-adapter.js';
 // Stage 3D.5 connected management surfaces. Uses the established Team Manager
@@ -238,7 +238,12 @@ export function createCloudManagementExperience({
     info('Prepare a WhatsApp message for your team group, or Share/Copy it. Team Manager cannot automatically send messages or confirm WhatsApp delivery.',c);
     let reuseMessage=null;
     if(canAdmin){
+    const readiness=connectedMessageTemplateReadiness(schedule,{now:new Date()});
     const f=form(c,async d=>{
+      if(!readiness[selected.value]){
+        message('This template needs an authorised upcoming team event. Choose a matching session or write your own message.',true);
+        return;
+      }
       const body=text(d.get('body')).trim();
       const audience=text(d.get('audience'));
       const postNotice=d.get('postNotice')==='yes';
@@ -288,6 +293,11 @@ export function createCloudManagementExperience({
       },()=>open('Messages'),'Message marked not sent.'),a);
     });
     const selected=selectField(f,'Message type','template',templates);
+    for(const option of selected.options)if(!readiness[option.value]){
+      option.disabled=true;
+      option.textContent+=' (no matching scheduled event)';
+    }
+    if(!readiness[selected.value])selected.value='blank';
     selectField(f,'Audience','audience',[
       ['all','Whole team'],['players','Players'],['volunteers','Volunteers']]);
     const label=h('label',{text:'Message',parent:f});
