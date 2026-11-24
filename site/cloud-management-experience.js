@@ -1,5 +1,5 @@
 import {TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
-  availabilityRequestText,projectedCloudSession,nextCloudTraining,
+  availabilityRequestText,projectedCloudSession,nextCloudTraining,cancelledCloudTraining,
   cloudAvailabilityEvents,nextMatchMessageText,competitionCountdownText,
   manualTeamTemplateText,containsUnfilledTemplate,accountInvitationText
 } from './shared-team-messages.js';
@@ -294,6 +294,7 @@ export function createCloudManagementExperience({
     if(!ensure(ctx))return;
     loading.remove();
     const c=card('New message');
+    let reuseMessage=null;
     info('Prepare a WhatsApp message for your team group, or Share/Copy it. Team Manager cannot automatically send messages or confirm WhatsApp delivery.',c);
     if(canAdmin){
     const f=form(c,async d=>{
@@ -360,31 +361,37 @@ export function createCloudManagementExperience({
       Number.isFinite(new Date(s.startsAt).getTime()))
       .sort((a,b)=>a.startsAt.localeCompare(b.startsAt));
     const next=nextCloudTraining(training,{now:clock});
-    const current=next||training.find(s=>s.status==='cancelled')||null;
-    const sessionSelect=selectField(f,'Training session','sessionId',
-      training.map(s=>[s.sessionId,
-        projectedCloudSession(s)?.dateLabel||'Unscheduled training']));
+    const cancelled=cancelledCloudTraining(training,{now:clock});
+    const sessionSelect=selectField(f,'Training session','sessionId',[]);
+    const candidates=()=>training.filter(s=>
+      s.status===(selected.value==='cancelled'?'cancelled':'planned')&&new Date(s.startsAt)>=clock);
     const compose=()=>{
       const kind=selected.value;
-      const session=training.find(s=>s.sessionId===sessionSelect.value)||current;
+      const session=candidates().find(s=>s.sessionId===sessionSelect.value)||
+        (kind==='cancelled'?cancelled:next);
       const projected=projectedCloudSession(session);
+      if(kind==='reminder'&&!projected)return '[Choose a planned upcoming training session before sending]';
       if(kind==='reminder')return trainingReminderText({
         teamName,session:projected,dateLabel:projected?.dateLabel||'',
         timeLabel:projected?.startLabel||'',venue:projected?.venue||'',
         focus:projected?.focus||'',notes:projected?.notes||''
       });
+      if(kind==='cancelled'&&!projected)return '[Choose an actually cancelled upcoming training session before sending]';
       if(kind==='cancelled')return trainingCancellationText({
         session:projected,dateLabel:projected?.dateLabel||'',
         timeLabel:projected?.startLabel||''
       });
-      if(kind==='availability')return availabilityRequestText({
-        teamName,events:cloudAvailabilityEvents(schedule,{now:clock})
-      });
+      if(kind==='availability'){
+        const events=cloudAvailabilityEvents(schedule,{now:clock});
+        return events.length?availabilityRequestText({teamName,events}):
+          '[Choose an upcoming training or match before sending]';
+      }
       if(kind==='match'){
         const match=schedule.filter(s=>s.kind==='match'&&s.status!=='cancelled'&&
           s.status!=='postponed'&&new Date(s.startsAt)>=clock)
           .sort((a,b)=>a.startsAt.localeCompare(b.startsAt))[0];
         const p=projectedCloudSession(match);
+        if(!p)return '[Choose an upcoming match before sending]';
         return nextMatchMessageText({teamName,match,dateLabel:p?.dateLabel||'',
           timeLabel:p?.startLabel||'',venue:p?.venue||'',
           opponent:match?.opponent||(match?.title||'').replace(/^vs\s+/i,'')});
@@ -407,13 +414,23 @@ export function createCloudManagementExperience({
     };
     const populate=()=>{
       const isTraining=['reminder','cancelled'].includes(selected.value);
-      sessionSelect.parentElement.hidden=!isTraining||!training.length;
+      const eligible=candidates(),previous=sessionSelect.value;
+      sessionSelect.replaceChildren();
+      for(const s of eligible)h('option',{text:projectedCloudSession(s)?.dateLabel||'Training',
+        attrs:{value:s.sessionId},parent:sessionSelect});
+      if(eligible.some(s=>s.sessionId===previous))sessionSelect.value=previous;
+      sessionSelect.parentElement.hidden=!isTraining||!eligible.length;
       area.value=compose();
     };
-    if(next)sessionSelect.value=next.sessionId;
     selected.addEventListener('change',populate);
     sessionSelect.addEventListener('change',populate);
     populate();
+    reuseMessage=body=>{
+      if(!ensure(ctx))return;
+      selected.value='blank';populate();area.value=body;
+      area.focus();area.scrollIntoView({block:'nearest'});
+      message('Previous message loaded. Review before preparing or sharing.');
+    };
     const labelNotice=h('label',{parent:f,className:'cloud-checkbox-row'});
     const check=h('input',{attrs:{name:'postNotice',type:'checkbox',value:'yes'},parent:labelNotice});
     check.checked=true;
@@ -429,10 +446,7 @@ export function createCloudManagementExperience({
       h('strong',{text:item.audience+' · '+item.status,parent:row});
       info(item.body,row);
       info('WhatsApp and sharing are manual. Only your confirmation changes the status.',row);
-      if(canAdmin)button('Use again',()=>{
-        selected.value='blank';area.value=item.body;
-        area.focus();area.scrollIntoView({block:'center',behavior:'smooth'});
-      },actions(row));
+      if(reuseMessage)button('Use again',()=>reuseMessage(item.body),actions(row));
       if(item.status==='prepared'&&canAdmin&&item.canConfirm){
         const a=actions(row);
         button('Open in WhatsApp',()=>window.open(
