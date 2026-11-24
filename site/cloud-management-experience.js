@@ -1,6 +1,6 @@
 import {TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
   availabilityRequestText,projectedCloudSession,nextCloudTraining,
-  cloudAvailabilityEvents} from './shared-team-messages.js';
+  cloudAvailabilityEvents,cancelledCloudTraining} from './shared-team-messages.js';
 import {originalJerseyReportFromCloud,originalJerseyInventoryFromCloud,
   originalTeamCompetitionsFromCloud} from './cloud-original-model-adapter.js';
 // Stage 3D.5 connected management surfaces. Uses the established Team Manager
@@ -280,13 +280,15 @@ export function createCloudManagementExperience({
       Number.isFinite(new Date(s.startsAt).getTime()))
       .sort((a,b)=>a.startsAt.localeCompare(b.startsAt));
     const next=nextCloudTraining(training,{now:clock});
-    const current=next||training.find(s=>s.status==='cancelled')||null;
-    const sessionSelect=selectField(f,'Training session','sessionId',
-      training.map(s=>[s.sessionId,
-        projectedCloudSession(s)?.dateLabel||'Unscheduled training']));
+    const cancelled=cancelledCloudTraining(training,{now:clock});
+    const sessionSelect=selectField(f,'Training session','sessionId',[]);
     const compose=()=>{
       const kind=selected.value;
-      const session=training.find(s=>s.sessionId===sessionSelect.value)||current;
+      const candidates=kind==='cancelled'?
+        training.filter(s=>s.status==='cancelled'&&new Date(s.startsAt)>=clock):
+        training.filter(s=>s.status!=='cancelled'&&new Date(s.startsAt)>=clock);
+      const session=candidates.find(s=>s.sessionId===sessionSelect.value)||
+        (kind==='cancelled'?cancelled:next);
       const projected=projectedCloudSession(session);
       if(kind==='reminder')return trainingReminderText({
         teamName,session:projected,dateLabel:projected?.dateLabel||'',
@@ -314,10 +316,19 @@ export function createCloudManagementExperience({
     };
     const populate=()=>{
       const isTraining=['reminder','cancelled'].includes(selected.value);
-      sessionSelect.parentElement.hidden=!isTraining||!training.length;
+      const eligible=selected.value==='cancelled'?
+        training.filter(s=>s.status==='cancelled'&&new Date(s.startsAt)>=clock):
+        training.filter(s=>s.status!=='cancelled'&&new Date(s.startsAt)>=clock);
+      const previous=sessionSelect.value;
+      sessionSelect.replaceChildren();
+      for(const s of eligible){
+        h('option',{text:projectedCloudSession(s)?.dateLabel||'Training',
+          attrs:{value:s.sessionId},parent:sessionSelect});
+      }
+      if(eligible.some(s=>s.sessionId===previous))sessionSelect.value=previous;
+      sessionSelect.parentElement.hidden=!isTraining||!eligible.length;
       area.value=compose();
     };
-    if(next)sessionSelect.value=next.sessionId;
     selected.addEventListener('change',populate);
     sessionSelect.addEventListener('change',populate);
     populate();
