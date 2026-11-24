@@ -2,7 +2,7 @@
 # the order things are needed, quiet staff warnings, the Match Day screen, slim game screens (and
 # sideways), Settings in sections, the page-by-page fixes, and editing a volunteer's teams on their
 # profile. Phone, sideways phone and desktop. Synthetic data only (the sample squad).
-import sys, datetime
+import sys
 from harness import *
 from playwright.sync_api import sync_playwright
 
@@ -18,13 +18,19 @@ BG = "sel => getComputedStyle(document.querySelector(sel)).backgroundColor"
 PX = "sel => parseFloat(getComputedStyle(document.querySelector(sel)).fontSize)"
 TOP = "sel => { const e = document.querySelector(sel); return e ? e.getBoundingClientRect().top + window.scrollY : -1; }"
 NO_OVERFLOW = 'document.documentElement.scrollWidth <= window.innerWidth + 1'
-# A match today, about 50 minutes from now (never past midnight), with its own lineup.
-soon = min(datetime.datetime.now() + datetime.timedelta(minutes=50), datetime.datetime.combine(datetime.date.today(), datetime.time(23, 59)))
-TODAY_MATCH = f"""(() => {{ const D = window.__team.data, t = new Date(), iso = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+# Use one browser-local clock for the synthetic pre-kickoff journey. The old
+# runner-time fixture could cross midnight during the suite.
+TODAY_MATCH = """(() => { const D = window.__team.data, t = new Date(), iso = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  const soon = new Date(t.getTime()+50*60000), start = String(soon.getHours()).padStart(2,'0')+':'+String(soon.getMinutes()).padStart(2,'0');
   const lu = JSON.parse(JSON.stringify(D.lineups[0])); lu.id = 'lu-today'; lu.name = 'vs Hills (today)'; D.lineups.push(lu);
   D.sessions = D.sessions.filter(s => s.date !== iso); D.tasks = D.tasks.filter(x => x.date !== iso);
-  D.matches.push({{ id: 'm-today', date: iso, start: '{soon.strftime('%H:%M')}', opponent: 'Hills Hornets', venue: 'Hills Sports Park, Castle Hill', field: '4', round: 'Round 6', status: 'scheduled', rsvp: {{}}, result: {{}}, lineupId: 'lu-today' }});
-  return 'm-today'; }})()"""
+  D.matches.push({ id: 'm-today', date: iso, start, opponent: 'Hills Hornets', venue: 'Hills Sports Park, Castle Hill', field: '4', round: 'Round 6', status: 'scheduled', rsvp: {}, result: {}, lineupId: 'lu-today' });
+  return 'm-today'; })()"""
+
+def prepare_today_match(pg):
+    noon = pg.evaluate("() => { const t=new Date(); t.setHours(12,0,0,0); return t.getTime(); }")
+    pg.clock.set_fixed_time(noon)
+    pg.evaluate(TODAY_MATCH)
 
 def setup(pg):
     pg.add_style_tag(content='#toast{display:none!important}')
@@ -108,7 +114,7 @@ with sync_playwright() as p:
     pg.keyboard.press('Escape')
 
     # ---- Match Day
-    pg.evaluate(TODAY_MATCH)
+    prepare_today_match(pg)
     go('home')
     c.ok('Hills Hornets' in pg.inner_text('.focus') and pg.locator('.focus [data-go=matchday-open]').count() == 1, 'Home: a match within three hours opens Match Day')
     pg.click('.focus [data-go=matchday-open]'); pg.wait_for_selector('.md')
@@ -152,7 +158,7 @@ with sync_playwright() as p:
 
     # ---- Sideways on a phone: a side rail, the field beside the bench
     ctx, pg, _ = page(browser, url + '#home', width=844, height=390, errors=errs)
-    setup(pg); pg.evaluate(TODAY_MATCH)
+    setup(pg); prepare_today_match(pg)
     pg.evaluate(act, ['tab', {'tab': 'field'}]); pg.wait_for_timeout(150)
     tabs = pg.evaluate("(() => { const r = document.querySelector('#tabs').getBoundingClientRect(); return [r.width, r.height]; })()")
     fld = pg.evaluate("(() => { const r = document.querySelector('#field').getBoundingClientRect(); return [r.top, r.bottom, r.right, r.height]; })()")
@@ -255,7 +261,7 @@ with sync_playwright() as p:
     # Withdrawing the final current role must not erase historical accreditation.
     pg.click('#crew-teams [data-act=crew-save-review][data-team=league2026]'); pg.wait_for_selector('#sheet form[data-form=crew-person]')
     pg.uncheck('#sheet [name=role][value=yellow]')
-    pg.once('dialog',lambda dlg: dlg.accept())
+    # harness.page already accepts dialogs; never accept the same dialog twice.
     pg.click('#sheet form[data-form=crew-person] button[type=submit]'); pg.wait_for_selector('#crew-teams')
     c.ok(W("W.matchOfficials[0].rolesBySport['Rugby league']") == []
          and W("W.matchOfficials[0].rolesBySport.Oztag") == ['manager'],
@@ -274,7 +280,7 @@ with sync_playwright() as p:
     pg.mouse.wheel(0, 1600); pg.wait_for_timeout(150)
     top = pg.evaluate("document.querySelector('#tabs').getBoundingClientRect().top")
     c.ok(pg.evaluate('window.scrollY') > 400 and 0 <= top <= 120, f'desktop: the side menu stays put while Reports scrolls (top {round(top)})')
-    pg.evaluate(TODAY_MATCH); pg.evaluate(act, ['tab', {'tab': 'matches'}]); pg.evaluate(act, ['matchday-open', {'id': 'm-today'}]); pg.wait_for_timeout(150)
+    prepare_today_match(pg); pg.evaluate(act, ['tab', {'tab': 'matches'}]); pg.evaluate(act, ['matchday-open', {'id': 'm-today'}]); pg.wait_for_timeout(150)
     a, b = pg.evaluate("[document.querySelector('.md-pitch').getBoundingClientRect().left, document.querySelector('.md-score').getBoundingClientRect().left]")
     c.ok(b > a + 200, 'desktop Match Day: field on the left, score and arrivals beside it')
     pg.screenshot(path=shot('style-matchday-desktop.png'))

@@ -766,7 +766,7 @@ function renderNotices(place='more'){
         h('strong',{text:n.title,parent:row});
         h('small',{text:n.audience+' · '+n.status,parent:row});
         h('p',{text:n.body,parent:row});
-        if(place!=='more'||!canManage())return;
+        if(place==='home'||!canManage()||n.status==='archived')return;
         const a=actions(row);
         const change=async(operation,command)=>{
           try{await mutation(operation,n.noticeId,n.version,{command});

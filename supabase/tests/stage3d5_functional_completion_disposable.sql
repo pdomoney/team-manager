@@ -108,10 +108,13 @@ begin
   'competitions.fixtures','{}'::jsonb);
  if r->>'code'<>'scope-denied' then raise exception 'Foreign team fixture read succeeded';end if;
  r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
-  'messages.prepare','{"audience":"players","channel":"whatsapp",
-    "body":"Check your training availability."}'::jsonb);
+  'messages.prepare',jsonb_build_object('audience','players','channel','whatsapp',
+    'body',E'Training update\nCheck your training availability.'));
  if r->>'code'<>'committed' then raise exception 'Message prepare failed';end if;
  id:=r->'data'->>'messageId';
+ if not exists(select 1 from tm_private.team_message_log where message_id=id
+   and content=E'Training update\nCheck your training availability.')
+ then raise exception 'Multiline message was altered in storage';end if;
  if exists(select 1 from tm_private.team_message_log where status='sent')
  then raise exception 'WhatsApp incorrectly auto-confirmed sent';end if;
  r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
