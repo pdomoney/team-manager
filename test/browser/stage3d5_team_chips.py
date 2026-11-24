@@ -356,16 +356,22 @@ try:
      {'personId':'person-unnamed','status':None,'version':0}])
    c,page=session(browser,manager_token,width)
    page.get_by_role('button',name='Schedule',exact=True).first.click()
-   page.get_by_label('Session title').fill('Example training')
-   page.get_by_label('Start date and time').fill('2027-02-20T18:00')
-   page.get_by_label('Location',exact=True).fill('Example field')
-   page.get_by_role('button',name='Create training').click()
+   training_form=page.locator('form').filter(has=page.get_by_role('button',name='Create training',exact=True))
+   training_form.get_by_label('Session title').fill('Example training')
+   training_form.get_by_label('Start date and time').fill('2027-02-20T18:00')
+   training_form.get_by_label('Location',exact=True).fill('Example field')
+   training_form.get_by_role('button',name='Create training',exact=True).click()
    training=page.locator('.cloud-list-item').filter(has_text='Example training')
    training.get_by_role('button',name='Edit',exact=True).click()
-   page.get_by_label('Start date and time').fill('2027-02-21T19:00')
+   start_field=page.get_by_label('Start date and time')
+   checks.ok(start_field.input_value()=='2027-02-20T18:00',
+     f'[{width}] existing training time is prefilled on edit')
+   start_field.fill('2027-02-21T19:00')
+   expected_start=page.evaluate("() => new Date('2027-02-21T19:00').toISOString()")
    page.get_by_role('button',name='Save changes').click()
    training.get_by_role('button',name='Attendance and responses').wait_for()
-   checks.ok(len(schedule_rows)==1 and schedule_rows[0]['version']==1,
+   checks.ok(len(schedule_rows)==1 and schedule_rows[0]['version']==1 and
+     schedule_rows[0]['startsAt']==expected_start and schedule_rows[0]['locationLabel']=='Example field',
      f'[{width}] Manager created and rescheduled training through existing API')
    c.close()
    c,page=session(browser,owner_token,width)
