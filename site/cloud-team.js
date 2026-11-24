@@ -1105,7 +1105,20 @@ function renderMore(){
     add('Settings','Team, field, team contact and screen layout','cog');
   }else if(!isOwner()){
     const menu=card('Your team');
-    info('Your current team role has read-only access to approved notices and activities.',menu);
+    menu.classList.add('cloud-more-list');
+    if(canReadNotices())moreEntry(menu,'Noticeboard',
+      'Notices published to your team and approved audience',()=>{
+        clear();title('Noticeboard',contextLabel(state.context));
+        button('All team tools',()=>switchTab('more'),actions());
+        renderNotices();
+      },'clip');
+    if(roleForAction(state.context,'schedule.read'))moreEntry(menu,'Schedule',
+      hasRole('team_player')?'Training and matches · update your availability':
+        'Your approved team schedule',
+      ()=>switchTab('schedule'),'clock');
+    if(hasRole('team_player'))moreEntry(menu,'Team',
+      'Your approved team and squad information',()=>switchTab('team'),'team');
+    info('Your available functions are based on approved team grants. Private Coach and Manager records are not shared.',menu);
   }
   if(canReadNotices())renderNotices();
   // Preserve the accepted Stage 3B/3C synthetic management journey. The
