@@ -79,3 +79,12 @@ test('volunteer plus Manager grants on same team expose manager schedule and vol
   assert.equal(roleForAction(team,'duty.read'),'team_volunteer');
   assert.equal(roleForAction(team,'duty.assign'),'team_manager');
 });
+
+test('Coach fallback uses only a Coach grant; Manager takes precedence on same team',()=>{
+ const [coach]=buildTeamNavigation([g('team-a','team_coach')]);
+ assert.equal(roleForAction(coach,'availability.transcribe'),'team_coach');
+ const [dual]=buildTeamNavigation([g('team-a','team_coach'),g('team-a','team_manager')]);
+ assert.equal(roleForAction(dual,'availability.transcribe'),'team_manager');
+ const [player]=buildTeamNavigation([g('team-a','team_player')]);
+ assert.equal(roleForAction(player,'availability.transcribe'),null);
+});

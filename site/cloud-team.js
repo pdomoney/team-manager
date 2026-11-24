@@ -452,6 +452,8 @@ function renderSchedule(){
           catch(e){message(explain(e),true);}},a,{primary:s.myAvailability===reply});
     }else if(canManage()){
       const a=actions(row);
+      if(MANAGEMENT_PARITY&&s.kind==='match')
+        button('Match availability',()=>void openAttendance(s),a);
       if(s.kind==='training'){
         button('Attendance and responses',()=>void openAttendance(s),a);
         if(s.status==='planned'){
@@ -461,7 +463,8 @@ function renderSchedule(){
               message('Training cancelled.');await showTab();}
             catch(e){message(explain(e),true);}},a);
         }
-      }else if(s.sessionId.startsWith('event-')&&s.status==='planned'){
+      }else if((['team-friendly','team-activity'].includes(s.managementOrigin)||
+          (!MANAGEMENT_PARITY&&s.sessionId.startsWith('event-')))&&s.status==='planned'){
         button('Reschedule team event',()=>editTeamEvent(s),a);
         button('Cancel team event',async()=>{
           if(!confirm('Cancel this team-managed event?'))return;
@@ -470,7 +473,7 @@ function renderSchedule(){
           catch(e){message(explain(e),true);}
         },a);
       }else if(s.kind==='match'){
-        info('Official fixture: read-only unless the competition grants separate authority.',row);
+        info('Fixture scheduling is read-only here; confirm official details with the competition authority.',row);
       }
     }
   });
@@ -536,17 +539,20 @@ function editTeamEvent(s){
 }
 async function openAttendance(s){
   const ctx=state.context,epoch=++state.epoch;
-  clear();title('Attendance and availability',s.title||'Training');
-  const loading=info('Loading this team training register…');
+  const training=s.kind==='training';
+  clear();title(training?'Attendance and availability':'Match availability',s.title||'Team session');
+  const loading=info('Loading this team register…');
   try{
-    const [attendance,replies,members]=await Promise.all([
-      action('attendance.read',s.sessionId),
+    const [attendance,replies,members,rights]=await Promise.all([
+      training?action('attendance.read',s.sessionId):Promise.resolve([]),
       action('availability.board',s.sessionId),
-      MANAGEMENT_PARITY?management.call(ctx,'team.members'):Promise.resolve([])]);
+      MANAGEMENT_PARITY?management.call(ctx,'team.members'):Promise.resolve([]),
+      MANAGEMENT_PARITY?management.call(ctx,'admin.status'):Promise.resolve({canAdmin:hasRole('team_manager')})]);
     if(epoch!==state.epoch||ctx!==state.context)return;
     const roll=namedTrainingRegister({context:ctx,rows:attendance,members});
     const availability=namedTrainingRegister({context:ctx,rows:replies,members});
     loading.remove();
+    if(training){
     const registers=card('Training roll call');
     info('Coach and Manager record attendance for active team players only. This does not certify registration or eligibility.',registers);
     info(roll.shown+' of '+roll.eligible+' active player records shown; '+roll.unnamed+' without a verified display name.',registers);
@@ -568,14 +574,15 @@ async function openAttendance(s){
       h('button',{className:'cloud-btn',text:'Save attendance',
         attrs:{type:'submit'},parent:f});
     });
+    }
     const board=card('Availability responses');
-    info('Manager entries retain their stated source. Players can still update their own response.',board);
+    info('Manager, or Coach while no verified Manager is appointed, can record reported replies with their stated source. Players can still update their own response.',board);
     info(availability.shown+' of '+availability.eligible+' active player records shown; '+availability.unnamed+' without a verified display name.',board);
     readList(board,availability.rows,(p,row)=>{
       h('strong',{text:p.displayName,parent:row});
       h('small',{text:'Reply: '+(p.response||'Not answered')+
         ' · source: '+(p.source||'none'),parent:row});
-      if(!hasRole('team_manager')||s.status!=='planned')return;
+      if(rights.canAdmin!==true||s.status!=='planned')return;
       const f=form(row,async d=>{
         if(ctx!==state.context||epoch!==state.epoch)throw Error('scope-denied');
         if(!d.get('response')||!d.get('source'))throw Object.assign(new Error(),{code:'invalid-input'});

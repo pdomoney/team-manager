@@ -32,9 +32,12 @@ grants={
  'player':[('stgeorge-mixed20','St George Oztag','2027','team_player')]
 }
 operations=[];invitations=[]
-message_log=[];notice_log=[];schedule_rows=[];attendance_rows=[];member_rows=[]
+message_log=[];notice_log=[];schedule_rows=[];attendance_rows=[];member_rows=[];reported={}
 def respond(route,body,status=200):
  return route.fulfill(status=status,content_type='application/json',body=json.dumps(body))
+def admin_right(team,role):
+ return role=='team_manager' or (role=='team_coach' and not any(
+   t==team and r=='team_manager' for items in grants.values() for t,c,ss,r in items))
 def bind(ctx):
  def actor(req):
   header=req.headers.get('authorization','')
@@ -104,11 +107,30 @@ def bind(ctx):
     row=next((s for s in schedule_rows if s['sessionId']==payload['resourceId']),None)
     if not row or row['version']!=value['expectedVersion'] or row['status']!='planned':
      return respond(route,{'ok':False,'code':'stale-or-protected-session'},409)
-    row.update({k:v for k,v in command.items() if k!='op'});row['version']+=1
+    if command['op']=='cancel':row['status']='cancelled'
+    else:row.update({k:v for k,v in command.items() if k!='op'})
+    row['version']+=1
    return respond(route,{'ok':True,'code':'committed','resourceId':row['sessionId'],'version':row['version']})
-  if action in ('attendance.read','availability.board') and role in ('team_coach','team_manager') and team=='stgeorge-mixed20' and payload['resourceId']=='training-example':
-   rows=attendance_rows if action=='attendance.read' else [{'personId':p['personId'],'response':None,'source':'none','version':0} for p in attendance_rows]
+  if action in ('attendance.read','availability.board') and role in ('team_coach','team_manager') and team=='stgeorge-mixed20':
+   session=next((s for s in schedule_rows if s['sessionId']==payload['resourceId']),None)
+   if not session or (action=='attendance.read' and session['kind']!='training'):
+    return respond(route,{'ok':False,'code':'resource-out-of-scope'},403)
+   rows=attendance_rows if action=='attendance.read' else [
+    dict(personId=p['personId'],**reported.get((session['sessionId'],p['personId']),{'response':None,'source':'none','version':0}))
+    for p in attendance_rows]
    return respond(route,{'ok':True,'code':'permitted','data':rows})
+  if action=='availability.transcribe' and team=='stgeorge-mixed20':
+   if not admin_right(team,role):return respond(route,{'ok':False,'code':'role-denied'},403)
+   value=payload['payload'];command=value['command']
+   session=next((s for s in schedule_rows if s['sessionId']==payload['resourceId']),None)
+   key=(payload['resourceId'],command['personId'])
+   if not session or session['status']!='planned' or not any(p['personId']==command['personId'] for p in attendance_rows):
+    return respond(route,{'ok':False,'code':'invalid-availability'},403)
+   previous=reported.get(key)
+   if value['expectedVersion']!=(previous['version'] if previous else 0):
+    return respond(route,{'ok':False,'code':'stale-availability'},409)
+   reported[key]={'response':command['response'],'source':command['source'],'version':previous['version']+1 if previous else 0}
+   return respond(route,{'ok':True,'code':'committed','resourceId':session['sessionId'],'version':reported[key]['version']})
   if action=='attendance.record' and role in ('team_coach','team_manager') and team=='stgeorge-mixed20' and payload['resourceId']=='training-example':
    value=payload['payload'];command=value['command']
    row=next((p for p in attendance_rows if p['personId']==command['personId']),None)
@@ -149,7 +171,7 @@ def bind(ctx):
    return respond(route,{'ok':False,'code':'scope-denied'},403)
   if action=='admin.status':
    return respond(route,{'ok':True,'code':'permitted','data':{
-    'canAdmin':role=='team_manager','role':role}})
+    'canAdmin':admin_right(team,role),'role':role}})
   if action=='player.team.read' and role=='team_player':
    return respond(route,{'ok':True,'code':'permitted','data':{
     'roster':[{'displayName':'Verified Example Player'}],
@@ -230,7 +252,7 @@ try:
     'fresh founder login opens Platform automatically')
   login_ctx.close()
   for width in (390,1280):
-   message_log.clear();notice_log.clear();schedule_rows.clear();attendance_rows.clear();member_rows.clear()
+   message_log.clear();notice_log.clear();schedule_rows.clear();attendance_rows.clear();member_rows.clear();reported.clear()
    start_ops=len(operations)
    c,page=session(browser,owner_token,width)
    page.locator('#club-chips button').first.wait_for()
@@ -390,12 +412,48 @@ try:
    checks.ok(attendance_rows[0]['status']=='present' and
      ('owner','stgeorge-mixed20','team_coach','attendance.record') in operations,
      f'[{width}] exact Coach attendance mutation persists and reads back')
+   checks.ok(page.get_by_role('button',name='Record reported reply').count()==0,
+     f'[{width}] appointed Manager prevents Coach transcription')
+   schedule_rows.append({'sessionId':'event-external-match','kind':'match','title':'Example external fixture',
+     'managementOrigin':'external','startsAt':'2027-02-25T18:00:00+11:00','status':'planned','version':0})
+   saved_grants=grants['manager'];grants['manager']=[]
+   page.get_by_role('button',name='Back to schedule').click()
+   fixture=page.locator('.cloud-list-item').filter(has_text='Example external fixture')
+   fixture.get_by_role('button',name='Match availability').click()
+   page.get_by_role('heading',name='Availability responses').wait_for()
+   reply=page.locator('.cloud-list-item').filter(has_text='Verified Example Player')
+   checks.ok(page.get_by_role('heading',name='Training roll call').count()==0,
+     f'[{width}] match shows availability without training attendance')
+   reply.get_by_label('Reported reply').select_option('yes')
+   reply.get_by_label('Received by').select_option('phone')
+   reply.get_by_role('button',name='Record reported reply').click()
+   reply.get_by_text('Reply: yes · source: phone',exact=True).wait_for()
+   checks.ok(reported[('event-external-match','person-example')]['response']=='yes' and
+     ('owner','stgeorge-mixed20','team_coach','availability.transcribe') in operations,
+     f'[{width}] unstaffed team Coach records external match reply through exact grant')
+   grants['manager']=saved_grants
+   page.get_by_role('button',name='Back to schedule').click()
+   fixture.get_by_role('button',name='Match availability').wait_for()
+   checks.ok(fixture.get_by_role('button',name='Cancel team event').count()==0,
+     f'[{width}] external fixture is protected despite event ID prefix')
+   training=page.locator('.cloud-list-item').filter(has_text='Example training')
+   training.get_by_role('button',name='Cancel',exact=True).click()
+   training.get_by_text('cancelled',exact=False).wait_for()
+   checks.ok(schedule_rows[0]['status']=='cancelled',
+     f'[{width}] training cancellation persists in schedule')
+   page.get_by_role('button',name='More',exact=True).first.click()
+   page.get_by_role('button',name='Messages').click()
+   page.get_by_role('heading',name='New message').wait_for()
+   page.locator('select[name=template]').select_option('cancelled')
+   body=page.locator('textarea[name=body]').input_value()
+   checks.ok('Training cancelled' in body and 'is off.' in body and '[Choose' not in body,
+     f'[{width}] actual cancelled training feeds original cancellation template')
    c.close()
    schedule_rows.clear()
    # Player reads and updates only their own planned availability; cancelled
    # events remain visible but cannot generate a new reply.
    schedule_rows.extend([
-    {'sessionId':'event-example-match','kind':'match','title':'Example friendly',
+    {'sessionId':'event-example-match','kind':'match','title':'Example friendly','managementOrigin':'team-friendly',
      'startsAt':'2027-02-20T08:00:00+11:00','status':'planned',
      'locationLabel':'Example field','myAvailability':'maybe','myAvailabilityVersion':0},
     {'sessionId':'cancelled-example','kind':'training','title':'Cancelled training example',

@@ -83,10 +83,17 @@ jobs:
             supabase/migrations/20261124010000_stage3d5_shared_coach_messaging.sql \
             supabase/migrations/20261124020000_stage3d5_phase1_fixture_read.sql \
             supabase/migrations/20261124030000_stage3d5_phase1_player_view.sql \
+            supabase/migrations/20261124040000_stage3d5_phase1_operational_completion.sql \
             supabase/tests/stage3d5_functional_completion_disposable.sql
           do
             echo "Stage 1 isolated PostgreSQL: $script"
             psql -X -v ON_ERROR_STOP=1 -f "$script"
+            case "$script" in
+              *20261121010000*|*20261123010100*|*20261124010000*|*20261124020000*|*20261124030000*|*20261124040000*)
+                echo "Schema definition comparison checkpoint: $script"
+                psql -X -v ON_ERROR_STOP=1 -f supabase/tests/stage3d5_schema_fingerprints.sql
+                ;;
+            esac
           done
 
   browser:

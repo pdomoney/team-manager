@@ -99,7 +99,7 @@ export function cloudAvailabilityEvents(sessions,{now=new Date(),timeZone='Austr
   if(!(now instanceof Date)||!Number.isFinite(now.getTime()))throw new TypeError('invalid-now');
   const until=new Date(now.getTime()+14*86400000);
   return sessions.filter(s=>(s?.kind==='training'||s?.kind==='match')&&
-    !['cancelled','postponed'].includes(s.status)&&
+    s.status==='planned'&&
     Number.isFinite(new Date(s.startsAt).getTime())&&
     new Date(s.startsAt)>=now&&new Date(s.startsAt)<=until)
     .sort((a,b)=>a.startsAt.localeCompare(b.startsAt)).map(s=>{

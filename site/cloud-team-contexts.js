@@ -20,7 +20,7 @@ const permissions=Object.freeze({
   'attendance.record':['team_coach','team_manager'],
   'availability.board':['team_coach','team_manager'],
   'availability.reply':['team_player'],
-  'availability.transcribe':['team_manager'],
+  'availability.transcribe':['team_manager','team_coach'], // fallback still requires current server admin.status
   'duty.read':['team_volunteer'],
   'duty.reply':['team_volunteer'],
   'duty.board':['team_manager'],
