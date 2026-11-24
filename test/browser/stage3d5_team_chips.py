@@ -146,7 +146,7 @@ def bind(ctx):
    row['myAvailability']=value['response'];row['myAvailabilityVersion']=value['expectedVersion']+1
    return respond(route,{'ok':True,'code':'committed','resourceId':row['sessionId'],'version':row['myAvailabilityVersion']})
   if action=='notices.read':
-   rows=[n for n in notice_log if n['teamId']==team and
+   rows=[n for n in notice_log if n['teamId']==team and n['status']!='archived' and
      (role in ('team_manager','team_coach') or (n['status']=='published' and n['audience'] in ('all','players') and role=='team_player'))]
    return respond(route,{'ok':True,'code':'permitted','data':rows})
   if action in ('notice.create','notice.publish','notice.archive') and role in ('team_manager','team_coach'):
@@ -395,6 +395,13 @@ try:
    draft.get_by_role('button',name='Publish notice').click()
    draft.get_by_text('players · published',exact=True).wait_for()
    checks.ok(notice_log[-1]['status']=='published',f'[{width}] standalone noticeboard can publish its draft')
+   page.locator('input[name=title]').fill('Archived notice example')
+   page.locator('textarea[name=body]').fill('This notice will be archived.')
+   page.get_by_role('button',name='Save notice draft').click()
+   archived=page.locator('.cloud-list-item').filter(has_text='Archived notice example')
+   archived.get_by_role('button',name='Archive notice').click()
+   archived.wait_for(state='detached')
+   checks.ok(notice_log[-1]['status']=='archived',f'[{width}] archive removes draft from current noticeboard')
    page.get_by_role('button',name='Back to More').click()
    page.get_by_role('button',name='Jerseys').click()
    page.get_by_role('heading',name='Jersey numbers and issue history').wait_for()
@@ -530,7 +537,8 @@ try:
    page.get_by_role('button',name='Noticeboard').first.click()
    page.get_by_role('heading',name='Noticeboard').wait_for()
    page.get_by_text('Standalone notice',exact=True).wait_for()
-   checks.ok(page.get_by_role('button',name='Save notice draft').count()==0
+   checks.ok(page.get_by_text('Archived notice example',exact=True).count()==0 and
+     page.get_by_role('button',name='Save notice draft').count()==0
      and page.get_by_role('button',name='Publish notice').count()==0
      and page.get_by_role('button',name='Archive notice').count()==0,
      f'[{width}] Player reads published notices but cannot mutate them')

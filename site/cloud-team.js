@@ -774,12 +774,16 @@ function openNoticeboard(){
 }
 function renderNotices(place='more'){
   if(!canReadNotices())return;
+  const ctx=state.context,epoch=state.epoch;
+  const current=()=>ctx===state.context&&epoch===state.epoch;
   const c=card(place==='home'?'Latest team notices':'Team notices');
   if(place!=='home'&&canManage()){
     const f=form(c,async d=>{
-      const result=await mutation('notice.create',state.context.teamId,0,{command:{
+      if(!current())throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+      await mutation('notice.create',ctx.teamId,0,{command:{
         title:String(d.get('title')).trim(),body:String(d.get('body')).trim(),
         audience:String(d.get('audience'))}});
+      if(!current())return;
       message('Notice saved as a draft. Review it before publishing.');
       if(place==='noticeboard')openNoticeboard();
       else await showTab();
@@ -794,10 +798,10 @@ function renderNotices(place='more'){
     h('button',{className:'cloud-btn primary',text:'Save notice draft',
       attrs:{type:'submit'},parent:f});
   }
-  const content=h('div',{parent:c}),epoch=state.epoch;
+  const content=h('div',{parent:c});
   const loading=info('Loading team notices…',content);
-  void action('notices.read',state.context.teamId).then(items=>{
-    if(epoch!==state.epoch)return;loading.remove();
+  void action('notices.read',ctx.teamId).then(items=>{
+    if(!current())return;loading.remove();
     readList(content,place==='home'?items.filter(n=>n.status==='published').slice(0,3):items,
       (n,row)=>{
         h('strong',{text:n.title,parent:row});
@@ -806,7 +810,10 @@ function renderNotices(place='more'){
         if(place==='home'||!canManage()||n.status==='archived')return;
         const a=actions(row);
         const change=async(operation,command)=>{
-          try{await mutation(operation,n.noticeId,n.version,{command});
+          try{
+            if(!current())throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+            await mutation(operation,n.noticeId,n.version,{command});
+            if(!current())return;
             message(operation==='notice.publish'?'Notice published to its approved audience.':'Notice archived.');
             if(place==='noticeboard')openNoticeboard();
             else await showTab();}

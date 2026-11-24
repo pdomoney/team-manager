@@ -11,5 +11,5 @@ select n.nspname as schema,p.proname as name,
 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
 where n.nspname in ('public','tm_private')
   and (p.proname in ('tm_stage1_operation','tm_stage3b_operation','tm_stage3d5_team',
-       'tm_stage3d5_player_team','stage3d5_staff','stage3d5_team_admin'))
+       'tm_stage3d5_player_team','stage3d5_staff','stage3d5_team_admin','stage3d5_verified_volunteer'))
 order by n.nspname,p.proname,pg_get_function_identity_arguments(p.oid);
