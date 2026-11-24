@@ -107,8 +107,13 @@ def bind(ctx):
   if action=='admin.status':
    return respond(route,{'ok':True,'code':'permitted','data':{
     'canAdmin':role=='team_manager','role':role}})
+  if action=='messages.read':
+   history=[{'messageId':'message-'+'a'*32,'audience':'players',
+     'status':'prepared','body':'Previously prepared practice reminder',
+     'version':0}] if who=='manager' else []
+   return respond(route,{'ok':True,'code':'permitted','data':history})
   if action in ('team.members','volunteers.list','jerseys.read',
-    'competitions.read','messages.read','duties.board','invite.list'):
+    'competitions.read','duties.board','invite.list'):
    return respond(route,{'ok':True,'code':'permitted','data':[]})
   if action=='settings.read':
    return respond(route,{'ok':True,'code':'permitted','data':{
@@ -235,6 +240,10 @@ try:
    page.get_by_role('button',name='All management tools').click()
    page.get_by_role('button',name='Messages').click()
    page.get_by_role('heading',name='New message').wait_for()
+   page.get_by_role('button',name='Use again').click()
+   checks.ok(page.get_by_role('textbox',name='Message').input_value()==
+     'Previously prepared practice reminder',
+     f'[{width}] original message-log Use again restores editable text')
    page.get_by_role('button',name='All management tools').click()
    page.get_by_role('button',name='Jerseys').click()
    page.get_by_role('heading',name='Jersey numbers and issue history').wait_for()
