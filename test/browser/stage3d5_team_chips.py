@@ -240,6 +240,8 @@ try:
    page.get_by_role('button',name='All management tools').click()
    page.get_by_role('button',name='Messages').click()
    page.get_by_role('heading',name='New message').wait_for()
+   checks.ok(not page.locator('input[name="postNotice"]').is_checked(),
+     f'[{width}] WhatsApp preparation never silently publishes a notice')
    page.get_by_role('button',name='Use again').click()
    checks.ok(page.get_by_role('textbox',name='Message').input_value()==
      'Previously prepared practice reminder',
