@@ -95,6 +95,13 @@ def bind(ctx):
    return respond(route,{'ok':False,'code':'role-denied'},403)
   if action=='schedule.read':
    return respond(route,{'ok':True,'code':'permitted','data':schedule_rows if team=='stgeorge-mixed20' else []})
+  if action=='availability.reply' and role=='team_player' and team=='stgeorge-mixed20':
+   row=next((s for s in schedule_rows if s['sessionId']==payload['resourceId']),None)
+   value=payload['payload']
+   if not row or row['status']!='planned' or value['expectedVersion']!=row.get('myAvailabilityVersion',0):
+    return respond(route,{'ok':False,'code':'stale-availability'},409)
+   row['myAvailability']=value['response'];row['myAvailabilityVersion']=value['expectedVersion']+1
+   return respond(route,{'ok':True,'code':'committed','resourceId':row['sessionId'],'version':row['myAvailabilityVersion']})
   if action=='notices.read':
    rows=[n for n in notice_log if n['teamId']==team and
      (role in ('team_manager','team_coach') or (n['status']=='published' and n['audience'] in ('all','players') and role=='team_player'))]
@@ -318,11 +325,32 @@ try:
    checks.ok(page.locator('body').evaluate('(el)=>el.scrollWidth<=innerWidth+2'),
      f'[{width}] Manager layout fits')
    c.close()
+   # Player reads and updates only their own planned availability; cancelled
+   # events remain visible but cannot generate a new reply.
+   schedule_rows.extend([
+    {'sessionId':'event-example-match','kind':'match','title':'Example friendly',
+     'startsAt':'2027-02-20T08:00:00+11:00','status':'planned',
+     'locationLabel':'Example field','myAvailability':'maybe','myAvailabilityVersion':0},
+    {'sessionId':'cancelled-example','kind':'training','title':'Cancelled training example',
+     'startsAt':'2027-02-21T08:00:00+11:00','status':'cancelled',
+     'myAvailabilityVersion':0}
+   ])
    # Player sees only independently approved roster and team tournament facts.
    c,page=session(browser,player_token,width)
    page.get_by_role('heading',name='Home').wait_for()
    checks.ok('Player' in page.locator('#active-context').inner_text(),
      f'[{width}] Player opens the exact approved team')
+   page.get_by_role('button',name='Schedule',exact=True).first.click()
+   match=page.locator('.cloud-list-item').filter(has_text='Example friendly')
+   match.get_by_role('button',name='Yes',exact=True).click()
+   match.get_by_text('My response: yes',exact=True).wait_for()
+   checks.ok(schedule_rows[0]['myAvailabilityVersion']==1 and
+     ('player','stgeorge-mixed20','team_player','availability.reply') in operations,
+     f'[{width}] exact Player reply persisted and read back')
+   cancelled=page.locator('.cloud-list-item').filter(has_text='Cancelled training example')
+   checks.ok(cancelled.get_by_text('Availability replies are closed',exact=False).count()==1 and
+     cancelled.get_by_role('button',name='Yes',exact=True).count()==0,
+     f'[{width}] cancelled sessions cannot be answered')
    page.get_by_role('button',name='Team',exact=True).first.click()
    page.get_by_role('heading',name='Our team').wait_for()
    page.get_by_text('Verified Example Player').wait_for()
@@ -333,6 +361,13 @@ try:
    checks.ok(page.get_by_role('button',name='Settings').count()==0
      and page.get_by_role('button',name='Messages').count()==0,
      f'[{width}] Player has no Manager settings or message history')
+   page.get_by_role('button',name='Match dates',exact=True).click()
+   page.get_by_role('heading',name='Team match dates').wait_for()
+   page.get_by_text('Example friendly',exact=True).wait_for()
+   checks.ok(page.get_by_text('Team-recorded date, not an official draw',exact=True).count()==1
+     and page.get_by_text('Cancelled training example',exact=True).count()==0,
+     f'[{width}] match date view excludes training and does not assert an official draw')
+   page.get_by_role('button',name='All team tools').click()
    page.get_by_role('button',name='Noticeboard').first.click()
    page.get_by_role('heading',name='Noticeboard').wait_for()
    page.get_by_text('Standalone notice',exact=True).wait_for()

@@ -10,6 +10,7 @@ import {buildTeamNavigation,hasTeamRole,roleForAction,reviewerContext,
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
 import {createCloudManagementClient} from './cloud-management.js';
 import {createCloudManagementExperience} from './cloud-management-experience.js';
+import {teamRecordedMatchesFromSchedule} from './cloud-original-model-adapter.js';
 import {teamIconSvg} from './shared-team-icons.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
@@ -431,9 +432,10 @@ function renderSchedule(){
   const list=card('Sessions');
   readList(list,state.schedule,(s,row)=>{
     h('strong',{text:s.title||s.kind||'Session',parent:row});
-    h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:''),parent:row});
+    h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:'')+' · '+s.status,parent:row});
     if(hasRole('team_player')){
       h('p',{text:'My response: '+(s.myAvailability||'Not answered'),parent:row});
+      if(s.status!=='planned'){info('Availability replies are closed for this session.',row);return;}
       const a=actions(row);
       for(const reply of ['yes','no','maybe'])
         button(reply[0].toUpperCase()+reply.slice(1),async()=>{
@@ -1134,6 +1136,32 @@ function moreEntry(parent,name,description,handler,artwork){
   item.setAttribute('aria-label',name);
   return item;
 }
+function renderMyMatchDates(){
+  const ctx=state.context;
+  if(!roleForAction(ctx,'schedule.read'))return;
+  const epoch=++state.epoch;
+  clear();title('Team match dates',teamContextLabel(ctx)+' · '+ctx.season);
+  button('All team tools',()=>switchTab('more'),actions());
+  const content=card('Recorded match dates');
+  info('These matches come from your approved team schedule. Local team records are not an official competition draw.',content);
+  const loading=info('Loading your authorised matches…',content);
+  void action('schedule.read',ctx.teamId).then(sessions=>{
+    if(epoch!==state.epoch||state.context?.key!==ctx.key)return;
+    const rows=teamRecordedMatchesFromSchedule({context:ctx,sessions});
+    loading.remove();
+    if(!rows.length)info('No match dates are recorded for this team yet.',content);
+    else readList(content,rows,(m,row)=>{
+      h('strong',{text:m.title,parent:row});
+      h('small',{text:when(m.startsAt)+(m.locationLabel?' · '+m.locationLabel:'')+
+        ' · '+m.status,parent:row});
+      info(m.source==='team-recorded'?'Team-recorded date, not an official draw':
+        'Check the competition authority for the official draw',row);
+    });
+  }).catch(e=>{
+    if(epoch!==state.epoch||state.context?.key!==ctx.key)return;
+    loading.textContent=explain(e);
+  });
+}
 function renderMore(){
   if(canManage()&&MANAGEMENT_PARITY){
     const menu=card('Team management');
@@ -1158,6 +1186,8 @@ function renderMore(){
       info('Select your team to see the approved squad, competition entries and fixtures.',menu);
       moreEntry(menu,'Our team','Verified squad and tournament participation',
         ()=>switchTab('team'),'team');
+      moreEntry(menu,'Match dates','Your recorded team matches; confirm official fixtures',
+        renderMyMatchDates,'clock');
     }else info('Only the activities and notices approved for your team role are available.',menu);
     if(canReadNotices())moreEntry(menu,'Noticeboard',
       'Team notices published for your permitted audience',openNoticeboard,'clip');

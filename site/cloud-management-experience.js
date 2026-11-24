@@ -4,7 +4,7 @@ import {TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
   manualTeamTemplateText,containsUnfilledTemplate,accountInvitationText
 } from './shared-team-messages.js';
 import {originalJerseyReportFromCloud,originalJerseyInventoryFromCloud,
-  originalTeamCompetitionsFromCloud} from './cloud-original-model-adapter.js';
+  originalTeamCompetitionsFromCloud,teamRecordedMatchesFromSchedule} from './cloud-original-model-adapter.js';
 import {CLOUD_TEAM_SETTINGS_SECTIONS} from './shared-team-settings.js';
 import {teamIconSvg} from './shared-team-icons.js';
 // Stage 3D.5 connected management surfaces. Uses the established Team Manager
@@ -209,11 +209,12 @@ export function createCloudManagementExperience({
     }
   }
   async function competitions(ctx,loading,canAdmin){
-    const [competitions,fixtures]=await Promise.all([
-      query(ctx,'competitions.read'),query(ctx,'competitions.fixtures')]);
+    const [competitions,fixtures,schedule]=await Promise.all([
+      query(ctx,'competitions.read'),query(ctx,'competitions.fixtures'),getSchedule(ctx)]);
     if(!ensure(ctx))return;
     const entries=originalTeamCompetitionsFromCloud({
       context:{...ctx,teamName:getTeamLabel(ctx)},competitions});
+    const matchDates=teamRecordedMatchesFromSchedule({context:ctx,sessions:schedule});
     loading.remove();
     const c=card('Create a league, tournament or carnival');
     info('Record this team’s entry and local fixtures. Official competition draws and eligibility must be confirmed by the competition authority.',c);
@@ -283,6 +284,17 @@ export function createCloudManagementExperience({
       h('button',{className:'cloud-btn',text:'Add team-recorded fixture',
         attrs:{type:'submit'},parent:fixture});
       }
+    }
+    const matches=card('Team schedule match dates');
+    info('Separate schedule records, not additional competition entries. Confirm official fixtures with the organiser.',matches);
+    if(!matchDates.length)info('No match dates are recorded for this team yet.',matches);
+    for(const match of matchDates){
+      const row=h('div',{className:'cloud-list-item',parent:matches});
+      h('strong',{text:match.title,parent:row});
+      info(new Date(match.startsAt).toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short'})+
+        (match.locationLabel?' · '+match.locationLabel:'')+' · '+match.status,row);
+      info(match.source==='team-recorded'?'Team-recorded date, not an official draw':
+        'Check the competition authority for the official draw',row);
     }
   }
   // The established ten-template vocabulary is shared with the original app.

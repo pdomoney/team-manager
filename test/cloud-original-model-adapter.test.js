@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   projectCloudTeamToOriginalModel,originalJerseyReportFromCloud,
-  originalJerseyInventoryFromCloud,originalTeamCompetitionsFromCloud
+  originalJerseyInventoryFromCloud,originalTeamCompetitionsFromCloud,teamRecordedMatchesFromSchedule
 } from '../site/cloud-original-model-adapter.js';
 const context={teamId:'stgeorge-mixed20',club:'St George Oztag',
  teamName:'St George Mixed 20',sport:'oztag',season:'2027'};
@@ -70,4 +70,34 @@ test('does not infer any official fixture or registered player eligibility',()=>
  assert(!('registered' in team.players[0]));
  assert.equal(workspace.competitions[0].entries[0].teamId,context.teamId);
  assert(!('officialVerified' in workspace.competitions[0]));
+});
+
+test('team fixture schedule projection never fabricates official draw or competition entry',()=>{
+ const input={context,sessions:[
+  {sessionId:'event-abc',teamId:context.teamId,kind:'match',
+    startsAt:'2027-03-03T12:00:00+11:00',title:'vs Eagles',status:'planned'},
+  {sessionId:'official-abc',teamId:context.teamId,kind:'match',
+    startsAt:'2027-03-04T12:00:00+11:00',title:'vs Hawks',status:'planned'},
+  {sessionId:'training',teamId:context.teamId,kind:'training',
+    startsAt:'2027-03-04T12:00:00+11:00'}
+ ]};
+ const rows=teamRecordedMatchesFromSchedule(input);
+ assert.equal(rows.length,2);
+ assert.deepEqual(rows.map(x=>x.source),['team-recorded','unverified']);
+ assert(rows.every(x=>x.official===false&&x.competitionId===null));
+ assert.throws(()=>teamRecordedMatchesFromSchedule({...input,
+  sessions:[...input.sessions,{sessionId:'bad',teamId:'other-team',kind:'match',
+    startsAt:'2027-03-03T12:00:00+11:00'}]}),/cross-team/);
+});
+
+
+test('match dates sort by actual instant and exclude invalid dates and training',()=>{
+ const rows=teamRecordedMatchesFromSchedule({context,sessions:[
+  {sessionId:'later',kind:'match',startsAt:'2027-03-03T04:00:00Z'},
+  {sessionId:'event-earlier',kind:'match',startsAt:'2027-03-03T13:00:00+11:00',status:'cancelled'},
+  {sessionId:'bad',kind:'match',startsAt:null},
+  {sessionId:'training',kind:'training',startsAt:'2027-03-03T01:00:00Z'}
+ ]});
+ assert.deepEqual(rows.map(r=>r.sessionId),['event-earlier','later']);
+ assert.equal(rows[0].status,'cancelled');
 });
