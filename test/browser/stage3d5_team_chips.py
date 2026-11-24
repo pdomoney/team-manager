@@ -32,7 +32,7 @@ grants={
  'player':[('stgeorge-mixed20','St George Oztag','2027','team_player')]
 }
 operations=[];invitations=[]
-message_log=[];notice_log=[];schedule_rows=[];attendance_rows=[];member_rows=[];reported={};competition_rows=[]
+message_log=[];notice_log=[];schedule_rows=[];attendance_rows=[];member_rows=[];reported={};competition_rows=[];match_selections={}
 def respond(route,body,status=200):
  return route.fulfill(status=status,content_type='application/json',body=json.dumps(body))
 def admin_right(team,role):
@@ -172,6 +172,30 @@ def bind(ctx):
   if action=='admin.status':
    return respond(route,{'ok':True,'code':'permitted','data':{
     'canAdmin':admin_right(team,role),'role':role}})
+  if action in ('match.selection.read','player.match.selection.read','match.selection.save','match.selection.publish','match.selection.withdraw'):
+   value=data['input'];sid=value['sessionId']
+   fixture=next((s for s in schedule_rows if s['sessionId']==sid and s['kind']=='match'),None)
+   if team!='stgeorge-mixed20' or not fixture:return respond(route,{'ok':False,'code':'scope-denied'},403)
+   old=match_selections.get(sid,{'state':'none','version':0,'selectedIds':[],'fixtureVersion':0})
+   candidates=[{'personId':'person-example','displayName':'Verified Example Player','response':'yes'}]
+   selected=[{'displayName':p['displayName']} for p in candidates if p['personId'] in old['selectedIds']]
+   current=old['state']=='published' and old['fixtureVersion']==fixture.get('version',0) and fixture['status']!='cancelled'
+   if action=='player.match.selection.read':
+    if role!='team_player':return respond(route,{'ok':False,'code':'role-denied'},403)
+    return respond(route,{'ok':True,'code':'permitted','data':{'state':'published' if current else 'unavailable','players':selected if current else []}})
+   if action=='match.selection.read':
+    if role not in ('team_coach','team_manager'):return respond(route,{'ok':False,'code':'role-denied'},403)
+    return respond(route,{'ok':True,'code':'permitted','data':dict(old,current=current,eligible=2,shown=1,
+     candidates=candidates,publishedPlayers=selected if current else [],fixtureVersion=fixture.get('version',0))})
+   if role!='team_coach':return respond(route,{'ok':False,'code':'role-denied'},403)
+   if value['expectedVersion']!=old['version'] or value['fixtureVersion']!=fixture.get('version',0):
+    return respond(route,{'ok':False,'code':'stale-version'},409)
+   updated=dict(old,version=old['version']+1,fixtureVersion=fixture.get('version',0))
+   if action=='match.selection.save':updated.update(state='draft',selectedIds=value['personIds'])
+   elif action=='match.selection.publish':updated.update(state='published')
+   else:updated.update(state='withdrawn')
+   match_selections[sid]=updated
+   return respond(route,{'ok':True,'code':'committed','data':{'version':updated['version'],'state':updated['state']}})
   if action=='player.team.read' and role=='team_player':
    return respond(route,{'ok':True,'code':'permitted','data':{
     'roster':[{'displayName':'Verified Example Player'}],
@@ -265,7 +289,7 @@ try:
     'fresh founder login opens Platform automatically')
   login_ctx.close()
   for width in (390,1280):
-   message_log.clear();notice_log.clear();schedule_rows.clear();attendance_rows.clear();member_rows.clear();reported.clear();competition_rows.clear()
+   message_log.clear();notice_log.clear();schedule_rows.clear();attendance_rows.clear();member_rows.clear();reported.clear();competition_rows.clear();match_selections.clear()
    start_ops=len(operations)
    c,page=session(browser,owner_token,width)
    page.locator('#club-chips button').first.wait_for()
@@ -502,11 +526,47 @@ try:
    schedule_rows.extend([
     {'sessionId':'event-example-match','kind':'match','title':'Example friendly','managementOrigin':'team-friendly',
      'startsAt':'2027-02-20T08:00:00+11:00','status':'planned',
-     'locationLabel':'Example field','myAvailability':'maybe','myAvailabilityVersion':0},
+     'locationLabel':'Example field','version':0,'myAvailability':'maybe','myAvailabilityVersion':0},
     {'sessionId':'cancelled-example','kind':'training','title':'Cancelled training example',
      'startsAt':'2027-02-21T08:00:00+11:00','status':'cancelled',
      'myAvailabilityVersion':0}
    ])
+   # Coach publishes a named administrative squad; no positions or scoring inferred.
+   c,page=session(browser,owner_token,width)
+   page.locator('#club-chips').get_by_role('button',name='St George Oztag').click()
+   page.locator('#team-chips button').first.click()
+   page.get_by_role('button',name='Schedule',exact=True).first.click()
+   page.locator('.cloud-list-item').filter(has_text='Example friendly').get_by_role('button',name='Selected match squad').click()
+   page.get_by_role('button',name='Save squad draft').wait_for()
+   page.locator('input[name=personIds][value=person-example]').check()
+   page.get_by_role('button',name='Save squad draft').click()
+   page.get_by_role('button',name='Publish match squad').wait_for()
+   checks.ok(match_selections['event-example-match']['state']=='draft',
+     f'[{width}] Coach persists selection as draft first')
+   page.once('dialog',lambda d:d.accept())
+   page.get_by_role('button',name='Publish match squad').click()
+   page.get_by_role('heading',name='Published match squad').wait_for()
+   checks.ok(match_selections['event-example-match']['state']=='published',
+     f'[{width}] Coach publishes exact named match squad')
+   c.close()
+   c,page=session(browser,manager_token,width)
+   page.get_by_role('button',name='Schedule',exact=True).first.click()
+   page.locator('.cloud-list-item').filter(has_text='Example friendly').get_by_role('button',name='Selected match squad').click()
+   page.get_by_role('heading',name='Published match squad').wait_for()
+   checks.ok(page.get_by_role('button',name='Save squad draft').count()==0,
+     f'[{width}] Manager cannot edit Coach selection')
+   page.get_by_role('button',name='Prepare squad message').click()
+   page.locator('textarea[name=body]').wait_for()
+   body=page.locator('textarea[name=body]').input_value()
+   checks.ok('Selected match squad' in body and 'Verified Example Player' in body and
+     page.locator('select[name=audience]').input_value()=='players' and
+     not page.locator('input[name=postNotice]').is_checked(),
+     f'[{width}] saved squad enters existing player message composer without auto posting')
+   page.get_by_role('button',name='Prepare and log message').click()
+   page.get_by_role('heading',name='Prepared message').wait_for()
+   checks.ok(message_log[-1]['body']==body and message_log[-1]['status']=='prepared',
+     f'[{width}] squad message persists without automatic send')
+   c.close()
    # Player sees only independently approved roster and team tournament facts.
    c,page=session(browser,player_token,width)
    page.get_by_role('heading',name='Home').wait_for()
@@ -519,6 +579,12 @@ try:
    checks.ok(schedule_rows[0]['myAvailabilityVersion']==1 and
      ('player','stgeorge-mixed20','team_player','availability.reply') in operations,
      f'[{width}] exact Player reply persisted and read back')
+   match.get_by_role('button',name='Selected match squad').click()
+   page.get_by_role('heading',name='Published match squad').wait_for()
+   page.get_by_text('Verified Example Player',exact=True).wait_for()
+   checks.ok(page.get_by_role('button',name='Save squad draft').count()==0,
+     f'[{width}] Player reads published names without coaching controls')
+   page.get_by_role('button',name='Back to schedule').click()
    cancelled=page.locator('.cloud-list-item').filter(has_text='Cancelled training example')
    checks.ok(cancelled.get_by_text('Availability replies are closed',exact=False).count()==1 and
      cancelled.get_by_role('button',name='Yes',exact=True).count()==0,
