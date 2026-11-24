@@ -163,3 +163,15 @@ export function accountInvitationText({teamName,url}={}){
  return '👋 Here’s the '+name+' team app: training, team notices and availability.\n\n'+
    link.href+'\n\nYour account must have its own verified invitation and approved team role before you can access team information. Ask the Team Manager if you have not received one.';
 }
+
+/** Connected administrative squad. Retain the original match-message heading
+ * and date presentation; never infer positions or interchange from a name list. */
+export function publishedMatchSquadText({teamName,match,players}={}){
+ const name=singleSpace(teamName),p=projectedCloudSession(match);
+ if(!name||!p||match.kind!=='match'||match.status==='cancelled'||!Array.isArray(players)||!players.length||
+   players.some(x=>!singleSpace(x?.displayName)))throw new TypeError('published-match-squad-required');
+ return '🏉 *'+name+' · '+singleSpace(match.title||'Match')+'*\n📅 '+p.dateLabel+', '+p.startLabel+
+   '\n📍 '+(singleSpace(p.venue)||'Venue TBC')+'\n\n*Selected match squad*\n'+
+   players.map(x=>'• '+singleSpace(x.displayName)).join('\n')+
+   '\n\nOn-field positions and interchange to be confirmed by the Coach.';
+}

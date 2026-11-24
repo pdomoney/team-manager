@@ -12,6 +12,7 @@ import {createCloudManagementClient} from './cloud-management.js';
 import {createCloudManagementExperience} from './cloud-management-experience.js';
 import {teamRecordedMatchesFromSchedule,namedTrainingRegister} from './cloud-original-model-adapter.js';
 import {teamIconSvg} from './shared-team-icons.js';
+import {publishedMatchSquadText} from './shared-team-messages.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
 
@@ -442,6 +443,8 @@ function renderSchedule(){
     h('strong',{text:s.title||s.kind||'Session',parent:row});
     h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:'')+' · '+s.status,parent:row});
     if(hasRole('team_player')){
+      if(MANAGEMENT_PARITY&&s.kind==='match')
+        button('Selected match squad',()=>void openMatchSquad(s,true),actions(row));
       h('p',{text:'My response: '+(s.myAvailability||'Not answered'),parent:row});
       if(s.status!=='planned'){info('Availability replies are closed for this session.',row);return;}
       const a=actions(row);
@@ -452,8 +455,10 @@ function renderSchedule(){
           catch(e){message(explain(e),true);}},a,{primary:s.myAvailability===reply});
     }else if(canManage()){
       const a=actions(row);
-      if(MANAGEMENT_PARITY&&s.kind==='match')
+      if(MANAGEMENT_PARITY&&s.kind==='match'){
         button('Match availability',()=>void openAttendance(s),a);
+        button('Selected match squad',()=>void openMatchSquad(s,false),a);
+      }
       if(s.kind==='training'){
         button('Attendance and responses',()=>void openAttendance(s),a);
         if(s.status==='planned'){
@@ -603,6 +608,73 @@ async function openAttendance(s){
     button('Back to schedule',()=>void switchTab('schedule'),actions());
   }catch(e){if(epoch!==state.epoch)return;loading.textContent=explain(e);message(explain(e),true);
     button('Back to schedule',()=>void switchTab('schedule'),actions());}
+}
+async function openMatchSquad(s,player){
+  const ctx=state.context,epoch=++state.epoch;
+  const current=()=>state.context===ctx&&state.epoch===epoch;
+  clear();title('Selected match squad',s.title||'Match');
+  button('Back to schedule',()=>void switchTab('schedule'),actions());
+  const panel=card('Match squad');
+  info('Selected participants only. This is not an on-field lineup, eligibility decision or approved scoring format.',panel);
+  const loading=info('Loading the current selection…',panel);
+  const read=()=>management.call(ctx,player?'player.match.selection.read':'match.selection.read',{sessionId:s.sessionId});
+  try{
+    const data=await read();
+    if(!current())return;
+    loading.remove();
+    const names=player?data.players:data.publishedPlayers;
+    if((player?data.state==='published':data.current)&&Array.isArray(names)&&names.length){
+      const published=card('Published match squad');
+      for(const p of names)h('p',{text:p.displayName,parent:published});
+      if(!player)button('Prepare squad message',async()=>{
+        try{
+          if(!current())return;
+          const latest=await read();
+          if(!current())return;
+          if(!latest.current||latest.version!==data.version)throw Object.assign(new Error(),{code:'stale-version'});
+          const body=publishedMatchSquadText({teamName:teamContextLabel(ctx),match:s,players:latest.publishedPlayers});
+          if(body.length>1500)throw Object.assign(new Error(),{code:'invalid-input'});
+          await managementExperience.open('Messages',{body,audience:'players'});
+        }catch(e){if(current())message(explain(e),true);}
+      },actions(published));
+    }else info('No current published squad for this match.',panel);
+    if(player)return;
+    info('Selection status: '+data.state,panel);
+    if(data.state==='published'&&!data.current)info('The match or squad has changed. Review and save a new draft before publishing again.',panel);
+    info(data.shown+' of '+data.eligible+' verified participant records available for selection. '+(data.eligible-data.shown)+' do not have current verified Player access and a display name.',panel);
+    if(!hasRole('team_coach')){
+      info('The Head Coach selects and publishes the match squad. Managers can review the published squad and prepare communications.',panel);
+      return;
+    }
+    const change=async(action,extra={})=>{
+      if(!current())throw Object.assign(new Error(),{code:'scope-denied'});
+      await management.call(ctx,action,{sessionId:s.sessionId,expectedVersion:data.version,fixtureVersion:data.fixtureVersion,...extra});
+      if(!current())return;
+      message('Match squad updated.');await openMatchSquad(s,false);
+    };
+    if(s.status==='planned'){
+      const f=form(panel,async d=>change('match.selection.save',{personIds:d.getAll('personIds').map(String)}));
+      info('Select the named participants. Review declined, unsure and unanswered availability before saving. Saving a draft removes the previous publication.',f);
+      for(const p of data.candidates){
+        const label=h('label',{className:'cloud-checkbox-row',parent:f});
+        const cb=h('input',{attrs:{type:'checkbox',name:'personIds',value:p.personId},parent:label});
+        cb.checked=data.selectedIds.includes(p.personId);
+        h('span',{text:p.displayName+' · '+(p.response||'Not answered'),parent:label});
+      }
+      h('button',{className:'cloud-btn primary',text:'Save squad draft',attrs:{type:'submit'},parent:f});
+      if(data.state==='draft'&&data.selectedIds.length)
+        button('Publish match squad',async()=>{
+          if(!confirm('Publish the saved match squad to this team’s verified Players? This is not an on-field lineup.'))return;
+          try{await change('match.selection.publish');}catch(e){message(explain(e),true);}
+        },actions(panel));
+    }
+    if(['draft','published'].includes(data.state))
+      button('Withdraw match squad',async()=>{
+        if(!confirm('Withdraw this match squad from the Player view?'))return;
+        try{await change('match.selection.withdraw');}catch(e){message(explain(e),true);}
+      },actions(panel));
+    info('On-field formations and scorekeeping require the existing competition rule review and owner approval.',panel);
+  }catch(e){if(current()){loading.textContent=explain(e);message(explain(e),true);}}
 }
 function editTraining(s){
   const ctx=state.context,epoch=++state.epoch;
@@ -1198,6 +1270,7 @@ function renderMyMatchDates(){
         ' · '+m.status,parent:row});
       info(m.source==='team-recorded'?'Team-recorded date, not an official draw':
         'Check the competition authority for the official draw',row);
+      button('Selected match squad',()=>void openMatchSquad(m,true),actions(row));
     });
   }).catch(e=>{
     if(epoch!==state.epoch||state.context?.key!==ctx.key)return;

@@ -12,9 +12,11 @@ const ACTIONS=new Set(['settings.read','settings.save','jerseys.read','jerseys.i
  'jerseys.return','competitions.read','competitions.create','competitions.update',
  'competitions.fixture','competitions.fixtures','messages.read','messages.prepare','messages.confirm',
  'team.members','volunteers.list','admin.status','duties.board','duties.assign','duties.withdraw','invite.list','invite.issue','invite.review-adult',
- 'invite.activate','invite.revoke','player.team.read']);
+ 'invite.activate','invite.revoke','player.team.read',
+ 'match.selection.read','match.selection.save','match.selection.publish','match.selection.withdraw','player.match.selection.read']);
 const reads=new Set(['settings.read','jerseys.read','competitions.read','competitions.fixtures',
- 'messages.read','team.members','volunteers.list','admin.status','duties.board','invite.list','player.team.read']);
+ 'messages.read','team.members','volunteers.list','admin.status','duties.board','invite.list','player.team.read',
+ 'match.selection.read','player.match.selection.read']);
 const keys=(o,k)=>Object.keys(o).every(key=>k.includes(key));
 const str=(v,max)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
 // Only composed messages may contain line breaks. Keep the stricter validation
@@ -42,8 +44,18 @@ export function validateStage3D5(input){
  const action=input.action,x=input.input;
  // A verified Player may read only the curated team summary, never management
  // settings, invitation records or another role's operations.
- if((input.role==='team_player')!==(action==='player.team.read'))return null;
- if(reads.has(action)){if(Object.keys(x).length)return null;}
+ const playerRead=['player.team.read','player.match.selection.read'].includes(action);
+ if((input.role==='team_player')!==playerRead)return null;
+ if(action==='match.selection.read'||action==='player.match.selection.read'){
+   if(!keys(x,['sessionId'])||!ID.test(x.sessionId||''))return null;
+ }else if(['match.selection.save','match.selection.publish','match.selection.withdraw'].includes(action)){
+   if(input.role!=='team_coach'||!ID.test(x.sessionId||'')||!num(x.expectedVersion)||!num(x.fixtureVersion))return null;
+   const allowed=['sessionId','expectedVersion','fixtureVersion'];
+   if(action==='match.selection.save'){
+     if(!keys(x,[...allowed,'personIds'])||!Array.isArray(x.personIds)||x.personIds.length>30||
+       x.personIds.some(id=>typeof id!=='string'||!ID.test(id))||new Set(x.personIds).size!==x.personIds.length)return null;
+   }else if(!keys(x,allowed))return null;
+ }else if(reads.has(action)){if(Object.keys(x).length)return null;}
  else if(action==='settings.save'){
   if(!keys(x,['teamLabel','trainingVenue','trainingStart','trainingEnd',
     'contactName','contactEmail','jerseyLoan','expectedVersion'])||

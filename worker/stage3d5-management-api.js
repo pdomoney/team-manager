@@ -48,7 +48,8 @@ export async function handleStage3D5Team(request,env,fetchImpl=fetch){
   if(!user||!UUID.test(user.id||'')||
     !(user.email_confirmed_at||user.confirmed_at))
     return deny('unauthenticated',401);
-  const rpc=op.action==='player.team.read'?'tm_stage3d5_player_team':'tm_stage3d5_team';
+  const rpc=op.action==='player.team.read'?'tm_stage3d5_player_team':
+    op.action.includes('match.selection.')?'tm_stage3d5_match':'tm_stage3d5_team';
   const result=await remote(fetchImpl,env.SUPABASE_URL+'/rest/v1/rpc/'+rpc,{
     method:'POST',headers:{...adminHeaders(env),'Content-Type':'application/json'},
     body:JSON.stringify({p_actor:user.id,p_team:op.teamId,p_role:op.role,
