@@ -108,3 +108,19 @@ export function cloudAvailabilityEvents(sessions,{now=new Date(),timeZone='Austr
         startLabel:p.startLabel,opponent:s.opponent||''};
     }).slice(0,40);
 }
+
+export function connectedMessageTemplateReadiness(sessions,{now=new Date()}={}){
+ if(!Array.isArray(sessions))throw new TypeError('invalid-sessions');
+ if(!(now instanceof Date)||!Number.isFinite(now.getTime()))throw new TypeError('invalid-now');
+ const futureMatches=sessions.filter(s=>s?.kind==='match'&&
+   !['cancelled','postponed'].includes(s.status)&&
+   Number.isFinite(new Date(s.startsAt).getTime())&&new Date(s.startsAt)>=now);
+ const availability=cloudAvailabilityEvents(sessions,{now});
+ return Object.freeze({
+   reminder:!!nextCloudTraining(sessions,{now}),
+   availability:availability.length>0,
+   match:futureMatches.length>0,
+   cancelled:!!cancelledCloudTraining(sessions,{now}),
+   blank:true
+ });
+}
