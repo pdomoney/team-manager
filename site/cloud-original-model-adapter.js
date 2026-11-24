@@ -116,3 +116,27 @@ export function originalTeamCompetitionsFromCloud(input){
  const {team,workspace}=projectCloudTeamToOriginalModel(input);
  return M.compsForPlayers(workspace,team);
 }
+
+/**
+ * View team-recorded matches from the same exact-team schedule already used
+ * by Players and Coaches. These records are never promoted to the official
+ * competition draw and are not automatically linked by a similar name/date.
+ */
+export function teamRecordedMatchesFromSchedule({context,sessions}={}){
+ const teamId=context?.teamId;
+ if(!ID.test(teamId||''))throw new TypeError('invalid-team-context');
+ const rows=scopedRows(sessions,teamId,'sessions');
+ return Object.freeze(rows.filter(s=>s?.kind==='match'&&
+   typeof s.sessionId==='string'&&
+   Number.isFinite(new Date(s.startsAt).getTime()))
+   .map(s=>Object.freeze({
+     sessionId:s.sessionId,
+     title:plain(s.title).trim()||'Team match',
+     startsAt:s.startsAt,
+     status:plain(s.status)||'unknown',
+     locationLabel:plain(s.locationLabel),
+     // Event-origin is authoritative, not the absence of a provider ID.
+     source:s.sessionId.startsWith('event-')?'team-recorded':'unverified',
+     competitionId:null,official:false
+   })).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)));
+}
