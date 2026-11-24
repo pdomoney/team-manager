@@ -10,7 +10,7 @@ import {buildTeamNavigation,hasTeamRole,roleForAction,reviewerContext,
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
 import {createCloudManagementClient} from './cloud-management.js';
 import {createCloudManagementExperience} from './cloud-management-experience.js';
-import {teamRecordedMatchesFromSchedule} from './cloud-original-model-adapter.js';
+import {teamRecordedMatchesFromSchedule,namedTrainingRegister} from './cloud-original-model-adapter.js';
 import {teamIconSvg} from './shared-team-icons.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
@@ -425,6 +425,14 @@ function renderHome(){
   }
   if(canReadNotices())renderNotices('home');
 }
+// HTML datetime-local is a device-local wall time, not UTC.
+function localDateTimeValue(value){
+  const d=new Date(value);
+  if(!Number.isFinite(d.valueOf()))return '';
+  const pad=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+
+    pad(d.getHours())+':'+pad(d.getMinutes());
+}
 function renderSchedule(){
   if(!roleForAction(state.context,'schedule.read')){
     info('Your current role does not include the team schedule.');return;
@@ -520,46 +528,56 @@ function editTeamEvent(s){
     message('Team event updated.');await showTab();
   });
   field(f,'Title','title',{value:s.title||'',max:120});
-  field(f,'New start','startsAt',{type:'datetime-local'});
+  field(f,'New start','startsAt',{type:'datetime-local',value:localDateTimeValue(s.startsAt)});
   field(f,'Location','locationLabel',{value:s.locationLabel||'',required:false,max:120});
   h('button',{className:'cloud-btn primary',text:'Save team event',
     attrs:{type:'submit'},parent:f});
   button('Back to schedule',()=>void showTab(),c);
 }
 async function openAttendance(s){
-  const epoch=++state.epoch;
+  const ctx=state.context,epoch=++state.epoch;
   clear();title('Attendance and availability',s.title||'Training');
   const loading=info('Loading this team training register…');
   try{
-    const [attendance,replies]=await Promise.all([
+    const [attendance,replies,members]=await Promise.all([
       action('attendance.read',s.sessionId),
-      action('availability.board',s.sessionId)]);
-    if(epoch!==state.epoch)return;
+      action('availability.board',s.sessionId),
+      MANAGEMENT_PARITY?management.call(ctx,'team.members'):Promise.resolve([])]);
+    if(epoch!==state.epoch||ctx!==state.context)return;
+    const roll=namedTrainingRegister({context:ctx,rows:attendance,members});
+    const availability=namedTrainingRegister({context:ctx,rows:replies,members});
     loading.remove();
     const registers=card('Training roll call');
     info('Coach and Manager record attendance for active team players only. This does not certify registration or eligibility.',registers);
-    readList(registers,attendance,(p,row)=>{
-      h('strong',{text:'Player reference '+p.personId,parent:row});
+    info(roll.shown+' of '+roll.eligible+' active player records shown; '+roll.unnamed+' without a verified display name.',registers);
+    readList(registers,roll.rows,(p,row)=>{
+      h('strong',{text:p.displayName,parent:row});
       h('small',{text:'Attendance: '+(p.status||'Not marked'),parent:row});
+      if(s.status==='cancelled')return;
       const f=form(row,async d=>{
+        if(ctx!==state.context||epoch!==state.epoch)throw Error('scope-denied');
+        if(!d.get('status'))throw Object.assign(new Error(),{code:'invalid-input'});
         await mutation('attendance.record',s.sessionId,p.version,
           {command:{personId:p.personId,status:String(d.get('status'))}});
         message('Attendance recorded.');await openAttendance(s);
       });
       selectField(f,'Attendance','status',[
-        ['present','Present'],['absent','Absent'],['late','Late'],['excused','Excused']])
-        .value=p.status||'present';
+        ['','Choose attendance'],['present','Present'],['absent','Absent'],['late','Late'],['excused','Excused']])
+        .value=p.status||'';
       h('button',{className:'cloud-btn',text:'Save attendance',
         attrs:{type:'submit'},parent:f});
     });
     const board=card('Availability responses');
     info('Manager entries retain their stated source. Players can still update their own response.',board);
-    readList(board,replies,(p,row)=>{
-      h('strong',{text:'Player reference '+p.personId,parent:row});
+    info(availability.shown+' of '+availability.eligible+' active player records shown; '+availability.unnamed+' without a verified display name.',board);
+    readList(board,availability.rows,(p,row)=>{
+      h('strong',{text:p.displayName,parent:row});
       h('small',{text:'Reply: '+(p.response||'Not answered')+
         ' · source: '+(p.source||'none'),parent:row});
-      if(!hasRole('team_manager'))return;
+      if(!hasRole('team_manager')||s.status!=='planned')return;
       const f=form(row,async d=>{
+        if(ctx!==state.context||epoch!==state.epoch)throw Error('scope-denied');
+        if(!d.get('response')||!d.get('source'))throw Object.assign(new Error(),{code:'invalid-input'});
         await mutation('availability.transcribe',s.sessionId,p.version,{command:{
           personId:p.personId,response:String(d.get('response')),
           source:String(d.get('source'))}});
@@ -567,9 +585,9 @@ async function openAttendance(s){
         await openAttendance(s);
       });
       selectField(f,'Reported reply','response',[
-        ['yes','Yes'],['no','No'],['maybe','Maybe']]).value=p.response||'maybe';
+        ['','Choose reply'],['yes','Yes'],['no','No'],['maybe','Maybe']]).value=p.response||'';
       selectField(f,'Received by','source',[
-        ['phone','Phone'],['in_person','In person'],['email','Email']]);
+        ['','Choose source'],['phone','Phone'],['in_person','In person'],['email','Email']]);
       h('button',{className:'cloud-btn',text:'Record reported reply',
         attrs:{type:'submit'},parent:f});
     });
@@ -578,16 +596,23 @@ async function openAttendance(s){
     button('Back to schedule',()=>void switchTab('schedule'),actions());}
 }
 function editTraining(s){
+  const ctx=state.context,epoch=++state.epoch;
   clear();title('Edit training','Schedule');
   const c=card(s.title||'Training');
+  const initialStart=localDateTimeValue(s.startsAt);
   const f=form(c,async d=>{
-    await mutation('schedule.edit',s.sessionId,s.version,{
-      command:{op:'update',title:String(d.get('title')).trim(),
-        locationLabel:String(d.get('locationLabel')).trim()}
-    });
+    if(ctx!==state.context||epoch!==state.epoch)throw Error('scope-denied');
+    const start=String(d.get('startsAt')),date=new Date(start);
+    if(!Number.isFinite(date.valueOf())||localDateTimeValue(date)!==start)
+      throw Object.assign(new Error(),{code:'invalid-input'});
+    const command={op:'update',title:String(d.get('title')).trim(),
+      locationLabel:String(d.get('locationLabel')).trim()};
+    if(start!==initialStart)command.startsAt=date.toISOString();
+    await mutation('schedule.edit',s.sessionId,s.version,{command});
     message('Training changes saved.');await showTab();
   });
   field(f,'Title','title',{value:s.title||''});
+  field(f,'Start date and time','startsAt',{type:'datetime-local',value:initialStart});
   field(f,'Location','locationLabel',{value:s.locationLabel||'',required:false});
   h('button',{className:'cloud-btn primary',text:'Save changes',attrs:{type:'submit'},parent:f});
   button('Back to schedule',()=>void showTab(),c);

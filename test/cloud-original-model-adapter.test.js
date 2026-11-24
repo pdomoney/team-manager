@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   projectCloudTeamToOriginalModel,originalJerseyReportFromCloud,
-  originalJerseyInventoryFromCloud,originalTeamCompetitionsFromCloud,teamRecordedMatchesFromSchedule
+  originalJerseyInventoryFromCloud,originalTeamCompetitionsFromCloud,teamRecordedMatchesFromSchedule,namedTrainingRegister
 } from '../site/cloud-original-model-adapter.js';
 const context={teamId:'stgeorge-mixed20',club:'St George Oztag',
  teamName:'St George Mixed 20',sport:'oztag',season:'2027'};
@@ -100,4 +100,17 @@ test('match dates sort by actual instant and exclude invalid dates and training'
  ]});
  assert.deepEqual(rows.map(r=>r.sessionId),['event-earlier','later']);
  assert.equal(rows[0].status,'cancelled');
+});
+
+test('register retains every eligible row, uses verified exact ID names and counts omissions',()=>{
+ const rows=[{personId:'person-01',status:'present',version:2},
+  {personId:'person-02',status:null,version:0},{personId:'missing',status:null,version:0}];
+ const result=namedTrainingRegister({context,rows,members:base.members});
+ assert.equal(result.eligible,3);assert.equal(result.shown,3);assert.equal(result.unnamed,2);
+ assert.equal(result.rows[0].displayName,'Verified Player');
+ assert.equal(result.rows[1].displayName,'Player reference person-02');
+ assert.equal(result.rows[0].version,2);
+ assert.equal(namedTrainingRegister({context,rows,members:[base.members[0],base.members[0]]}).unnamed,3);
+ assert.throws(()=>namedTrainingRegister({context,rows,members:[{...base.members[0],teamId:'foreign'}]}),/cross-team/);
+ assert.throws(()=>namedTrainingRegister({context,rows:[rows[0],rows[0]],members:base.members}),/ambiguous-register/);
 });
