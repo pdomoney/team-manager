@@ -236,6 +236,7 @@ export function createCloudManagementExperience({
     loading.remove();
     const c=card('New message');
     info('Prepare a WhatsApp message for your team group, or Share/Copy it. Team Manager cannot automatically send messages or confirm WhatsApp delivery.',c);
+    let reuseMessage=null;
     if(canAdmin){
     const f=form(c,async d=>{
       const body=text(d.get('body')).trim();
@@ -349,6 +350,12 @@ export function createCloudManagementExperience({
     selected.addEventListener('change',populate);
     sessionSelect.addEventListener('change',populate);
     populate();
+    reuseMessage=body=>{
+      if(!ensure(ctx)||!canAdmin)return;
+      selected.value='blank';populate();area.value=body;
+      area.focus();area.scrollIntoView({block:'nearest'});
+      message('Previous message loaded into the editor. Review it before preparing or sharing.');
+    };
     const labelNotice=h('label',{parent:f,className:'cloud-checkbox-row'});
     const check=h('input',{attrs:{name:'postNotice',type:'checkbox',value:'yes'},parent:labelNotice});
     check.checked=true;
@@ -364,6 +371,7 @@ export function createCloudManagementExperience({
       h('strong',{text:item.audience+' · '+item.status,parent:row});
       info(item.body,row);
       info('WhatsApp and sharing are manual. Only your confirmation changes the status.',row);
+      if(canAdmin&&reuseMessage)button('Use again',()=>reuseMessage(item.body),actions(row));
       if(item.status==='prepared'&&canAdmin){
         const a=actions(row);
         button('Open in WhatsApp',()=>window.open(
