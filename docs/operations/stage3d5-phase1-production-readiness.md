@@ -34,7 +34,7 @@ for review, not permission to repin or overwrite a live definition.
 
 1. Finish functional source work and pass exact-head Node, PostgreSQL,
    Chromium and WebKit. Record omitted features and accepted journeys.
-2. Reuse the private verified archive; confirm checksum before opening it.
+2. Reuse the existing private verified PR289 archive for the combined restore and migration rehearsal; do not create another backup merely to repeat its verified integrity check. Confirm checksum before opening it.
    Rehearse recovery on an isolated loopback-only disposable PostgreSQL
    instance, never against Supabase. Source server is PostgreSQL 17;
    archive was made by pg_dump 19. Confirm restore compatibility, extension

@@ -80,3 +80,12 @@ test('Coach fallback duties require exact verified person and non-accredited cat
  assert(validateStage3D5(req('duties.withdraw',{
   dutyId:'duty-'+'a'.repeat(32),expectedVersion:0})));
 });
+
+test('competition edits preserve optional dates and reject impossible or reversed dates',()=>{
+ const base={competitionId:'competition-'+'a'.repeat(32),name:'Revised carnival',
+  format:'tournament',division:'Mixed 20',venue:'Community field',status:'entered',expectedVersion:1};
+ for(const [beginsOn,endsOn] of [['',''],['2028-02-29','2028-03-01'],['2027-02-01','']])
+  assert(validateStage3D5(req('competitions.update',{...base,beginsOn,endsOn})));
+ for(const [beginsOn,endsOn] of [['2027-02-29',''],['2027-04-31',''],['2027-03-05','2027-03-01']])
+  assert.equal(validateStage3D5(req('competitions.update',{...base,beginsOn,endsOn})),null);
+});

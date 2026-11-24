@@ -258,18 +258,30 @@ export function createCloudManagementExperience({
         info('Team-recorded fixture, not an official competition draw',fixtureRow);
       }
       if(canAdmin){
-      const f=form(row,async d=>use(ctx,'competitions.update',{
-        competitionId:entry.competitionId,name:entry.name,format:entry.format,
-        division:entry.division||'',organiser:entry.organiser||'',
-        venue:entry.venue||'',beginsOn:entry.beginsOn||'',
-        endsOn:entry.endsOn||'',status:text(d.get('status')),
+      const edit=h('details',{parent:row});
+      h('summary',{text:'Edit competition and participation',parent:edit});
+      const f=form(edit,async d=>use(ctx,'competitions.update',{
+        competitionId:entry.competitionId,name:text(d.get('name')).trim(),format:text(d.get('format')),
+        division:text(d.get('division')).trim(),organiser:text(d.get('organiser')).trim(),
+        venue:text(d.get('venue')).trim(),beginsOn:text(d.get('beginsOn')),
+        endsOn:text(d.get('endsOn')),status:text(d.get('status')),
         expectedVersion:entry.version
       },()=>open('Competitions'),'Team competition entry updated.'));
+      field(f,'Competition name','name',{value:entry.name,max:120});
+      selectField(f,'Format','format',[
+        ['league','League'],['tournament','Tournament'],['carnival','Carnival'],
+        ['friendly-series','Friendly series']]).value=entry.format;
+      field(f,'Division or grade','division',{value:entry.division||'',required:false,max:100});
+      field(f,'Organiser','organiser',{value:entry.organiser||'',required:false,max:120});
+      field(f,'Venue','venue',{value:entry.venue||'',required:false,max:120});
+      field(f,'Starts','beginsOn',{value:entry.beginsOn||'',type:'date',required:false});
+      field(f,'Ends','endsOn',{value:entry.endsOn||'',type:'date',required:false});
+      info('Changes apply to this team’s local competition record only. Existing fixtures remain linked.',edit);
       selectField(f,'Participation','status',[
         ['planned','Planning'],['entered','Entered'],
         ['withdrawn','Withdrawn'],['completed','Completed']
       ]).value=entry.status;
-      h('button',{className:'cloud-btn',text:'Save entry status',
+      h('button',{className:'cloud-btn',text:'Save competition and entry',
         attrs:{type:'submit'},parent:f});
       if(!['planned','entered'].includes(entry.status))continue;
       const fixture=form(row,async d=>{
