@@ -34,7 +34,7 @@ for review, not permission to repin or overwrite a live definition.
 
 1. Finish functional source work and pass exact-head Node, PostgreSQL,
    Chromium and WebKit. Record omitted features and accepted journeys.
-2. Reuse the private verified archive; confirm checksum before opening it.
+2. Reuse the existing private verified PR289 archive for the combined restore and migration rehearsal; do not create another backup merely to repeat its verified integrity check. Confirm checksum before opening it.
    Rehearse recovery on an isolated loopback-only disposable PostgreSQL
    instance, never against Supabase. Source server is PostgreSQL 17;
    archive was made by pg_dump 19. Confirm restore compatibility, extension
@@ -72,3 +72,9 @@ scoring authority is not an acceptable substitute. Complete these and the
 remaining tournament, onboarding/jersey/volunteer and notice journeys before
 the Phase 1 completion gate. Existing functional capability is not the same
 as owner acceptance or an installed release.
+
+## PR291 continuation
+
+Reuse the existing competition update API for editable competition details and participation. Preserve linked fixtures when withdrawing or re-entering. The authority migration 20261124050000 reuses the current staff predicate for Manager takeover and requires a current independently approved adult Volunteer before listing or assigning a duty. Notice operations reject stale team/view state.
+
+The original P11E/P11F match-format decisions require exact organiser evidence and owner rule approval before implementing persistent scoring and lineup rules. This is an explicit remaining product decision, not a reason to invent a generic formation or claim match-day parity. Manual message templates remain available. Full database recovery and migration qualification remain owner-local, using the previous verified archive and never the live project. No live changes are authorised by this document.

@@ -23,9 +23,12 @@ const messageBody=v=>typeof v==='string'&&v.length<=1500&&
   !/[\u0000-\u0009\u000b\u000c\u000e-\u001f\u007f]|\r(?!\n)/.test(v)&&!!v.trim();
 const optional=(v,max)=>v===undefined||str(v,max);
 const num=v=>Number.isSafeInteger(v)&&v>=0&&v<=999999999;
-const date=v=>v===undefined||v===''||(typeof v==='string'&&
-  /^20\d{2}-\d{2}-\d{2}$/.test(v)&&
-  !Number.isNaN(Date.parse(v+'T00:00:00Z')));
+const date=v=>{
+ if(v===undefined||v==='')return true;
+ if(typeof v!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(v))return false;
+ const d=new Date(v+'T00:00:00Z');
+ return Number.isFinite(d.valueOf())&&d.toISOString().slice(0,10)===v;
+};
 const stamp=v=>typeof v==='string'&&/^20\d{2}-\d{2}-\d{2}T/.test(v)&&
  !Number.isNaN(Date.parse(v));
 const email=v=>typeof v==='string'&&v.length<=254&&EMAIL.test(v.trim());
@@ -65,6 +68,7 @@ export function validateStage3D5(input){
     !['league','tournament','carnival','friendly-series'].includes(x.format)||
     !optional(x.division,100)||!optional(x.organiser,120)||
     !optional(x.venue,120)||!date(x.beginsOn)||!date(x.endsOn)||
+    (x.beginsOn&&x.endsOn&&x.beginsOn>x.endsOn)||
     !['planned','entered','withdrawn','completed',undefined].includes(x.status))return null;
   if(action==='competitions.create'&&(x.competitionId!==undefined||
     x.expectedVersion!==undefined))return null;

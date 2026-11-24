@@ -32,7 +32,7 @@ grants={
  'player':[('stgeorge-mixed20','St George Oztag','2027','team_player')]
 }
 operations=[];invitations=[]
-message_log=[];notice_log=[];schedule_rows=[];attendance_rows=[];member_rows=[];reported={}
+message_log=[];notice_log=[];schedule_rows=[];attendance_rows=[];member_rows=[];reported={};competition_rows=[]
 def respond(route,body,status=200):
  return route.fulfill(status=status,content_type='application/json',body=json.dumps(body))
 def admin_right(team,role):
@@ -146,7 +146,7 @@ def bind(ctx):
    row['myAvailability']=value['response'];row['myAvailabilityVersion']=value['expectedVersion']+1
    return respond(route,{'ok':True,'code':'committed','resourceId':row['sessionId'],'version':row['myAvailabilityVersion']})
   if action=='notices.read':
-   rows=[n for n in notice_log if n['teamId']==team and
+   rows=[n for n in notice_log if n['teamId']==team and n['status']!='archived' and
      (role in ('team_manager','team_coach') or (n['status']=='published' and n['audience'] in ('all','players') and role=='team_player'))]
    return respond(route,{'ok':True,'code':'permitted','data':rows})
   if action in ('notice.create','notice.publish','notice.archive') and role in ('team_manager','team_coach'):
@@ -198,19 +198,32 @@ def bind(ctx):
    return respond(route,{'ok':True,'code':'committed','data':{'messageId':m['messageId'],'status':m['status'],'version':m['version']}})
   if action=='team.members' and role in ('team_coach','team_manager'):
    return respond(route,{'ok':True,'code':'permitted','data':member_rows if team=='stgeorge-mixed20' else []})
+  if action=='competitions.read':
+   return respond(route,{'ok':True,'code':'permitted','data':[c for c in competition_rows if c['teamId']==team]})
+  if action in ('competitions.create','competitions.update'):
+   if not admin_right(team,role):return respond(route,{'ok':False,'code':'role-denied'},403)
+   value=data['input']
+   if action=='competitions.create':
+    c=dict(value,teamId=team,season='2027',competitionId='competition-'+'a'*32,version=0)
+    competition_rows.append(c)
+   else:
+    c=next((c for c in competition_rows if c['teamId']==team and c['competitionId']==value['competitionId']),None)
+    if not c or c['version']!=value['expectedVersion']:
+     return respond(route,{'ok':False,'code':'stale-version'},409)
+    c.update({k:v for k,v in value.items() if k!='expectedVersion'});c['version']+=1
+   return respond(route,{'ok':True,'code':'committed','data':{'competitionId':c['competitionId'],'version':c['version']}})
   if action in ('volunteers.list','jerseys.read',
-    'competitions.read','competitions.fixtures','duties.board','invite.list'):
+    'competitions.fixtures','duties.board','invite.list'):
    return respond(route,{'ok':True,'code':'permitted','data':[]})
   if action=='settings.read':
    return respond(route,{'ok':True,'code':'permitted','data':{
     'teamLabel':'Mixed 20','trainingVenue':'','trainingStart':'',
     'trainingEnd':'','contactName':'','contactEmail':'','jerseyLoan':False,
     'version':0}})
-  if action in ('settings.save','competitions.create'):
+  if action=='settings.save':
    if role!='team_manager':
     return respond(route,{'ok':False,'code':'role-denied'},403)
    response={'version':1}
-   if action=='competitions.create':response={'competitionId':'competition-'+'a'*32,'version':0}
    return respond(route,{'ok':True,'code':'committed','data':response})
   return respond(route,{'ok':False,'code':'invalid-request'},403)
  ctx.route('https://stage3d3-example.supabase.co/**',provider)
@@ -252,7 +265,7 @@ try:
     'fresh founder login opens Platform automatically')
   login_ctx.close()
   for width in (390,1280):
-   message_log.clear();notice_log.clear();schedule_rows.clear();attendance_rows.clear();member_rows.clear();reported.clear()
+   message_log.clear();notice_log.clear();schedule_rows.clear();attendance_rows.clear();member_rows.clear();reported.clear();competition_rows.clear()
    start_ops=len(operations)
    c,page=session(browser,owner_token,width)
    page.locator('#club-chips button').first.wait_for()
@@ -323,6 +336,33 @@ try:
    page.get_by_role('button',name='All management tools').click()
    page.get_by_role('button',name='Competitions').click()
    page.get_by_role('heading',name='Create a league, tournament or carnival').wait_for()
+   create=page.locator('form').filter(has=page.get_by_role('button',name='Create competition',exact=True))
+   create.get_by_label('Competition name').fill('Example carnival')
+   # Implicit select labels include option text on WebKit. Scope by form and
+   # stable field name, as for the existing message template controls.
+   create.locator('select[name=format]').select_option('carnival')
+   checks.ok(create.locator('select[name=format]').input_value()=='carnival',
+     f'[{width}] tournament format selection is applied')
+   create.get_by_role('button',name='Create competition',exact=True).click()
+   entry=page.locator('.cloud-list-item').filter(has=page.get_by_text('Example carnival',exact=True))
+   entry.get_by_text('Edit competition and participation').click()
+   edit=entry.locator('form').filter(has=page.get_by_role('button',name='Save competition and entry',exact=True))
+   checks.ok(edit.get_by_label('Competition name').input_value()=='Example carnival' and
+     edit.locator('select[name=format]').input_value()=='carnival' and
+     edit.locator('select[name=status]').input_value()=='planned',
+     f'[{width}] existing tournament details are prefilled')
+   edit.get_by_label('Venue',exact=True).fill('Updated venue')
+   edit.locator('select[name=status]').select_option('entered')
+   edit.get_by_role('button',name='Save competition and entry',exact=True).click()
+   entry.get_by_text('carnival · 2027 · No grade · entered',exact=True).wait_for()
+   checks.ok(competition_rows[0]['venue']=='Updated venue' and competition_rows[0]['version']==1,
+     f'[{width}] existing tournament and entry update persisted')
+   entry.get_by_text('Edit competition and participation').click()
+   edit.locator('select[name=status]').select_option('withdrawn')
+   edit.get_by_role('button',name='Save competition and entry',exact=True).click()
+   entry.get_by_text('carnival · 2027 · No grade · withdrawn',exact=True).wait_for()
+   checks.ok(entry.get_by_role('button',name='Add team-recorded fixture').count()==0,
+     f'[{width}] withdrawn tournament no longer offers new fixture creation')
    page.get_by_role('button',name='All management tools').click()
    page.get_by_role('button',name='Messages').click()
    page.get_by_role('heading',name='New message').wait_for()
@@ -361,6 +401,13 @@ try:
    draft.get_by_role('button',name='Publish notice').click()
    draft.get_by_text('players · published',exact=True).wait_for()
    checks.ok(notice_log[-1]['status']=='published',f'[{width}] standalone noticeboard can publish its draft')
+   page.locator('input[name=title]').fill('Archived notice example')
+   page.locator('textarea[name=body]').fill('This notice will be archived.')
+   page.get_by_role('button',name='Save notice draft').click()
+   archived=page.locator('.cloud-list-item').filter(has_text='Archived notice example')
+   archived.get_by_role('button',name='Archive notice').click()
+   archived.wait_for(state='detached')
+   checks.ok(notice_log[-1]['status']=='archived',f'[{width}] archive removes draft from current noticeboard')
    page.get_by_role('button',name='Back to More').click()
    page.get_by_role('button',name='Jerseys').click()
    page.get_by_role('heading',name='Jersey numbers and issue history').wait_for()
@@ -496,7 +543,8 @@ try:
    page.get_by_role('button',name='Noticeboard').first.click()
    page.get_by_role('heading',name='Noticeboard').wait_for()
    page.get_by_text('Standalone notice',exact=True).wait_for()
-   checks.ok(page.get_by_role('button',name='Save notice draft').count()==0
+   checks.ok(page.get_by_text('Archived notice example',exact=True).count()==0 and
+     page.get_by_role('button',name='Save notice draft').count()==0
      and page.get_by_role('button',name='Publish notice').count()==0
      and page.get_by_role('button',name='Archive notice').count()==0,
      f'[{width}] Player reads published notices but cannot mutate them')

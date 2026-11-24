@@ -50,7 +50,7 @@ declare
  manager uuid:='22222222-2222-4222-8222-222222222222';
  player uuid:='33333333-3333-4333-8333-333333333333';
  outsider uuid:='44444444-4444-4444-8444-444444444444';
- r jsonb; id text; invitation text;
+ r jsonb; id text; invitation text; competition text; duty text;
 begin
  if has_table_privilege('authenticated','tm_private.team_preferences','SELECT')
    or has_table_privilege('authenticated','tm_private.team_jerseys','INSERT')
@@ -89,7 +89,7 @@ begin
    "division":"Mixed 20","organiser":"Fictional League",
    "venue":"Main field","beginsOn":"","endsOn":"","status":"entered"}'::jsonb);
  if r->>'code'<>'committed' then raise exception 'Competition creation failed %',r;end if;
- id:=r->'data'->>'competitionId';
+ id:=r->'data'->>'competitionId'; competition:=id;
  r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach',
   'competitions.fixture',jsonb_build_object('competitionId',id,
    'opponent','Fictional Lions','startsAt','2027-02-20T08:00:00+11:00'));
@@ -104,6 +104,22 @@ begin
    or r->'data'->0->>'title'<>'vs Fictional Lions'
    or r->'data'->0->>'competitionId'<>id
  then raise exception 'Team local fixture read failed %',r;end if;
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach','competitions.update',
+   jsonb_build_object('competitionId',competition,'name','Winter Oztag revised','format','tournament',
+   'venue','Updated field','status','withdrawn','beginsOn','','endsOn','','expectedVersion',0));
+ if r->>'code'<>'committed' then raise exception 'Competition withdrawal failed %',r; end if;
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach','competitions.fixture',
+   jsonb_build_object('competitionId',competition,'opponent','Denied match','startsAt','2027-02-24T08:00:00+11:00'));
+ if r->>'code'<>'invalid-request' then raise exception 'Withdrawn entry accepted fixture %',r; end if;
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach','competitions.update',
+   jsonb_build_object('competitionId',competition,'name','Stale edit','format','tournament','status','entered','expectedVersion',0));
+ if r->>'code'<>'stale-version' then raise exception 'Stale competition edit succeeded %',r; end if;
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach','competitions.update',
+   jsonb_build_object('competitionId',competition,'name','Winter Oztag revised','format','tournament',
+   'venue','Updated field','status','entered','expectedVersion',1));
+ if r->>'code'<>'committed' or not exists(select 1 from tm_private.team_competition_fixtures
+   where competition_id=competition and team_id='stgeorge-mixed20')
+ then raise exception 'Re-entry lost existing fixture %',r; end if;
  r:=public.tm_stage3d5_team(coach,'other-team','team_coach',
   'competitions.fixtures','{}'::jsonb);
  if r->>'code'<>'scope-denied' then raise exception 'Foreign team fixture read succeeded';end if;
@@ -173,6 +189,11 @@ begin
  insert into tm_private.registration_acceptances(
   user_id,policy_id,terms_accepted,privacy_acknowledged,marketing_opt_in)
  values(manager,'fictional-stg3d5-policy',true,true,false);
+ update tm_private.role_grants set valid_from=now()+interval '1 day' where grant_id='grant-manager';
+ if not tm_private.stage3d5_team_admin(coach,'stgeorge-mixed20','team_coach')
+ or tm_private.stage3d5_team_admin(manager,'stgeorge-mixed20','team_manager')
+ then raise exception 'Future Manager incorrectly displaced Coach'; end if;
+ update tm_private.role_grants set valid_from=null where grant_id='grant-manager';
  if tm_private.stage3d5_team_admin(coach,'stgeorge-mixed20','team_coach')
  or not tm_private.stage3d5_team_admin(manager,'stgeorge-mixed20','team_manager')
  then raise exception 'Coach did not surrender Manager administration when appointed';end if;
@@ -210,6 +231,33 @@ begin
    not exists(select 1 from jsonb_array_elements(r->'data') msg
      where msg->>'canConfirm'='true')
  then raise exception 'Coach could not confirm own messages';end if;
+ -- Reuse the synthetic outsider account as an independently reviewed Volunteer
+ -- only after the earlier outsider-denial assertions have run.
+ insert into tm_private.persons(person_id,lifecycle) values('volunteer-p','active');
+ insert into tm_private.account_person_links(user_id,person_id,status,verified_by,verified_at)
+ values(outsider,'volunteer-p','verified',coach,now());
+ insert into tm_private.role_grants(grant_id,user_id,team_id,role,status,approved_by,approved_at)
+ values('grant-phase1-volunteer',outsider,'stgeorge-mixed20','team_volunteer','active',coach,now());
+ r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager','volunteers.list','{}'::jsonb);
+ if jsonb_array_length(r->'data')<>0 then raise exception 'Unreviewed Volunteer listed %',r; end if;
+ r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager','duties.assign',
+   '{"sessionId":"phase1-match","personId":"volunteer-p","type":"equipment"}'::jsonb);
+ if r->>'code'<>'volunteer-not-verified' then raise exception 'Unreviewed Volunteer assigned %',r; end if;
+ insert into tm_private.registration_adult_reviews(user_id,reviewed_by,reviewed_at,evidence_ref,state)
+ values(outsider,coach,now(),'evidence-ref/fictional-volunteer-review','approved');
+ insert into tm_private.registration_acceptances(user_id,policy_id,terms_accepted,privacy_acknowledged,marketing_opt_in)
+ values(outsider,'fictional-stg3d5-policy',true,true,false);
+ r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager','volunteers.list','{}'::jsonb);
+ if jsonb_array_length(r->'data')<>1 then raise exception 'Verified Volunteer omitted %',r; end if;
+ r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager','duties.assign',
+   '{"sessionId":"phase1-match","personId":"volunteer-p","type":"equipment"}'::jsonb);
+ if r->>'code'<>'committed' then raise exception 'Verified Volunteer assignment failed %',r; end if;
+ duty:=r->'data'->>'dutyId';
+ r:=public.tm_stage1_operation(outsider,'stgeorge-mixed20','team_volunteer','duty.read','stgeorge-mixed20','{}'::jsonb,null);
+ if r->>'code'<>'permitted' or not exists(select 1 from jsonb_array_elements(r->'data') x where x->>'dutyId'=duty)
+ then raise exception 'Assigned Volunteer cannot read own duty %',r; end if;
+ r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager','duties.withdraw',jsonb_build_object('dutyId',duty,'expectedVersion',0));
+ if r->>'code'<>'committed' then raise exception 'Duty withdrawal failed %',r; end if;
  update tm_private.role_grants set status='revoked' where grant_id='grant-manager';
  r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager',
   'team.members','{}'::jsonb);
@@ -228,7 +276,7 @@ declare
  coach uuid:='11111111-1111-4111-8111-111111111111';
  player uuid:='33333333-3333-4333-8333-333333333333';
  outsider uuid:='44444444-4444-4444-8444-444444444444';
- r jsonb;
+ r jsonb; notice_id_value text; volunteer_notice text;
 begin
  if has_function_privilege('authenticated',
    'public.tm_stage3d5_player_team(uuid,text,text,text,jsonb)','EXECUTE') then
@@ -276,6 +324,25 @@ begin
    (select session_id from tm_private.sessions where team_id='stgeorge-mixed20' and title='Phase 1 training'),
    '{"mutationId":"phase1-player-cancelled-001","expectedVersion":0,"response":"yes"}'::jsonb,repeat('8',64));
  if r->>'code'<>'session-unavailable' then raise exception 'Player answered cancelled training %',r; end if;
+ r:=public.tm_stage3b_operation(coach,'stgeorge-mixed20','team_coach','notice.create','stgeorge-mixed20',
+   '{"mutationId":"phase1-notice-create-001","expectedVersion":0,"command":{"title":"Player notice","body":"Bring water","audience":"players"}}'::jsonb,repeat('9',64));
+ if r->>'code'<>'committed' then raise exception 'Player notice create failed %',r; end if;
+ notice_id_value:=r->>'resourceId';
+ r:=public.tm_stage3b_operation(player,'stgeorge-mixed20','team_player','notices.read','stgeorge-mixed20','{}'::jsonb,null);
+ if r->>'code'<>'permitted' or jsonb_array_length(r->'data')<>0 then raise exception 'Player saw unpublished draft %',r; end if;
+ r:=public.tm_stage3b_operation(coach,'stgeorge-mixed20','team_coach','notice.publish',notice_id_value,
+   '{"mutationId":"phase1-notice-publish-001","expectedVersion":0,"command":{"op":"publish"}}'::jsonb,repeat('a',64));
+ if r->>'code'<>'committed' then raise exception 'Player notice publish failed %',r; end if;
+ r:=public.tm_stage3b_operation(player,'stgeorge-mixed20','team_player','notices.read','stgeorge-mixed20','{}'::jsonb,null);
+ if r->>'code'<>'permitted' or jsonb_array_length(r->'data')<>1 or r->'data'->0->>'noticeId'<>notice_id_value
+ then raise exception 'Published Player notice omitted %',r; end if;
+ r:=public.tm_stage3b_operation(outsider,'stgeorge-mixed20','team_volunteer','notices.read','stgeorge-mixed20','{}'::jsonb,null);
+ if r->>'code'<>'permitted' or jsonb_array_length(r->'data')<>0 then raise exception 'Volunteer saw Player notice %',r; end if;
+ r:=public.tm_stage3b_operation(coach,'stgeorge-mixed20','team_coach','notice.archive',notice_id_value,
+   '{"mutationId":"phase1-notice-archive-001","expectedVersion":1,"command":{"op":"archive"}}'::jsonb,repeat('b',64));
+ if r->>'code'<>'committed' then raise exception 'Notice archive failed %',r; end if;
+ r:=public.tm_stage3b_operation(player,'stgeorge-mixed20','team_player','notices.read','stgeorge-mixed20','{}'::jsonb,null);
+ if r->>'code'<>'permitted' or jsonb_array_length(r->'data')<>0 then raise exception 'Archived notice still visible %',r; end if;
  update tm_private.role_grants set status='revoked' where grant_id='grant-player-phase1';
  r:=public.tm_stage3d5_player_team(player,'stgeorge-mixed20','team_player',
    'player.team.read','{}'::jsonb);
