@@ -88,6 +88,12 @@ jobs:
           do
             echo "Stage 1 isolated PostgreSQL: $script"
             psql -X -v ON_ERROR_STOP=1 -f "$script"
+            case "$script" in
+              *20261121010000*|*20261123010100*|*20261124010000*|*20261124020000*|*20261124030000*|*20261124040000*)
+                echo "Schema definition comparison checkpoint: $script"
+                psql -X -v ON_ERROR_STOP=1 -f supabase/tests/stage3d5_schema_fingerprints.sql
+                ;;
+            esac
           done
 
   browser:
