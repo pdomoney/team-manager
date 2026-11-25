@@ -268,3 +268,13 @@
 .cloud-notice-correction summary{cursor:pointer;font-weight:600;color:var(--pitch)}
 .cloud-notice-correction form{margin-top:12px}
 .cloud-message-columns .cloud-checkbox-row,.cloud-notice-correction .cloud-checkbox-row{font-size:14px}
+
+/* Original palette and badge presentation; semantic status colours unchanged. */
+.cloud-team-page .cloud-team-header{background:var(--pitch)}
+.cloud-team-page .cloud-team-header .t-crest .crest.logo{background:white;padding:2px}
+.cloud-team-page .cloud-btn.primary{color:var(--team-action-ink)}
+.cloud-team-page .cloud-desktop-nav .nav-main[aria-current=page]{border-inline-start-color:var(--team-indicator)}
+.cloud-team-page .style-grid{margin:10px 0}
+.cloud-team-page .style-sw{cursor:pointer}
+.cloud-team-page .cloud-form input[type=color]{width:100%;min-height:44px;padding:3px}
+.cloud-team-page .cloud-form input[type=file]{max-width:100%;min-width:0}

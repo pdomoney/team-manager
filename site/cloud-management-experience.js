@@ -13,7 +13,7 @@ import {originalSection,originalColumns,originalCompetitionCard,originalRosterId
 // menu vocabulary and exact-team server records, never the fictional demo vault.
 // The Host owns navigation state; each async screen discards stale team results.
 export function createCloudManagementExperience({
-  api,getContext,getEpoch,beginView,getSchedule,getTeamLabel,publishMessageNotice,ui,onBack,onReport,onNotices,onTeam
+  api,getContext,getEpoch,beginView,getSchedule,getTeamLabel,publishMessageNotice,ui,onBack,onReport,onNotices,onTeam,onBranding
 }){
   const {h,card,info,button,actions,form,field,selectField,title,clear,message,explain}=ui;
   const permitted=()=>getContext()?.kind==='team'&&
@@ -165,6 +165,7 @@ export function createCloudManagementExperience({
       arrow.innerHTML=teamIconSvg('chevron-right',18);
       item.setAttribute('aria-label',name);
     }
+    button('Club and team branding',onBranding,actions(list));
     info('Field drawing is in the deferred Tactics stage. Legacy passwords, GitHub publishing, local backups and fictional test data are not connected account settings.',list);
   }
   async function jerseys(ctx,loading,canAdmin){
