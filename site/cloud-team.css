@@ -245,3 +245,11 @@
  .cloud-team-heading h1{font-size:19px}
  .cloud-team-header .cloud-team-back{font-size:12px}
 }
+
+.cloud-mobile-subnav{display:none}
+.cloud-desktop-nav .nav-group.on>.nav-main{color:var(--pitch)}
+.cloud-main .cloud-mobile-subnav{margin:0}
+.cloud-team-page .cloud-nav .nav-group{min-width:0}
+.cloud-team-page .cloud-nav .nav-main{width:100%;white-space:nowrap}
+.cloud-team-page .cloud-form button:disabled{opacity:.55;cursor:wait}
+@media(max-width:779px){.cloud-mobile-subnav{display:flex;overflow-x:auto}}
