@@ -3,6 +3,7 @@ import {TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
   cloudAvailabilityEvents,nextMatchMessageText,competitionCountdownText,
   manualTeamTemplateText,connectedMessageNeedsReview,accountInvitationText
 } from './shared-team-messages.js';
+import {EXTRA_TEAM_TEMPLATES,extraTemplateSource,eligibleTemplateEvents,eligibleTemplateCompetitions,extraTemplateText} from './connected-team-templates.js';
 import {originalJerseyReportFromCloud,originalJerseyInventoryFromCloud,
   originalTeamCompetitionsFromCloud,teamRecordedMatchesFromSchedule} from './cloud-original-model-adapter.js';
 import {CLOUD_TEAM_SETTINGS_SECTIONS} from './shared-team-settings.js';
@@ -314,6 +315,8 @@ export function createCloudManagementExperience({
   // The established ten-template vocabulary is shared with the original app.
   // Only templates backed by verified connected event data are active here.
   const templates=Object.entries(TEAM_MESSAGE_TEMPLATES);
+  const allTemplates=[...templates,...EXTRA_TEAM_TEMPLATES.map(t=>[t.id,t.label])];
+  const templateLabels=Object.fromEntries(allTemplates);
   async function messages(ctx,loading,canAdmin,seed=null){
     const [history,schedule,competitions]=await Promise.all([
       query(ctx,'messages.read'),getSchedule(ctx),query(ctx,'competitions.read')]);
@@ -330,6 +333,7 @@ export function createCloudManagementExperience({
       const delivery=submitter?.value||'prepare';
       const channel=delivery==='prepare'?'whatsapp':delivery;
       const body=text(d.get('body')).trim();
+      const templateKind=selected.value;
       const audience=text(d.get('audience'));
       let popup=null;
       try{
@@ -340,7 +344,10 @@ export function createCloudManagementExperience({
         if(audience!=='players')throw Object.assign(new Error(),{code:'invalid-input'});
       }
       const postNotice=d.get('postNotice')==='yes';
-      if(!body||connectedMessageNeedsReview(body,ctx.teamId)){
+      const templateSource=extraTemplateSource(templateKind);
+      if(!body||connectedMessageNeedsReview(body,ctx.teamId)||
+        (templateSource==='event'&&!extraEvents().some(e=>e.sessionId===extraEventSelect.value))||
+        (templateSource==='competition'&&!extraCompetitions().some(c=>c.competitionId===extraCompetitionSelect.value))){
         message('Complete the factual details in this template before preparing or sharing it.',true);
         return;
       }
@@ -362,7 +369,7 @@ export function createCloudManagementExperience({
       if(postNotice){
         try{
           const outcome=await publishMessageNotice(ctx,{
-            title:seed?'Selected match squad':TEAM_MESSAGE_TEMPLATES[selected.value]||'Team message',
+            title:seed?'Selected match squad':templateLabels[templateKind]||'Team message',
             body:noticeBody,audience
           });
           noticeStatus=outcome.status;
@@ -409,11 +416,22 @@ export function createCloudManagementExperience({
     });
     const choices=seed?[['blank','Selected match squad']]:templates;
     const chips=h('div',{className:'chips',attrs:{role:'group','aria-label':'Message type'},parent:f});
-    const selected=selectField(f,'Message type','template',choices);
+    const selected=selectField(f,'Message type','template',seed?choices:allTemplates);
     selected.parentElement.hidden=true; // retained as form state, not a second visible selector
-    for(const [key,label] of choices){
-      const b=h('button',{className:'chip',text:label,attrs:{type:'button','data-template':key,'aria-pressed':'false'},parent:chips});
+    const templateButton=(key,label,parent)=>{
+      const b=h('button',{className:'chip',text:label,attrs:{type:'button','data-template':key,'aria-pressed':'false'},parent});
       b.addEventListener('click',()=>{selected.value=key;populate();});
+    };
+    for(const [key,label] of choices)templateButton(key,label,chips);
+    if(!seed){
+      const details=h('details',{className:'cloud-extra-templates',parent:f});
+      h('summary',{text:'More message templates ('+EXTRA_TEAM_TEMPLATES.length+')',parent:details});
+      for(const group of new Set(EXTRA_TEAM_TEMPLATES.map(t=>t.group))){
+        const section=h('div',{attrs:{role:'group','aria-label':group},parent:details});
+        h('p',{className:'sub',text:group,parent:section});
+        const options=h('div',{className:'chips',parent:section});
+        for(const t of EXTRA_TEAM_TEMPLATES.filter(t=>t.group===group))templateButton(t.id,t.label,options);
+      }
     }
     selectField(f,'Audience','audience',seed?[['players','Players']]:[
       ['all','Whole team'],['players','Players'],['volunteers','Volunteers']]);
@@ -427,10 +445,22 @@ export function createCloudManagementExperience({
     const next=nextCloudTraining(training,{now:clock});
     const cancelled=cancelledCloudTraining(training,{now:clock});
     const sessionSelect=selectField(f,'Training session','sessionId',[]);
+    const extraEventSelect=selectField(f,'Recorded event','templateEventId',[]);
+    const extraCompetitionSelect=selectField(f,'Recorded tournament','templateCompetitionId',[]);
+    const extraEvents=()=>eligibleTemplateEvents(selected.value,schedule,clock);
+    const extraCompetitions=()=>eligibleTemplateCompetitions(selected.value,competitions);
+    let previousExtraKind='';
     const candidates=()=>training.filter(s=>
       s.status===(selected.value==='cancelled'?'cancelled':'planned')&&new Date(s.startsAt)>=clock);
     const compose=()=>{
       const kind=selected.value;
+      if(EXTRA_TEAM_TEMPLATES.some(t=>t.id===kind)){
+        const actual=extraEvents().find(e=>e.sessionId===extraEventSelect.value);
+        const projected=projectedCloudSession(actual);
+        const event=projected?{...projected,label:actual.title||actual.opponent||''}:null;
+        const competition=extraCompetitions().find(c=>c.competitionId===extraCompetitionSelect.value)||null;
+        return extraTemplateText(kind,{teamName,event,competition});
+      }
       const session=candidates().find(s=>s.sessionId===sessionSelect.value)||
         (kind==='cancelled'?cancelled:next);
       const projected=projectedCloudSession(session);
@@ -483,11 +513,26 @@ export function createCloudManagementExperience({
         attrs:{value:s.sessionId},parent:sessionSelect});
       if(eligible.some(s=>s.sessionId===previous))sessionSelect.value=previous;
       sessionSelect.parentElement.hidden=!isTraining||!eligible.length;
+      const source=extraTemplateSource(selected.value);
+      const sameKind=previousExtraKind===selected.value;
+      const populateExtra=(select,records,key,label,visible,empty)=>{
+        const previous=sameKind?select.value:'';
+        select.replaceChildren();
+        h('option',{text:records.length?'Choose a record':empty,attrs:{value:''},parent:select});
+        for(const record of records)h('option',{text:label(record),attrs:{value:record[key]},parent:select});
+        select.value=records.some(r=>r[key]===previous)?previous:'';
+        select.parentElement.hidden=!visible;
+      };
+      populateExtra(extraEventSelect,extraEvents(),'sessionId',e=>[e.title||e.kind,projectedCloudSession(e)?.dateLabel,projectedCloudSession(e)?.startLabel].filter(Boolean).join(' · '),source==='event','No eligible recorded event');
+      populateExtra(extraCompetitionSelect,extraCompetitions(),'competitionId',c=>[c.name,c.beginsOn].filter(Boolean).join(' · '),source==='competition','No eligible recorded tournament');
+      previousExtraKind=selected.value;
       area.value=compose();
-      for(const b of chips.querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.template===selected.value));
+      for(const b of f.querySelectorAll('button[data-template]'))b.setAttribute('aria-pressed',String(b.dataset.template===selected.value));
     };
     selected.addEventListener('change',populate);
     sessionSelect.addEventListener('change',populate);
+    extraEventSelect.addEventListener('change',populate);
+    extraCompetitionSelect.addEventListener('change',populate);
     populate();
     if(seed){
       area.value=seed.body;

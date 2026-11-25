@@ -448,6 +448,25 @@ try:
    page.get_by_text('Complete the factual details',exact=False).wait_for()
    checks.ok(not message_log and not notice_log,
      f'[{width}] unavailable template cannot become message or notice')
+   page.get_by_text('More message templates (16)',exact=True).click()
+   checks.ok(page.locator('button[data-template]').count()==26,
+     f'[{width}] expanded catalogue retains original ten plus sixteen connected templates')
+   page.locator('button[data-template=welcome]').click()
+   checks.ok('Welcome to the team!' in area.input_value() and 'St George Oztag' in area.input_value(),
+     f'[{width}] welcome uses the selected team, not demo data')
+   page.locator('button[data-template=match-cancelled]').click()
+   checks.ok('Choose an actually cancelled match' in area.input_value() and
+     page.locator('select[name=templateEventId]').input_value()=='',
+     f'[{width}] match cancellation requires an actual cancelled event')
+   page.get_by_role('button',name='Prepare and log message').click()
+   page.get_by_text('Complete the factual details',exact=False).wait_for()
+   page.locator('button[data-template=tournament-info]').click()
+   checks.ok('Choose the relevant recorded tournament' in area.input_value() and
+     page.locator('select[name=templateCompetitionId] option').count()==1,
+     f'[{width}] withdrawn tournament is not offered for announcement')
+   checks.ok(not message_log and not notice_log,
+     f'[{width}] expanded unavailable templates cannot create a message or notice')
+   page.get_by_text('More message templates (16)',exact=True).click()
    page.locator('button[data-template=blank]').click()
    page.locator('select[name=audience]').select_option('players')
    body='Training update\nPlease check your availability.'
