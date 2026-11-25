@@ -3,7 +3,7 @@ name: Tests
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'candidate/**']
     paths: ['src/**', 'test/**', 'site/**', 'worker/**', 'supabase/**', 'wrangler.jsonc', 'scripts/check-first-team-cloud-release.mjs', 'scripts/release/**', 'config/first-team-cloud-release-evidence.json']
 
 jobs:
@@ -91,12 +91,14 @@ jobs:
             supabase/migrations/20261124040000_stage3d5_phase1_operational_completion.sql \
             supabase/migrations/20261124050000_stage3d5_verified_management_authority.sql \
             supabase/migrations/20261124060000_stage3d5_match_selection.sql \
+            supabase/migrations/20261126010000_stage3d5_communications_lifecycle.sql \
+            supabase/migrations/20261126020000_stage3d5_branding.sql \
             supabase/tests/stage3d5_functional_completion_disposable.sql
           do
             echo "Stage 1 isolated PostgreSQL: $script"
             psql -X -v ON_ERROR_STOP=1 -f "$script"
             case "$script" in
-              *20261121010000*|*20261123010100*|*20261124010000*|*20261124020000*|*20261124030000*|*20261124040000*|*20261124050000*|*20261124060000*)
+              *20261121010000*|*20261123010100*|*20261124010000*|*20261124020000*|*20261124030000*|*20261124040000*|*20261124050000*|*20261124060000*|*20261126010000*|*20261126020000*)
                 echo "Schema definition comparison checkpoint: $script"
                 psql -X -v ON_ERROR_STOP=1 -f supabase/tests/stage3d5_schema_fingerprints.sql
                 ;;

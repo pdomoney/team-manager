@@ -382,4 +382,120 @@ begin
  if r->>'code'<>'scope-denied' then raise exception 'Revoked Player still had access'; end if;
  raise notice 'PASS Phase 1 Player: exact team and adult review, curated roster and fixtures, cross-team and revocation denied';
 end $$;
+
+-- PR295 regression: use the same independently verified synthetic accounts.
+do $$
+declare
+ coach uuid:='11111111-1111-4111-8111-111111111111';
+ manager uuid:='22222222-2222-4222-8222-222222222222';
+ player uuid:='33333333-3333-4333-8333-333333333333';
+ outsider uuid:='44444444-4444-4444-8444-444444444444';
+ r jsonb; mid text; mid2 text; nid text; nid2 text; sent_body text:='Original sent message';
+begin
+ if has_function_privilege('authenticated','public.tm_stage3d5_communications(uuid,text,text,text,jsonb)','EXECUTE')
+ or has_function_privilege('anon','public.tm_stage3d5_branding(uuid,text,text,text,jsonb)','EXECUTE')
+ or has_table_privilege('authenticated','tm_private.club_branding_grants','INSERT')
+ or has_function_privilege('authenticated','public.tm_stage3d5_branding_owner(uuid,text,jsonb)','EXECUTE')
+ then raise exception 'PR295 private data/authority exposed';end if;
+ update tm_private.role_grants set status='active' where grant_id in ('grant-player-phase1','grant-manager');
+ r:=public.tm_stage3d5_branding(coach,'stgeorge-mixed20','team_coach','branding.read','{}');
+ if r->>'code'<>'permitted' or r->'data'->>'canEditClub'<>'false' or r->'data'->>'canEditTeam'<>'true'
+ then raise exception 'Branding must not grant club authority implicitly %',r;end if;
+ r:=public.tm_stage3d5_branding(coach,'other-team','team_coach','branding.read','{}');
+ if r->>'code'<>'scope-denied' then raise exception 'Cross-team brand read %',r;end if;
+ r:=public.tm_stage3d5_branding(coach,'stgeorge-mixed20','team_coach','branding.club.save',
+  '{"style":{"palette":"redwhite"},"logo":"","resetOverrides":false,"expectedVersion":0}');
+ if r->>'code'<>'role-denied' then raise exception 'Implicit Coach club authority %',r;end if;
+ r:=public.tm_stage3d5_branding_owner(outsider,'branding.authorise','{}');
+ if r->>'code'<>'scope-denied' then raise exception 'Unauthorised founder delegation %',r;end if;
+ r:=public.tm_stage3d5_branding_owner(coach,'branding.authorise','{}');
+ if r->>'brandingAuthorised'<>'true' then raise exception 'Explicit first-club authority failed %',r;end if;
+ r:=public.tm_stage3d5_branding(coach,'stgeorge-mixed20','team_coach','branding.club.save',
+  '{"style":{"palette":"redwhite"},"logo":"","resetOverrides":false,"expectedVersion":0}');
+ if r->>'code'<>'committed' then raise exception 'Club branding save %',r;end if;
+ r:=public.tm_stage3d5_branding(coach,'stgeorge-mixed20','team_coach','branding.team.save',
+  '{"style":{"palette":"blackwhite"},"expectedVersion":0}');
+ if r->>'code'<>'committed' then raise exception 'Team override %',r;end if;
+ r:=public.tm_stage3d5_branding(player,'stgeorge-mixed20','team_player','branding.read','{}');
+ if r->>'code'<>'permitted' or r->'data'->'clubStyle'->>'palette'<>'redwhite'
+ or r->'data'->'teamStyle'->>'palette'<>'blackwhite' or r->'data'->>'canEditTeam'<>'false'
+ then raise exception 'Player branding projection %',r;end if;
+ r:=public.tm_stage3d5_branding(player,'stgeorge-mixed20','team_player','branding.team.save',
+  '{"style":null,"expectedVersion":1}');
+ if r->>'code'<>'role-denied' then raise exception 'Player could edit brand %',r;end if;
+ r:=public.tm_stage3d5_branding(coach,'stgeorge-mixed20','team_coach','branding.club.save',
+  '{"style":{"palette":"maroon"},"logo":"","resetOverrides":false,"expectedVersion":1}');
+ if r->>'code'<>'committed' or not exists(select 1 from tm_private.team_branding where team_id='stgeorge-mixed20' and style->>'palette'='blackwhite')
+ then raise exception 'Club save destroyed override %',r;end if;
+ insert into tm_private.team_branding(team_id,style,version,changed_by) values('other-team','{"palette":"bluewhite"}',1,outsider);
+ r:=public.tm_stage3d5_branding(coach,'stgeorge-mixed20','team_coach','branding.club.save',
+  '{"style":{"palette":"redwhite"},"logo":"","resetOverrides":true,"expectedVersion":2}');
+ if r->>'code'<>'committed' or not exists(select 1 from tm_private.team_branding where team_id='stgeorge-mixed20' and style is null and version=2)
+ or not exists(select 1 from tm_private.team_branding where team_id='other-team' and style->>'palette'='bluewhite' and version=1)
+ then raise exception 'Club reset crossed scope or stale version %',r;end if;
+ r:=public.tm_stage3d5_branding(coach,'stgeorge-mixed20','team_coach','branding.team.save',
+  '{"style":{"palette":"pitch"},"expectedVersion":1}');
+ if r->>'code'<>'stale-version' then raise exception 'Stale team override %',r;end if;
+ r:=public.tm_stage3d5_branding_owner(coach,'branding.revoke','{}');
+ if r->>'brandingAuthorised'<>'false' then raise exception 'Branding revocation failed %',r;end if;
+ r:=public.tm_stage3d5_branding(coach,'stgeorge-mixed20','team_coach','branding.club.save',
+  '{"style":null,"logo":"","resetOverrides":true,"expectedVersion":3}');
+ if r->>'code'<>'role-denied' then raise exception 'Revoked branding write %',r;end if;
+
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach','messages.prepare',
+  jsonb_build_object('audience','all','channel','copy','body',sent_body));
+ mid:=r->'data'->>'messageId';
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach','messages.confirm',
+  jsonb_build_object('messageId',mid,'status','sent','expectedVersion',0));
+ if r->>'code'<>'committed' then raise exception 'Fixture message confirmation %',r;end if;
+ r:=public.tm_stage3d5_team(manager,'stgeorge-mixed20','team_manager','messages.prepare',
+  '{"audience":"players","channel":"copy","body":"Manager message"}');
+ mid2:=r->'data'->>'messageId';
+ if mid is null or mid2 is null then raise exception 'Message fixture missing %',r;end if;
+ r:=public.tm_stage3d5_communications(coach,'stgeorge-mixed20','team_coach','messages.remove',
+  jsonb_build_object('entries',jsonb_build_array(jsonb_build_object('id',mid,'expectedVersion',1),jsonb_build_object('id',mid2,'expectedVersion',0))));
+ if r->>'code'<>'stale-version' or not exists(select 1 from tm_private.team_message_log where message_id=mid and history_state='active')
+ then raise exception 'Foreign-author batch partially removed %',r;end if;
+ r:=public.tm_stage3d5_communications(coach,'stgeorge-mixed20','team_coach','messages.archive',
+  jsonb_build_object('entries',jsonb_build_array(jsonb_build_object('id',mid,'expectedVersion',1))));
+ if r->>'code'<>'committed' then raise exception 'Archive failed %',r;end if;
+ r:=public.tm_stage3d5_team(coach,'stgeorge-mixed20','team_coach','messages.read','{}');
+ if exists(select 1 from jsonb_array_elements(r->'data') e where e->>'messageId'=mid)
+ then raise exception 'Archived message exposed to old client %',r;end if;
+ r:=public.tm_stage3d5_communications(coach,'stgeorge-mixed20','team_coach','messages.archived','{}');
+ if not exists(select 1 from jsonb_array_elements(r->'data') e where e->>'messageId'=mid and e->>'status'='sent')
+ then raise exception 'Archived delivery status lost %',r;end if;
+ r:=public.tm_stage3d5_communications(manager,'stgeorge-mixed20','team_manager','messages.remove',
+  jsonb_build_object('entries',jsonb_build_array(jsonb_build_object('id',mid,'expectedVersion',2),jsonb_build_object('id',mid2,'expectedVersion',0))));
+ if r->>'code'<>'committed' or not exists(select 1 from tm_private.team_message_log where message_id=mid and status='sent' and content=sent_body and history_state='removed')
+ then raise exception 'Manager removal lost content/delivery %',r;end if;
+ r:=public.tm_stage3d5_communications(coach,'stgeorge-mixed20','team_coach','messages.archived','{}');
+ if exists(select 1 from jsonb_array_elements(r->'data') e where e->>'messageId'=mid)
+ then raise exception 'Removed log still visible %',r;end if;
+ r:=public.tm_stage3d5_communications(player,'stgeorge-mixed20','team_player','messages.archived','{}');
+ if r->>'ok'<>'false' then raise exception 'Player read staff history %',r;end if;
+
+ r:=public.tm_stage3b_operation(coach,'stgeorge-mixed20','team_coach','notice.create','stgeorge-mixed20',
+  '{"mutationId":"pr295-notice-create-001","expectedVersion":0,"command":{"title":"Old notice","body":"Original details","audience":"players"}}',repeat('c',64));
+ nid:=r->>'resourceId';
+ r:=public.tm_stage3b_operation(coach,'stgeorge-mixed20','team_coach','notice.publish',nid,
+  '{"mutationId":"pr295-notice-publish-001","expectedVersion":0,"command":{"op":"publish"}}',repeat('d',64));
+ if r->>'code'<>'committed' then raise exception 'Notice fixture failed %',r;end if;
+ r:=public.tm_stage3d5_communications(coach,'stgeorge-mixed20','team_coach','notice.correct',
+  jsonb_build_object('noticeId',nid,'expectedVersion',1,'title','Corrected notice','body','New details','audience','players'));
+ nid2:=r->'data'->>'noticeId';
+ if r->>'code'<>'committed' or nid2=nid or not exists(select 1 from tm_private.team_notices where notice_id=nid and status='archived' and body='Original details')
+ then raise exception 'Notice correction did not preserve original %',r;end if;
+ r:=public.tm_stage3b_operation(player,'stgeorge-mixed20','team_player','notices.read','stgeorge-mixed20','{}',null);
+ if not exists(select 1 from jsonb_array_elements(r->'data') e where e->>'noticeId'=nid2 and e->>'body'='New details')
+ or exists(select 1 from jsonb_array_elements(r->'data') e where e->>'noticeId'=nid)
+ then raise exception 'Corrected notice player read %',r;end if;
+ r:=public.tm_stage3d5_communications(coach,'stgeorge-mixed20','team_coach','notice.remove',
+  jsonb_build_object('entries',jsonb_build_array(jsonb_build_object('id',nid2,'expectedVersion',0))));
+ if r->>'code'<>'committed' then raise exception 'Notice removal failed %',r;end if;
+ r:=public.tm_stage3b_operation(player,'stgeorge-mixed20','team_player','notices.read','stgeorge-mixed20','{}',null);
+ if exists(select 1 from jsonb_array_elements(r->'data') e where e->>'noticeId'=nid2)
+ then raise exception 'Player saw removed notice %',r;end if;
+ raise notice 'PASS PR295 communications and branding scope, history, inheritance, stale writes and revocation';
+end $$;
 rollback;
