@@ -366,7 +366,7 @@ try:
    page.get_by_role('heading',name='Training sessions',exact=True).wait_for()
    review(page,width,'training')
    subnav.get_by_role('button',name='Matches',exact=True).click()
-   page.locator('.cloud-page-title').get_by_text('Matches',exact=True).wait_for()
+   page.locator('.cloud-main .cloud-card').get_by_role('heading',name='Matches',exact=True).wait_for()
    checks.ok(page.get_by_role('button',name='Create training').count()==0,
      f'[{width}] Matches navigation does not show training creation')
    subnav.get_by_role('button',name='Tournaments',exact=True).click()
