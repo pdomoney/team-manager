@@ -253,3 +253,11 @@
 .cloud-team-page .cloud-nav .nav-main{width:100%;white-space:nowrap}
 .cloud-team-page .cloud-form button:disabled{opacity:.55;cursor:wait}
 @media(max-width:779px){.cloud-mobile-subnav{display:flex;overflow-x:auto}}
+
+.cloud-session-head,.cloud-roster-identity{display:flex;gap:12px;align-items:center;min-width:0}
+.cloud-session-head .cal,.cloud-roster-identity .pphoto{flex:none}
+.cloud-session-head .grow,.cloud-roster-identity .grow{min-width:0;overflow-wrap:anywhere}
+.cloud-main .cloud-session-row .cloud-actions{margin-left:0}
+.cloud-main .cloud-competition-summary{margin:0 0 14px}
+.cloud-main .msg-item .cloud-actions{flex-wrap:wrap}
+.cloud-main .cloud-list-item .comp-live{margin-bottom:12px}
