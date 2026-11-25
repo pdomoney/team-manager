@@ -3,7 +3,7 @@
 plan, exact live baseline, fresh archive, qualified bundle and typed approval.
 Reuse the verified PR292 helpers; do not repeat its restore rehearsal.
 """
-import argparse, datetime as dt, hashlib, importlib, json, os, re, stat, sys, zipfile
+import argparse, datetime as dt, hashlib, importlib, json, os, re, stat, sys, tempfile, zipfile
 from pathlib import Path, PurePosixPath
 from urllib.request import Request, build_opener
 from urllib.error import HTTPError
@@ -24,8 +24,10 @@ class Stop(Exception): pass
 def require(ok,message):
     if not ok: raise Stop(message)
 def sha(path):
+    h=hashlib.sha256()
     with Path(path).open('rb') as f:
-        return hashlib.file_digest(f,'sha256').hexdigest()
+        for chunk in iter(lambda:f.read(1024*1024),b''):h.update(chunk)
+    return h.hexdigest()
 def save(path,obj):
     tmp=path.with_suffix('.tmp')
     tmp.write_text(json.dumps(obj,indent=2,sort_keys=True)+'\n')
@@ -99,7 +101,7 @@ def check_source(q,work,p,prior):
 def expected_assets(rows):
     prefix='source/dist-stage3d3-existing/'
     # Published application file types. Do not infer hashes from Git.
-    return {'/'+x['path'][len(prefix):]:x['sha256'] for x in rows if x['path'].startswith(prefix) and re.fullmatch(r'[a-zA-Z0-9._/-]+',x['path'][len(prefix):]) and not any(s.startswith('.') or s in ('_headers','_redirects') for s in x['path'][len(prefix):].split('/')) and Path(x['path']).suffix in ('.html','.js','.css','.json','.svg','.png','.jpg','.jpeg','.webp','.ico','.woff','.woff2')}
+    return {'/'+x['path'][len(prefix):]:x['sha256'] for x in rows if x['path'].startswith(prefix) and x['path']!=prefix+'index.html' and re.fullmatch(r'[a-zA-Z0-9._/-]+',x['path'][len(prefix):]) and not any(s.startswith('.') or s in ('_headers','_redirects') for s in x['path'][len(prefix):].split('/')) and Path(x['path']).suffix in ('.html','.js','.css','.json','.svg','.png','.jpg','.jpeg','.webp','.ico','.woff','.woff2')}
 def anonymous():
     url=ORIGIN+'/api/stage3d5/v1/team'
     req=Request(url,data=b'{}',headers={'Content-Type':'application/json'},method='POST')
@@ -135,7 +137,13 @@ def main():
     root=Path.home()/'TeamManager-Private-Backups';root.mkdir(mode=0o700,exist_ok=True);require(not root.is_symlink(),'Private evidence root is a symlink')
     out=args.verify_installed.resolve() if args.verify_installed else root/('PR295-release-'+dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+str(os.getpid()))
     require(out.parent==root.resolve(),'Evidence folder outside approved root')
+    if not args.verify_installed:
+        for prior_report in root.glob('PR295-release-*/release-summary.json'):
+            old=load(prior_report)
+            if old.get('source')==p['source'] and (old.get('R4')!='NOT_ATTEMPTED' or old.get('R5')!='NOT_ATTEMPTED'):
+                raise Stop('Prior installation was attempted; reconcile recorded evidence, do not start again')
     if args.verify_installed:
+        require(out.is_dir() and not args.verify_installed.is_symlink(),'Unsafe verification evidence directory')
         report=load(out/'release-summary.json');require(report['source']==p['source'] and report['plan_sha256']==args.plan_sha256 and report.get('R5')=='INSTALLED','No verified installed checkpoint; reconcile active version first')
     else:
         out.mkdir(mode=0o700);report={'source':p['source'],'plan_sha256':args.plan_sha256,'status':'PREFLIGHT_HOLD','checks':{},'errors':[],'R4':'NOT_ATTEMPTED','R5':'NOT_ATTEMPTED','database_restore_tested':False,'owner_acceptance':'NOT_RUN'}
@@ -150,7 +158,13 @@ def main():
     try:
         if args.verify_installed:
             # No database connection or deployment operation in this mode.
-            rows=candidate_check(out,report);write_verification(out,report,rows);return 0 if not report['verification']['holds'] and report['verification']['anonymousAuth']['expectedDenial'] else 1
+            with tempfile.TemporaryDirectory(prefix='verify-helpers-',dir=out) as tmp:
+                q,i,rec,r,prior=extract_helpers(args.downloads,Path(tmp));i.OLD_VERSION=OLD_VERSION
+                work=out/'source';check_source(q,work,p,prior)
+                cli=[q.tool('npx'),'--yes','wrangler@4.167.0']
+                require(i.cloud(cli,work)==report['new_worker'],'Active Worker differs from recorded installed checkpoint')
+                rows=candidate_check(out,report);write_verification(out,report,rows)
+            return 0 if not report['verification']['holds'] and report['verification']['anonymousAuth']['expectedDenial'] else 1
         q,i,rec,r,prior=extract_helpers(args.downloads,out)
         q.SOURCE=p['source'];q.BASELINE=BASE_MIGRATION;q.MIGRATIONS=MIGRATIONS;q.EXPECTED=prior
         i.OLD_VERSION=OLD_VERSION

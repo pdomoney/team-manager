@@ -15,7 +15,8 @@ export function validConnectedLogo(value) {
 }
 export function validConnectedStyle(value){
  if(value===null)return true;
- const n=normStyle(value);
+ let n;
+ try{n=normStyle(value);}catch{return false;}
  if(!n||Object.keys(value).length!==1)return false;
  if(n.palette)return Object.keys(value)[0]==='palette';
  return Object.keys(value.custom).length===3&&Object.keys(value.custom).every(k=>['dark','action','accent'].includes(k));
