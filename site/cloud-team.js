@@ -186,7 +186,8 @@ function selectContext(key){
 function applySavedBranding(){
   const ctx=state.context,v=ctx?.kind==='team'?state.branding:null;
   applyConnectedStyle(v?.teamStyle||null,v?.clubStyle||null);
-  setConnectedCrest($('cloud-crest'),v?.logo||'',initials(ctx?.kind==='team'?ctx.club:'Team Manager'));
+  const club=ctx?.kind==='team'?ctx.club:!ctx?state.activeClub:null;
+  setConnectedCrest($('cloud-crest'),v?.logo||(!ctx&&club?state.clubLogos.get(club):'')||'',initials(club||'Team Manager'));
 }
 function validBranding(ctx,v){
   return !!v&&v.clubRef===ctx.club&&validConnectedLogo(v.logo)&&validConnectedStyle(v.clubStyle)&&validConnectedStyle(v.teamStyle)&&
