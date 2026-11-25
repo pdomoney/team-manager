@@ -101,3 +101,14 @@ test('match squad contract separates staff reads, Coach writes and Player public
  assert.equal(validateStage3D5(req('match.selection.publish',value)),null);
  assert.equal(validateStage3D5(req('match.selection.read',{sessionId},'stgeorge-mixed20','team_player')),null);
 });
+
+test('Worker rejects stale fictional training and incomplete template requests even from old browser assets',()=>{
+ const base={audience:'all',channel:'whatsapp'};
+ for(const body of [
+  '🏉 *Training — Example Comets Mixed*\n\n(Add a training session first and it will fill in here.)',
+  '🏉 *Training — Example Comets Mixed*\nTraining at 6pm',
+  '[Choose an upcoming match before sending]',
+  '🏉 *Next match — Mixed 20*\n(Add a match and it will fill in here.)'
+ ])assert.equal(validateStage3D5(req('messages.prepare',{...base,body})),null);
+ assert(validateStage3D5(req('messages.prepare',{...base,body:'Training at 6pm, then play Example Comets Mixed'})));
+});
