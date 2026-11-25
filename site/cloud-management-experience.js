@@ -1,22 +1,23 @@
 import {TEAM_MESSAGE_TEMPLATES,trainingReminderText,trainingCancellationText,
   availabilityRequestText,projectedCloudSession,nextCloudTraining,cancelledCloudTraining,
   cloudAvailabilityEvents,nextMatchMessageText,competitionCountdownText,
-  manualTeamTemplateText,containsUnfilledTemplate,accountInvitationText
+  manualTeamTemplateText,connectedMessageNeedsReview,accountInvitationText
 } from './shared-team-messages.js';
 import {originalJerseyReportFromCloud,originalJerseyInventoryFromCloud,
   originalTeamCompetitionsFromCloud,teamRecordedMatchesFromSchedule} from './cloud-original-model-adapter.js';
 import {CLOUD_TEAM_SETTINGS_SECTIONS} from './shared-team-settings.js';
 import {teamIconSvg} from './shared-team-icons.js';
+import {originalSection,originalColumns} from './cloud-original-presentation.js';
 // Stage 3D.5 connected management surfaces. Uses the established Team Manager
 // menu vocabulary and exact-team server records, never the fictional demo vault.
 // The Host owns navigation state; each async screen discards stale team results.
 export function createCloudManagementExperience({
-  api,getContext,getSchedule,getTeamLabel,publishMessageNotice,ui,onBack,onReport,onNotices,onTeam
+  api,getContext,getEpoch,beginView,getSchedule,getTeamLabel,publishMessageNotice,ui,onBack,onReport,onNotices,onTeam
 }){
   const {h,card,info,button,actions,form,field,selectField,title,clear,message,explain}=ui;
   const permitted=()=>getContext()?.kind==='team'&&
     getContext()?.roles?.some(r=>r==='team_coach'||r==='team_manager');
-  const ensure=(ctx)=>ctx?.key===getContext()?.key;
+  const ensure=(ctx)=>ctx?.key===getContext()?.key&&ctx.viewEpoch===getEpoch();
   const text=x=>String(x??'');
   const report=error=>message(explain(error),true);
   const place=(section,ctx)=>{
@@ -36,8 +37,9 @@ export function createCloudManagementExperience({
     catch(e){report(e);}
   }
   async function open(section,seed=null){
-    const ctx=getContext();
-    if(!permitted()||!ctx)return;
+    const current=getContext();
+    if(!permitted()||!current)return;
+    const ctx=Object.freeze({...current,viewEpoch:beginView(section)});
     place(section,ctx);
     const loading=info('Loading '+section.toLowerCase()+' for this team…');
     try{
@@ -50,7 +52,7 @@ export function createCloudManagementExperience({
       // administrative duties; the server still revalidates the selected grant.
       if(section==='Messages')await messages(ctx,loading,
         ctx.roles?.some(r=>r==='team_coach'||r==='team_manager'),seed);
-      if(section==='Volunteer tally')await duties(ctx,loading,canAdmin);
+      if(['Volunteer tally','Tasks','Helpers','Match staff'].includes(section))await duties(ctx,loading,canAdmin,section);
       if(section==='People')await people(ctx,loading);
       if(section==='Clubs and teams')await teams(ctx,loading);
     }catch(e){
@@ -80,6 +82,7 @@ export function createCloudManagementExperience({
       ...values,...patch,expectedVersion:x.version
     },()=>open('Settings'),'Team settings saved.');
     const display=(key,name)=>{
+      if(!ensure(ctx))return;
       clear();title(name,getTeamLabel(ctx)+' · '+ctx.season);
       button('All settings',()=>void open('Settings'),actions());
       const c=card(name);
@@ -317,13 +320,17 @@ export function createCloudManagementExperience({
     const [history,schedule,competitions]=await Promise.all([
       query(ctx,'messages.read'),getSchedule(ctx),query(ctx,'competitions.read')]);
     if(!ensure(ctx))return;
+    const parent=loading.parentElement;
     loading.remove();
-    const c=card('New message');
+    const [left,right]=originalColumns(h,parent,'cloud-message-columns');
+    const {section:c}=originalSection(h,left,'New message');
     let reuseMessage=null;
-    info('Prepare a WhatsApp message for your team group, or Share/Copy it. Team Manager cannot automatically send messages or confirm WhatsApp delivery.',c);
+    info('Prepare a message for '+getTeamLabel(ctx)+'. Sending and delivery confirmation remain manual.',c);
     if(canAdmin){
-    const f=form(c,async d=>{
+    const f=form(c,async (d,submitter)=>{
       if(!ensure(ctx)||!f.isConnected)throw Object.assign(new Error(),{code:'scope-denied'});
+      const delivery=submitter?.value||'prepare';
+      const channel=delivery==='prepare'?'whatsapp':delivery;
       const body=text(d.get('body')).trim();
       const audience=text(d.get('audience'));
       if(seed){
@@ -333,7 +340,7 @@ export function createCloudManagementExperience({
         if(audience!=='players')throw Object.assign(new Error(),{code:'invalid-input'});
       }
       const postNotice=d.get('postNotice')==='yes';
-      if(!body||containsUnfilledTemplate(body)){
+      if(!body||connectedMessageNeedsReview(body,ctx.teamId)){
         message('Complete the factual details in this template before preparing or sharing it.',true);
         return;
       }
@@ -343,7 +350,7 @@ export function createCloudManagementExperience({
         return;
       }
       const saved=await query(ctx,'messages.prepare',{
-        audience,channel:'whatsapp',body
+        audience,channel,body
       });
       if(!ensure(ctx))return;
       let noticeStatus='not requested';
@@ -365,7 +372,7 @@ export function createCloudManagementExperience({
         noticeStatus==='unavailable'?'The notice was not confirmed; review Noticeboard. ':'')+
         'Open WhatsApp and confirm manually whether it was sent.',
         noticeStatus==='draft-only'||noticeStatus==='unavailable');
-      const preview=card('Prepared message');
+      const preview=card('Prepared message',c);preview.classList.add('cloud-prepared');
       h('p',{text:body,parent:preview});
       const a=actions(preview);
       button('Open in WhatsApp',()=>{
@@ -381,8 +388,27 @@ export function createCloudManagementExperience({
       button('Not sent',()=>void use(ctx,'messages.confirm',{
         messageId:saved.messageId,status:'not-sent',expectedVersion:0
       },()=>open('Messages'),'Message marked not sent.'),a);
+      if(!ensure(ctx))return;
+      if(delivery==='whatsapp'){
+        // Browsers may block a popup after asynchronous server logging. The
+        // prepared message retains the explicit retry action. No auto send.
+        window.open('https://wa.me/?text='+encodeURIComponent(body),'_blank','noopener');
+      }else if(delivery==='copy'){
+        try{await navigator.clipboard.writeText(body);message('Copied. Message logged, not confirmed sent.');}
+        catch{info('Use Copy in the prepared message to copy it from your browser.',preview);}
+      }else if(delivery==='share'){
+        try{await navigator.share({text:body});}
+        catch{info('Use Share or Copy in the prepared message when ready.',preview);}
+      }
     });
-    const selected=selectField(f,'Message type','template',seed?[['blank','Selected match squad']]:templates);
+    const choices=seed?[['blank','Selected match squad']]:templates;
+    const chips=h('div',{className:'chips',attrs:{role:'group','aria-label':'Message type'},parent:f});
+    const selected=selectField(f,'Message type','template',choices);
+    selected.parentElement.hidden=true; // retained as form state, not a second visible selector
+    for(const [key,label] of choices){
+      const b=h('button',{className:'chip',text:label,attrs:{type:'button','data-template':key,'aria-pressed':'false'},parent:chips});
+      b.addEventListener('click',()=>{selected.value=key;populate();});
+    }
     selectField(f,'Audience','audience',seed?[['players','Players']]:[
       ['all','Whole team'],['players','Players'],['volunteers','Volunteers']]);
     const label=h('label',{text:'Message',parent:f});
@@ -452,6 +478,7 @@ export function createCloudManagementExperience({
       if(eligible.some(s=>s.sessionId===previous))sessionSelect.value=previous;
       sessionSelect.parentElement.hidden=!isTraining||!eligible.length;
       area.value=compose();
+      for(const b of chips.querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.template===selected.value));
     };
     selected.addEventListener('change',populate);
     sessionSelect.addEventListener('change',populate);
@@ -466,23 +493,38 @@ export function createCloudManagementExperience({
       area.focus();area.scrollIntoView({block:'nearest'});
       message('Previous message loaded. Review before preparing or sharing.');
     };
-    const labelNotice=h('label',{parent:f,className:'cloud-checkbox-row'});
+    const labelNotice=h('label',{parent:f,className:'check cloud-checkbox-row'});
     const check=h('input',{attrs:{name:'postNotice',type:'checkbox',value:'yes'},parent:labelNotice});
     check.checked=!seed;
     h('span',{text:"Also post it on the app's noticeboard",parent:labelNotice});
     info('Noticeboard text uses the same content without line breaks. WhatsApp is not sent automatically.',f);
-    h('button',{className:'cloud-btn primary',text:'Prepare and log message',
-      attrs:{type:'submit'},parent:f});
+    const deliveries=h('div',{className:'btn-row',parent:f});
+    for(const [value,label,icon] of [['whatsapp','Open in WhatsApp','chat'],['share','Share','share'],['copy','Copy','copy']]){
+      if(value==='share'&&!navigator.share)continue;
+      const b=h('button',{className:'btn'+(value==='whatsapp'?' wa':''),attrs:{type:'submit',name:'delivery',value},parent:deliveries});
+      b.innerHTML=teamIconSvg(icon,18);h('span',{text:label,parent:b});
+    }
+    h('button',{className:'btn sm',text:'Prepare and log message',attrs:{type:'submit',name:'delivery',value:'prepare'},parent:f});
+    info('Review the message, choose your team group in WhatsApp and confirm manually whether it was sent.',f);
     }else info('The appointed Team Manager handles new team messages. You can review the logged messages.',c);
-    const log=card('Message log');
-    if(!history.length)info('No messages prepared yet.',log);
+    const noticeLink=h('button',{className:'pick link-card',attrs:{type:'button'},parent:right});
+    noticeLink.addEventListener('click',onNotices);
+    const art=h('span',{className:'more-ic',parent:noticeLink});art.innerHTML=teamIconSvg('clip',22);
+    const caption=h('span',{className:'grow',parent:noticeLink});
+    h('span',{className:'name cloud-block',text:'Noticeboard',parent:caption});
+    h('span',{className:'tagline',text:'Review current team notices',parent:caption});
+    const arrow=h('span',{parent:noticeLink});arrow.innerHTML=teamIconSvg('chevron-right',18);
+    const {section:log}=originalSection(h,right,'Message log');
+    if(!history.length)info('Messages are logged when prepared. Only your confirmation marks them sent.',log);
     for(const item of history){
-      const row=h('div',{className:'cloud-list-item',parent:log});
+      const row=h('div',{className:'msg-item cloud-list-item',parent:log});
       h('strong',{text:item.audience+' · '+item.status,parent:row});
-      info(item.body,row);
+      h('p',{className:'preview',text:item.body,parent:row});
+      const needsReview=connectedMessageNeedsReview(item.body,ctx.teamId);
+      if(needsReview)info('Review this historical message: incomplete or fictional template. It cannot be reused unchanged.',row);
       info('WhatsApp and sharing are manual. Only your confirmation changes the status.',row);
       if(reuseMessage&&!seed)button('Use again',()=>reuseMessage(item.body),actions(row));
-      if(item.status==='prepared'&&canAdmin&&item.canConfirm){
+      if(item.status==='prepared'&&canAdmin&&item.canConfirm&&!needsReview){
         const a=actions(row);
         button('Open in WhatsApp',()=>window.open(
           'https://wa.me/?text='+encodeURIComponent(item.body),'_blank','noopener'),a);
@@ -518,11 +560,23 @@ export function createCloudManagementExperience({
       info('Team status: '+p.status,row);
     }
   }
-  async function duties(ctx,loading,canAdmin){
-    const [items,members]=await Promise.all([
-      query(ctx,'duties.board'),query(ctx,'team.members')]);
+  async function duties(ctx,loading,canAdmin,section='Volunteer tally'){
+    const [allItems,members,volunteers,allSessions]=await Promise.all([
+      query(ctx,'duties.board'),query(ctx,'team.members'),query(ctx,'volunteers.list'),getSchedule(ctx)]);
+    if(!ensure(ctx))return;
     loading.remove();
-    const c=card('Volunteer tally and assignments');
+    const matchIds=new Set(allSessions.filter(s=>s.kind==='match').map(s=>s.sessionId));
+    const items=section==='Match staff'?allItems.filter(d=>matchIds.has(d.sessionId)):allItems;
+    const c=card(section==='Volunteer tally'?'Volunteer tally and assignments':section==='Match staff'?'Match support duties':section);
+    if(section==='Match staff')info('Only recorded non-accredited duties for matches appear here. Official Match Officials, Trainers and accreditation are not recorded by this workflow. '+(allItems.length-items.length)+' other duties are outside this view.',c);
+    if(section==='Helpers'){
+      info('Independently verified adult Volunteers for this team.',c);
+      if(!volunteers.length)info('No verified Volunteers recorded.',c);
+      for(const v of volunteers){const row=h('div',{className:'row',parent:c});
+        h('span',{className:'helper-avatar',text:(v.name||'?').slice(0,2).toUpperCase(),parent:row});
+        h('strong',{text:v.name||v.personId,parent:row});
+      }
+    }
     info('An assigned, verified adult Volunteer is not automatically a Trainer, first aider or Match Official.',c);
     const byPerson=new Map();
     for(const d of items){
@@ -538,15 +592,14 @@ export function createCloudManagementExperience({
       if(canAdmin&&['assigned','confirmed'].includes(d.status))
         button('Withdraw',()=>void use(ctx,'duties.withdraw',{
           dutyId:d.dutyId,expectedVersion:d.version
-        },()=>open('Volunteer tally'),'Volunteer duty withdrawn.'),actions(row));
+        },()=>open(section),'Volunteer duty withdrawn.'),actions(row));
     }
-    const volunteers=await query(ctx,'volunteers.list');
-    const sessions=(await getSchedule(ctx)).filter(s=>s.status==='planned');
+    const sessions=allSessions.filter(s=>s.status==='planned'&&(section!=='Match staff'||s.kind==='match'));
     if(canAdmin&&volunteers.length&&sessions.length){
       const f=form(c,async d=>use(ctx,'duties.assign',{
         sessionId:text(d.get('sessionId')),personId:text(d.get('personId')),
         type:text(d.get('type'))
-      },()=>open('Volunteer tally'),'Verified volunteer duty assigned.'));
+      },()=>open(section),'Verified volunteer duty assigned.'));
       selectField(f,'Session','sessionId',sessions.map(s=>[
         s.sessionId,(s.title||s.kind)+' · '+(s.startsAt||'Time TBC')]));
       selectField(f,'Verified volunteer','personId',
