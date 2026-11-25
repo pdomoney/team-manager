@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
-    paths: ['src/**', 'test/**', 'site/**', 'worker/**', 'supabase/**', 'wrangler.jsonc', 'scripts/check-first-team-cloud-release.mjs', 'config/first-team-cloud-release-evidence.json']
+    paths: ['src/**', 'test/**', 'site/**', 'worker/**', 'supabase/**', 'wrangler.jsonc', 'scripts/check-first-team-cloud-release.mjs', 'scripts/release/**', 'config/first-team-cloud-release-evidence.json']
 
 jobs:
   test:
@@ -14,6 +14,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Verify release diagnostics and generated browser code without provider access
+        working-directory: scripts/release
+        run: |
+          python3 -B -m unittest -v
+          node test_browser_generated.mjs
       - run: npm test
       - name: Confirm first-team cloud release ledger remains safely blocked
         run: node scripts/check-first-team-cloud-release.mjs --assert-source-blocked
