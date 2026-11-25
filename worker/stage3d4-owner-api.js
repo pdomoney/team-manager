@@ -14,7 +14,7 @@ const ROLES=new Set(['team_coach','team_manager','team_assistant',
   'team_player','team_volunteer']);
 const ACTIONS=new Set(['status','team.create','coach.assign',
   'invite.issue','invite.approve','invite.review-adult',
-  'invite.activate','invite.cancel','invite.revoke']);
+  'invite.activate','invite.cancel','invite.revoke','branding.status','branding.authorise','branding.revoke']);
 const own=o=>o&&typeof o==='object'&&!Array.isArray(o)&&
   Object.getPrototypeOf(o)===Object.prototype;
 const output=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{
@@ -28,7 +28,7 @@ export function validateOwnerAction(value){
      Object.keys(value).some(k=>!allowed.has(k)))return null;
   const keys=Object.keys(value).sort().join(',');
   const expect={
-    status:'action',
+    status:'action','branding.status':'action','branding.authorise':'action','branding.revoke':'action',
     'team.create':'action,clubRef,seasonRef,sportRef,teamId',
     'coach.assign':'action',
     'invite.issue':'action,email,role',
@@ -101,13 +101,18 @@ export async function handleStage3D4Owner(request,env,fetchImpl=fetch){
       !EMAIL.test(user.email)||!(user.email_confirmed_at||user.confirmed_at))
       return deny('unauthenticated',401);
     const payload={...input};delete payload.action;
-    const data=await rpc(fetchImpl,env,'tm_stage3d4_owner',{
+    const branding=input.action.startsWith('branding.');
+    const data=await rpc(fetchImpl,env,branding?'tm_stage3d5_branding_owner':'tm_stage3d4_owner',{
       p_actor:user.id,p_action:input.action,p_input:payload});
     if(!own(data)||typeof data.ok!=='boolean'||!codes.has(data.code))
       return deny('service-unavailable',503);
     if(!data.ok)return deny(data.code,
       data.code==='registration-required'?403:
         /preflight/.test(data.code)?409:403);
+    if(branding){
+      if(data.code!=='ready'||typeof data.brandingAuthorised!=='boolean'||typeof data.clubRef!=='string'||data.clubRef.length>120)return deny('service-unavailable',503);
+      return output({ok:true,code:'ready',clubRef:data.clubRef,brandingAuthorised:data.brandingAuthorised});
+    }
     if(input.action==='status'){
       if(data.code!=='ready'||typeof data.coachAssigned!=='boolean'||
         typeof data.policyReady!=='boolean'||!Array.isArray(data.invitations)||

@@ -19,7 +19,7 @@ export function createCloudManagementClient({identity,fetchImpl=fetch,origin}={}
  async function call(ctx,action,input={}){
   const playerRead=['player.team.read','player.match.selection.read'].includes(action);
   const coachWrite=['match.selection.save','match.selection.publish','match.selection.withdraw'].includes(action);
-  const eligible=playerRead?['team_player']:coachWrite?['team_coach']:['team_manager','team_coach'];
+  const eligible=action==='branding.read'?['team_manager','team_coach','team_assistant','team_player','team_volunteer']:playerRead?['team_player']:coachWrite?['team_coach']:['team_manager','team_coach'];
   if(!own(ctx)||!own(input)||typeof action!=='string'||!eligible.some(role=>ctx.roles?.includes(role)))
    throw fail('scope-denied');
   const grants=await identity.myTeamContexts();
