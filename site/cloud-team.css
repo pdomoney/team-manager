@@ -261,3 +261,10 @@
 .cloud-main .cloud-competition-summary{margin:0 0 14px}
 .cloud-main .msg-item .cloud-actions{flex-wrap:wrap}
 .cloud-main .cloud-list-item .comp-live{margin-bottom:12px}
+
+/* Communications lifecycle restores the original compact action rows. */
+.cloud-history-filters{margin:0 0 12px}
+.cloud-notice-correction{margin:12px 0}
+.cloud-notice-correction summary{cursor:pointer;font-weight:600;color:var(--pitch)}
+.cloud-notice-correction form{margin-top:12px}
+.cloud-message-columns .cloud-checkbox-row,.cloud-notice-correction .cloud-checkbox-row{font-size:14px}

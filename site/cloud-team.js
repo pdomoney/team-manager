@@ -928,19 +928,23 @@ function renderDutyBoard(ctx){
     });
   }).catch(e=>{if(epoch!==state.epoch)return;loading.textContent=explain(e);});
 }
-function openNoticeboard(){
+function openNoticeboard(archived=false){
   if(!canReadNotices())return;
   state.epoch++;clear();
   title('Noticeboard',contextLabel(state.context));
   button('Back to More',()=>switchTab('more'),actions());
-  renderNotices('noticeboard');
+  renderNotices('noticeboard',main,archived===true&&canManage());
 }
-function renderNotices(place='more',parent=main){
+function renderNotices(place='more',parent=main,archived=false){
   if(!canReadNotices())return;
   const ctx=state.context,epoch=state.epoch;
   const current=()=>ctx===state.context&&epoch===state.epoch;
   const c=card(place==='home'?'Latest team notices':'Team notices',parent);
-  if(place!=='home'&&canManage()){
+  if(place==='noticeboard'&&canManage()){
+    const tabs=actions(c);
+    button(archived?'Current notices':'Archived notices',()=>openNoticeboard(!archived),tabs);
+  }
+  if(place!=='home'&&canManage()&&!archived){
     const f=form(c,async d=>{
       if(!current())throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
       const body=String(d.get('body')).trim();
@@ -967,7 +971,27 @@ function renderNotices(place='more',parent=main){
   }
   const content=h('div',{parent:c});
   const loading=info('Loading team notices…',content);
-  void action('notices.read',ctx.teamId).then(items=>{
+  const selectedRows=new Map();
+  const bulkActions=h('div',{className:'cloud-actions',parent:c});
+  const refresh=()=>place==='noticeboard'?openNoticeboard(archived):showTab();
+  const manage=async(operation,input,done)=>{
+    try{
+      if(!current())throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+      await management.call(ctx,operation,input);
+      if(!current())return;
+      message(done);await refresh();
+    }catch(e){if(current())message(explain(e),true);}
+  };
+  const remove=entries=>{
+    if(!entries.length||!current())return;
+    if(window.confirm('Remove '+entries.length+' notice'+(entries.length===1?'':'s')+' from normal team views? Already shared messages are not recalled.'))
+      void manage('notice.remove',{entries},'Notice removed from team views.');
+  };
+  const drawBulk=()=>{
+    bulkActions.replaceChildren();
+    if(selectedRows.size)button('Remove selected notices ('+selectedRows.size+')',()=>remove([...selectedRows.values()]),bulkActions).classList.add('danger');
+  };
+  void (archived?management.call(ctx,'notice.archived'):action('notices.read',ctx.teamId)).then(items=>{
     if(!current())return;loading.remove();
     readList(content,place==='home'?items.filter(n=>n.status==='published').slice(0,3):items,
       (n,row)=>{
@@ -976,8 +1000,36 @@ function renderNotices(place='more',parent=main){
         const needsReview=connectedMessageNeedsReview(n.body,ctx.teamId);
         h('p',{text:needsReview&&!canManage()?'Notice needs correction by team staff.':n.body,parent:row});
         if(needsReview&&canManage())info('Review this existing notice: incomplete or fictional template. Archive it if incorrect.',row);
-        if(place==='home'||!canManage()||n.status==='archived')return;
+        if(place==='home'||!canManage())return;
+        const entry={id:n.noticeId,expectedVersion:n.version};
+        const label=h('label',{className:'check cloud-checkbox-row',parent:row});
+        const check=h('input',{attrs:{type:'checkbox','aria-label':'Select notice'},parent:label});
+        h('span',{text:'Select for bulk removal',parent:label});
+        check.addEventListener('change',()=>{
+          if(check.checked&&selectedRows.size>=20){check.checked=false;message('Select up to 20 entries at a time.',true);return;}
+          if(check.checked)selectedRows.set(entry.id,entry);else selectedRows.delete(entry.id);
+          drawBulk();
+        });
         const a=actions(row);
+        button('Remove notice',()=>remove([entry]),a).classList.add('danger');
+        if(n.status==='archived')return;
+        const edit=h('details',{className:'cloud-notice-correction',parent:row});
+        h('summary',{text:n.status==='draft'?'Edit notice draft':'Correct published notice',parent:edit});
+        const editor=form(edit,async d=>{
+          const body=String(d.get('correctedBody')).trim();
+          if(!body||connectedMessageNeedsReview(body,ctx.teamId)){message('Complete the notice details before saving.',true);return;}
+          if(n.status==='published'&&!window.confirm('Publish the corrected notice and archive the previous version?'))return;
+          await manage(n.status==='draft'?'notice.edit':'notice.correct',{
+            noticeId:n.noticeId,expectedVersion:n.version,title:String(d.get('correctedTitle')).trim(),
+            body,audience:String(d.get('correctedAudience'))
+          },n.status==='draft'?'Notice draft updated.':'Corrected notice published; previous version archived.');
+        });
+        field(editor,'Corrected title','correctedTitle',{max:100,value:n.title});
+        const editLabel=h('label',{text:'Corrected notice message',parent:editor});
+        const editBody=h('textarea',{attrs:{name:'correctedBody',maxlength:1000,rows:4,required:true},parent:editLabel});editBody.value=n.body;
+        const editAudience=selectField(editor,'Corrected audience','correctedAudience',[
+          ['all','Everyone in this team'],['players','Players'],['volunteers','Volunteers'],['coaches','Coaching staff']]);editAudience.value=n.audience;
+        h('button',{className:'btn primary',text:n.status==='draft'?'Save corrected draft':'Publish correction',attrs:{type:'submit'},parent:editor});
         const change=async(operation,command)=>{
           try{
             if(!current())throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});

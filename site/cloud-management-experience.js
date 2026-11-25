@@ -317,7 +317,7 @@ export function createCloudManagementExperience({
   const templates=Object.entries(TEAM_MESSAGE_TEMPLATES);
   const allTemplates=[...templates,...EXTRA_TEAM_TEMPLATES.map(t=>[t.id,t.label])];
   const templateLabels=Object.fromEntries(allTemplates);
-  async function messages(ctx,loading,canAdmin,seed=null){
+  async function messages(ctx,loading,canAdmin,seed=null,initialFilter='active'){
     const [history,schedule,competitions]=await Promise.all([
       query(ctx,'messages.read'),getSchedule(ctx),query(ctx,'competitions.read')]);
     if(!ensure(ctx))return;
@@ -542,7 +542,7 @@ export function createCloudManagementExperience({
       if(!ensure(ctx))return;
       selected.value='blank';populate();area.value=body;
       area.focus();area.scrollIntoView({block:'nearest'});
-      message('Previous message loaded. Review before preparing or sharing.');
+      message('Previous message loaded as a new draft. The original log entry is unchanged.');
     };
     const labelNotice=h('label',{parent:f,className:'check cloud-checkbox-row'});
     const check=h('input',{attrs:{name:'postNotice',type:'checkbox',value:'yes'},parent:labelNotice});
@@ -566,27 +566,81 @@ export function createCloudManagementExperience({
     h('span',{className:'tagline',text:'Review current team notices',parent:caption});
     const arrow=h('span',{parent:noticeLink});arrow.innerHTML=teamIconSvg('chevron-right',18);
     const {section:log}=originalSection(h,right,'Message log');
-    if(!history.length)info('Messages are logged when prepared. Only your confirmation marks them sent.',log);
-    for(const item of history){
-      const row=h('div',{className:'msg-item cloud-list-item',parent:log});
+    const filters=h('div',{className:'chips cloud-history-filters',attrs:{role:'group','aria-label':'Message history filter'},parent:log});
+    const list=h('div',{parent:log});
+    const selectedRows=new Map();
+    let filter=initialFilter,archived=[],request=0;
+    const toolbar=actions(log);
+    const bulk=(action,entries)=>async()=>{
+      if(!ensure(ctx)||!entries.length)return;
+      const remove=action==='messages.remove';
+      if(!window.confirm((remove?'Remove':'Archive')+' '+entries.length+' message entr'+(entries.length===1?'y':'ies')+'? '+(remove?'This removes the records from normal app views. ':'')+'Messages already sent outside the app cannot be recalled.'))return;
+      await use(ctx,action,{entries},()=>open('Messages'),remove?'Message history removed.':'Message history archived.');
+    };
+    const selectionActions=()=>{
+      toolbar.replaceChildren();
+      if(!selectedRows.size)return;
+      const entries=[...selectedRows.values()];
+      info(entries.length+' selected (maximum 20)',toolbar);
+      if(filter!=='archived')button('Archive selected',()=>void bulk('messages.archive',entries)(),toolbar);
+      button('Remove selected',()=>void bulk('messages.remove',entries)(),toolbar).classList.add('danger');
+    };
+    const renderHistory=()=>{
+      selectedRows.clear();selectionActions();list.replaceChildren();
+      for(const button of filters.querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.filter===filter));
+      const rows=filter==='archived'?archived:filter==='active'?history:history.filter(m=>m.status===filter);
+      if(!rows.length)info(filter==='active'?'Messages are logged when prepared. Only your confirmation marks them sent.':'No messages in this view.',list);
+      for(const item of rows){
+      const row=h('div',{className:'msg-item cloud-list-item',parent:list});
       h('strong',{text:item.audience+' · '+item.status,parent:row});
       h('p',{className:'preview',text:item.body,parent:row});
       const needsReview=connectedMessageNeedsReview(item.body,ctx.teamId);
       if(needsReview)info('Review this historical message: incomplete or fictional template. It cannot be reused unchanged.',row);
       info('WhatsApp and sharing are manual. Only your confirmation changes the status.',row);
-      if(reuseMessage&&!seed)button('Use again',()=>reuseMessage(item.body),actions(row));
-      if(item.status==='prepared'&&canAdmin&&item.canConfirm&&!needsReview){
+      if(reuseMessage&&!seed)button(filter==='archived'?'Use archived text':'Use again',()=>reuseMessage(item.body),actions(row));
+      if(item.canRemove===true){
+        const label=h('label',{className:'check cloud-checkbox-row',parent:row});
+        const check=h('input',{attrs:{type:'checkbox','aria-label':'Select message entry'},parent:label});
+        h('span',{text:'Select for bulk management',parent:label});
+        const entry={id:item.messageId,expectedVersion:item.version};
+        check.addEventListener('change',()=>{
+          if(check.checked&&selectedRows.size>=20){check.checked=false;message('Select up to 20 entries at a time.',true);return;}
+          if(check.checked)selectedRows.set(entry.id,entry);else selectedRows.delete(entry.id);
+          selectionActions();
+        });
         const a=actions(row);
-        button('Open in WhatsApp',()=>window.open(
-          'https://wa.me/?text='+encodeURIComponent(item.body),'_blank','noopener'),a);
-        button('Mark sent',()=>void use(ctx,'messages.confirm',{
-          messageId:item.messageId,status:'sent',expectedVersion:item.version
-        },()=>open('Messages'),'Manually confirmed sent.'),a);
+        if(filter!=='archived')button('Archive message',()=>void bulk('messages.archive',[entry])(),a);
+        button('Remove message',()=>void bulk('messages.remove',[entry])(),a).classList.add('danger');
+      }
+      if(filter!=='archived'&&item.status==='prepared'&&canAdmin&&item.canConfirm){
+        const a=actions(row);
+        if(!needsReview){
+          button('Open in WhatsApp',()=>window.open(
+            'https://wa.me/?text='+encodeURIComponent(item.body),'_blank','noopener'),a);
+          button('Mark sent',()=>void use(ctx,'messages.confirm',{
+            messageId:item.messageId,status:'sent',expectedVersion:item.version
+          },()=>open('Messages'),'Manually confirmed sent.'),a);
+        }
         button('Mark not sent',()=>void use(ctx,'messages.confirm',{
           messageId:item.messageId,status:'not-sent',expectedVersion:item.version
         },()=>open('Messages'),'Marked not sent.'),a);
       }
     }
+    };
+    for(const [key,label] of [['active','Active'],['prepared','Prepared'],['sent','Sent'],['not-sent','Not sent'],['archived','Archived']]){
+      const btn=h('button',{className:'chip',text:label,attrs:{type:'button','data-filter':key,'aria-pressed':'false'},parent:filters});
+      btn.addEventListener('click',async()=>{
+        if(!ensure(ctx))return;
+        const id=++request;filter=key;
+        if(key==='archived'){
+          list.replaceChildren();selectedRows.clear();selectionActions();info('Loading archived messages…',list);
+          try{const rows=await query(ctx,'messages.archived');if(id!==request||!ensure(ctx))return;archived=rows;}
+          catch(e){if(id===request&&ensure(ctx)){list.replaceChildren();info(explain(e),list);report(e);}return;}
+        }
+        if(id===request&&ensure(ctx))renderHistory();
+      });
+    }
+    renderHistory();
   }
   async function teams(ctx,loading){
     const status=await query(ctx,'admin.status');
