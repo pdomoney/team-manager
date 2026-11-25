@@ -48,3 +48,20 @@ export function originalCompetitionCard(h,parent,entry,{onOpen}={}){
  if(onOpen){const b=h('button',{className:'btn sm on-dark cl-open',text:'Open competition',attrs:{type:'button'},parent:c});b.addEventListener('click',onOpen);}
  return c;
 }
+
+export function originalDateBadge(h,parent,stamp){
+ const date=new Date(stamp);
+ if(!Number.isFinite(date.valueOf()))return;
+ const cal=h('div',{className:'cal',attrs:{'aria-hidden':'true'},parent});
+ h('span',{className:'dow',text:date.toLocaleDateString('en-AU',{weekday:'short'}),parent:cal});
+ h('span',{className:'d',text:date.getDate(),parent:cal});
+ h('span',{className:'mo',text:date.toLocaleDateString('en-AU',{month:'short'}),parent:cal});
+}
+export function originalRosterIdentity(h,parent,name,meta=''){
+ const identity=h('div',{className:'cloud-roster-identity',parent});
+ h('span',{className:'pphoto',text:initials(name),attrs:{'aria-hidden':'true'},parent:identity});
+ const body=h('div',{className:'grow',parent:identity});
+ h('strong',{className:'name cloud-block',text:name,parent:body});
+ if(meta)h('small',{text:meta,parent:body});
+ return identity;
+}
