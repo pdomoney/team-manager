@@ -1,6 +1,6 @@
 # Stage 3D.5 automatic team context UX, synthetic accounts only.
 # No real member data, email provider, Supabase SQL or Worker deployment.
-import json,os,subprocess,sys
+import base64,json,os,subprocess,sys
 import harness
 from harness import Check,serve
 from playwright.sync_api import sync_playwright
@@ -36,6 +36,7 @@ grants={
  'player':[('stgeorge-mixed20','St George Oztag','2027','team_player')]
 }
 operations=[];invitations=[]
+branding_grant={'active':False};club_branding={};team_branding={}
 message_log=[];notice_log=[];schedule_rows=[];attendance_rows=[];member_rows=[];reported={};competition_rows=[];match_selections={}
 def respond(route,body,status=200):
  return route.fulfill(status=status,content_type='application/json',body=json.dumps(body))
@@ -80,6 +81,9 @@ def bind(ctx):
   who=actor(route.request)
   payload=json.loads(route.request.post_data or '{}')
   if who!='owner':return respond(route,{'ok':False,'code':'scope-denied'},403)
+  if payload.get('action') in ('branding.status','branding.authorise','branding.revoke'):
+   if payload['action']!='branding.status':branding_grant['active']=payload['action']=='branding.authorise'
+   return respond(route,{'ok':True,'code':'ready','clubRef':'St George Oztag','brandingAuthorised':branding_grant['active']})
   if payload.get('action')=='status':
    return respond(route,{'ok':True,'code':'ready',
     'team':{'teamId':'stgeorge-mixed20','clubRef':'St George Oztag',
@@ -156,7 +160,7 @@ def bind(ctx):
   if action in ('notice.create','notice.publish','notice.archive') and role in ('team_manager','team_coach'):
    command=payload['payload']['command']
    if action=='notice.create':
-    n=dict(command,noticeId='notice-'+str(len(notice_log)+1),teamId=team,status='draft',version=0)
+    n=dict(command,noticeId='notice-'+format(len(notice_log)+1,'032x'),teamId=team,status='draft',version=0)
     notice_log.append(n)
    else:
     n=next((n for n in notice_log if n['noticeId']==payload['resourceId'] and n['teamId']==team),None)
@@ -173,6 +177,30 @@ def bind(ctx):
   team=data.get('teamId');role=data.get('role');action=data.get('action')
   if not who or not any(t==team and r==role for t,c,ss,r in grants[who]):
    return respond(route,{'ok':False,'code':'scope-denied'},403)
+  if action=='branding.read':
+   club=next(c for t,c,ss,r in grants[who] if t==team and r==role)
+   cb=club_branding.get(club,{'style':None,'logo':'','version':0})
+   tb=team_branding.get(team,{'style':None,'version':0})
+   return respond(route,{'ok':True,'code':'permitted','data':{
+    'clubRef':club,'clubStyle':cb['style'],'logo':cb['logo'],'clubVersion':cb['version'],
+    'teamStyle':tb['style'],'teamVersion':tb['version'],'canEditTeam':role in ('team_coach','team_manager'),
+    'canEditClub':who=='owner' and club=='St George Oztag' and branding_grant['active']}})
+  if action in ('branding.team.save','branding.club.save'):
+   value=data['input'];club=next(c for t,c,ss,r in grants[who] if t==team and r==role)
+   if role not in ('team_coach','team_manager'):return respond(route,{'ok':False,'code':'role-denied'},403)
+   if action=='branding.club.save' and not (who=='owner' and club=='St George Oztag' and branding_grant['active']):
+    return respond(route,{'ok':False,'code':'role-denied'},403)
+   target,key=(club_branding,club) if action=='branding.club.save' else (team_branding,team)
+   version=target.get(key,{}).get('version',0)
+   if value['expectedVersion']!=version:return respond(route,{'ok':False,'code':'stale-version'},409)
+   target[key]={'style':value['style'],'version':version+1}
+   if action=='branding.club.save':
+    target[key]['logo']=value['logo']
+    if value['resetOverrides']:
+     for t,c,ss,r in grants[who]:
+      if c==club and t in team_branding and team_branding[t]['style'] is not None:
+       team_branding[t]['style']=None;team_branding[t]['version']+=1
+   return respond(route,{'ok':True,'code':'committed','data':{'version':version+1}})
   if action=='admin.status':
    return respond(route,{'ok':True,'code':'permitted','data':{
     'canAdmin':admin_right(team,role),'role':role}})
@@ -210,9 +238,37 @@ def bind(ctx):
     'fixtures':[{'competitionId':'competition-'+'a'*32,
       'title':'vs Fictional Opponent','startsAt':'2027-02-20T08:00:00+11:00',
       'status':'planned','official':False}]}})
-  if action=='messages.read' and role in ('team_coach','team_manager'):
-   rows=[dict(m,canConfirm=m['author']==who) for m in message_log if m['teamId']==team]
+  if action in ('messages.read','messages.archived') and role in ('team_coach','team_manager'):
+   wanted='archived' if action=='messages.archived' else 'active'
+   rows=[dict(m,canConfirm=m['author']==who and wanted=='active',canRemove=m['author']==who or role=='team_manager')
+    for m in message_log if m['teamId']==team and m.get('historyState','active')==wanted]
    return respond(route,{'ok':True,'code':'permitted','data':rows})
+  if action in ('messages.archive','messages.remove','notice.remove') and role in ('team_coach','team_manager'):
+   entries=data['input']['entries'];selected=[]
+   for entry in entries:
+    if action=='notice.remove':
+     row=next((n for n in notice_log if n['noticeId']==entry['id'] and n['teamId']==team and not n.get('removed')),None)
+    else:
+     row=next((m for m in message_log if m['messageId']==entry['id'] and m['teamId']==team and (m['author']==who or role=='team_manager') and m.get('historyState','active')!='removed'),None)
+    if not row or row['version']!=entry['expectedVersion']:return respond(route,{'ok':False,'code':'stale-version'},409)
+    selected.append(row)
+   for row in selected:
+    row['version']+=1
+    if action=='notice.remove':row.update(status='archived',removed=True)
+    else:row['historyState']='archived' if action=='messages.archive' else 'removed'
+   return respond(route,{'ok':True,'code':'committed','data':{'count':len(selected)}})
+  if action=='notice.archived' and role in ('team_coach','team_manager'):
+   return respond(route,{'ok':True,'code':'permitted','data':[n for n in notice_log if n['teamId']==team and n['status']=='archived' and not n.get('removed')]})
+  if action in ('notice.edit','notice.correct') and role in ('team_coach','team_manager'):
+   value=data['input'];n=next((n for n in notice_log if n['noticeId']==value['noticeId'] and n['teamId']==team),None)
+   if not n or n['version']!=value['expectedVersion']:return respond(route,{'ok':False,'code':'stale-version'},409)
+   if action=='notice.edit':
+    n.update(title=value['title'],body=value['body'],audience=value['audience']);n['version']+=1
+   else:
+    n['status']='archived';n['version']+=1
+    n=dict(title=value['title'],body=value['body'],audience=value['audience'],noticeId='notice-'+format(len(notice_log)+1,'032x'),teamId=team,status='published',version=0)
+    notice_log.append(n)
+   return respond(route,{'ok':True,'code':'committed','data':{'noticeId':n['noticeId']}})
   if action=='messages.prepare' and role in ('team_coach','team_manager'):
    value=data['input']
    m=dict(value,messageId='message-'+format(len(message_log)+1,'032x'),teamId=team,author=who,status='prepared',version=0)
@@ -294,6 +350,7 @@ try:
   login_ctx.close()
   for width in (390,1280):
    message_log.clear();notice_log.clear();schedule_rows.clear();attendance_rows.clear();member_rows.clear();reported.clear();competition_rows.clear();match_selections.clear()
+   branding_grant['active']=False;club_branding.clear();team_branding.clear()
    start_ops=len(operations)
    c,page=session(browser,owner_token,width)
    page.locator('#club-chips button').first.wait_for()
@@ -310,6 +367,10 @@ try:
    page.get_by_role('button',name='Approve and send invitation').click()
    page.get_by_text('Provider reported invitation sent',exact=False).wait_for()
    checks.ok(len(invitations)>=1,f'[{width}] Owner invitation endpoint used')
+   page.get_by_role('button',name='Check branding permission').click()
+   page.get_by_role('button',name='Authorise my first-club branding permission').click()
+   page.get_by_role('button',name='Revoke my club branding permission').wait_for()
+   checks.ok(branding_grant['active'],f'[{width}] explicit founder branding-only grant')
    page.locator('#club-chips').get_by_role('button',name='St George Oztag').click()
    page.locator('#team-chips button').first.click()
    page.get_by_role('heading',name='Home').wait_for()
@@ -326,6 +387,22 @@ try:
    page.get_by_role('heading',name='Team settings').wait_for()
    checks.ok(page.get_by_role('button',name='Save team settings').count()==0,
      f'[{width}] Coach sees read-only settings while approved Manager owns team admin')
+   page.get_by_role('button',name='Club and team branding').click()
+   page.get_by_role('heading',name='Club and team branding').wait_for()
+   club_form=page.locator('form').filter(has=page.get_by_role('button',name='Save club branding'))
+   club_form.get_by_text('Red & White',exact=True).click()
+   checks.ok(club_form.locator('input[value=redwhite]').is_checked(),f'[{width}] labelled palette control selects original swatch')
+   png=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XK0AAAAASUVORK5CYII=')
+   club_form.locator('input[type=file]').set_input_files({'name':'test.png','mimeType':'image/png','buffer':png})
+   page.locator('#cloud-crest img').wait_for()
+   checks.ok(page.locator('html').get_attribute('data-team-style')=='redwhite' and
+     not club_form.locator('input[name=resetOverrides]').is_checked(),f'[{width}] original palette preview, logo and preserve-overrides default')
+   club_form.get_by_role('button',name='Save club branding').click()
+   page.get_by_text('Branding saved for the authorised scope.',exact=True).wait_for()
+   page.locator('#cloud-crest img').wait_for()
+   checks.ok(club_branding['St George Oztag']['style']=={'palette':'redwhite'} and
+     bool(club_branding['St George Oztag']['logo']),f'[{width}] branding persisted to exact club')
+   review(page,width,'branding')
    page.locator('#club-chips').get_by_role('button',name='Rangers Club').click()
    page.locator('#team-chips button').first.click()
    page.get_by_role('heading',name='Home').wait_for()
@@ -333,6 +410,8 @@ try:
    page.get_by_role('heading',name='Squad nominations').wait_for()
    checks.ok(('owner','rangers-manager','team_manager','roster.read') in operations,
      f'[{width}] Manager team uses only its own grant')
+   checks.ok(page.locator('html').get_attribute('data-team-style') is None and
+     page.locator('#cloud-crest img').count()==0,f'[{width}] no club branding leakage when switching teams')
    checks.ok(not any(w=='owner' and t=='rangers-manager' and r=='team_coach'
      for w,t,r,a in operations),f'[{width}] no cross-team Coach escalation')
    checks.ok(page.locator('body').evaluate('(el)=>el.scrollWidth<=innerWidth+2'),
@@ -357,6 +436,9 @@ try:
      f'[{width}] original icon navigation for authorised sections')
    checks.ok('Manager' in page.locator('#active-context').inner_text(),
      f'[{width}] Team Manager goes straight to approved team')
+   page.locator('#cloud-crest img').wait_for()
+   checks.ok(page.locator('html').get_attribute('data-team-style')=='redwhite',
+     f'[{width}] Manager receives persisted club logo and inherited colours')
    checks.ok(page.locator('#team-chips button').count()==1,
      f'[{width}] Manager sees one selected team')
    page.get_by_role('button',name='Schedule',exact=True).first.click()
@@ -490,6 +572,18 @@ try:
    checks.ok(message_log[-1]['channel']=='copy' and message_log[-1]['status']=='prepared',
      f'[{width}] direct Copy records the correct channel without claiming sent')
    page.get_by_role('button',name='All management tools').click()
+   page.get_by_role('button',name='Messages').click()
+   page.get_by_role('heading',name='Message log').wait_for()
+   sent=page.locator('.msg-item').filter(has=page.get_by_text('players · sent',exact=True))
+   sent.get_by_role('button',name='Archive message').click()
+   sent.wait_for(state='detached')
+   page.get_by_role('button',name='Archived',exact=True).click()
+   sent.get_by_role('button',name='Remove message').wait_for()
+   sent.get_by_role('button',name='Remove message').click()
+   sent.wait_for(state='detached')
+   checks.ok(message_log[0]['historyState']=='removed' and message_log[0]['status']=='sent',
+     f'[{width}] removed sent history preserves delivery status')
+   page.get_by_role('button',name='All management tools').click()
    page.get_by_role('button',name='Noticeboard').click()
    page.get_by_role('heading',name='Noticeboard').wait_for()
    page.locator('input[name=title]').fill('Standalone notice')
@@ -500,6 +594,12 @@ try:
    draft.get_by_role('button',name='Publish notice').click()
    draft.get_by_text('players · published',exact=True).wait_for()
    checks.ok(notice_log[-1]['status']=='published',f'[{width}] standalone noticeboard can publish its draft')
+   draft.get_by_text('Correct published notice',exact=True).click()
+   draft.locator('textarea[name=correctedBody]').fill('Bring two water bottles.')
+   draft.get_by_role('button',name='Publish correction').click()
+   page.get_by_text('Bring two water bottles.',exact=True).wait_for()
+   checks.ok(notice_log[-2]['status']=='archived' and notice_log[-1]['status']=='published',
+     f'[{width}] correction archives original and publishes replacement')
    page.locator('input[name=title]').fill('Archived notice example')
    page.locator('textarea[name=body]').fill('This notice will be archived.')
    page.get_by_role('button',name='Save notice draft').click()
@@ -507,6 +607,11 @@ try:
    archived.get_by_role('button',name='Archive notice').click()
    archived.wait_for(state='detached')
    checks.ok(notice_log[-1]['status']=='archived',f'[{width}] archive removes draft from current noticeboard')
+   page.get_by_role('button',name='Archived notices').click()
+   archived.get_by_role('button',name='Remove notice').click()
+   archived.wait_for(state='detached')
+   checks.ok(notice_log[-1]['removed'] is True,f'[{width}] remove hides archived notice without deleting database record')
+   page.get_by_role('button',name='Current notices').click()
    page.get_by_role('button',name='Back to More').click()
    page.get_by_role('button',name='Jerseys').click()
    page.get_by_role('heading',name='Jersey numbers and issue history').wait_for()
@@ -647,6 +752,8 @@ try:
    page.get_by_role('heading',name='Home').wait_for()
    checks.ok('Player' in page.locator('#active-context').inner_text(),
      f'[{width}] Player opens the exact approved team')
+   page.locator('#cloud-crest img').wait_for()
+   checks.ok(page.locator('html').get_attribute('data-team-style')=='redwhite',f'[{width}] Player receives persisted logo and colours')
    page.get_by_role('button',name='Schedule',exact=True).first.click()
    match=page.locator('.cloud-list-item').filter(has_text='Example friendly')
    match.get_by_role('button',name='Yes',exact=True).click()

@@ -1,3 +1,4 @@
+import {validConnectedLogo,validConnectedStyle} from '../site/connected-branding.js';
 import {connectedMessageNeedsReview} from '../site/shared-team-messages.js';
 // Stage 3D.5 corrective management contract.
 // Shared by Worker and synthetic tests. UI state, club chips, Owner status
@@ -9,13 +10,15 @@ const COMP=/^competition-[0-9a-f]{32}$/;
 const MSG=/^message-[0-9a-f]{32}$/;
 const EVIDENCE=/^evidence-ref\/[A-Za-z0-9._/-]{12,100}$/;
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ACTIONS=new Set(['settings.read','settings.save','jerseys.read','jerseys.issue',
+export const COMMUNICATION_ACTIONS=Object.freeze(['messages.archived','messages.archive','messages.remove','notice.archived','notice.remove','notice.correct','notice.edit']);
+export const BRANDING_ACTIONS=Object.freeze(['branding.read','branding.team.save','branding.club.save']);
+const ACTIONS=new Set([...COMMUNICATION_ACTIONS,...BRANDING_ACTIONS,'settings.read','settings.save','jerseys.read','jerseys.issue',
  'jerseys.return','competitions.read','competitions.create','competitions.update',
  'competitions.fixture','competitions.fixtures','messages.read','messages.prepare','messages.confirm',
  'team.members','volunteers.list','admin.status','duties.board','duties.assign','duties.withdraw','invite.list','invite.issue','invite.review-adult',
  'invite.activate','invite.revoke','player.team.read',
  'match.selection.read','match.selection.save','match.selection.publish','match.selection.withdraw','player.match.selection.read']);
-const reads=new Set(['settings.read','jerseys.read','competitions.read','competitions.fixtures',
+const reads=new Set(['branding.read','messages.archived','notice.archived','settings.read','jerseys.read','competitions.read','competitions.fixtures',
  'messages.read','team.members','volunteers.list','admin.status','duties.board','invite.list','player.team.read',
  'match.selection.read','player.match.selection.read']);
 const keys=(o,k)=>Object.keys(o).every(key=>k.includes(key));
@@ -40,13 +43,13 @@ const own=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&
 export function validateStage3D5(input){
  if(!own(input)||!keys(input,['teamId','role','action','input'])||
   !ID.test(input.teamId||'')||
-  !['team_coach','team_manager','team_player'].includes(input.role)||
+  !['team_coach','team_manager','team_player','team_assistant','team_volunteer'].includes(input.role)||
   !ACTIONS.has(input.action)||!own(input.input))return null;
  const action=input.action,x=input.input;
  // A verified Player may read only the curated team summary, never management
  // settings, invitation records or another role's operations.
  const playerRead=['player.team.read','player.match.selection.read'].includes(action);
- if((input.role==='team_player')!==playerRead)return null;
+ if(action!=='branding.read'&&((input.role==='team_player')!==playerRead||['team_assistant','team_volunteer'].includes(input.role)))return null;
  if(action==='match.selection.read'||action==='player.match.selection.read'){
    if(!keys(x,['sessionId'])||!ID.test(x.sessionId||''))return null;
  }else if(['match.selection.save','match.selection.publish','match.selection.withdraw'].includes(action)){
@@ -91,11 +94,25 @@ export function validateStage3D5(input){
   if(!keys(x,['competitionId','opponent','startsAt'])||
     !COMP.test(x.competitionId||'')||!str(x.opponent,120)||
     !x.opponent.trim()||!stamp(x.startsAt))return null;
+ }else if(action==='branding.team.save'||action==='branding.club.save'){
+  if(!keys(x,action==='branding.team.save'?['style','expectedVersion']:['style','expectedVersion','logo','resetOverrides'])||
+   !Object.hasOwn(x,'style')||!validConnectedStyle(x.style)||!num(x.expectedVersion))return null;
+  if(action==='branding.club.save'&&(!validConnectedLogo(x.logo)||typeof x.resetOverrides!=='boolean'))return null;
  }else if(action==='messages.prepare'){
   if(!keys(x,['audience','channel','body'])||
     !['players','volunteers','all'].includes(x.audience)||
     !['whatsapp','share','copy'].includes(x.channel)||
     !messageBody(x.body)||connectedMessageNeedsReview(x.body,input.teamId))return null;
+ }else if(['messages.archive','messages.remove','notice.remove'].includes(action)){
+  const pattern=action==='notice.remove'?/^notice-[0-9a-f]{32}$/:MSG;
+  if(!keys(x,['entries'])||!Array.isArray(x.entries)||x.entries.length<1||x.entries.length>20||
+    x.entries.some(e=>!own(e)||!keys(e,['id','expectedVersion'])||typeof e.id!=='string'||!pattern.test(e.id)||!num(e.expectedVersion))||
+    new Set(x.entries.map(e=>e.id)).size!==x.entries.length)return null;
+ }else if(['notice.correct','notice.edit'].includes(action)){
+  if(!keys(x,['noticeId','expectedVersion','title','body','audience'])||
+   typeof x.noticeId!=='string'||!/^notice-[0-9a-f]{32}$/.test(x.noticeId)||!num(x.expectedVersion)||
+   !str(x.title,100)||!x.title.trim()||!str(x.body,1000)||!x.body.trim()||
+   !['all','players','volunteers','coaches'].includes(x.audience)||connectedMessageNeedsReview(x.body,input.teamId))return null;
  }else if(action==='messages.confirm'){
   if(!keys(x,['messageId','status','expectedVersion'])||
     !MSG.test(x.messageId||'')||!['sent','not-sent'].includes(x.status)||

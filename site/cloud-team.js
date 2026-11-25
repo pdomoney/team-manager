@@ -11,6 +11,8 @@ import {buildTeamNavigation,hasTeamRole,roleForAction,reviewerContext,
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
 import {createCloudManagementClient} from './cloud-management.js';
 import {createCloudManagementExperience} from './cloud-management-experience.js';
+import {applyConnectedStyle,setConnectedCrest,validConnectedLogo,validConnectedStyle} from './connected-branding.js';
+import {renderConnectedBranding} from './cloud-branding-editor.js';
 import {teamRecordedMatchesFromSchedule,namedTrainingRegister} from './cloud-original-model-adapter.js';
 import {teamIconSvg} from './shared-team-icons.js';
 import {publishedMatchSquadText,connectedMessageNeedsReview} from './shared-team-messages.js';
@@ -32,7 +34,7 @@ const ROLE_NAMES=Object.freeze({
   team_manager:'Manager',team_player:'Player',team_volunteer:'Volunteer',
   team_play_viewer:'Play viewer'
 });
-const state={user:null,contexts:[],context:null,activeClub:null,isPlatformOwner:false,
+const state={user:null,contexts:[],context:null,activeClub:null,isPlatformOwner:false,branding:null,clubLogos:new Map(),
   founderTeamId:null,tab:'home',sub:'',epoch:0,competitions:null,
   schedule:[],roster:[],members:[],duties:[],drafts:[],published:[],notices:[],playerTeam:null,preview:null,busy:false};
 const hasRole=(...roles)=>hasTeamRole(state.context,...roles);
@@ -53,7 +55,7 @@ function h(tag,{className,text,attrs={},parent}={}){
   for(const [k,v] of Object.entries(attrs))e.setAttribute(k,String(v));
   parent?.append(e);return e;
 }
-function clear(){main.replaceChildren();main.dataset.view=state.tab||'home';}
+function clear(){applySavedBranding();main.replaceChildren();main.dataset.view=state.tab||'home';}
 function card(title,parent=main){
   const c=h('section',{className:'cloud-card',parent});if(title)h('h3',{text:title,parent:c});return c;
 }
@@ -133,7 +135,7 @@ function chip(parent,label,pressed,handler){
   b.className=parent===clubs?'scope-club':'scope-team';
   b.setAttribute('aria-label',label);b.setAttribute('aria-pressed',pressed?'true':'false');
   b.replaceChildren();
-  if(parent===clubs)h('span',{className:'crest all',text:initials(label),attrs:{'aria-hidden':'true'},parent:b});
+  if(parent===clubs){const crest=h('span',{className:'crest all',attrs:{'aria-hidden':'true'},parent:b});setConnectedCrest(crest,state.clubLogos.get(label)||'',initials(label));}
   else {const art=h('span',{attrs:{'aria-hidden':'true'},parent:b});art.innerHTML=navArt('team');}
   h('span',{className:'scope-name',text:label,parent:b});
   return b;
@@ -148,11 +150,11 @@ function drawContextChips(){
       if(matches.length===1){selectContext(matches[0].key);return;}
       // Clubs with more than one authorised team require exact team selection.
       // Clear previous team's private records before revealing team chips.
-      state.epoch++;state.context=null;state.activeClub=club;
+      state.epoch++;state.context=null;state.activeClub=club;state.branding=null;applySavedBranding();
       state.schedule=[];state.roster=[];state.members=[];state.duties=[];state.notices=[];
       state.drafts=[];state.published=[];state.playerTeam=null;state.preview=null;state.competitions=null;
       $('cloud-team-title').textContent=club;
-      $('cloud-crest').textContent=initials(club);
+      setConnectedCrest($('cloud-crest'),state.clubLogos.get(club)||'',initials(club));
       $('cloud-notices-shortcut').hidden=true;$('cloud-settings-shortcut').hidden=true;
       $('active-context').textContent='Choose a team · '+club;
       $('cloud-nav').hidden=true;$('cloud-desktop-nav').hidden=true;
@@ -169,17 +171,66 @@ function drawContextChips(){
 function selectContext(key){
   const next=state.contexts.find(c=>c.key===key);
   if(!next)return;
-  state.epoch++;notice.hidden=true;state.context=next;
+  state.epoch++;notice.hidden=true;state.context=next;state.branding=null;
   state.activeClub=next.kind==='team'?next.club:null;
   state.schedule=[];state.roster=[];state.members=[];state.duties=[];state.notices=[];state.drafts=[];
   state.published=[];state.playerTeam=null;state.preview=null;state.competitions=null;
   $('cloud-team-title').textContent=next.kind==='team'?teamDisplayName(next):'Team Manager';
-  $('cloud-crest').textContent=initials(next.kind==='team'?next.club:'Team Manager');
+  applySavedBranding();
   $('active-context').textContent=contextLabel(next);
   $('cloud-notices-shortcut').hidden=!canReadNotices();
   $('cloud-settings-shortcut').hidden=!(MANAGEMENT_PARITY&&canManage());
   $('cloud-nav').hidden=false;$('cloud-desktop-nav').hidden=false;
   state.tab='home';state.sub='';drawContextChips();drawTabs();void showTab();
+}
+function applySavedBranding(){
+  const ctx=state.context,v=ctx?.kind==='team'?state.branding:null;
+  applyConnectedStyle(v?.teamStyle||null,v?.clubStyle||null);
+  const club=ctx?.kind==='team'?ctx.club:!ctx?state.activeClub:null;
+  setConnectedCrest($('cloud-crest'),v?.logo||(!ctx&&club?state.clubLogos.get(club):'')||'',initials(club||'Team Manager'));
+}
+function validBranding(ctx,v){
+  return !!v&&v.clubRef===ctx.club&&validConnectedLogo(v.logo)&&validConnectedStyle(v.clubStyle)&&validConnectedStyle(v.teamStyle)&&
+    Number.isSafeInteger(v.clubVersion)&&v.clubVersion>=0&&Number.isSafeInteger(v.teamVersion)&&v.teamVersion>=0&&
+    typeof v.canEditTeam==='boolean'&&typeof v.canEditClub==='boolean';
+}
+function applyBrandingValue(ctx,v){
+  state.branding=v;state.clubLogos.set(ctx.club,v.logo);applySavedBranding();
+  for(const item of clubs.querySelectorAll('button')){
+    if(item.getAttribute('aria-label')!==ctx.club)continue;
+    const badge=item.querySelector('.crest');if(badge)setConnectedCrest(badge,v.logo,initials(ctx.club));
+  }
+}
+async function refreshBranding(ctx,epoch){
+  if(!ctx?.roles?.some(r=>['team_coach','team_manager','team_assistant','team_player','team_volunteer'].includes(r)))return;
+  try{
+    const v=await management.call(ctx,'branding.read');
+    if(state.context===ctx&&state.epoch===epoch&&validBranding(ctx,v))applyBrandingValue(ctx,v);
+  }catch{/* Branding failure never grants access or blocks established team operations. */}
+}
+async function openBranding(){
+  if(!canManage()||state.context?.kind!=='team')return;
+  const ctx=state.context,epoch=++state.epoch;
+  const current=()=>state.context===ctx&&state.epoch===epoch;
+  clear();title('Club and team branding',contextLabel(ctx));
+  const loading=info('Loading the authorised club and team branding…');
+  try{
+    const v=await management.call(ctx,'branding.read');
+    if(!current())return;
+    if(!validBranding(ctx,v))throw Object.assign(new Error(),{code:'service-unavailable'});
+    loading.remove();applyBrandingValue(ctx,v);
+    renderConnectedBranding({parent:main,ctx,value:v,ui:{h,card,info,button,actions,form,field,message},
+      isCurrent:current,restore:applySavedBranding,onBack:()=>void managementExperience.open('Settings'),
+      preview:(teamStyle,clubStyle,logo)=>{
+        if(!current())return;applyConnectedStyle(teamStyle,clubStyle);
+        setConnectedCrest($('cloud-crest'),logo,initials(ctx.club));
+      },save:async(action,input)=>{
+        if(!current())throw Object.assign(new Error(),{code:'scope-denied'});
+        await management.call(ctx,action,input);
+        if(!current())return;
+        message('Branding saved for the authorised scope.');await openBranding();
+      }});
+  }catch(e){if(current()){loading.textContent=explain(e);message(explain(e),true);}}
 }
 function subviews(){
   const children={schedule:[['upcoming','Upcoming'],['training','Training'],['matches','Matches']],team:[]};
@@ -283,6 +334,7 @@ async function loadForTab(tab,epoch){
 }
 async function showTab(){
   const epoch=++state.epoch;clear();
+  if(state.context?.kind==='team')void refreshBranding(state.context,epoch);
   if(!state.context){title('No authorised team','Account access');info('An approved team or platform role is required.');return;}
   title(({upcoming:'Upcoming',training:'Training',matches:'Matches',squad:'Squad',invitations:'Invitations'})[state.sub]||
     ({home:'Home',schedule:'Schedule',team:'Team',tactics:'Tactics',more:'More'})[state.tab],
@@ -405,6 +457,26 @@ async function renderOwnerDashboard(epoch){
     return;
   }
   const grid=h('div',{className:'cloud-owner-actions',parent:main});
+  const brand=card('First club branding authority',grid);
+  info('A separate, revocable branding-only delegation. It does not grant membership, roster or general Club Administrator access.',brand);
+  const brandStatus=info('Check the current branding permission.',brand);
+  const brandActions=actions(brand);
+  const refreshAuthority=async()=>{
+    if(epoch!==state.epoch||!isOwner())return;
+    brandActions.replaceChildren();brandStatus.textContent='Checking branding authority…';
+    try{
+      const status=await ownerCall('branding.status');
+      if(epoch!==state.epoch||!isOwner())return;
+      brandStatus.textContent=status.clubRef+' · '+(status.brandingAuthorised?'Branding authorised':'No branding delegation');
+      button(status.brandingAuthorised?'Revoke my club branding permission':'Authorise my first-club branding permission',async()=>{
+        if(epoch!==state.epoch||!isOwner())return;
+        if(!window.confirm((status.brandingAuthorised?'Revoke':'Explicitly authorise')+' branding-only permission for '+status.clubRef+'? No additional team or private-data access is granted.'))return;
+        try{await ownerCall(status.brandingAuthorised?'branding.revoke':'branding.authorise');await refreshAuthority();}
+        catch(e){if(epoch===state.epoch)message(explain(e),true);}
+      },brandActions);
+    }catch(e){if(epoch===state.epoch){brandStatus.textContent=explain(e);button('Check branding permission',()=>void refreshAuthority(),brandActions);}}
+  };
+  button('Check branding permission',()=>void refreshAuthority(),brandActions);
   const invite=card('Invite an adult',grid);
   info('Invite a Manager, Coach, Assistant Coach, adult Player or Volunteer to the existing team. Invitation is not an active team role.',invite);
   const f=form(invite,async d=>{
@@ -928,19 +1000,23 @@ function renderDutyBoard(ctx){
     });
   }).catch(e=>{if(epoch!==state.epoch)return;loading.textContent=explain(e);});
 }
-function openNoticeboard(){
+function openNoticeboard(archived=false){
   if(!canReadNotices())return;
   state.epoch++;clear();
   title('Noticeboard',contextLabel(state.context));
   button('Back to More',()=>switchTab('more'),actions());
-  renderNotices('noticeboard');
+  renderNotices('noticeboard',main,archived===true&&canManage());
 }
-function renderNotices(place='more',parent=main){
+function renderNotices(place='more',parent=main,archived=false){
   if(!canReadNotices())return;
   const ctx=state.context,epoch=state.epoch;
   const current=()=>ctx===state.context&&epoch===state.epoch;
   const c=card(place==='home'?'Latest team notices':'Team notices',parent);
-  if(place!=='home'&&canManage()){
+  if(place==='noticeboard'&&canManage()){
+    const tabs=actions(c);
+    button(archived?'Current notices':'Archived notices',()=>openNoticeboard(!archived),tabs);
+  }
+  if(place!=='home'&&canManage()&&!archived){
     const f=form(c,async d=>{
       if(!current())throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
       const body=String(d.get('body')).trim();
@@ -967,7 +1043,27 @@ function renderNotices(place='more',parent=main){
   }
   const content=h('div',{parent:c});
   const loading=info('Loading team notices…',content);
-  void action('notices.read',ctx.teamId).then(items=>{
+  const selectedRows=new Map();
+  const bulkActions=h('div',{className:'cloud-actions',parent:c});
+  const refresh=()=>place==='noticeboard'?openNoticeboard(archived):showTab();
+  const manage=async(operation,input,done)=>{
+    try{
+      if(!current())throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+      await management.call(ctx,operation,input);
+      if(!current())return;
+      message(done);await refresh();
+    }catch(e){if(current())message(explain(e),true);}
+  };
+  const remove=entries=>{
+    if(!entries.length||!current())return;
+    if(window.confirm('Remove '+entries.length+' notice'+(entries.length===1?'':'s')+' from normal team views? Already shared messages are not recalled.'))
+      void manage('notice.remove',{entries},'Notice removed from team views.');
+  };
+  const drawBulk=()=>{
+    bulkActions.replaceChildren();
+    if(selectedRows.size)button('Remove selected notices ('+selectedRows.size+')',()=>remove([...selectedRows.values()]),bulkActions).classList.add('danger');
+  };
+  void (archived?management.call(ctx,'notice.archived'):action('notices.read',ctx.teamId)).then(items=>{
     if(!current())return;loading.remove();
     readList(content,place==='home'?items.filter(n=>n.status==='published').slice(0,3):items,
       (n,row)=>{
@@ -976,8 +1072,36 @@ function renderNotices(place='more',parent=main){
         const needsReview=connectedMessageNeedsReview(n.body,ctx.teamId);
         h('p',{text:needsReview&&!canManage()?'Notice needs correction by team staff.':n.body,parent:row});
         if(needsReview&&canManage())info('Review this existing notice: incomplete or fictional template. Archive it if incorrect.',row);
-        if(place==='home'||!canManage()||n.status==='archived')return;
+        if(place==='home'||!canManage())return;
+        const entry={id:n.noticeId,expectedVersion:n.version};
+        const label=h('label',{className:'check cloud-checkbox-row',parent:row});
+        const check=h('input',{attrs:{type:'checkbox','aria-label':'Select notice'},parent:label});
+        h('span',{text:'Select for bulk removal',parent:label});
+        check.addEventListener('change',()=>{
+          if(check.checked&&selectedRows.size>=20){check.checked=false;message('Select up to 20 entries at a time.',true);return;}
+          if(check.checked)selectedRows.set(entry.id,entry);else selectedRows.delete(entry.id);
+          drawBulk();
+        });
         const a=actions(row);
+        button('Remove notice',()=>remove([entry]),a).classList.add('danger');
+        if(n.status==='archived')return;
+        const edit=h('details',{className:'cloud-notice-correction',parent:row});
+        h('summary',{text:n.status==='draft'?'Edit notice draft':'Correct published notice',parent:edit});
+        const editor=form(edit,async d=>{
+          const body=String(d.get('correctedBody')).trim();
+          if(!body||connectedMessageNeedsReview(body,ctx.teamId)){message('Complete the notice details before saving.',true);return;}
+          if(n.status==='published'&&!window.confirm('Publish the corrected notice and archive the previous version?'))return;
+          await manage(n.status==='draft'?'notice.edit':'notice.correct',{
+            noticeId:n.noticeId,expectedVersion:n.version,title:String(d.get('correctedTitle')).trim(),
+            body,audience:String(d.get('correctedAudience'))
+          },n.status==='draft'?'Notice draft updated.':'Corrected notice published; previous version archived.');
+        });
+        field(editor,'Corrected title','correctedTitle',{max:100,value:n.title});
+        const editLabel=h('label',{text:'Corrected notice message',parent:editor});
+        const editBody=h('textarea',{attrs:{name:'correctedBody',maxlength:1000,rows:4,required:true},parent:editLabel});editBody.value=n.body;
+        const editAudience=selectField(editor,'Corrected audience','correctedAudience',[
+          ['all','Everyone in this team'],['players','Players'],['volunteers','Volunteers'],['coaches','Coaching staff']]);editAudience.value=n.audience;
+        h('button',{className:'btn primary',text:n.status==='draft'?'Save corrected draft':'Publish correction',attrs:{type:'submit'},parent:editor});
         const change=async(operation,command)=>{
           try{
             if(!current())throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
@@ -1336,7 +1460,7 @@ const managementExperience=createCloudManagementExperience({
   },
   ui:{h,card,info,button,actions,form,field,selectField,title,clear,message,explain},
   onBack:()=>switchTab('more'),onReport:()=>openReports(),
-  onNotices:openNoticeboard,onTeam:()=>switchTab('team')
+  onNotices:openNoticeboard,onTeam:()=>switchTab('team'),onBranding:openBranding
 });
 function moreEntry(parent,name,description,handler,artwork){
   // Original Team Manager pick/more-item structure and original SVG artwork.
