@@ -4,7 +4,8 @@ import {CLOUD_SUPABASE,CLOUD_STAGE3C_MODE,CLOUD_STAGE3D3_POLICY_REQUIRED} from '
 import {verifiedOwnerSetup} from './cloud-owner-status.js';
 import {createCloudIdentityClient} from './cloud-identity.js';
 import {createCloudOnboardingClient} from './cloud-onboarding.js';
-import {teamContextLabel} from './first-live-team.js';
+import {teamContextLabel,teamDisplayName} from './first-live-team.js';
+import {navArt,initials,originalSection,originalColumns,originalWorkingContext,originalCompetitionCard,originalDateBadge,originalRosterIdentity} from './cloud-original-presentation.js';
 import {buildTeamNavigation,hasTeamRole,roleForAction,reviewerContext,
   clubsForNavigation,visibleSections} from './cloud-team-contexts.js';
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
@@ -12,7 +13,7 @@ import {createCloudManagementClient} from './cloud-management.js';
 import {createCloudManagementExperience} from './cloud-management-experience.js';
 import {teamRecordedMatchesFromSchedule,namedTrainingRegister} from './cloud-original-model-adapter.js';
 import {teamIconSvg} from './shared-team-icons.js';
-import {publishedMatchSquadText} from './shared-team-messages.js';
+import {publishedMatchSquadText,connectedMessageNeedsReview} from './shared-team-messages.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
 
@@ -32,7 +33,7 @@ const ROLE_NAMES=Object.freeze({
   team_play_viewer:'Play viewer'
 });
 const state={user:null,contexts:[],context:null,activeClub:null,isPlatformOwner:false,
-  founderTeamId:null,tab:'home',epoch:0,
+  founderTeamId:null,tab:'home',sub:'',epoch:0,competitions:null,
   schedule:[],roster:[],members:[],duties:[],drafts:[],published:[],notices:[],playerTeam:null,preview:null,busy:false};
 const hasRole=(...roles)=>hasTeamRole(state.context,...roles);
 const canEditSchedule=()=>hasRole('team_coach','team_manager','team_assistant');
@@ -52,13 +53,13 @@ function h(tag,{className,text,attrs={},parent}={}){
   for(const [k,v] of Object.entries(attrs))e.setAttribute(k,String(v));
   parent?.append(e);return e;
 }
-function clear(){main.replaceChildren();}
+function clear(){main.replaceChildren();main.dataset.view=state.tab||'home';}
 function card(title,parent=main){
   const c=h('section',{className:'cloud-card',parent});if(title)h('h3',{text:title,parent:c});return c;
 }
 function info(text,parent=main){return h('p',{className:'cloud-intro',text,parent});}
 function button(label,fn,parent,{primary=false,disabled=false}={}){
-  const b=h('button',{className:'cloud-btn'+(primary?' primary':''),
+  const b=h('button',{className:'btn cloud-btn'+(primary?' primary':''),
     text:label,attrs:{type:'button'},parent});b.disabled=disabled;b.addEventListener('click',fn);return b;
 }
 function actions(parent=main){return h('div',{className:'cloud-actions',parent});}
@@ -67,18 +68,18 @@ function form(parent,submit){
   f.addEventListener('submit',async e=>{
     e.preventDefault();if(state.busy)return;
     state.busy=true;for(const b of f.querySelectorAll('button'))b.disabled=true;
-    try{await submit(new FormData(f));}
+    try{await submit(new FormData(f),e.submitter);}
     catch(e){message(explain(e),true);}
     finally{state.busy=false;for(const b of f.querySelectorAll('button'))b.disabled=false;}
   });return f;
 }
 function field(f,label,name,{type='text',value='',required=true,max=120}={}){
-  const l=h('label',{text:label,parent:f});
+  const l=h('label',{className:'field-l',parent:f});h('span',{text:label,parent:l});
   const e=h('input',{attrs:{name,type,value,maxlength:max},parent:l});
   e.required=required;return e;
 }
 function selectField(f,label,name,options){
-  const l=h('label',{text:label,parent:f});
+  const l=h('label',{className:'field-l',parent:f});h('span',{text:label,parent:l});
   const s=h('select',{attrs:{name},parent:l});
   for(const [value,title] of options)h('option',{text:title,attrs:{value},parent:s});return s;
 }
@@ -106,8 +107,21 @@ function explain(err){
   return 'This action could not be completed. No change was confirmed.';
 }
 function title(name,subtitle){
-  h('p',{className:'cloud-eyebrow',text:subtitle,parent:main});
-  h('h2',{text:name,parent:main});
+  if(state.context?.kind==='team'){
+    const c=state.context;
+    originalWorkingContext(h,main,{team:teamDisplayName(c),club:c.club,
+      meta:c.roles.map(r=>ROLE_NAMES[r]||r).join(' / ')+' · '+c.season,
+      onHome:()=>switchTab('home')});
+    if(subtitle&&subtitle!==contextLabel(c))h('p',{className:'cloud-eyebrow',text:subtitle,parent:main});
+  }else h('p',{className:'cloud-eyebrow',text:subtitle,parent:main});
+  h('h2',{className:'cloud-page-title',text:name,parent:main});
+  if(state.context?.kind==='team'&&['schedule','team'].includes(state.tab)){
+    const sub=h('nav',{className:'chips cloud-mobile-subnav',attrs:{'aria-label':state.tab==='team'?'Team pages':'Schedule pages'},parent:main});
+    for(const [key,label] of subviews()[state.tab]||[]){
+      const btn=h('button',{className:'chip',text:label,attrs:{type:'button','aria-pressed':String(key===state.sub)},parent:sub});
+      btn.addEventListener('click',()=>switchTab(state.tab,key));
+    }
+  }
 }
 function contextLabel(c){
   if(c.kind==='platform')return 'Platform Owner · platform administration';
@@ -116,7 +130,12 @@ function contextLabel(c){
 }
 function chip(parent,label,pressed,handler){
   const b=button(label,handler,parent);
-  b.className='cloud-scope-chip';b.setAttribute('aria-pressed',pressed?'true':'false');
+  b.className=parent===clubs?'scope-club':'scope-team';
+  b.setAttribute('aria-label',label);b.setAttribute('aria-pressed',pressed?'true':'false');
+  b.replaceChildren();
+  if(parent===clubs)h('span',{className:'crest all',text:initials(label),attrs:{'aria-hidden':'true'},parent:b});
+  else {const art=h('span',{attrs:{'aria-hidden':'true'},parent:b});art.innerHTML=navArt('team');}
+  h('span',{className:'scope-name',text:label,parent:b});
   return b;
 }
 function drawContextChips(){
@@ -131,7 +150,10 @@ function drawContextChips(){
       // Clear previous team's private records before revealing team chips.
       state.epoch++;state.context=null;state.activeClub=club;
       state.schedule=[];state.roster=[];state.members=[];state.duties=[];state.notices=[];
-      state.drafts=[];state.published=[];state.playerTeam=null;state.preview=null;
+      state.drafts=[];state.published=[];state.playerTeam=null;state.preview=null;state.competitions=null;
+      $('cloud-team-title').textContent=club;
+      $('cloud-crest').textContent=initials(club);
+      $('cloud-notices-shortcut').hidden=true;$('cloud-settings-shortcut').hidden=true;
       $('active-context').textContent='Choose a team · '+club;
       $('cloud-nav').hidden=true;$('cloud-desktop-nav').hidden=true;
       clear();title('Choose an authorised team',club);
@@ -150,21 +172,48 @@ function selectContext(key){
   state.epoch++;notice.hidden=true;state.context=next;
   state.activeClub=next.kind==='team'?next.club:null;
   state.schedule=[];state.roster=[];state.members=[];state.duties=[];state.notices=[];state.drafts=[];
-  state.published=[];state.playerTeam=null;state.preview=null;
+  state.published=[];state.playerTeam=null;state.preview=null;state.competitions=null;
+  $('cloud-team-title').textContent=next.kind==='team'?teamDisplayName(next):'Team Manager';
+  $('cloud-crest').textContent=initials(next.kind==='team'?next.club:'Team Manager');
   $('active-context').textContent=contextLabel(next);
+  $('cloud-notices-shortcut').hidden=!canReadNotices();
+  $('cloud-settings-shortcut').hidden=!(MANAGEMENT_PARITY&&canManage());
   $('cloud-nav').hidden=false;$('cloud-desktop-nav').hidden=false;
-  state.tab='home';drawContextChips();drawTabs();void showTab();
+  state.tab='home';state.sub='';drawContextChips();drawTabs();void showTab();
+}
+function subviews(){
+  const children={schedule:[['upcoming','Upcoming'],['training','Training'],['matches','Matches']],team:[]};
+  if(MANAGEMENT_PARITY&&canManage()){
+    children.schedule.push(['competitions','Tournaments']);
+    children.team.push(['squad','Squad'],['tasks','Tasks'],['helpers','Helpers'],
+      ['match-support','Match staff'],['invitations','Invitations']);
+  }else if(MANAGEMENT_PARITY&&hasRole('team_player'))children.team.push(['squad','Squad']);
+  else if(hasRole('team_volunteer')&&!canManage())children.team.push(['squad','My duties']);
+  return children;
 }
 function drawTabs(){
   const allowed=visibleSections(state.context,{playsDeferred:playsDeferred()});
-  // Mobile tabs fill the available width for the actual selected team's
-  // permissions; hidden sections never leave blank navigation columns.
+  const labels={home:'Home',schedule:'Schedule',team:'Team',tactics:'Tactics',more:'More'};
+  const children=subviews();
   $('cloud-nav').style.gridTemplateColumns='repeat('+Math.max(1,allowed.length)+',minmax(0,1fr))';
   for(const id of ['cloud-nav','cloud-desktop-nav']){
-    for(const b of $(id).querySelectorAll('button')){
-      b.hidden=!allowed.includes(b.dataset.tab);
-      b.setAttribute('aria-current',state.tab===b.dataset.tab?'page':'false');
+    const nav=$(id);
+    const active=nav.contains(document.activeElement)?document.activeElement:null;
+    const activeTab=active?.dataset.tab,activeSub=active?.dataset.sub||'';
+    nav.replaceChildren();
+    for(const tab of allowed){
+      const group=h('div',{className:'nav-group'+(tab===state.tab?' on':''),parent:nav});
+      const btn=h('button',{className:'nav-main',attrs:{type:'button','data-tab':tab,
+        'aria-current':state.tab===tab&&(id==='cloud-nav'||!state.sub)?'page':'false'},parent:group});
+      btn.innerHTML=navArt(tab);h('span',{text:labels[tab],parent:btn});
+      if(id==='cloud-desktop-nav'&&children[tab]?.length){
+        const sub=h('div',{className:'nav-sub',parent:group});
+        for(const [key,label] of children[tab])
+          h('button',{text:label,attrs:{type:'button','data-tab':tab,'data-sub':key,
+            'aria-current':tab===state.tab&&key===state.sub?'page':'false'},parent:sub});
+      }
     }
+    if(activeTab)Array.from(nav.querySelectorAll('button')).find(btn=>btn.dataset.tab===activeTab&&(btn.dataset.sub||'')===activeSub)?.focus({preventScroll:true});
   }
 }
 async function action(name,resource,payload={}){
@@ -193,12 +242,20 @@ async function loadForTab(tab,epoch){
   const c=state.context;
   if(!c||isOwner())return;
   const need=async(actionName,key)=>{
+    if(epoch!==state.epoch||state.context!==c)return;
     const records=await action(actionName,c.teamId);
     if(state.epoch===epoch)state[key]=records;
   };
   if(tab==='home'){
     if(roleForAction(c,'schedule.read'))await need('schedule.read','schedule');
     if(canRoster())await need('roster.read','roster');
+    if(epoch!==state.epoch||state.context!==c)return;
+    if(MANAGEMENT_PARITY&&(canManage()||hasRole('team_player'))){
+      try{
+        const result=await management.call(c,canManage()?'competitions.read':'player.team.read');
+        if(epoch===state.epoch)state.competitions=canManage()?result:result.competitions;
+      }catch{if(epoch===state.epoch)state.competitions=null;}
+    }
     if(roleForAction(c,'duty.read'))await need('duty.read','duties');
     if(canViewTactics()&&!roleForAction(c,'schedule.read'))
       await need('play.published.read','published');
@@ -207,6 +264,7 @@ async function loadForTab(tab,epoch){
   }else if(tab==='team'){
     if(canRoster()){
       await need('roster.read','roster');
+      if(epoch!==state.epoch||state.context!==c)return;
       if(MANAGEMENT_PARITY){
         const members=await management.call(c,'team.members');
         if(state.epoch===epoch)state.members=members;
@@ -226,7 +284,8 @@ async function loadForTab(tab,epoch){
 async function showTab(){
   const epoch=++state.epoch;clear();
   if(!state.context){title('No authorised team','Account access');info('An approved team or platform role is required.');return;}
-  title(({home:'Home',schedule:'Schedule',team:'Team',tactics:'Tactics',more:'More'})[state.tab],
+  title(({upcoming:'Upcoming',training:'Training',matches:'Matches',squad:'Squad',invitations:'Invitations'})[state.sub]||
+    ({home:'Home',schedule:'Schedule',team:'Team',tactics:'Tactics',more:'More'})[state.tab],
     contextLabel(state.context));
   if(state.tab!=='more'){
     const loading=info('Loading your authorised team records…');
@@ -376,55 +435,76 @@ async function renderOwnerDashboard(epoch){
 
 function renderHome(){
   const c=state.context;
-  const banner=card(teamContextLabel(c)+' · '+c.season);
-  info('Your available functions reflect the grants on this team, not your permissions on other teams.',banner);
-  const overview=h('div',{className:'cloud-grid',parent:main});
-  const upcoming=state.schedule.filter(item=>item.status!=='cancelled')
-    .slice().sort((a,b)=>String(a.startsAt||'').localeCompare(String(b.startsAt||'')));
+  const [left,right]=originalColumns(h,main,'home-cols cloud-home-cols');
+  const now=Date.now();
+  const upcoming=state.schedule.filter(item=>item.status==='planned'&&
+    Number.isFinite(Date.parse(item.startsAt))&&Date.parse(item.startsAt)>=now)
+    .slice().sort((a,b)=>Date.parse(a.startsAt)-Date.parse(b.startsAt));
+  const next=upcoming[0],pending=state.roster.filter(p=>p.status==='pending');
+  const volunteerPending=state.duties.filter(d=>d.status==='assigned');
+  const nextReply=hasRole('team_player')&&upcoming.find(x=>!x.myAvailability);
+  const focus=h('section',{className:'focus '+(next?'lvl-2':'calm'),parent:left});
+  const kicker=h('p',{className:'spot-k',parent:focus});
+  h('span',{className:'lvl-pill',text:next?'Next up':'Team overview',parent:kicker});
+  h('h2',{text:next?(next.title||'Upcoming session'):'Nothing coming up',parent:focus});
+  h('p',{className:'spot-what',text:next?[when(next.startsAt),next.locationLabel].filter(Boolean).join(' · '):
+    'Training, matches and team activities will appear here when recorded.',parent:focus});
+  const controls=h('div',{className:'btn-row',parent:focus});
+  if(roleForAction(c,'schedule.read'))button(canEditSchedule()?'Manage training':
+    hasRole('team_player')?'Reply to training':'View schedule',
+    ()=>switchTab('schedule'),controls,{primary:true});
+  if(canRoster())button('Open squad',()=>switchTab('team','squad'),controls);
+  if(roleForAction(c,'duty.read'))button('View your duties',()=>switchTab('team'),controls);
+  if(MANAGEMENT_PARITY&&(canManage()||hasRole('team_player'))){
+    if(!Array.isArray(state.competitions))info('Competition entries could not be loaded.',left);
+    else{
+      const current=state.competitions.filter(x=>x.status!=='withdrawn');
+      for(const entry of current.slice(0,3))originalCompetitionCard(h,left,entry,{
+        onOpen:()=>canManage()?void managementExperience.open('Competitions'):switchTab('team')});
+      if(!current.length)info('No current team competition entries.',left);
+      const other=state.competitions.length-current.slice(0,3).length;
+      if(other)info(other+' other or withdrawn entries are available in the team competition view.',left);
+    }
+  }
   if(roleForAction(c,'schedule.read')){
-    const sessions=card('Upcoming activities',overview);
-    h('p',{className:'cloud-overview-number',text:String(upcoming.length),parent:sessions});
-    info('Team sessions and authorised activities',sessions);
-    button('View schedule',()=>switchTab('schedule'),sessions);
+    const {section,heading}=originalSection(h,left,'Coming up','home-up');
+    button('Full schedule',()=>switchTab('schedule'),heading);
+    const list=h('div',{className:'list',parent:section});
+    if(!upcoming.length)info('No upcoming activities recorded.',list);
+    for(const item of upcoming.slice(0,5)){
+      const row=h('button',{className:'tl-row',attrs:{type:'button'},parent:list});
+      row.addEventListener('click',()=>switchTab('schedule',item.kind==='match'?'matches':item.kind==='training'?'training':'upcoming'));
+      const whenBox=h('span',{className:'tl-when',parent:row});
+      h('b',{text:new Date(item.startsAt).toLocaleDateString('en-AU',{day:'numeric',month:'short'}),parent:whenBox});
+      h('span',{text:new Date(item.startsAt).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}),parent:whenBox});
+      const desc=h('span',{className:'grow',parent:row});
+      h('strong',{text:item.title||item.kind,parent:desc});
+      h('span',{className:'tagline cloud-block',text:item.locationLabel||'Venue TBC',parent:desc});
+      if(hasRole('team_player'))h('span',{className:'cloud-block sub',text:'My availability: '+(item.myAvailability||'Not answered'),parent:desc});
+    }
+    if(upcoming.length>5)info('And '+(upcoming.length-5)+' more.',section);
   }
-  if(canRoster()){
-    const members=card('Squad placements',overview);
-    h('p',{className:'cloud-overview-number',text:String(state.roster.length),parent:members});
-    info('Existing team nominations and placements',members);
-    button('Open squad',()=>switchTab('team'),members);
-  }
-  if(roleForAction(c,'duty.read')){
-    const duty=card('My volunteer duties',overview);
-    h('p',{className:'cloud-overview-number',text:String(state.duties.length),parent:duty});
-    info('Only your verified assignments are available',duty);
-    button('View your duties',()=>switchTab('team'),duty);
-  }
-  const actionable=card('Outstanding actions');
-  if(canEditSchedule()&&!upcoming.length)
-    info('No scheduled activities yet. Create the first training session for this team.',actionable);
-  else if(hasRole('team_player'))
-    info('Review your upcoming sessions and record your own availability.',actionable);
-  else if(roleForAction(c,'duty.read'))
-    info('Review your assigned volunteer duties and confirm your response.',actionable);
-  else info('Team work, approvals and reports are available from the navigation below.',actionable);
-  const quick=actions(actionable);
-  if(canEditSchedule())button('Manage training',()=>switchTab('schedule'),quick,{primary:true});
-  else if(roleForAction(c,'schedule.read'))
-    button('Reply to training',()=>switchTab('schedule'),quick,{primary:true});
-  if(canRoster())button('Team and invitations',()=>switchTab('team'),quick);
-  if(canManage())button('Reports',()=>void openReports(),quick);
-  if(roleForAction(c,'duty.read'))button('My duties',()=>switchTab('team'),quick);
-  if(roleForAction(c,'schedule.read')){
-    const section=card('Upcoming sessions');
-    readList(section,upcoming.slice(0,5),(item,row)=>{
-      h('strong',{text:item.title||item.kind||'Team session',parent:row});
-      h('small',{text:when(item.startsAt)+(item.locationLabel?' · '+item.locationLabel:''),parent:row});
-      if(hasRole('team_player'))
-        h('p',{text:'My availability: '+(item.myAvailability||'Not answered'),parent:row});
-    });
-    button('View all sessions',()=>switchTab('schedule'),actions(section));
-  }
-  if(canReadNotices())renderNotices('home');
+  const {section:out}=originalSection(h,right,'Outstanding actions','home-act');
+  const items=[];
+  if(canRoster()&&!state.roster.length)items.push(['Start with your squad','No team placements recorded',()=>switchTab('team')]);
+  if(canRoster()&&pending.length)items.push(['Review squad nominations',pending.length+' pending',()=>switchTab('team','squad')]);
+  if(canEditSchedule()&&!upcoming.length)items.push(['Schedule training','No upcoming activity',()=>switchTab('schedule','training')]);
+  if(canManage()&&next)items.push(['Review availability',next.title||'Upcoming session',()=>switchTab('schedule')]);
+  if(nextReply)items.push(['Reply to availability',nextReply.title||'Upcoming activity',()=>switchTab('schedule')]);
+  if(volunteerPending.length)items.push(['Confirm your volunteer duties',volunteerPending.length+' awaiting response',()=>switchTab('team')]);
+  if(items.length){
+    const list=h('div',{className:'list',parent:out});
+    for(const [label,description,go] of items){
+      const btn=h('button',{className:'pick act-row lvl-3',attrs:{type:'button'},parent:list});
+      btn.addEventListener('click',go);
+      h('span',{className:'u-dot l3',attrs:{'aria-hidden':'true'},parent:btn});
+      const copy=h('span',{className:'grow',parent:btn});
+      h('span',{className:'name cloud-block',text:label,parent:copy});
+      h('span',{className:'tagline',text:description,parent:copy});
+      h('span',{className:'chev',text:'›',attrs:{'aria-hidden':'true'},parent:btn});
+    }
+  }else info('Nothing else requiring attention in the records available to this view.',out);
+  if(canReadNotices())renderNotices('home',right);
 }
 // HTML datetime-local is a device-local wall time, not UTC.
 function localDateTimeValue(value){
@@ -438,10 +518,18 @@ function renderSchedule(){
   if(!roleForAction(state.context,'schedule.read')){
     info('Your current role does not include the team schedule.');return;
   }
-  const list=card('Sessions');
-  readList(list,state.schedule,(s,row)=>{
-    h('strong',{text:s.title||s.kind||'Session',parent:row});
-    h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:'')+' · '+s.status,parent:row});
+  const sub=state.sub;
+  const list=card(sub==='training'?'Training sessions':sub==='matches'?'Matches':'Sessions');
+  const filtered=state.schedule.filter(s=>sub==='training'?s.kind==='training':
+    sub==='matches'?s.kind==='match':sub==='upcoming'?s.status==='planned'&&Date.parse(s.startsAt)>=Date.now():true);
+  if(sub&&filtered.length!==state.schedule.length)info((state.schedule.length-filtered.length)+' other schedule records are outside this view.',list);
+  readList(list,filtered,(s,row)=>{
+    row.classList.add('cloud-session-row');
+    const head=h('div',{className:'cloud-session-head',parent:row});
+    originalDateBadge(h,head,s.startsAt);
+    const details=h('div',{className:'grow',parent:head});
+    h('strong',{className:'name cloud-block',text:s.title||s.kind||'Session',parent:details});
+    h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:'')+' · '+s.status,parent:details});
     if(hasRole('team_player')){
       if(MANAGEMENT_PARITY&&s.kind==='match')
         button('Selected match squad',()=>void openMatchSquad(s,true),actions(row));
@@ -482,7 +570,7 @@ function renderSchedule(){
       }
     }
   });
-  if(canEditSchedule()){
+  if(canEditSchedule()&&sub!=='matches'){
     const c=card('Schedule training');
     const f=form(c,async d=>{
       const start=new Date(String(d.get('startsAt')));if(!Number.isFinite(start.valueOf()))
@@ -499,7 +587,7 @@ function renderSchedule(){
     h('button',{className:'cloud-btn primary',text:'Create training',
       attrs:{type:'submit'},parent:f});
   }
-  if(canManage()){
+  if(canManage()&&sub!=='training'){
     const c=card('Add team event or friendly');
     info('Team-controlled activities only. Official competition fixtures cannot be created or edited here.',c);
     const f=form(c,async d=>{
@@ -703,13 +791,14 @@ function editTraining(s){
 }
 function renderTeam(){
   const c=state.context;
+  if(MANAGEMENT_PARITY&&state.sub==='invitations'&&canRoster()){renderTeamInvitations(c);return;}
   if(canRoster()){
     const roster=card('Squad nominations');
     info('Nomination and placement do not verify registration, payment or competition eligibility.',roster);
     readList(roster,state.roster,(p,row)=>{
       const member=state.members.find(m=>m.personId===p.personId);
-      h('strong',{text:member?.name||p.personId,parent:row});
-      h('small',{text:p.status+' · version '+p.version,parent:row});
+      originalRosterIdentity(h,row,member?.name||p.personId,
+        p.status+' · version '+p.version);
       if(p.status==='pending')button('Approve team placement',async()=>{
         if(!confirm('Approve team placement only? Registration, payment and competition eligibility remain separate.'))return;
         try{await mutation('roster.approve',p.personId,p.version,{command:{op:'approve'}});
@@ -767,14 +856,14 @@ function renderTeam(){
   else if(!canRoster()&&hasRole('team_play_viewer'))
     info('Private squad and volunteer information is not available to this role.');
   if(hasRole('team_manager')&&!MANAGEMENT_PARITY)renderDutyBoard(c);
-  if(MANAGEMENT_PARITY&&hasRole('team_coach','team_manager')){
+  if(MANAGEMENT_PARITY&&hasRole('team_coach','team_manager')&&state.sub!=='squad'){
     const duties=card('Volunteer assignments');
     info('Coach covers team administration until a verified Team Manager is appointed. Current permission is rechecked before each action.',duties);
     button('Manage volunteer duties',()=>void managementExperience.open('Volunteer tally'),
       actions(duties),{primary:true});
   }
   if(MANAGEMENT_PARITY&&hasRole('team_player'))renderPlayerTeamSnapshot();
-    if(hasRole('team_coach','team_manager'))renderTeamInvitations(c);
+    if(hasRole('team_coach','team_manager')&&state.sub!=='squad')renderTeamInvitations(c);
 }
 function renderPlayerTeamSnapshot(){
   const snapshot=state.playerTeam;
@@ -786,7 +875,7 @@ function renderPlayerTeamSnapshot(){
   if(!snapshot.roster?.length)info('No approved player display names are available.',squad);
   for(const item of snapshot.roster||[]){
     const row=h('div',{className:'cloud-list-item',parent:squad});
-    h('strong',{text:item.displayName,parent:row});
+    originalRosterIdentity(h,row,item.displayName);
   }
   if(snapshot.rosterOmittedUnverified)
     info(snapshot.rosterOmittedUnverified+' active squad member(s) are not displayed because their name is not independently verified.',squad);
@@ -846,16 +935,20 @@ function openNoticeboard(){
   button('Back to More',()=>switchTab('more'),actions());
   renderNotices('noticeboard');
 }
-function renderNotices(place='more'){
+function renderNotices(place='more',parent=main){
   if(!canReadNotices())return;
   const ctx=state.context,epoch=state.epoch;
   const current=()=>ctx===state.context&&epoch===state.epoch;
-  const c=card(place==='home'?'Latest team notices':'Team notices');
+  const c=card(place==='home'?'Latest team notices':'Team notices',parent);
   if(place!=='home'&&canManage()){
     const f=form(c,async d=>{
       if(!current())throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+      const body=String(d.get('body')).trim();
+      if(connectedMessageNeedsReview(body,ctx.teamId)){
+        message('Review the notice: remove incomplete or fictional template text.',true);return;
+      }
       await mutation('notice.create',ctx.teamId,0,{command:{
-        title:String(d.get('title')).trim(),body:String(d.get('body')).trim(),
+        title:String(d.get('title')).trim(),body,
         audience:String(d.get('audience'))}});
       if(!current())return;
       message('Notice saved as a draft. Review it before publishing.');
@@ -880,7 +973,9 @@ function renderNotices(place='more'){
       (n,row)=>{
         h('strong',{text:n.title,parent:row});
         h('small',{text:n.audience+' · '+n.status,parent:row});
-        h('p',{text:n.body,parent:row});
+        const needsReview=connectedMessageNeedsReview(n.body,ctx.teamId);
+        h('p',{text:needsReview&&!canManage()?'Notice needs correction by team staff.':n.body,parent:row});
+        if(needsReview&&canManage())info('Review this existing notice: incomplete or fictional template. Archive it if incorrect.',row);
         if(place==='home'||!canManage()||n.status==='archived')return;
         const a=actions(row);
         const change=async(operation,command)=>{
@@ -893,10 +988,10 @@ function renderNotices(place='more'){
             else await showTab();}
           catch(e){message(explain(e),true);}
         };
-        if(n.status==='draft')button('Publish notice',()=>void change('notice.publish',{op:'publish'}),a,{primary:true});
+        if(n.status==='draft'&&!needsReview)button('Publish notice',()=>void change('notice.publish',{op:'publish'}),a,{primary:true});
         button('Archive notice',()=>void change('notice.archive',{op:'archive'}),a);
       });
-    if(place==='home')button('View notices',()=>switchTab('more'),actions(c));
+    if(place==='home')button('View notices',openNoticeboard,actions(c));
   }).catch(e=>{if(epoch!==state.epoch)return;loading.textContent=explain(e);});
 }
 function openReports(){
@@ -1212,18 +1307,24 @@ function renderProfilePanel(parent=main){
 }
 
 const managementExperience=createCloudManagementExperience({
-  api:management,getContext:()=>state.context,
+  api:management,getContext:()=>state.context,getEpoch:()=>state.epoch,
+  beginView:(section)=>{
+    state.epoch++;
+    const target=({Competitions:['schedule','competitions'],Tasks:['team','tasks'],
+      Helpers:['team','helpers'],'Match staff':['team','match-support']})[section]||['more',''];
+    state.tab=target[0];state.sub=target[1];drawTabs();return state.epoch;
+  },
   getSchedule:ctx=>{
-    if(state.context?.key!==ctx?.key)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+    if(state.context?.key!==ctx?.key||state.epoch!==ctx.viewEpoch)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
     return action('schedule.read',ctx.teamId);
   },getTeamLabel:ctx=>teamContextLabel(ctx),
   publishMessageNotice:async(ctx,{title,body,audience})=>{
-    if(state.context?.key!==ctx?.key)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+    if(state.context?.key!==ctx?.key||state.epoch!==ctx.viewEpoch||connectedMessageNeedsReview(body,ctx.teamId))throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
     // The existing validated notice endpoint is team scoped and requires
     // independent Coach/Manager approval. No external messaging API is used.
     const created=await mutation('notice.create',ctx.teamId,0,{
       command:{title,body,audience}});
-    if(state.context?.key!==ctx?.key)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
+    if(state.context?.key!==ctx?.key||state.epoch!==ctx.viewEpoch)throw Object.assign(new Error('scope-denied'),{code:'scope-denied'});
     try{
       await mutation('notice.publish',created.resourceId,created.version,
         {command:{op:'publish'}});
@@ -1235,7 +1336,7 @@ const managementExperience=createCloudManagementExperience({
   },
   ui:{h,card,info,button,actions,form,field,selectField,title,clear,message,explain},
   onBack:()=>switchTab('more'),onReport:()=>openReports(),
-  onNotices:()=>switchTab('more'),onTeam:()=>switchTab('team')
+  onNotices:openNoticeboard,onTeam:()=>switchTab('team')
 });
 function moreEntry(parent,name,description,handler,artwork){
   // Original Team Manager pick/more-item structure and original SVG artwork.
@@ -1333,9 +1434,13 @@ function renderMore(){
     if(!ok)message('Signed out locally. Provider logout could not be confirmed.',true);
   },a);
 }
-function switchTab(tab){
+function switchTab(tab,sub=''){
   if(!visibleSections(state.context,{playsDeferred:playsDeferred()}).includes(tab))return;
-  state.tab=tab;state.preview=null;notice.hidden=true;drawTabs();void showTab();
+  if(MANAGEMENT_PARITY&&canManage()){
+    const destination=({competitions:'Competitions',tasks:'Tasks',helpers:'Helpers','match-support':'Match staff'})[sub];
+    if(destination){notice.hidden=true;void managementExperience.open(destination);return;}
+  }
+  state.tab=tab;state.sub=sub;state.preview=null;notice.hidden=true;drawTabs();void showTab();
 }
 async function initialOwnerReadiness(){
   if(CLOUD_STAGE3D3_POLICY_REQUIRED!==true)return null;
@@ -1349,6 +1454,7 @@ function showOwnerRegistrationPending(current,founder){
   $('cloud-nav').hidden=true;
   $('cloud-desktop-nav').hidden=true;
   $('active-context').textContent='Registration pending';
+  $('cloud-notices-shortcut').hidden=true;$('cloud-settings-shortcut').hidden=true;
   clear();
   title('Team access awaiting registration','Account permissions');
   info('Your Platform Owner grant is verified. A team role can be recorded without giving access to protected team data.');
@@ -1395,6 +1501,7 @@ async function initialise(keep=false){
     if(fallback){showOwnerRegistrationPending(current,fallback);return;}
     state.epoch++;state.context=null;state.activeClub=null;clear();
     $('active-context').textContent='No currently available team';
+    $('cloud-notices-shortcut').hidden=true;$('cloud-settings-shortcut').hidden=true;
     title('No currently available team','Account permissions');
     info('Your identity is verified, but no approved active team is assigned. Review registration or claim your approved invitation.');
     h('a',{className:'cloud-btn',text:'Registration and privacy',
@@ -1410,9 +1517,13 @@ async function initialise(keep=false){
 for(const id of ['cloud-nav','cloud-desktop-nav']){
   $(id).addEventListener('click',e=>{
     const b=e.target.closest('button[data-tab]');
-    if(b)switchTab(b.dataset.tab);
+    if(b)switchTab(b.dataset.tab,b.dataset.sub||'');
   });
 }
+$('cloud-notices-shortcut').innerHTML=teamIconSvg('clip',24);
+$('cloud-notices-shortcut').addEventListener('click',openNoticeboard);
+$('cloud-settings-shortcut').innerHTML=teamIconSvg('cog',24);
+$('cloud-settings-shortcut').addEventListener('click',()=>void managementExperience.open('Settings'));
 initialise().catch(e=>{
   clear();title('Unable to verify access','Account');info(explain(e));
   $('cloud-nav').hidden=true;

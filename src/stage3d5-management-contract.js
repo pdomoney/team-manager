@@ -1,3 +1,4 @@
+import {connectedMessageNeedsReview} from '../site/shared-team-messages.js';
 // Stage 3D.5 corrective management contract.
 // Shared by Worker and synthetic tests. UI state, club chips, Owner status
 // and arbitrary payload keys are NEVER accepted as authority.
@@ -94,7 +95,7 @@ export function validateStage3D5(input){
   if(!keys(x,['audience','channel','body'])||
     !['players','volunteers','all'].includes(x.audience)||
     !['whatsapp','share','copy'].includes(x.channel)||
-    !messageBody(x.body))return null;
+    !messageBody(x.body)||connectedMessageNeedsReview(x.body,input.teamId))return null;
  }else if(action==='messages.confirm'){
   if(!keys(x,['messageId','status','expectedVersion'])||
     !MSG.test(x.messageId||'')||!['sent','not-sent'].includes(x.status)||

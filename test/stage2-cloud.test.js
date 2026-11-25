@@ -200,7 +200,19 @@ test('Build stamps new cloud workspace and retains the established demo',()=>{
   const cloud=readFileSync(join(dir,'cloud-team.html'),'utf8');
   assert.match(old,/<nav class="tabs"/);
   assert.match(cloud,/cloud-team.js\?v=stage2-check/);
-  assert.match(cloud,/Home|Schedule/);
+  // The new shell contains no pre-authorisation navigation buttons. Verify
+  // the actual built controller and versioned presentation dependency instead.
+  assert.match(cloud,/<nav[^>]*id="cloud-desktop-nav"[^>]*hidden><\/nav>/);
+  assert.match(cloud,/<nav[^>]*id="cloud-nav"[^>]*hidden><\/nav>/);
+  const controller=readFileSync(join(dir,'cloud-team.js'),'utf8');
+  assert.match(controller,/from '\.\/cloud-original-presentation\.js\?v=stage2-check'/);
+  assert.match(controller,/const allowed=visibleSections\(state\.context,/);
+  assert.match(controller,/for\(const tab of allowed\)/);
+  assert.match(controller,/home:'Home',schedule:'Schedule'/);
+  const presentation=readFileSync(join(dir,'cloud-original-presentation.js'),'utf8');
+  assert.match(presentation,/export const ORIGINAL_NAV_ART/);
+  for(const section of ['home','schedule','team','tactics','more'])
+    assert(presentation.includes('"'+section+'":'),section+' navigation artwork must build');
   const wr=readFileSync('wrangler.jsonc','utf8');
   assert.match(wr,/"main": "worker\/index.js"/);
   assert.match(wr,/"binding": "ASSETS"/);

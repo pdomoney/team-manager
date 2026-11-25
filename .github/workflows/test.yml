@@ -144,6 +144,14 @@ jobs:
         env:
           STAGE3D5_BROWSER_ENGINE: chromium
         run: python3 test/browser/stage3d5_team_chips.py
+      - name: Preserve connected presentation review (synthetic only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-presentation-chromium-${{ github.sha }}
+          path: presentation-review/chromium/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Preserve browser qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -219,3 +227,11 @@ jobs:
         env:
           STAGE3D5_BROWSER_ENGINE: webkit
         run: python3 test/browser/stage3d5_team_chips.py
+      - name: Preserve connected presentation review on WebKit (synthetic only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-presentation-webkit-${{ github.sha }}
+          path: presentation-review/webkit/
+          if-no-files-found: warn
+          retention-days: 14

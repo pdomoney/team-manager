@@ -20,6 +20,10 @@ harness.DIST=os.path.join(harness.REPO,'dist-stage3d3')
 server,base=serve()
 checks=Check();errors=[]
 engine=os.getenv('STAGE3D5_BROWSER_ENGINE','chromium')
+review_dir=os.path.join(harness.REPO,'presentation-review',engine)
+os.makedirs(review_dir,exist_ok=True)
+def review(page,width,name):
+ page.screenshot(path=os.path.join(review_dir,f'{width}-{name}.png'),full_page=True,animations='disabled')
 owner_token='synthetic-owner-token-long-123456789'
 manager_token='synthetic-manager-token-long-123456789'
 player_token='synthetic-player-token-long-123456789'
@@ -339,10 +343,46 @@ try:
    checks.ok(page.locator('#club-chips').get_by_role(
      'button',name='Platform').count()==0,
      f'[{width}] non-owner never sees Platform chip')
+   page.locator('.cloud-home-cols').wait_for()
+   page.get_by_role('heading',name='Latest team notices').wait_for()
+   review(page,width,'manager-home')
+   checks.ok(page.locator('.working-context').count()==1 and
+     page.locator('.cloud-home-cols .focus').count()==1 and
+     page.locator('.cloud-home-cols .home-act').count()==1,
+     f'[{width}] original Home spotlight, context and action structure restored')
+   checks.ok(page.locator('.cloud-team-header').evaluate('(el)=>el.getBoundingClientRect().height<100'),
+     f'[{width}] compact team header')
+   visible_nav=page.locator('#cloud-desktop-nav' if width>=780 else '#cloud-nav')
+   checks.ok(visible_nav.locator('.nav-main svg').count()>=4,
+     f'[{width}] original icon navigation for authorised sections')
    checks.ok('Manager' in page.locator('#active-context').inner_text(),
      f'[{width}] Team Manager goes straight to approved team')
    checks.ok(page.locator('#team-chips button').count()==1,
      f'[{width}] Manager sees one selected team')
+   page.get_by_role('button',name='Schedule',exact=True).first.click()
+   page.get_by_role('heading',name='Sessions',exact=True).wait_for()
+   subnav=page.locator('#cloud-desktop-nav' if width>=780 else '.cloud-mobile-subnav')
+   subnav.get_by_role('button',name='Training',exact=True).click()
+   page.get_by_role('heading',name='Training sessions',exact=True).wait_for()
+   review(page,width,'training')
+   subnav.get_by_role('button',name='Matches',exact=True).click()
+   page.locator('.cloud-main .cloud-card').get_by_role('heading',name='Matches',exact=True).wait_for()
+   checks.ok(page.get_by_role('button',name='Create training').count()==0,
+     f'[{width}] Matches navigation does not show training creation')
+   subnav.get_by_role('button',name='Tournaments',exact=True).click()
+   page.get_by_role('heading',name='Create a league, tournament or carnival').wait_for()
+   page.get_by_role('button',name='Team',exact=True).first.click()
+   page.get_by_role('heading',name='Squad nominations').wait_for()
+   subnav=page.locator('#cloud-desktop-nav' if width>=780 else '.cloud-mobile-subnav')
+   subnav.get_by_role('button',name='Squad',exact=True).click()
+   page.get_by_role('heading',name='Squad nominations').wait_for()
+   review(page,width,'squad')
+   subnav.get_by_role('button',name='Helpers',exact=True).click()
+   page.get_by_text('No verified Volunteers recorded.',exact=True).wait_for()
+   subnav.get_by_role('button',name='Match staff',exact=True).click()
+   page.get_by_role('heading',name='Match support duties').wait_for()
+   checks.ok(page.get_by_text('Official Match Officials',exact=False).count()==1,
+     f'[{width}] Match staff does not fabricate accredited appointments')
    page.get_by_role('button',name='More',exact=True).first.click()
    page.get_by_role('heading',name='Team management').wait_for()
    checks.ok(page.get_by_role('button',name='Settings').count()==1 and
@@ -391,14 +431,24 @@ try:
    page.get_by_role('button',name='Messages').click()
    page.get_by_role('heading',name='New message').wait_for()
    area=page.locator('textarea[name=body]')
-   page.locator('select[name=template]').select_option('cancelled')
+   checks.ok(page.locator('.cloud-message-columns .col').count()==2 and
+     page.locator('button[data-template=reminder]').get_attribute('aria-pressed')=='true' and
+     page.get_by_role('button',name='Open in WhatsApp').is_visible(),
+     f'[{width}] original message chips, direct delivery and two-column structure')
+   review(page,width,'messages-empty')
+   area.fill('🏉 *Training — Example Comets Mixed*\n\n(Add a training session first and it will fill in here.)')
+   page.get_by_role('button',name='Prepare and log message').click()
+   page.get_by_text('Complete the factual details',exact=False).wait_for()
+   checks.ok(not message_log and not notice_log,
+     f'[{width}] exact observed fictional training message cannot be logged or posted')
+   page.locator('button[data-template=cancelled]').click()
    checks.ok('actually cancelled' in area.input_value(),
      f'[{width}] no fabricated training cancellation')
    page.get_by_role('button',name='Prepare and log message').click()
    page.get_by_text('Complete the factual details',exact=False).wait_for()
    checks.ok(not message_log and not notice_log,
      f'[{width}] unavailable template cannot become message or notice')
-   page.locator('select[name=template]').select_option('blank')
+   page.locator('button[data-template=blank]').click()
    page.locator('select[name=audience]').select_option('players')
    body='Training update\nPlease check your availability.'
    area.fill(body)
@@ -409,11 +459,17 @@ try:
    checks.ok(len(notice_log)==1 and notice_log[0]['status']=='published' and
      notice_log[0]['audience']=='players' and notice_log[0]['body']==body.replace('\n',' '),
      f'[{width}] same selected-team notice published for chosen audience')
+   review(page,width,'messages-prepared')
    page.get_by_role('button',name='Yes, sent').click()
    page.get_by_text('players · sent',exact=True).wait_for()
    checks.ok(message_log[0]['status']=='sent',f'[{width}] confirmation is explicit')
    page.get_by_role('button',name='Use again').click()
    checks.ok(area.input_value()==body,f'[{width}] previous message opens in editable form')
+   page.locator('input[name=postNotice]').uncheck()
+   page.locator('button[name=delivery][value=copy]').click()
+   page.get_by_role('heading',name='Prepared message').wait_for()
+   checks.ok(message_log[-1]['channel']=='copy' and message_log[-1]['status']=='prepared',
+     f'[{width}] direct Copy records the correct channel without claiming sent')
    page.get_by_role('button',name='All management tools').click()
    page.get_by_role('button',name='Noticeboard').click()
    page.get_by_role('heading',name='Noticeboard').wait_for()
@@ -515,7 +571,7 @@ try:
    page.get_by_role('button',name='More',exact=True).first.click()
    page.get_by_role('button',name='Messages').click()
    page.get_by_role('heading',name='New message').wait_for()
-   page.locator('select[name=template]').select_option('cancelled')
+   page.locator('button[data-template=cancelled]').click()
    body=page.locator('textarea[name=body]').input_value()
    checks.ok('Training cancelled' in body and 'is off.' in body and '[Choose' not in body,
      f'[{width}] actual cancelled training feeds original cancellation template')
@@ -599,6 +655,7 @@ try:
    checks.ok(page.get_by_text('Team recorded, not an official draw').count()==1,
      f'[{width}] Player sees local fixture without official draw claim')
    page.get_by_role('button',name='More',exact=True).first.click()
+   review(page,width,'player-more')
    checks.ok(page.get_by_role('button',name='Settings').count()==0
      and page.get_by_role('button',name='Messages').count()==0,
      f'[{width}] Player has no Manager settings or message history')
