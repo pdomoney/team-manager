@@ -43,7 +43,11 @@ export function originalCompetitionCard(h,parent,entry,{onOpen}={}){
  const grow=h('div',{className:'grow',parent:head});
  h('p',{className:'cl-k',text:[entry.status,entry.format].filter(Boolean).join(' · '),parent:grow});
  h('h2',{text:entry.name,parent:grow});
- h('p',{className:'cl-sub',text:[entry.division,entry.venue,entry.beginsOn,entry.endsOn].filter(Boolean).join(' · '),parent:grow});
+ // Keep all previously visible competition metadata when using the original
+ // card layout. Participation is a local record, never official eligibility.
+ h('p',{className:'cl-sub',text:[entry.format,entry.season,entry.division||'No grade',entry.status].filter(Boolean).join(' · '),parent:grow});
+ const dates=[entry.venue,entry.beginsOn,entry.endsOn].filter(Boolean).join(' · ');
+ if(dates)h('p',{className:'cl-sub',text:dates,parent:grow});
  h('p',{className:'cl-sub',text:'Team-recorded entry · Official draw and results not verified',parent:c});
  if(onOpen){const b=h('button',{className:'btn sm on-dark cl-open',text:'Open competition',attrs:{type:'button'},parent:c});b.addEventListener('click',onOpen);}
  return c;
