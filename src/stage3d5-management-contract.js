@@ -9,13 +9,14 @@ const COMP=/^competition-[0-9a-f]{32}$/;
 const MSG=/^message-[0-9a-f]{32}$/;
 const EVIDENCE=/^evidence-ref\/[A-Za-z0-9._/-]{12,100}$/;
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ACTIONS=new Set(['settings.read','settings.save','jerseys.read','jerseys.issue',
+export const COMMUNICATION_ACTIONS=Object.freeze(['messages.archived','messages.archive','messages.remove','notice.archived','notice.remove','notice.correct','notice.edit']);
+const ACTIONS=new Set([...COMMUNICATION_ACTIONS,'settings.read','settings.save','jerseys.read','jerseys.issue',
  'jerseys.return','competitions.read','competitions.create','competitions.update',
  'competitions.fixture','competitions.fixtures','messages.read','messages.prepare','messages.confirm',
  'team.members','volunteers.list','admin.status','duties.board','duties.assign','duties.withdraw','invite.list','invite.issue','invite.review-adult',
  'invite.activate','invite.revoke','player.team.read',
  'match.selection.read','match.selection.save','match.selection.publish','match.selection.withdraw','player.match.selection.read']);
-const reads=new Set(['settings.read','jerseys.read','competitions.read','competitions.fixtures',
+const reads=new Set(['messages.archived','notice.archived','settings.read','jerseys.read','competitions.read','competitions.fixtures',
  'messages.read','team.members','volunteers.list','admin.status','duties.board','invite.list','player.team.read',
  'match.selection.read','player.match.selection.read']);
 const keys=(o,k)=>Object.keys(o).every(key=>k.includes(key));
@@ -96,6 +97,16 @@ export function validateStage3D5(input){
     !['players','volunteers','all'].includes(x.audience)||
     !['whatsapp','share','copy'].includes(x.channel)||
     !messageBody(x.body)||connectedMessageNeedsReview(x.body,input.teamId))return null;
+ }else if(['messages.archive','messages.remove','notice.remove'].includes(action)){
+  const pattern=action==='notice.remove'?/^notice-[0-9a-f]{32}$/:MSG;
+  if(!keys(x,['entries'])||!Array.isArray(x.entries)||x.entries.length<1||x.entries.length>20||
+    x.entries.some(e=>!own(e)||!keys(e,['id','expectedVersion'])||typeof e.id!=='string'||!pattern.test(e.id)||!num(e.expectedVersion))||
+    new Set(x.entries.map(e=>e.id)).size!==x.entries.length)return null;
+ }else if(['notice.correct','notice.edit'].includes(action)){
+  if(!keys(x,['noticeId','expectedVersion','title','body','audience'])||
+   typeof x.noticeId!=='string'||!/^notice-[0-9a-f]{32}$/.test(x.noticeId)||!num(x.expectedVersion)||
+   !str(x.title,100)||!x.title.trim()||!str(x.body,1000)||!x.body.trim()||
+   !['all','players','volunteers','coaches'].includes(x.audience)||connectedMessageNeedsReview(x.body,input.teamId))return null;
  }else if(action==='messages.confirm'){
   if(!keys(x,['messageId','status','expectedVersion'])||
     !MSG.test(x.messageId||'')||!['sent','not-sent'].includes(x.status)||
