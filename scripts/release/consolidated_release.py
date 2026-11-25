@@ -10,6 +10,10 @@ from urllib.error import HTTPError
 from asset_verification import verify_all, browser_code, public_get, NoRedirect
 
 BASE='5216495fd712727aadba6abc4cce6c8ba560279f'
+EXCEPTION_SOURCE='79cbf5409953c131ef3267c111cf64a687cc2539'
+EXCEPTION_ID='TM-EX-001'
+EXCEPTION_HTML='98b5a2b196600fdd4c496365ff98840d5f9ce1466067babf95790995a9136338'
+CONTROL_PATHS={'scripts/release/consolidated_release.py','scripts/release/test_consolidated_release.py','scripts/release/CONSOLIDATED_RELEASE.md'}
 DATA='068c27f8cf2185c1100b6acf0940b686e4295bc2'
 OLD_VERSION='fadefe4b-e9b7-4a1a-b87e-75e41176bcdd'
 OLD_DEPLOYMENT='72881ee8-8bb3-4266-97c2-8974be4867d2'
@@ -33,6 +37,45 @@ def save(path,obj):
     tmp.write_text(json.dumps(obj,indent=2,sort_keys=True)+'\n')
     tmp.chmod(0o600);tmp.replace(path)
 def load(path): return json.loads(path.read_text())
+def is_exception(p):
+    return p.get('script_provenance',{}).get('status')=='OWNER_ACCEPTED_UNRESOLVED'
+def check_exception_plan(p):
+    if not is_exception(p):
+        require('release_control_source' not in p and 'release_control_ci' not in p,'Separate controller source is only permitted for TM-EX-001')
+        return
+    s=p['script_provenance']
+    require(p['source']==EXCEPTION_SOURCE and s.get('exception_id')==EXCEPTION_ID and s.get('owner_decision')=='ACCEPT_RESIDUAL_RISK' and s.get('approval_date')=='2026-11-26','Exception not approved for this exact application release')
+    require(isinstance(s.get('evidence_sha256'),str) and re.fullmatch('[0-9a-f]{64}',s['evidence_sha256']) and s.get('evidence_ref')=='TM-EX-001','Exception evidence not pinned')
+    control=p.get('release_control_source','')
+    require(isinstance(control,str) and re.fullmatch('[0-9a-f]{40}',control) and control!=EXCEPTION_SOURCE,'Separate merged release-control source required')
+    ci=p.get('release_control_ci',{})
+    require(ci.get('source')==control and ci.get('status')=='PASS' and all(ci.get(k) is True for k in ('node','postgres','chromium','webkit')),'Exact merged release-control CI not qualified')
+def check_exception_evidence(p,path):
+    require(path is not None and path.is_file() and not path.is_symlink(),'Local exception evidence required')
+    require(sha(path)==p['script_provenance']['evidence_sha256'],'Exception evidence checksum mismatch')
+    record=load(path)
+    expected={'exception_id':EXCEPTION_ID,'application_source':EXCEPTION_SOURCE,'approval_date':'2026-11-26','owner_decision':'ACCEPT_RESIDUAL_RISK','historical_provenance':'UNRESOLVED','provider_cache_status':'hit','provider_security_action':'unknown','current_html_sha256':EXCEPTION_HTML}
+    require(isinstance(record,dict) and all(record.get(k)==v for k,v in expected.items()),'Exception evidence does not match approved residual-risk decision')
+def main_ref(p):
+    return p['release_control_source'] if is_exception(p) else p['source']
+def check_control_source(q,work,p):
+    if not is_exception(p):return
+    control=main_ref(p)
+    require(q.git(work,'merge-base',EXCEPTION_SOURCE,control)==EXCEPTION_SOURCE,'Release-control source is not descended from PR295')
+    changed=set(q.git(work,'diff','--name-only','--no-renames',EXCEPTION_SOURCE,control).splitlines())
+    require(changed==CONTROL_PATHS,'Release-control source contains unexpected changes')
+    for path,local in (('scripts/release/consolidated_release.py',Path(__file__).resolve()),('scripts/release/asset_verification.py',Path(__file__).resolve().with_name('asset_verification.py'))):
+        require(q.git(work,'hash-object',str(local))==q.git(work,'rev-parse',control+':'+path),'Running release-control file differs from qualified source: '+path)
+def exception_html(out,phase):
+    result=verify_all(ORIGIN,{'/cloud-team.html':EXCEPTION_HTML})
+    save(out/('exception-html-'+phase+'.json'),result)
+    require(result['status']=='PASS','TM-EX-001 current HTML integrity HOLD; see exception-html-'+phase+'.json')
+def installation_authority(p):
+    if is_exception(p):
+        check_exception_plan(p)
+        return 'INSTALL PR295 TM-EX-001'
+    require(p.get('script_provenance',{}).get('status')=='CONFIRMED' and p['script_provenance'].get('evidence_ref'),'Unresolved PR293 script provenance; no installation')
+    return 'INSTALL PR295'
 def exact_plan(path,digest):
     require(re.fullmatch('[0-9a-f]{64}',digest or '') and sha(path)==digest,'Release plan checksum mismatch')
     p=load(path)
@@ -40,6 +83,7 @@ def exact_plan(path,digest):
     require(p['ci']['source']==p['source'] and p['ci']['status']=='PASS' and all(p['ci'].get(k) is True for k in ('node','postgres','chromium','webkit')),'Exact merged release CI not qualified')
     require(p['previous_worker']=={'version_id':OLD_VERSION,'deployment_id':OLD_DEPLOYMENT},'Unexpected installed Worker pin')
     require([x['file'] for x in p['migrations']]==['supabase/migrations/'+n for n in MIGRATIONS] and all(re.fullmatch('[0-9a-f]{64}',x['sha256']) for x in p['migrations']),'Wrong migration set')
+    check_exception_plan(p)
     return p
 def extract_helpers(downloads,out):
     errors=[]
@@ -94,7 +138,8 @@ def candidate_check(out,report):
     return rows
 def check_source(q,work,p,prior):
     require(q.git(work,'rev-parse','HEAD')==p['source'] and not q.git(work,'diff','--name-only','HEAD'),'Tracked source drift')
-    require(q.refs(work)=={'refs/heads/main':p['source'],'refs/heads/data':DATA},'Remote source/data drift')
+    require(q.refs(work)=={'refs/heads/main':main_ref(p),'refs/heads/data':DATA},'Remote source/data drift')
+    check_control_source(q,work,p)
     inv=[{'file':str(x.relative_to(work)),'sha256':sha(x)} for x in sorted((work/'supabase/migrations').glob('*.sql'))]
     require(inv==prior['migration_inventory']+p['migrations'],'Historical or candidate migration mismatch')
     for pattern in ('.env*','.dev.vars*'):require(not list(work.glob(pattern)),'Unexpected local environment file')
@@ -131,9 +176,11 @@ def main():
     ap.add_argument('--pg-bin',type=Path,required=True,help='Existing PostgreSQL 17 server bin directory')
     ap.add_argument('--plan',type=Path,required=True);ap.add_argument('--plan-sha256',required=True)
     ap.add_argument('--preflight-only',action='store_true')
+    ap.add_argument('--exception-evidence',type=Path,help='Local pinned TM-EX-001 owner decision and evidence record')
     ap.add_argument('--verify-installed',type=Path,help='Read-only verification of a recorded installed version; never deploy')
     args=ap.parse_args();os.umask(0o077)
     p=exact_plan(args.plan,args.plan_sha256)
+    if is_exception(p):check_exception_evidence(p,args.exception_evidence)
     root=Path.home()/'TeamManager-Private-Backups';root.mkdir(mode=0o700,exist_ok=True);require(not root.is_symlink(),'Private evidence root is a symlink')
     out=args.verify_installed.resolve() if args.verify_installed else root/('PR295-release-'+dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+str(os.getpid()))
     require(out.parent==root.resolve(),'Evidence folder outside approved root')
@@ -147,6 +194,8 @@ def main():
         report=load(out/'release-summary.json');require(report['source']==p['source'] and report['plan_sha256']==args.plan_sha256 and report.get('R5')=='INSTALLED','No verified installed checkpoint; reconcile active version first')
     else:
         out.mkdir(mode=0o700);report={'source':p['source'],'plan_sha256':args.plan_sha256,'status':'PREFLIGHT_HOLD','checks':{},'errors':[],'R4':'NOT_ATTEMPTED','R5':'NOT_ATTEMPTED','database_restore_tested':False,'owner_acceptance':'NOT_RUN'}
+    if is_exception(p):
+        report['release_exception']={'id':EXCEPTION_ID,'historical_provenance':'UNRESOLVED','owner_decision':'ACCEPT_RESIDUAL_RISK','evidence_sha256':p['script_provenance']['evidence_sha256'],'release_control_source':main_ref(p)}
     def checkpoint():save(out/'release-summary.json',report)
     checkpoint();env=None;print('Private release evidence:',out,flush=True)
     def check(name,fn):
@@ -184,7 +233,7 @@ def main():
         def source():
             repo=args.repo.expanduser().resolve()
             require(q.origin_ok(q.git(repo,'remote','get-url','origin')),'Wrong repository')
-            require(q.refs(repo)=={'refs/heads/main':p['source'],'refs/heads/data':DATA},'Remote source/data mismatch')
+            require(q.refs(repo)=={'refs/heads/main':main_ref(p),'refs/heads/data':DATA},'Remote source/data mismatch')
             q.git(repo,'fetch','--no-tags','origin','main','data')
             work=out/'source';q.git(repo,'worktree','add','--detach',str(work),p['source'])
             check_source(q,work,p,prior)
@@ -221,6 +270,7 @@ def main():
             require(manifest.status==200 and json.loads(manifest.body)['version']==BASE[:7],'Installed asset version mismatch')
             return True
         check('live_ciphertext',data_assets)
+        if is_exception(p):check('exception_current_html',lambda:exception_html(out,'preflight'))
         def db():
             nonlocal env
             env=i.db_env();actual=q.catalogue(psql,env);require(actual['server_version'].startswith('17.'),'Unexpected production PostgreSQL major')
@@ -238,15 +288,16 @@ def main():
         rows=candidate_check(out,report);check_source(q,work,p,prior)
         report['status']='PREFLIGHT_PASS_NOT_INSTALLED';checkpoint()
         if args.preflight_only:return 0
-        require(p.get('script_provenance',{}).get('status')=='CONFIRMED' and p['script_provenance'].get('evidence_ref'),'Unresolved PR293 script provenance; no installation')
+        authority=installation_authority(p)
         require(p.get('visual_approval')=='OWNER_CONFIRMED','Candidate visual approval required')
         print('Keep users signed out; confirm automatic Cloudflare Git builds disabled and previous Worker rollback available.')
-        require(input('Type INSTALL PR295 to approve this exact cutover: ').strip()=='INSTALL PR295','Installation not approved')
+        require(input('Type '+authority+' to approve this exact cutover: ').strip()==authority,'Installation not approved')
         base,target=actual['objects'],ref[1];expr=old_row_expression(i.data_expr(base))
         def fingerprint():return json.loads(i.query(psql,env,"SET LOCAL TIME ZONE 'UTC'; "+expr))
         before=fingerprint();report['backup']=i.fresh_backup(env,out,base);checkpoint()
         require(fingerprint()==before and q.catalogue(psql,env)==actual and i.cloud(cli,work)==old,'Drift during cutover backup')
         check_source(q,work,p,prior);candidate_check(out,report)
+        if is_exception(p):exception_html(out,'before-migration')
         tables=[('tm_private',k.split(':',1)[1]) for k,v in base.items() if k.startswith('relation:') and v['kind'] in ('r','p')]+[('auth','users'),('auth','identities')]
         locks=', '.join(q.ident(s)+'.'+q.ident(n) for s,n in sorted(tables))
         sql="SET TRANSACTION READ WRITE;\nSET LOCAL standard_conforming_strings=on;\nSET LOCAL lock_timeout='10s';\nSET LOCAL statement_timeout='180s';\nSET LOCAL TIME ZONE 'UTC';\nLOCK TABLE "+locks+" IN SHARE ROW EXCLUSIVE MODE;\n"
