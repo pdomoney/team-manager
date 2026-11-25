@@ -7,6 +7,9 @@
   <meta name="robots" content="noindex,nofollow">
   <title>My team | Team Manager</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="cloud-team.css">
   <script type="module" src="cloud-team.js"></script>
@@ -14,34 +17,26 @@
 <body class="cloud-team-page">
   <header class="top cloud-team-header">
     <div class="top-row">
-      <a href="./" class="cloud-team-brand" aria-label="Team Manager home">TM</a>
-      <div class="cloud-team-heading"><h1>Team Manager</h1><p id="active-context">Checking your access…</p></div>
+      <span class="t-crest" aria-hidden="true"><span id="cloud-crest" class="crest all">TM</span></span>
+      <div class="cloud-team-heading"><h1 id="cloud-team-title">Team Manager</h1><p id="active-context">Checking your access…</p></div>
+      <button type="button" class="icon-btn" id="cloud-notices-shortcut" aria-label="Open team updates" hidden></button>
+      <button type="button" class="icon-btn" id="cloud-settings-shortcut" aria-label="Open team preferences" hidden></button>
       <a class="cloud-team-back" href="cloud-access.html">Account</a>
-    </div>
-    <div class="cloud-context-controls" id="context-controls" hidden>
-      <nav id="club-chips" class="cloud-chips" aria-label="Your authorised clubs and platform"></nav>
-      <nav id="team-chips" class="cloud-chips cloud-team-chips" aria-label="Your authorised teams"></nav>
     </div>
   </header>
   <div class="cloud-workspace-layout">
-    <nav class="cloud-desktop-nav" id="cloud-desktop-nav" aria-label="Management sections" hidden>
-      <button type="button" data-tab="home">Home</button>
-      <button type="button" data-tab="schedule">Schedule</button>
-      <button type="button" data-tab="team">Team</button>
-      <button type="button" data-tab="tactics">Tactics</button>
-      <button type="button" data-tab="more">More</button>
-    </nav>
-    <main class="cloud-main" id="cloud-main">
-      <p role="status">Verifying your account and team permissions…</p>
-    </main>
+    <nav class="cloud-desktop-nav" id="cloud-desktop-nav" aria-label="Management sections" hidden></nav>
+    <div class="cloud-content">
+      <div class="scope cloud-context-controls" id="context-controls" hidden>
+        <nav id="club-chips" class="scope-row cloud-chips" aria-label="Your authorised clubs and platform"></nav>
+        <nav id="team-chips" class="scope-row teams cloud-chips cloud-team-chips" aria-label="Your authorised teams"></nav>
+      </div>
+      <main class="cloud-main" id="cloud-main">
+        <p role="status">Verifying your account and team permissions…</p>
+      </main>
+    </div>
   </div>
-  <nav class="cloud-nav" id="cloud-nav" aria-label="Sections" hidden>
-    <button type="button" data-tab="home">Home</button>
-    <button type="button" data-tab="schedule">Schedule</button>
-    <button type="button" data-tab="team">Team</button>
-    <button type="button" data-tab="tactics">Tactics</button>
-    <button type="button" data-tab="more">More</button>
-  </nav>
+  <nav class="cloud-nav tabs" id="cloud-nav" aria-label="Sections" hidden></nav>
   <p class="cloud-alert" id="cloud-alert" aria-live="polite" role="status" hidden></p>
 </body>
 </html>
