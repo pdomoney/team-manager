@@ -74,3 +74,16 @@ test('published administrative squad message has names but no inferred positions
  assert.throws(()=>publishedMatchSquadText({...input,players:[]}));
  assert.throws(()=>publishedMatchSquadText({...input,match:{...input.match,status:'cancelled'}}));
 });
+
+test('connected composer blocks old demo placeholders, not legitimate opponent names',async()=>{
+ const {connectedMessageNeedsReview}=await import('../site/shared-team-messages.js');
+ const id='stgeorge-mixed20';
+ assert(connectedMessageNeedsReview('🏉 *Training — Example Comets Mixed*\n\n(Add a training session first and it will fill in here.)',id));
+ assert(connectedMessageNeedsReview('🏉 *Training — Example Comets Mixed*\nTraining at 6pm',id));
+ assert(connectedMessageNeedsReview('🏉 *Training — Mixed 20*\n(Add a training session first and it will fill in here.)',id));
+ assert(connectedMessageNeedsReview('[Choose a planned upcoming training session before sending]',id));
+ assert(connectedMessageNeedsReview('📋 *Availability — Mixed 20*\n(Nothing in the next two weeks. Add training or a match and it will fill in here.)',id));
+ assert(!connectedMessageNeedsReview('Training at 6pm against Example Comets Mixed',id));
+ assert(!connectedMessageNeedsReview('🏉 *Training — St George Oztag · Mixed 20*\nTraining at 6pm',id));
+ assert(!connectedMessageNeedsReview('🏉 *Training — Example Comets Mixed*\nTraining at 6pm','example-comets'));
+});
