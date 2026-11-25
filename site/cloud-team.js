@@ -5,7 +5,7 @@ import {verifiedOwnerSetup} from './cloud-owner-status.js';
 import {createCloudIdentityClient} from './cloud-identity.js';
 import {createCloudOnboardingClient} from './cloud-onboarding.js';
 import {teamContextLabel,teamDisplayName} from './first-live-team.js';
-import {navArt,initials,originalSection,originalColumns,originalWorkingContext,originalCompetitionCard} from './cloud-original-presentation.js';
+import {navArt,initials,originalSection,originalColumns,originalWorkingContext,originalCompetitionCard,originalDateBadge,originalRosterIdentity} from './cloud-original-presentation.js';
 import {buildTeamNavigation,hasTeamRole,roleForAction,reviewerContext,
   clubsForNavigation,visibleSections} from './cloud-team-contexts.js';
 import {createCloudOperationsClient,newMutationId} from './cloud-operations.js';
@@ -197,7 +197,10 @@ function drawTabs(){
   const children=subviews();
   $('cloud-nav').style.gridTemplateColumns='repeat('+Math.max(1,allowed.length)+',minmax(0,1fr))';
   for(const id of ['cloud-nav','cloud-desktop-nav']){
-    const nav=$(id);nav.replaceChildren();
+    const nav=$(id);
+    const active=nav.contains(document.activeElement)?document.activeElement:null;
+    const activeTab=active?.dataset.tab,activeSub=active?.dataset.sub||'';
+    nav.replaceChildren();
     for(const tab of allowed){
       const group=h('div',{className:'nav-group'+(tab===state.tab?' on':''),parent:nav});
       const btn=h('button',{className:'nav-main',attrs:{type:'button','data-tab':tab,
@@ -210,6 +213,7 @@ function drawTabs(){
             'aria-current':tab===state.tab&&key===state.sub?'page':'false'},parent:sub});
       }
     }
+    if(activeTab)Array.from(nav.querySelectorAll('button')).find(btn=>btn.dataset.tab===activeTab&&(btn.dataset.sub||'')===activeSub)?.focus({preventScroll:true});
   }
 }
 async function action(name,resource,payload={}){
@@ -238,12 +242,14 @@ async function loadForTab(tab,epoch){
   const c=state.context;
   if(!c||isOwner())return;
   const need=async(actionName,key)=>{
+    if(epoch!==state.epoch||state.context!==c)return;
     const records=await action(actionName,c.teamId);
     if(state.epoch===epoch)state[key]=records;
   };
   if(tab==='home'){
     if(roleForAction(c,'schedule.read'))await need('schedule.read','schedule');
     if(canRoster())await need('roster.read','roster');
+    if(epoch!==state.epoch||state.context!==c)return;
     if(MANAGEMENT_PARITY&&(canManage()||hasRole('team_player'))){
       try{
         const result=await management.call(c,canManage()?'competitions.read':'player.team.read');
@@ -258,6 +264,7 @@ async function loadForTab(tab,epoch){
   }else if(tab==='team'){
     if(canRoster()){
       await need('roster.read','roster');
+      if(epoch!==state.epoch||state.context!==c)return;
       if(MANAGEMENT_PARITY){
         const members=await management.call(c,'team.members');
         if(state.epoch===epoch)state.members=members;
@@ -518,8 +525,11 @@ function renderSchedule(){
   if(sub&&filtered.length!==state.schedule.length)info((state.schedule.length-filtered.length)+' other schedule records are outside this view.',list);
   readList(list,filtered,(s,row)=>{
     row.classList.add('cloud-session-row');
-    h('strong',{text:s.title||s.kind||'Session',parent:row});
-    h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:'')+' · '+s.status,parent:row});
+    const head=h('div',{className:'cloud-session-head',parent:row});
+    originalDateBadge(h,head,s.startsAt);
+    const details=h('div',{className:'grow',parent:head});
+    h('strong',{className:'name cloud-block',text:s.title||s.kind||'Session',parent:details});
+    h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:'')+' · '+s.status,parent:details});
     if(hasRole('team_player')){
       if(MANAGEMENT_PARITY&&s.kind==='match')
         button('Selected match squad',()=>void openMatchSquad(s,true),actions(row));
@@ -787,8 +797,8 @@ function renderTeam(){
     info('Nomination and placement do not verify registration, payment or competition eligibility.',roster);
     readList(roster,state.roster,(p,row)=>{
       const member=state.members.find(m=>m.personId===p.personId);
-      h('strong',{text:member?.name||p.personId,parent:row});
-      h('small',{text:p.status+' · version '+p.version,parent:row});
+      originalRosterIdentity(h,row,member?.name||p.personId,
+        p.status+' · version '+p.version);
       if(p.status==='pending')button('Approve team placement',async()=>{
         if(!confirm('Approve team placement only? Registration, payment and competition eligibility remain separate.'))return;
         try{await mutation('roster.approve',p.personId,p.version,{command:{op:'approve'}});
@@ -865,7 +875,7 @@ function renderPlayerTeamSnapshot(){
   if(!snapshot.roster?.length)info('No approved player display names are available.',squad);
   for(const item of snapshot.roster||[]){
     const row=h('div',{className:'cloud-list-item',parent:squad});
-    h('strong',{text:item.displayName,parent:row});
+    originalRosterIdentity(h,row,item.displayName);
   }
   if(snapshot.rosterOmittedUnverified)
     info(snapshot.rosterOmittedUnverified+' active squad member(s) are not displayed because their name is not independently verified.',squad);
