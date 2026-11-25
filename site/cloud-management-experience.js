@@ -7,7 +7,7 @@ import {originalJerseyReportFromCloud,originalJerseyInventoryFromCloud,
   originalTeamCompetitionsFromCloud,teamRecordedMatchesFromSchedule} from './cloud-original-model-adapter.js';
 import {CLOUD_TEAM_SETTINGS_SECTIONS} from './shared-team-settings.js';
 import {teamIconSvg} from './shared-team-icons.js';
-import {originalSection,originalColumns} from './cloud-original-presentation.js';
+import {originalSection,originalColumns,originalCompetitionCard,originalRosterIdentity} from './cloud-original-presentation.js';
 // Stage 3D.5 connected management surfaces. Uses the established Team Manager
 // menu vocabulary and exact-team server records, never the fictional demo vault.
 // The Host owns navigation state; each async screen discards stale team results.
@@ -246,9 +246,7 @@ export function createCloudManagementExperience({
     if(!competitions.length)info('No tournaments or leagues recorded for this team yet.',list);
     for(const entry of competitions){
       const row=h('section',{className:'cloud-list-item',parent:list});
-      h('strong',{text:entry.name,parent:row});
-      info(entry.format+' · '+entry.season+' · '+(entry.division||'No grade')+
-        ' · '+entry.status,row);
+      originalCompetitionCard(h,row,entry).classList.add('cloud-competition-summary');
       const localFixtures=fixtures.filter(item=>item.competitionId===entry.competitionId);
       if(!localFixtures.length)info('No team-recorded fixtures for this competition.',row);
       for(const item of localFixtures){
@@ -333,6 +331,8 @@ export function createCloudManagementExperience({
       const channel=delivery==='prepare'?'whatsapp':delivery;
       const body=text(d.get('body')).trim();
       const audience=text(d.get('audience'));
+      let popup=null;
+      try{
       if(seed){
         const latest=await query(ctx,'match.selection.read',{sessionId:seed.sessionId});
         if(!f.isConnected||!latest.current||latest.version!==seed.version||latest.fixtureVersion!==seed.fixtureVersion)
@@ -348,6 +348,11 @@ export function createCloudManagementExperience({
       if(postNotice&&noticeBody.length>1000){
         message('The noticeboard allows up to 1,000 characters. Shorten the message or untick noticeboard before preparing it.',true);
         return;
+      }
+      // Reserve the browser window while the originating click is active.
+      // No private message leaves this page until server logging succeeds.
+      if(delivery==='whatsapp'&&!seed){
+        try{popup=window.open('about:blank','_blank');if(popup)popup.opener=null;}catch{popup=null;}
       }
       const saved=await query(ctx,'messages.prepare',{
         audience,channel,body
@@ -390,9 +395,9 @@ export function createCloudManagementExperience({
       },()=>open('Messages'),'Message marked not sent.'),a);
       if(!ensure(ctx))return;
       if(delivery==='whatsapp'){
-        // Browsers may block a popup after asynchronous server logging. The
-        // prepared message retains the explicit retry action. No auto send.
-        window.open('https://wa.me/?text='+encodeURIComponent(body),'_blank','noopener');
+        const url='https://wa.me/?text='+encodeURIComponent(body);
+        if(popup&&!popup.closed){popup.location.replace(url);popup=null;}
+        else window.open(url,'_blank','noopener');
       }else if(delivery==='copy'){
         try{await navigator.clipboard.writeText(body);message('Copied. Message logged, not confirmed sent.');}
         catch{info('Use Copy in the prepared message to copy it from your browser.',preview);}
@@ -400,6 +405,7 @@ export function createCloudManagementExperience({
         try{await navigator.share({text:body});}
         catch{info('Use Share or Copy in the prepared message when ready.',preview);}
       }
+      }finally{if(popup&&!popup.closed)popup.close();}
     });
     const choices=seed?[['blank','Selected match squad']]:templates;
     const chips=h('div',{className:'chips',attrs:{role:'group','aria-label':'Message type'},parent:f});
@@ -556,8 +562,7 @@ export function createCloudManagementExperience({
     if(!members.length)info('No active or pending players recorded for this team.',c);
     for(const p of members){
       const row=h('div',{className:'cloud-list-item',parent:c});
-      h('strong',{text:p.name||p.personId,parent:row});
-      info('Team status: '+p.status,row);
+      originalRosterIdentity(h,row,p.name||p.personId,'Team status: '+p.status);
     }
   }
   async function duties(ctx,loading,canAdmin,section='Volunteer tally'){
