@@ -157,3 +157,91 @@
  .cloud-more-chevron{right:12px;top:18px}
  .cloud-main .cloud-card{max-width:100%}
 }
+
+/* PR293: Original component layout, scoped to the connected workspace. */
+.cloud-team-page .cloud-team-header{padding:calc(7px + env(safe-area-inset-top)) 18px 7px}
+.cloud-team-heading h1{font:600 22px/1.2 var(--font-d);letter-spacing:-.015em}
+.cloud-team-heading p{font:500 13px/1.35 var(--font-b);margin:2px 0;color:#d6e3da}
+.cloud-team-header .top-row{min-height:48px;gap:10px}
+.cloud-team-header .t-crest .crest{width:34px;height:34px;font-size:12px}
+.cloud-content{min-width:0;width:100%}
+.cloud-context-controls.scope{margin:0;padding:16px 24px 0;gap:4px}
+.cloud-context-controls[hidden],.cloud-team-page [hidden]{display:none!important}
+.cloud-context-controls .cloud-chips{display:flex;flex-wrap:nowrap;overflow-x:auto;padding:2px 2px 4px;gap:8px}
+.cloud-context-controls .scope-club{border-radius:999px;padding:4px 14px 4px 4px;min-height:44px;font:600 15px var(--font-b);border:1px solid var(--line)}
+.cloud-context-controls .scope-club[aria-pressed="true"]{padding:4px 14px 4px 4px;background:#eaf1ec;border:1px solid var(--pitch);box-shadow:inset 0 0 0 1px var(--pitch)}
+.cloud-context-controls .scope-team{max-width:none;min-height:36px;padding:6px 10px;border-radius:8px;font:600 14px var(--font-b);border:1px solid var(--line)}
+.cloud-context-controls .scope-team[aria-pressed="true"]{padding:6px 10px;color:white;background:var(--pitch);border:1px solid var(--pitch)}
+.cloud-context-controls .scope-team svg{width:16px;height:16px;vertical-align:middle}
+.cloud-workspace-layout{min-height:calc(100vh - 62px)}
+.cloud-main{max-width:none;padding:14px 24px 40px;gap:14px}
+.cloud-main .working-context{margin:0}
+.cloud-main h2,.cloud-main h3{font-family:var(--font-d);font-weight:600;letter-spacing:-.025em}
+.cloud-main .cloud-page-title{font-size:26px;margin:0}
+.cloud-main .cloud-card{padding:16px;border-radius:12px;min-width:0}
+.cloud-main .cloud-card h3{font-size:20px}
+.cloud-main .cloud-list{gap:0;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.cloud-main .cloud-list .cloud-list-item{border:0;border-radius:0;padding:12px 14px;margin:0}
+.cloud-main .cloud-list .cloud-list-item+.cloud-list-item{border-top:1px solid var(--line)}
+.cloud-main .cloud-list .cloud-list-item>strong{font:600 16px var(--font-d)}
+.cloud-main .cloud-list .cloud-list-item small{font:500 14px var(--font-b)}
+.cloud-main .cloud-form .field-l{gap:5px;margin:0}
+.cloud-main .cloud-form label>span{font:600 14px var(--font-b)}
+.cloud-main .cloud-form label.cloud-checkbox-row,.cloud-main .cloud-form label.check{display:flex;align-items:center;gap:10px}
+.cloud-main .cloud-form input[type=checkbox]{width:22px;height:22px;min-width:22px;accent-color:var(--pitch)}
+.cloud-main .cloud-btn{font:500 15px var(--font-b);border-color:var(--line);border-radius:10px}
+.cloud-main .cloud-btn.primary{background:var(--team-action);border-color:var(--team-action-edge)}
+.cloud-main .focus .cloud-btn.primary{background:var(--team-on-dark);border-color:var(--team-on-dark);color:var(--team-on-dark-ink)}
+.cloud-main .focus.calm .cloud-btn.primary{background:var(--team-action);color:var(--team-action-ink)}
+.cloud-block{display:block}
+.cloud-main .sec-h h2{font-size:24px}
+.cloud-main .home-cols .sec{margin-bottom:20px}
+.cloud-main .comp-live h2{color:#fff;font:700 26px/1.1 var(--font-d)}
+.cloud-main .focus h2{font:700 28px/1.1 var(--font-d);color:inherit}
+.cloud-main .tl-row+.tl-row{border-top:1px solid var(--line)}
+.cloud-nav.tabs{display:grid;padding:0 0 env(safe-area-inset-bottom);gap:0}
+.cloud-nav.tabs .nav-main{min-height:56px;height:var(--nav-h);padding:3px 0;background:none;font-size:12.5px}
+.cloud-nav.tabs .nav-main[aria-current=page]{background:none;position:relative}
+.cloud-nav.tabs .nav-main svg{display:block}
+.cloud-message-columns .col{min-width:0}
+.cloud-message-columns .sec{margin:0 0 20px}
+.cloud-message-columns .cloud-form{gap:12px}
+.cloud-message-columns .cloud-form textarea{min-height:220px;font:16px/1.45 var(--font-b);padding:14px;border-radius:12px;border-color:var(--line)}
+.cloud-message-columns .chips{flex-wrap:wrap;overflow:visible;margin-bottom:2px}
+.cloud-message-columns .chip{font:600 14px var(--font-b);padding:8px 14px}
+.cloud-message-columns .btn-row .btn{flex:1 1 100px}
+.cloud-message-columns .msg-item{white-space:normal;overflow-wrap:anywhere}
+.cloud-message-columns .msg-item .preview{white-space:pre-wrap}
+.cloud-message-columns .link-card{min-height:64px}
+.cloud-message-columns .cloud-prepared{margin-top:12px}
+@media(min-width:780px){
+ .cloud-workspace-layout{grid-template-columns:212px minmax(0,1fr)}
+ .cloud-workspace-layout:has(.cloud-desktop-nav[hidden]){grid-template-columns:minmax(0,1fr)}
+ .cloud-desktop-nav:not([hidden]){display:flex;flex-direction:column;gap:2px;padding:16px 10px;position:sticky;top:62px;align-self:start;height:calc(100vh - 62px);overflow-y:auto}
+ .cloud-desktop-nav .nav-group{flex-direction:column}
+ .cloud-desktop-nav .nav-main{display:flex;align-items:center;justify-content:flex-start;gap:12px;height:44px;padding:0 14px;font-size:15px;border-radius:10px}
+ .cloud-desktop-nav .nav-main:hover,.cloud-desktop-nav .nav-main[aria-current=page]{background:var(--chalk);color:var(--pitch);box-shadow:none}
+ .cloud-desktop-nav .nav-main svg{flex:none}
+ .cloud-desktop-nav .nav-sub{display:flex;flex-direction:column;gap:1px;margin:0 0 6px 36px}
+ .cloud-desktop-nav .nav-sub button{min-height:36px;padding:7px 12px;border-radius:8px;font-size:14px;font-weight:600;position:relative}
+ .cloud-desktop-nav .nav-sub button:hover,.cloud-desktop-nav .nav-sub button[aria-current=page]{background:var(--chalk);color:var(--ink)}
+ .cloud-nav.tabs{display:none}
+ .cloud-main .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 28px;align-items:start}
+ .cloud-main[data-view=schedule],.cloud-main[data-view=team]{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+ .cloud-main[data-view=schedule]>.working-context,.cloud-main[data-view=schedule]>.cloud-page-title,
+ .cloud-main[data-view=team]>.working-context,.cloud-main[data-view=team]>.cloud-page-title,
+ .cloud-main[data-view=schedule]>.cloud-intro,.cloud-main[data-view=team]>.cloud-intro,
+ .cloud-main[data-view=schedule]>.cloud-actions,.cloud-main[data-view=team]>.cloud-actions,
+ .cloud-main[data-view=schedule]>.cloud-eyebrow,.cloud-main[data-view=team]>.cloud-eyebrow{grid-column:1/-1}
+ .cloud-main[data-view=schedule]>.cloud-card:first-of-type{grid-row:auto}
+}
+@media(max-width:779px){
+ .cloud-main{padding:12px 14px 100px}
+ .cloud-context-controls.scope{padding:10px 14px 0}
+ .cloud-main .cloud-message-columns .chips{flex-wrap:nowrap;overflow-x:auto}
+ .cloud-main .cols{display:block}
+ .cloud-main .col{min-width:0}
+ .cloud-team-header .top-row{gap:7px}
+ .cloud-team-heading h1{font-size:19px}
+ .cloud-team-header .cloud-team-back{font-size:12px}
+}
