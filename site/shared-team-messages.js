@@ -154,6 +154,16 @@ export function containsUnfilledTemplate(textValue){
  return Object.values(MANUAL_TEAM_TEMPLATES).some(x=>safe(textValue).includes(x.placeholder))||
   /\[(?:Enter|Choose) [^\]\r\n]{1,120}\]/.test(safe(textValue));
 }
+// Connected-only guard for obsolete demo placeholders and the exact observed
+// screenshot discrepancy. Legitimate opponent names in ordinary text are not
+// rejected. Only the known generated heading is blocked for the real team.
+export function connectedMessageNeedsReview(value,teamId){
+ const body=safe(value);
+ return containsUnfilledTemplate(body)||
+  /\(Add a (?:training session|match)(?: first)? and it will fill in here\.\)/i.test(body)||
+  /\(Nothing in the next two weeks\. Add training or a match and it will fill in here\.\)/i.test(body)||
+  (teamId==='stgeorge-mixed20'&&/(?:^|\n)\s*(?:🏉\s*)?\*Training\s+[—–-]\s+Example Comets Mixed\*/i.test(body));
+}
 export function accountInvitationText({teamName,url}={}){
  const name=singleSpace(teamName);
  let link;
