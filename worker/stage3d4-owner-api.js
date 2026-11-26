@@ -3,6 +3,7 @@
 // from client input, and can operate only on the existing approved Worker.
 import {adminHeaders,isApprovedProjectConfig} from './supabase-admin-key.js';
 import {delivery} from './stage3-onboarding-api.js';
+import {validConnectedLogo,validConnectedStyle,validClubBranding} from '../site/connected-branding.js';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INVITE=/^invite-[0-9a-f]{32}$/;
@@ -14,7 +15,7 @@ const ROLES=new Set(['team_coach','team_manager','team_assistant',
   'team_player','team_volunteer']);
 const ACTIONS=new Set(['status','team.create','coach.assign',
   'invite.issue','invite.approve','invite.review-adult',
-  'invite.activate','invite.cancel','invite.revoke','branding.status','branding.authorise','branding.revoke']);
+  'invite.activate','invite.cancel','invite.revoke','branding.status','branding.authorise','branding.revoke','branding.catalogue','branding.history','branding.moderation.save','branding.moderation.remove','branding.moderation.lock','branding.moderation.unlock','branding.moderation.revoke']);
 const own=o=>o&&typeof o==='object'&&!Array.isArray(o)&&
   Object.getPrototypeOf(o)===Object.prototype;
 const output=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{
@@ -22,13 +23,19 @@ const output=(data,status=200)=>new Response(JSON.stringify(data),{status,header
   'X-Content-Type-Options':'nosniff'}});
 const deny=(code,status=403)=>output({ok:false,code},status);
 const allowed=new Set(['action','teamId','clubRef','sportRef','seasonRef',
-  'email','role','invitationId','evidenceRef']);
+  'email','role','invitationId','evidenceRef','style','logo','resetOverrides','expectedVersion','reason']);
 export function validateOwnerAction(value){
   if(!own(value)||!ACTIONS.has(value.action)||
      Object.keys(value).some(k=>!allowed.has(k)))return null;
   const keys=Object.keys(value).sort().join(',');
   const expect={
     status:'action','branding.status':'action','branding.authorise':'action','branding.revoke':'action',
+    'branding.catalogue':'action','branding.history':'action,clubRef',
+    'branding.moderation.save':'action,clubRef,expectedVersion,logo,reason,resetOverrides,style',
+    'branding.moderation.remove':'action,clubRef,expectedVersion,reason',
+    'branding.moderation.lock':'action,clubRef,expectedVersion,reason',
+    'branding.moderation.unlock':'action,clubRef,expectedVersion,reason',
+    'branding.moderation.revoke':'action,clubRef,expectedVersion,reason',
     'team.create':'action,clubRef,seasonRef,sportRef,teamId',
     'coach.assign':'action',
     'invite.issue':'action,email,role',
@@ -39,6 +46,11 @@ export function validateOwnerAction(value){
     'invite.revoke':'action,invitationId'
   }[value.action];
   if(keys!==expect)return null;
+  if(value.action==='branding.history'||value.action.startsWith('branding.moderation.')){
+    if(typeof value.clubRef!=='string'||value.clubRef.length<1||value.clubRef.length>120||value.clubRef.trim()!==value.clubRef||/[\u0000-\u001f\u007f]/.test(value.clubRef))return null;
+    if(value.action.startsWith('branding.moderation.')&&(!Number.isSafeInteger(value.expectedVersion)||value.expectedVersion<0||value.expectedVersion>999999999||!['inappropriate-image','incorrect-branding','policy-review','owner-correction','resolved'].includes(value.reason)))return null;
+    if(value.action==='branding.moderation.save'&&(!validConnectedStyle(value.style)||!validConnectedLogo(value.logo)||typeof value.resetOverrides!=='boolean'))return null;
+  }
   if(value.action==='team.create'&&(!ID.test(value.teamId||'')||
      typeof value.clubRef!=='string'||value.clubRef.trim()!==value.clubRef||
      value.clubRef.length<3||value.clubRef.length>100||
@@ -72,7 +84,7 @@ const codes=new Set(['ready','team-created','coach-assigned','approved',
   'team-preflight-denied','coach-preflight-denied','registration-required',
   'invite-preflight-denied','invite-unavailable','review-required',
   'verified-identity-required','review-revoked','activation-preflight-denied',
-  'person-not-verified','grant-unavailable']);
+  'person-not-verified','grant-unavailable','stale-version']);
 export async function handleStage3D4Owner(request,env,fetchImpl=fetch){
   try{
     const url=new URL(request.url);
@@ -90,10 +102,10 @@ export async function handleStage3D4Owner(request,env,fetchImpl=fetch){
     if(!/^Bearer [A-Za-z0-9._~-]{12,8192}$/.test(bearer))
       return deny('unauthenticated',401);
     const raw=await request.text();
-    if(raw.length>2048)return deny('invalid-request',400);
+    if(raw.length>52000)return deny('invalid-request',400);
     let input;try{input=validateOwnerAction(JSON.parse(raw));}
     catch{return deny('invalid-request',400);}
-    if(!input)return deny('invalid-request',400);
+    if(!input||raw.length>2048&&input.action!=='branding.moderation.save')return deny('invalid-request',400);
     const user=await remote(fetchImpl,env.SUPABASE_URL+'/auth/v1/user',{
       method:'GET',headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,
         Authorization:bearer}});
@@ -102,13 +114,26 @@ export async function handleStage3D4Owner(request,env,fetchImpl=fetch){
       return deny('unauthenticated',401);
     const payload={...input};delete payload.action;
     const branding=input.action.startsWith('branding.');
-    const data=await rpc(fetchImpl,env,branding?'tm_stage3d5_branding_owner':'tm_stage3d4_owner',{
+    const moderation=input.action==='branding.catalogue'||input.action==='branding.history'||input.action.startsWith('branding.moderation.');
+    const data=await rpc(fetchImpl,env,moderation?'tm_stage3d5_branding_moderation':branding?'tm_stage3d5_branding_owner':'tm_stage3d4_owner',{
       p_actor:user.id,p_action:input.action,p_input:payload});
     if(!own(data)||typeof data.ok!=='boolean'||!codes.has(data.code))
       return deny('service-unavailable',503);
     if(!data.ok)return deny(data.code,
       data.code==='registration-required'?403:
-        /preflight/.test(data.code)?409:403);
+        (/preflight/.test(data.code)||data.code==='stale-version')?409:403);
+    if(moderation){
+      if(data.code!=='ready')return deny('service-unavailable',503);
+      if(input.action==='branding.catalogue'){
+        if(!Array.isArray(data.clubs)||data.clubs.length>100||!data.clubs.every(validClubBranding))return deny('service-unavailable',503);
+        return output({ok:true,code:'ready',clubs:data.clubs.map(({clubRef,style,logo,version,locked})=>({clubRef,style,logo,version,locked}))});
+      }
+      if(input.action==='branding.history'){
+        if(!Array.isArray(data.events)||data.events.length>100||data.events.some(x=>!own(x)||typeof x.at!=='string'||typeof x.action!=='string'||typeof x.reason!=='string'||!(x.actor===null||UUID.test(x.actor))))return deny('service-unavailable',503);
+        return output({ok:true,code:'ready',events:data.events.map(({at,action,reason,actor})=>({at,action,reason,actor}))});
+      }
+      return output({ok:true,code:'ready'});
+    }
     if(branding){
       if(data.code!=='ready'||typeof data.brandingAuthorised!=='boolean'||typeof data.clubRef!=='string'||data.clubRef.length>120)return deny('service-unavailable',503);
       return output({ok:true,code:'ready',clubRef:data.clubRef,brandingAuthorised:data.brandingAuthorised});
