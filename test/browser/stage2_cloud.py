@@ -24,7 +24,7 @@ sessions = [{
 plays = [{
     'playId':'play-step-out','revisionId':'rev-001','version':0,
     'revisionStatus':'draft','publishedRevisionId':None,
-    'play':{'name':'Step Out','sport':'oztag','players':{'LM':[24.6,49.6],'RM':[25,46]},
+    'play':{'id':'synthetic-step-out','name':'Step Out','sport':'Oztag','players':{'LM':[24.6,49.6],'RM':[25,46]},
         'moves':[{'t':'pass','pts':[[24.6,49.6],[25,46]]}],
         'phases':[{'title':'The second phase','players':{'LM':[28,42]},'moves':[]}],
         'steps':'Pass to the support runner',
@@ -37,6 +37,7 @@ duties = [{
     'response':None,'version':0
 }]
 operations = []
+reject_next_play_save = False
 def signed_role(headers):
     auth = headers.get('authorization', '')
     if OWNER_TOKEN in auth:return 'owner'
@@ -68,7 +69,7 @@ def bind(ctx):
         route.fulfill(status=200,content_type='application/json',
             body=json.dumps({'isOwner':role=='owner'}))
     def operations_endpoint(route):
-        global availability
+        global availability, reject_next_play_save
         payload=route.request.post_data_json
         role=signed_role(route.request.headers)
         action=payload.get('action')
@@ -110,6 +111,18 @@ def bind(ctx):
             reply={'ok':True,'code':'permitted','data':published};code=200
         elif action=='play.draft.read' and role=='owner':
             reply={'ok':True,'code':'permitted','data':plays};code=200
+        elif action=='play.draft.edit' and role=='owner':
+            if reject_next_play_save:
+                reject_next_play_save=False
+                reply={'ok':False,'code':'stale-play'};code=409
+            else:
+                cmd=payload['payload']['command']
+                data=plays[0]
+                if cmd['op']!='save' or payload['resourceId']!=data['playId'] or payload['payload']['expectedVersion']!=data['version']:
+                    reply={'ok':False,'code':'stale-play'};code=409
+                else:
+                    data['play']=cmd['play'];data['version']+=1;data['revisionId']='rev-edited'
+                    reply={'ok':True,'code':'committed','resourceId':data['playId'],'version':data['version'],'revisionId':data['revisionId']};code=200
         elif action=='play.publish' and role=='owner':
             data=plays[0]
             published[:]=[dict(data)]
@@ -172,6 +185,27 @@ with sync_playwright() as p:
     coach.get_by_role('heading',name='Coach play drafts').wait_for()
     checks.ok('Step Out' in coach.locator('main').inner_text(),
         'Coach draft visible to authorised coaching role')
+    # Exercise the original E5 editor, not the simplified text editor.
+    coach.get_by_role('button',name='Edit play',exact=True).click()
+    editor=coach.frame_locator('iframe[title="Play Editor"]')
+    editor.get_by_role('button',name='Advanced diagram').wait_for(timeout=15000)
+    checks.ok(editor.locator('#ped-field svg.editor').count()==1,
+        'Native E5 diagram workspace mounted in the authenticated team shell')
+    editor.get_by_role('button',name='Play details',exact=True).click()
+    editor.locator('[name=steps]').fill('Pass to the support runner\nThen move into space')
+    reject_next_play_save=True
+    editor.get_by_role('button',name='Save play',exact=True).click()
+    editor.locator('#toast').get_by_text('This record changed on another device.',exact=False).wait_for(timeout=15000)
+    checks.ok(plays[0]['play']['steps']=='Pass to the support runner',
+        'Rejected stale cloud save preserves the original record and open editor')
+    checks.ok(editor.locator('[name=steps]').input_value().endswith('Then move into space'),
+        'Failed cloud save preserves unsaved coaching edits')
+    editor.get_by_role('button',name='Save play',exact=True).click()
+    coach.get_by_role('heading',name='Coach play drafts').wait_for(timeout=15000)
+    checks.ok(plays[0]['play']['steps'].endswith('Then move into space') and
+        plays[0]['play']['moves'][0]['pts']==[[24.6,49.6],[25,46]] and
+        plays[0]['play']['eventTimeline']=={'version':1,'actors':[],'events':[]},
+        'Original E5 editor saved a versioned cloud draft with geometry and timing intact')
     coach.get_by_role('button',name='Publish reviewed revision').click()
     coach.get_by_text('Published revision').wait_for()
     checks.ok(len(published)==1,
@@ -193,6 +227,21 @@ with sync_playwright() as p:
     player.get_by_role('heading',name='Published team plays').wait_for()
     checks.ok('Coach play drafts' not in player.locator('main').inner_text(),
         'Player cannot see coaching drafts')
+    player.get_by_role('button',name='Watch and Learn',exact=True).click()
+    viewer=player.frame_locator('iframe[title="Watch and Learn"]')
+    viewer.get_by_role('button',name='Watch animation').wait_for(timeout=15000)
+    checks.ok(viewer.locator('svg.pf.study').count()==1,
+        'Player opens actual E5 Learn field, not an alternate preview')
+    checks.ok(viewer.get_by_role('button',name='Edit',exact=True).count()==0 and
+        viewer.get_by_role('button',name='Save play',exact=True).count()==0,
+        'Published viewer cannot open coach editing controls')
+    viewer.get_by_role('button',name='Watch animation').click()
+    viewer.get_by_role('button',name='Attacking left').click()
+    checks.ok(viewer.locator('#play-fig svg.pf').count()==1 and
+        viewer.locator('#play-fig svg.pf').get_attribute('aria-label').endswith('attacking left'),
+        'Native E5 Watch renders mirrored field')
+    viewer.get_by_role('button',name='All plays',exact=False).click()
+    player.get_by_role('heading',name='Published team plays').wait_for(timeout=15000)
     player.get_by_role('button',name='View diagram and Learn / authored timing').click()
     checks.ok(player.locator('.cloud-play-field svg circle').count()>=2,
         'Player sees authored E5 positions in read-only cloud preview')

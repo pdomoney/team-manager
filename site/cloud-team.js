@@ -153,6 +153,7 @@ function drawContextChips(){
     chip(clubs,club,state.activeClub===club,()=>{
       const matches=state.contexts.filter(c=>c.kind==='team'&&c.club===club);
       if(matches.length===1){selectContext(matches[0].key);return;}
+      if(!mayLeaveE5())return;
       // Clubs with more than one authorised team require exact team selection.
       // Clear previous team's private records before revealing team chips.
       state.epoch++;state.brandingGeneration++;state.brandingEditing=false;state.context=null;state.activeClub=club;state.branding=null;applySavedBranding();
@@ -1920,9 +1921,9 @@ for(const id of ['cloud-nav','cloud-desktop-nav']){
   });
 }
 $('cloud-notices-shortcut').innerHTML=teamIconSvg('clip',24);
-$('cloud-notices-shortcut').addEventListener('click',openNoticeboard);
+$('cloud-notices-shortcut').addEventListener('click',()=>{if(mayLeaveE5())openNoticeboard();});
 $('cloud-settings-shortcut').innerHTML=teamIconSvg('cog',24);
-$('cloud-settings-shortcut').addEventListener('click',()=>void managementExperience.open('Settings'));
+$('cloud-settings-shortcut').addEventListener('click',()=>{if(mayLeaveE5()){e5Host?.destroy();e5Host=null;void managementExperience.open('Settings');}});
 initialise().catch(e=>{
   clear();title('Unable to verify access','Account');info(explain(e));
   $('cloud-nav').hidden=true;
