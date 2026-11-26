@@ -10,13 +10,14 @@ class IncrementalReleaseTest(unittest.TestCase):
    'source':'1'*40,'previous_worker':{'version_id':OLD_VERSION,'deployment_id':OLD_DEPLOYMENT},
    'prior_manifest_sha256':BASE_MANIFEST,'prior_plan_sha256':BASE_PLAN,
    'ci':{'source':'1'*40,'status':'PASS','node':True,'postgres':True,'chromium':True,'webkit':True,'run_id':123,'event':'push_main'},
-   'migrations':[{'file':'supabase/migrations/'+MIGRATIONS[0],'sha256':'2'*64}]}
+   'migrations':[{'file':'supabase/migrations/'+MIGRATIONS[0],'sha256':'2'*64}],
+   'candidate_helper':{'source':'3'*40,'tree':'4'*40,'summary_sha256':'5'*64,'plan_sha256':'6'*64}}
  def test_exact_forward_plan(self):
   with tempfile.TemporaryDirectory() as t:
    path=Path(t)/'plan.json';p=self.plan()
    def put():path.write_text(json.dumps(p));return sha(path)
    self.assertEqual(exact_plan(path,put()),p)
-   for key,value in [('base',BASE_CONTROL),('prior_plan_sha256','0'*64),('release_exception',{}),('previous_worker',{}),('migrations',[])]:
+   for key,value in [('base',BASE_CONTROL),('prior_plan_sha256','0'*64),('release_exception',{}),('previous_worker',{}),('migrations',[]),('candidate_helper',{})]:
     p=self.plan();p[key]=value
     with self.subTest(key=key),self.assertRaises(Stop):exact_plan(path,put())
    p=self.plan();p['ci']['webkit']=False
@@ -43,7 +44,7 @@ class IncrementalReleaseTest(unittest.TestCase):
   report={'new_worker':{'version_id':'installed'},'candidate_manifest_sha256':'a'*64,'browser_nonce':'b'*32,
    'verification':{'passed':10,'total':10,'holds':[],'anonymousAuth':{'browser_fallback_eligible':True}}}
   record={'origin':ORIGIN,'version_id':'installed','manifest_sha256':'a'*64,'nonce':'b'*32,'http_status':401,
-   'content_type':'application/json','ok':False,'code':'unauthenticated','canProceed':False,'ray_id':'a6048146eb7edb4d-SYD'}
+   'content_type':'application/json','ok':False,'code':'unauthenticated','canProceed':False,'ray_id':'0123456789abcdef-SYD'}
   check_browser_record(report,record)
   self.assertIn('credentials:',browser_probe(report))
   for key,value in [('version_id','other'),('nonce','wrong'),('http_status',403),('canProceed',True)]:

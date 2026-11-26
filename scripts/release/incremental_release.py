@@ -4,7 +4,7 @@ The original PR295/296 controller and its historical exception stay immutable.
 Candidate-only runs use a disposable reference database and Worker dry run.
 No live writes without an exact merged release plan and typed owner approval.
 """
-import argparse, datetime as dt, json, os, re, secrets, sys, tempfile
+import argparse, datetime as dt, inspect, json, os, re, secrets, sys, tempfile
 from pathlib import Path
 from urllib.request import Request, build_opener
 from urllib.error import HTTPError
@@ -40,7 +40,28 @@ def exact_plan(path,digest,candidate=False):
     require(ci.get('source')==p['source'] and ci.get('status')=='PASS' and all(ci.get(k) is True for k in ('node','postgres','chromium','webkit')) and isinstance(ci.get('run_id'),int),'Exact-source CI not qualified')
     require(ci.get('event')==('push_candidate' if candidate else 'push_main'),'Wrong candidate/merged CI authority')
     require([x['file'] for x in p.get('migrations',[])]==['supabase/migrations/'+n for n in MIGRATIONS] and all(re.fullmatch('[0-9a-f]{64}',x.get('sha256','')) for x in p['migrations']),'Only the new branding migration is allowed')
+    if not candidate:
+        h=p.get('candidate_helper',{})
+        require(all(re.fullmatch('[0-9a-f]{40}',h.get(k,'')) for k in ('source','tree')) and all(re.fullmatch('[0-9a-f]{64}',h.get(k,'')) for k in ('summary_sha256','plan_sha256')),'Pinned candidate helper qualification missing')
     return p
+
+def verify_candidate_evidence(root,path,p):
+    require(path is not None and path.is_dir() and not path.is_symlink() and path.resolve().parent==root.resolve(),'Candidate qualification directory missing or unsafe')
+    file=path/'release-summary.json';h=p['candidate_helper']
+    require(sha(file)==h['summary_sha256'],'Candidate qualification summary changed')
+    j=load(file)
+    require(j.get('source')==h['source'] and j.get('source_tree')==h['tree'] and j.get('plan_sha256')==h['plan_sha256'] and j.get('candidate_only') is True and j.get('status')=='CANDIDATE_HELPERS_QUALIFIED_NO_PROVIDER_ACCESS' and not j.get('errors'),'Candidate qualification identity/status differs')
+    require(j.get('R4')==j.get('R5')=='NOT_ATTEMPTED' and all(j.get('checks',{}).get(k)=='PASS' for k in ('tools','source','build_and_transport','synthetic_reference')),'Candidate helper checks incomplete')
+    candidate_check(path,j)
+
+def record_helper_contract(q,i,rec,out):
+    functions=[(q,n) for n in ('reference','worker_candidate','catalogue','diff','run','git','refs')]+[(i,n) for n in ('bundle_entry','cloud','db_env','query','fresh_backup','data_expr','catalogue_check_sql','canonical','identity_sql')]+[(rec,'overlay')]
+    info={}
+    for module,name in functions:
+        func=getattr(module,name,None)
+        require(callable(func),'Pinned helper function missing: '+module.__name__+'.'+name)
+        info[module.__name__+'.'+name]=list(inspect.signature(func).parameters)
+    save(out/'helper-contract.json',info)
 
 def validate_previous_summary(j):
     require(j.get('source')==BASE and j.get('plan_sha256')==BASE_PLAN and j.get('R4')=='VERIFIED' and j.get('R5')=='INSTALLED' and not j.get('errors'),'Prior installation checkpoint differs')
@@ -74,6 +95,7 @@ def check_source(q,work,p,prior,candidate=False):
         ref=q.git(work,'ls-remote','origin','refs/heads/'+CANDIDATE_BRANCH).split()
         require(ref==[p['source'],'refs/heads/'+CANDIDATE_BRANCH],'Candidate branch drift')
     require(q.git(work,'merge-base',BASE_CONTROL,p['source'])==BASE_CONTROL,'New source does not descend from installed release control')
+    if not candidate:require(q.git(work,'rev-parse','HEAD^{tree}')==p['candidate_helper']['tree'],'Merged source tree differs from qualified candidate')
     inv=[{'file':str(x.relative_to(work)),'sha256':sha(x)} for x in sorted((work/'supabase/migrations').glob('*.sql'))]
     require(inv==prior['migration_inventory']+p['migrations'],'Historical or candidate migration mismatch')
     for pattern in ('.env*','.dev.vars*'):require(not list(work.glob(pattern)),'Unexpected local environment file')
@@ -131,8 +153,9 @@ def check_browser_record(report,record):
     require(anonymous_result(record.get('http_status'),record.get('content_type') or '',record,record.get('ray_id'))['expectedDenial'],'Browser did not prove application-generated 401 denial')
     require(isinstance(record.get('ray_id'),str) and re.fullmatch('[0-9a-fA-F]{16}(?:-[A-Z]{3})?',record['ray_id']),'Missing browser Ray ID')
 
-def verify_previous_reference(previous,base,rec,known,i):
+def verify_previous_reference(previous,base,rec,known,i,out):
     old=load(previous/'reference-candidate-private.json')
+    save(out/'prior-reference-shape.json',{'type':type(old).__name__,'key_count':len(old) if isinstance(old,dict) else None,'has_objects':isinstance(old,dict) and 'objects' in old,'has_branding_relation':isinstance(old,dict) and 'relation:club_branding' in old})
     if isinstance(old,dict) and 'objects' in old:old=old['objects']
     require(isinstance(old,dict) and 'relation:club_branding' in old,'Prior synthetic catalogue format not recognised')
     require(i.canonical(rec.overlay(old,known))==i.canonical(base),'Synthetic baseline differs from previously qualified PR295 catalogue')
@@ -144,13 +167,15 @@ def main():
     ap.add_argument('--pg-bin',type=Path,required=True,help='Existing PostgreSQL 17 server bin directory')
     ap.add_argument('--plan',type=Path,required=True);ap.add_argument('--plan-sha256',required=True)
     ap.add_argument('--preflight-only',action='store_true')
-    ap.add_argument('--candidate-only',action='store_true',help='No provider access or writes; use qualified candidate branch')
+    ap.add_argument('--candidate-only',action='store_true',help='Local reference and dry run only; no live provider access')
+    ap.add_argument('--candidate-evidence',type=Path,help='Pinned successful candidate-only qualification directory')
     ap.add_argument('--browser-evidence',type=Path,help='Record a browser denial for an installed checkpoint; never deploy')
     ap.add_argument('--verify-installed',type=Path,help='Read-only verification of a recorded installed version; never deploy')
     args=ap.parse_args();os.umask(0o077)
     require(not (args.candidate_only and args.verify_installed) and (not args.browser_evidence or args.verify_installed),'Incompatible modes')
     p=exact_plan(args.plan,args.plan_sha256,args.candidate_only)
     root=Path.home()/'TeamManager-Private-Backups';root.mkdir(mode=0o700,exist_ok=True);require(not root.is_symlink(),'Private evidence root is a symlink')
+    if not args.candidate_only:verify_candidate_evidence(root,args.candidate_evidence,p)
     out=args.verify_installed.resolve() if args.verify_installed else root/('PR297-release-'+dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+str(os.getpid()))
     require(out.parent==root.resolve(),'Evidence folder outside approved root')
     if not args.verify_installed:
@@ -191,6 +216,7 @@ def main():
                 write_verification(out,report,rows)
             return 0 if not report['verification']['holds'] and report['verification']['anonymousAuth']['expectedDenial'] else 1
         q,i,rec,r,prior=extract_helpers(args.downloads,out)
+        record_helper_contract(q,i,rec,out)
         prior,previous_assets,previous=previous_evidence(root,prior,out)
         q.SOURCE=p['source'];q.BASELINE=BASE_MIGRATION;q.MIGRATIONS=MIGRATIONS;q.EXPECTED=prior
         i.OLD_VERSION=OLD_VERSION
@@ -214,6 +240,7 @@ def main():
             q.git(repo,'fetch','--no-tags','origin','main','data',*([CANDIDATE_BRANCH] if args.candidate_only else []))
             work=out/'source';q.git(repo,'worktree','add','--detach',str(work),p['source'])
             check_source(q,work,p,prior,args.candidate_only)
+            report['source_tree']=q.git(work,'rev-parse','HEAD^{tree}')
             data=work/'data';data.mkdir(exist_ok=True)
             names=sorted(x for x in q.git(repo,'ls-tree','-r','--name-only',DATA).splitlines() if x.endswith('.enc.json'))
             require(names==sorted(x['file'] for x in prior['encrypted_assets']),'Protected data inventory differs')
@@ -234,7 +261,7 @@ def main():
             base,target=q.reference(work,out,args.pg_bin,psql)
             known={k:{'definition_md5':v,'execute':{'anon':[False,False],'authenticated':[True,False],'service_role':[True,False]}} for k,v in r.FOUR.items()}
             base,target=rec.overlay(base,known),rec.overlay(target,known)
-            verify_previous_reference(previous,base,rec,known,i)
+            verify_previous_reference(previous,base,rec,known,i,out)
             require('relation:club_branding_moderation' not in base and 'relation:club_branding_moderation' in target,'Moderation table transition differs')
             return base,target
         ref=check('synthetic_reference',reference)
@@ -268,7 +295,7 @@ def main():
         rows=candidate_check(out,report);check_source(q,work,p,prior)
         report['status']='PREFLIGHT_PASS_NOT_INSTALLED';checkpoint()
         if args.preflight_only:return 0
-        require(p.get('visual_approval')=='OWNER_CONFIRMED' and p.get('candidate_helper_qualification')=='PASS','Candidate visual and helper qualification required')
+        require(p.get('visual_approval')=='OWNER_CONFIRMED','Candidate visual approval required')
         print('Keep users signed out; confirm automatic Cloudflare Git builds disabled and previous Worker rollback available.')
         require(input('Type INSTALL PR297 to approve this exact cutover: ').strip()=='INSTALL PR297','Installation not approved')
         base,target=actual['objects'],ref[1];expr=i.data_expr(base)
@@ -301,7 +328,8 @@ def main():
         write_verification(out,report,rows);return 0 if report['status']=='INSTALLED_SMOKE_PASS_OWNER_ACCEPTANCE_PENDING' else 1
     except Exception as e:
         report['errors'].append({'check':'controller','reason':str(e) if isinstance(e,Stop) else type(e).__name__})
-        if report.get('R4')!='NOT_ATTEMPTED' or report.get('R5')!='NOT_ATTEMPTED':report['status']='RECONCILE_BEFORE_RETRY_NO_AUTOMATIC_REDEPLOY'
+        if args.verify_installed:report['status']='INSTALLED_VERIFICATION_HOLD_NO_REDEPLOY'
+        elif report.get('R4')!='NOT_ATTEMPTED' or report.get('R5')!='NOT_ATTEMPTED':report['status']='RECONCILE_BEFORE_RETRY_NO_AUTOMATIC_REDEPLOY'
         return 1
     finally:
         if env:env.pop('PGPASSWORD',None)
