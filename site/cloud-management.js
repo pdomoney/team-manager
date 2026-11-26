@@ -19,7 +19,12 @@ export function createCloudManagementClient({identity,fetchImpl=fetch,origin}={}
  async function call(ctx,action,input={}){
   const playerRead=['player.team.read','player.match.selection.read'].includes(action);
   const coachWrite=['match.selection.save','match.selection.publish','match.selection.withdraw'].includes(action);
-  const eligible=action==='branding.read'?['team_manager','team_coach','team_assistant','team_player','team_volunteer','team_play_viewer']:playerRead?['team_player']:coachWrite?['team_coach']:['team_manager','team_coach'];
+  const arrivalStaff=['matchday.arrivals.read','matchday.arrivals.record'].includes(action);
+  const arrivalPlayer=['player.matchday.arrivals.read','player.matchday.arrivals.record'].includes(action);
+  const matchAction=action.startsWith('matchday.')&&!arrivalStaff;
+  const matchRoles=['matchday.lineup.approve','matchday.finish','matchday.result.approve','matchday.result.reopen'].includes(action)?['team_coach']:
+    action==='matchday.lineup.save'?['team_coach','team_assistant']:action==='matchday.result.publish'?['team_coach','team_manager']:['team_coach','team_manager','team_assistant'];
+  const eligible=action==='player.matchday.read'?['team_player']:matchAction?matchRoles:arrivalStaff?['team_coach','team_manager','team_assistant']:arrivalPlayer?['team_player']:action==='branding.read'?['team_manager','team_coach','team_assistant','team_player','team_volunteer','team_play_viewer']:playerRead?['team_player']:coachWrite?['team_coach']:['team_manager','team_coach'];
   if(!own(ctx)||!own(input)||typeof action!=='string'||!eligible.some(role=>ctx.roles?.includes(role)))
    throw fail('scope-denied');
   const grants=await identity.myTeamContexts();

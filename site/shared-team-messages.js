@@ -185,3 +185,21 @@ export function publishedMatchSquadText({teamName,match,players}={}){
    players.map(x=>'• '+singleSpace(x.displayName)).join('\n')+
    '\n\nOn-field positions and interchange to be confirmed by the Coach.';
 }
+
+/** Team-recorded match messages. Only callers holding a fresh published server
+ * record may use these helpers; nothing is sent automatically. */
+export function publishedMatchRecordText({kind,teamName,match,record}={}){
+ const name=singleSpace(teamName),title=singleSpace(match?.title);
+ if(!name||!title||!record||record.teamRecorded!==true)return '';
+ if(kind==='result'){
+   if(record.state!=='published'||![record.homeScore,record.awayScore].every(v=>Number.isSafeInteger(v)&&v>=0))return '';
+   return '🏉 *Results — '+name+'*\n'+title+'\nTeam-recorded final score: '+record.homeScore+' – '+record.awayScore+'\nConfirm official results with the competition organiser.';
+ }
+ if(kind==='lineup'){
+   if(!['ready','playing','finished','approved','published'].includes(record.state)||!Array.isArray(record.startingIds)||!Array.isArray(record.players))return '';
+   const names=record.startingIds.map(id=>singleSpace(record.players.find(p=>p.personId===id)?.displayName));
+   if(!names.length||names.some(n=>!n))return '';
+   return '📋 *Starting lineup — '+name+'*\n'+title+'\n'+names.join('\n')+'\nCoach-approved team lineup.';
+ }
+ return '';
+}

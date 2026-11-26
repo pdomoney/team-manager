@@ -94,6 +94,8 @@ jobs:
             supabase/migrations/20261126010000_stage3d5_communications_lifecycle.sql \
             supabase/migrations/20261126020000_stage3d5_branding.sql \
             supabase/migrations/20261126030000_stage3d5_branding_moderation.sql \
+            supabase/migrations/20261126040000_stage3d5_matchday_arrivals.sql \
+            supabase/migrations/20261126050000_stage3d5_matchday_records.sql \
             supabase/tests/stage3d5_functional_completion_disposable.sql
           do
             echo "Stage 1 isolated PostgreSQL: $script"

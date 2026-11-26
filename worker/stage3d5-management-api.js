@@ -3,7 +3,7 @@
 // errors. The SQL is the final authority and runs under the service-only key.
 import {adminHeaders,isApprovedProjectConfig} from './supabase-admin-key.js';
 import {delivery} from './stage3-onboarding-api.js';
-import {validateStage3D5,isStage3D5Read,COMMUNICATION_ACTIONS,BRANDING_ACTIONS} from '../src/stage3d5-management-contract.js';
+import {validateStage3D5,isStage3D5Read,COMMUNICATION_ACTIONS,BRANDING_ACTIONS,MATCHDAY_ARRIVAL_ACTIONS,MATCHDAY_ACTIONS} from '../src/stage3d5-management-contract.js';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE=new Set(['invalid-request','scope-denied','role-denied',
   'stale-version','already-assigned','participation-not-verified','invite-unavailable','verified-identity-required',
@@ -49,6 +49,8 @@ export async function handleStage3D5Team(request,env,fetchImpl=fetch){
     !(user.email_confirmed_at||user.confirmed_at))
     return deny('unauthenticated',401);
   const rpc=op.action==='player.team.read'?'tm_stage3d5_player_team':
+    MATCHDAY_ACTIONS.includes(op.action)?'tm_stage3d5_matchday':
+    MATCHDAY_ARRIVAL_ACTIONS.includes(op.action)?'tm_stage3d5_matchday_arrivals':
     op.action.includes('match.selection.')?'tm_stage3d5_match':
     COMMUNICATION_ACTIONS.includes(op.action)?'tm_stage3d5_communications':
     BRANDING_ACTIONS.includes(op.action)?'tm_stage3d5_branding':'tm_stage3d5_team';

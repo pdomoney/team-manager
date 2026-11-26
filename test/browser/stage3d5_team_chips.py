@@ -37,7 +37,7 @@ grants={
 }
 operations=[];invitations=[]
 branding_grant={'active':False};club_branding={};team_branding={}
-message_log=[];notice_log=[];schedule_rows=[];attendance_rows=[];member_rows=[];reported={};competition_rows=[];match_selections={}
+message_log=[];notice_log=[];schedule_rows=[];attendance_rows=[];member_rows=[];reported={};competition_rows=[];match_selections={};match_record_mock={}
 def respond(route,body,status=200):
  return route.fulfill(status=status,content_type='application/json',body=json.dumps(body))
 def admin_right(team,role):
@@ -217,6 +217,23 @@ def bind(ctx):
       if c==club and t in team_branding and team_branding[t]['style'] is not None:
        team_branding[t]['style']=None;team_branding[t]['version']+=1
    return respond(route,{'ok':True,'code':'committed','data':{'version':version+1}})
+  if action in ('matchday.read','player.matchday.read'):
+   fixture=next((s for s in schedule_rows if s['sessionId']==data['input']['sessionId'] and s['kind']=='match'),None)
+   if team!='stgeorge-mixed20' or not fixture:return respond(route,{'ok':False,'code':'scope-denied'},403)
+   if role=='team_player':return respond(route,{'ok':True,'code':'permitted','data':{'state':'unavailable','startingPlayers':[]}})
+   if match_record_mock and fixture['sessionId']=='event-example-match':return respond(route,{'ok':True,'code':'permitted','data':match_record_mock})
+   return respond(route,{'ok':True,'code':'permitted','data':{'state':'blocked','reason':'rules-unapproved','fixtureVersion':fixture.get('version',0),'version':0}})
+  if action=='matchday.clock.start':
+   value=data['input']
+   if not match_record_mock or role!='team_coach' or value['expectedVersion']!=match_record_mock['version'] or value['ruleId']!='synthetic-profile' or value['sessionId']!='event-example-match':
+    return respond(route,{'ok':False,'code':'stale-version'},409)
+   match_record_mock.update(state='playing',running=True,version=match_record_mock['version']+1)
+   return respond(route,{'ok':True,'code':'committed','data':{'version':match_record_mock['version'],'state':'playing'}})
+  if action in ('matchday.arrivals.read','player.matchday.arrivals.read'):
+   fixture=next((s for s in schedule_rows if s['sessionId']==data['input']['sessionId'] and s['kind']=='match'),None)
+   if team!='stgeorge-mixed20' or not fixture:return respond(route,{'ok':False,'code':'scope-denied'},403)
+   rows=[{'arrived':None,'version':0}] if role=='team_player' else [{'personId':'person-example','displayName':'Verified Example Player','arrived':None,'version':0}]
+   return respond(route,{'ok':True,'code':'permitted','data':{'fixtureVersion':fixture.get('version',0),'canRecord':False,'rows':rows}})
   if action=='admin.status':
    return respond(route,{'ok':True,'code':'permitted','data':{
     'canAdmin':admin_right(team,role),'role':role}})
@@ -780,7 +797,7 @@ try:
    page.get_by_role('heading',name='Match readiness').wait_for()
    page.get_by_role('heading',name='Competition rules').wait_for()
    checks.ok(page.get_by_text('Persistent lineup, scoring, interchange, clock and results are unavailable',exact=False).count()==1 and
-     page.get_by_text('Venue arrivals are not recorded',exact=False).count()==1 and
+     page.get_by_role('heading',name='Venue arrivals').count()==1 and
      page.get_by_role('button',name='Copy rules confirmation checklist').count()==1,
      f'[{width}] Match Day reuses actual squad preparation and exposes the unapproved rule gate')
    page.get_by_role('button',name='Selected match squad').click()
@@ -795,6 +812,23 @@ try:
    page.get_by_role('heading',name='Published match squad').wait_for()
    checks.ok(match_selections['event-example-match']['state']=='published',
      f'[{width}] Coach publishes exact named match squad')
+   # A synthetic API-only profile verifies the connected controls; never production rules.
+   match_record_mock.update(state='ready',version=2,fixtureVersion=0,canEdit=True,canStart=True,
+    rules={'id':'synthetic-profile','edition':'SYNTHETIC','fieldMin':1,'fieldMax':1,'categoryAMax':0,'categoryBMin':1,
+     'periodCount':1,'periodSeconds':60,'tryA':1,'tryB':2,'categoryALabel':'Category A','categoryBLabel':'Category B'},
+    players=[{'personId':'person-example','displayName':'Verified Example Player'}],
+    categories={'person-example':'b'},startingIds=['person-example'],fieldIds=['person-example'],
+    period=1,elapsedMs=0,running=False,playedMs={},homeScore=0,awayScore=0,interchanges=0,events=[],teamRecorded=True)
+   page.get_by_role('button',name='Schedule',exact=True).first.click()
+   page.locator('.cloud-list-item').filter(has_text='Example friendly').get_by_role('button',name='Match Day',exact=True).click()
+   page.get_by_role('button',name='Start match clock').wait_for()
+   page.get_by_role('button',name='Start match clock').click()
+   page.get_by_role('button',name='Pause clock').wait_for()
+   checks.ok(match_record_mock['state']=='playing' and match_record_mock['version']==3 and
+     page.get_by_role('button',name='Record team try').count()==1,
+     f'[{width}] approved Match Day clock and scoring controls bind to exact record revision')
+   review(page,width,'synthetic-approved-matchday')
+   match_record_mock.clear()
    c.close()
    c,page=session(browser,manager_token,width)
    page.get_by_role('button',name='Schedule',exact=True).first.click()

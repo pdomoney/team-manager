@@ -15,8 +15,9 @@ import {applyConnectedStyle,setConnectedCrest,validConnectedLogo,validConnectedS
 import {renderConnectedBranding} from './cloud-branding-editor.js';
 import {teamRecordedMatchesFromSchedule,namedTrainingRegister} from './cloud-original-model-adapter.js';
 import {teamIconSvg} from './shared-team-icons.js';
-import {publishedMatchSquadText,connectedMessageNeedsReview} from './shared-team-messages.js';
+import {publishedMatchSquadText,publishedMatchRecordText,connectedMessageNeedsReview} from './shared-team-messages.js';
 import {matchDayAccess,resolveMatchDayFixture,matchDayReview,matchDayRulesRequest,STATE_CUP_REFERENCE} from './cloud-matchday.js';
+import {renderMatchDayRecord} from './cloud-matchday-record.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
 
@@ -886,6 +887,13 @@ async function openMatchDay(sessionId){
       access.player?await management.call(ctx,'player.match.selection.read',{sessionId}):null;
     if(!current())return;
     const review=access.review?matchDayReview(ctx,fixture,selection):null;
+    const arrivalAction=access.proposedRecord?'matchday.arrivals':access.player?'player.matchday.arrivals':null;
+    const arrivals=arrivalAction?await management.call(ctx,arrivalAction+'.read',{sessionId}):null;
+    if(!current())return;
+    const record=await management.call(ctx,access.proposedRecord?'matchday.read':'player.matchday.read',{sessionId});
+    if(!current())return;
+    if(arrivals&&(!Array.isArray(arrivals.rows)||arrivals.fixtureVersion!==fixture.version||
+      typeof arrivals.canRecord!=='boolean'))throw Object.assign(new Error(),{code:'stale-version'});
     loading.remove();
     const details=card(fixture.title||'Match');
     info(when(fixture.startsAt)+(fixture.locationLabel?' · '+fixture.locationLabel:'')+' · '+fixture.status,details);
@@ -896,14 +904,14 @@ async function openMatchDay(sessionId){
       info(review.selected+' selected · '+review.omittedSelected+' selected records no longer available.',readiness);
       info(review.current?'Current published squad.':'No current published squad. Review before publication.',readiness);
       for(const p of review.selectedRows)info(p.displayName+' · '+(p.response==='none'?'Not answered':p.response),readiness);
-      info('Venue arrivals are not recorded in the connected match workflow. Availability is not arrival or playing eligibility.',readiness);
+      info('Availability is not arrival or playing eligibility.',readiness);
       const a=actions(readiness);
       button('Match availability',()=>void openAttendance(fixture),a);
       button('Selected match squad',()=>void openMatchSquad(fixture,false),a);
       const rules=card('Competition rules');
       const request=matchDayRulesRequest(ctx);
-      info('Persistent lineup, scoring, interchange, clock and results are unavailable until the exact competition rules are verified and approved.',rules);
-      if(request){
+      if(record.state==='blocked')info('Persistent lineup, scoring, interchange, clock and results are unavailable until the exact competition rules are verified and approved.',rules);
+      if(request&&record.state==='blocked'){
         info('Proposed target: '+STATE_CUP_REFERENCE.competition+' · Mixed 20. Not linked or approved for this fixture.',rules);
         for(const item of STATE_CUP_REFERENCE.pending)info(item,rules);
         h('a',{text:'National rulebook reference',attrs:{href:STATE_CUP_REFERENCE.nationalSource,target:'_blank',rel:'noopener noreferrer'},parent:rules});
@@ -916,7 +924,8 @@ async function openMatchDay(sessionId){
           try{await navigator.clipboard.writeText(request.copyText);if(current())message('Checklist copied; nothing sent.');}
           catch{if(current()){requestText.focus();requestText.select();message('Select and copy the checklist text.');}}
         },actions(rules));
-      }else info('No verified competition profile for this match.',rules);
+      }else if(record.state==='blocked')info('No verified competition profile for this match.',rules);
+      else info('Competition profile: '+record.rules?.edition,rules);
     }else if(access.player){
       const panel=card('Published match squad');
       if(selection?.state==='published'&&fixture.status!=='cancelled'&&Array.isArray(selection.players)&&selection.players.length){
@@ -924,9 +933,48 @@ async function openMatchDay(sessionId){
       }else info('No current published squad for this match.',panel);
       info('My response: '+(fixture.myAvailability||'Not answered'),details);
     }else{
-      info('Your current Assistant Coach grant includes the match schedule, not private squad or readiness data.',details);
+      info('Assistant Coach can record venue arrivals, not approve or publish match squads.',details);
     }
-    info('No team-recorded result is available through this workspace.');
+    if(arrivals){
+      const panel=card('Venue arrivals');
+      info('Venue presence only. Records apply to this fixture version, not registration or sporting eligibility.',panel);
+      info(arrivals.canRecord?'Record on the match date.':'Read-only outside the scheduled match date or after cancellation.',panel);
+      if(!arrivals.rows.length)info('No verified participant records available.',panel);
+      for(const p of arrivals.rows){
+        const row=h('div',{className:'cloud-list-item',parent:panel});
+        h('strong',{text:arrivalAction.startsWith('player.')?'My arrival':p.displayName,parent:row});
+        info(p.arrived===true?'Arrived':p.arrived===false?'Not arrived':'Not recorded',row);
+        if(!arrivals.canRecord)continue;
+        for(const arrived of [true,false])button(arrived?'Mark arrived':'Mark not arrived',async()=>{
+          if(!current())return;
+          try{
+            await management.call(ctx,arrivalAction+'.record',{sessionId,fixtureVersion:fixture.version,
+              expectedVersion:p.version,arrived,...(arrivalAction.startsWith('player.')?{}:{personId:p.personId})});
+            if(current()){message('Venue arrival recorded.');await openMatchDay(sessionId);}
+          }catch(e){if(current())message(explain(e),true);}
+        },actions(row));
+      }
+    }
+    renderMatchDayRecord({record,ctx,fixture,access,current,
+      ui:{h,card,info,button,actions,form,field,selectField,message,explain},
+      commit:async(name,input)=>{
+        if(!current())return;
+        try{
+          await management.call(ctx,name,{sessionId,fixtureVersion:fixture.version,expectedVersion:record.version,ruleId:record.rules.id,...input});
+          if(current()){message('Match Day record updated.');await openMatchDay(sessionId);}
+        }catch(e){if(current())message(explain(e),true);}
+      },refresh:()=>void openMatchDay(sessionId),onMessage:async(kind)=>{
+        if(!current()||!access.review)return;
+        try{
+          const latest=await management.call(ctx,'matchday.read',{sessionId});
+          if(!current())return;
+          if(latest.version!==record.version||latest.fixtureVersion!==fixture.version)throw Object.assign(new Error(),{code:'stale-version'});
+          const body=publishedMatchRecordText({kind,teamName:teamContextLabel(ctx),match:fixture,record:latest});
+          if(!body||body.length>1500)throw Object.assign(new Error(),{code:'invalid-request'});
+          await managementExperience.open('Messages',{kind,body,sessionId,version:latest.version,fixtureVersion:latest.fixtureVersion});
+        }catch(e){if(current())message(explain(e),true);}
+      }});
+
   }catch(e){if(current()){loading.textContent=explain(e);message(explain(e),true);}}
 }
 async function openMatchSquad(s,player){
