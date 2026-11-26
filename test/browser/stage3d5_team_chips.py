@@ -446,10 +446,15 @@ try:
    page.locator('#club-chips').get_by_role('button',name='St George Oztag').locator('img').wait_for(state='detached')
    checks.ok(club_branding['St George Oztag']['locked'] and not club_branding['St George Oztag']['logo'],f'[{width}] owner removed logo while retaining lock')
    panel.get_by_role('button',name='Replace club logo or colours').click()
-   owner_form=panel.locator('form').filter(has=panel.get_by_role('button',name='Save club branding'))
+   # Playwright evaluates the inner has locator relative to each form.
+   # Including the outer moderation region in that locator matches nothing.
+   owner_form=panel.locator('form').filter(has=page.get_by_role('button',name='Save club branding',exact=True))
+   expect(owner_form).to_have_count(1)
+   expect(owner_form.locator('input[type=file]')).to_have_count(1)
    owner_form.locator('input[type=file]').set_input_files({'name':'test.png','mimeType':'image/png','buffer':png})
+   # Both crests were removed, so the first image must be a new preview.
    panel.locator('.crest img').first.wait_for()
-   owner_form.get_by_role('button',name='Save club branding').click()
+   owner_form.get_by_role('button',name='Save club branding',exact=True).click()
    expect(panel).to_have_attribute('data-branding-version',str(initial_version+3))
    page.locator('#club-chips').get_by_role('button',name='St George Oztag').locator('img').wait_for()
    checks.ok(club_branding['St George Oztag']['locked'],f'[{width}] owner replacement cannot silently unlock moderation')
@@ -857,5 +862,15 @@ try:
      f'[{width}] Player reads published notices but cannot mutate them')
    c.close()
   browser.close()
+except Exception:
+ # This suite uses synthetic accounts/data only. Capture the current UI before
+ # closing the browser where possible, without printing request credentials.
+ try:
+  if 'page' in locals() and not page.is_closed():
+   page.screenshot(path=os.path.join(review_dir,'failed-stage3d5.png'),full_page=True,animations='disabled',timeout=5000)
+ except Exception:
+  pass
+ print('Stage3D5 failure: engine='+engine+'; viewport='+str(locals().get('width','initial')),file=sys.stderr)
+ raise
 finally:server.shutdown()
 sys.exit(0 if checks.done(errors) else 1)
