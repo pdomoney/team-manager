@@ -38,10 +38,17 @@ class ForwardReleaseTests(unittest.TestCase):
     def test_plan_mode_and_exception_hold(self):
         with tempfile.TemporaryDirectory() as t:
             path=Path(t)/'plan.json'
-            p={'format':'TEAM_MANAGER_FORWARD_V1','mode':'candidate','spec':SPEC,'ci':[{}]}
+            p={'format':'TEAM_MANAGER_FORWARD_V1','mode':'candidate','spec':SPEC,'spec_path':'config/releases/pr300.json',
+               'source':'a'*40,'source_tree':'b'*40,'main':SPEC['developmentBase'],
+               'previous':{'directory':'example','plan_path':'example','summary_sha256':'c'*64,'reference_sha256':'d'*64},
+               'prior_migrations':[{'file':'supabase/migrations/202610%02d000000_old.sql'%n,'sha256':'e'*64} for n in range(1,23)],
+               'migrations':[{'file':'supabase/migrations/'+n,'sha256':'f'*64} for n in SPEC['migrations']],
+               'ci':[{'source':'a'*40,'event':'push','branch':SPEC['candidateBranch'],'run_id':1,'status':'PASS'}]}
             path.write_text(json.dumps(p))
             self.assertEqual(exact_plan(path,sha(path),'qualify'),p)
             with self.assertRaises(Stop):exact_plan(path,sha(path),'install')
+            wrong=copy.deepcopy(p);wrong['ci'][0]['source']='0'*40;path.write_text(json.dumps(wrong))
+            with self.assertRaises(Stop):exact_plan(path,sha(path),'qualify')
             p['release_exception']={};path.write_text(json.dumps(p))
             with self.assertRaises(Stop):exact_plan(path,sha(path),'qualify')
 if __name__=='__main__':unittest.main()

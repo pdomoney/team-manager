@@ -7,13 +7,13 @@ import argparse, datetime as dt, json, os, re, tempfile
 from pathlib import Path
 from consolidated_release import Stop,require,sha,save,load,extract_helpers,candidate_check,strip_wrapper,expected_assets,ORIGIN,CONFIG
 from incremental_release import record_helper_contract,write_verification,check_browser_record
-from forward_release_plan import ROOT,HEX64,validate_spec,spec_for,check_source_inventory,remote_refs,check_ci_records,accepted_evidence,safe_private,validate_candidate_summary
+from forward_release_plan import ROOT,HEX64,validate_plan_structure,spec_for,check_source_inventory,remote_refs,check_ci_records,accepted_evidence,safe_private,validate_candidate_summary
 from asset_verification import verify_all
 
 def exact_plan(path,digest,mode):
     require(HEX64.fullmatch(digest or '') and sha(path)==digest,'Release plan checksum mismatch')
     p=load(path);require(p.get('format')=='TEAM_MANAGER_FORWARD_V1','Wrong release plan format')
-    validate_spec(p['spec'])
+    validate_plan_structure(p)
     require(p.get('mode')==('candidate' if mode=='qualify' else 'merged'),'Wrong plan mode')
     require(not any(k in p for k in ('release_exception','script_provenance','recovery')),'Prior exception/recovery may not transfer')
     if mode!='qualify':

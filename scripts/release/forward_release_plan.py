@@ -1,7 +1,8 @@
 """Reusable, read-only release plan preparation. Historical controllers stay frozen."""
 import argparse, hashlib, json, os, re, subprocess
 from pathlib import Path
-from urllib.request import Request, urlopen
+from urllib.request import Request, build_opener
+from asset_verification import NoRedirect
 from consolidated_release import Stop,require,sha,save,load,candidate_check,expected_assets
 
 REPO='pdomoney/team-manager'
@@ -28,7 +29,7 @@ def api(path):
     headers={'Accept':'application/vnd.github+json','User-Agent':'TeamManager-forward-release'}
     token=os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
     if token:headers['Authorization']='Bearer '+token
-    with urlopen(Request('https://api.github.com/repos/'+REPO+path,headers=headers),timeout=30) as res:
+    with build_opener(NoRedirect()).open(Request('https://api.github.com/repos/'+REPO+path,headers=headers),timeout=30) as res:
         return json.load(res)
 def ci(source,event,branch,run_id=None):
     if run_id is None:
@@ -36,6 +37,7 @@ def ci(source,event,branch,run_id=None):
         match=[r for r in runs if r.get('name')=='Tests' and r.get('event')==event and r.get('head_branch')==branch]
         require(bool(match),'Exact source Tests run absent')
         run_id=max(match,key=lambda r:r['id'])['id']
+    require(type(run_id) is int and run_id>0,'Invalid CI run identity')
     run=api('/actions/runs/'+str(run_id))
     require(run.get('head_sha')==source and run.get('event')==event and run.get('head_branch')==branch and
       run.get('name')=='Tests' and run.get('status')=='completed' and run.get('conclusion')=='success','Exact source Tests run not successful')
@@ -77,6 +79,7 @@ def check_source_inventory(repo,source,spec):
 def safe_private(path,root=ROOT,kind='dir'):
     p=Path(path).expanduser()
     require(not p.is_symlink() and (p.is_dir() if kind=='dir' else p.is_file()),'Missing or unsafe private evidence')
+    require(not root.is_symlink(),'Unsafe private release root')
     resolved=p.resolve();root=root.resolve()
     require(root in resolved.parents and not any(x.is_symlink() for x in p.absolute().parents if x!=root and root in x.parents),'Private evidence outside root or symlinked')
     return resolved
@@ -110,7 +113,30 @@ def validate_candidate_summary(path,p):
     require(j.get('plan_sha256')==p['plan_sha256'],'Candidate qualification plan differs')
     candidate_check(path,j)
     return {'directory':str(path),'summary_sha256':sha(path/'release-summary.json'),'plan_sha256':p['plan_sha256']}
+def validate_plan_structure(p):
+    require(isinstance(p,dict) and p.get('format')=='TEAM_MANAGER_FORWARD_V1' and p.get('mode') in ('candidate','merged'),'Invalid plan format/mode')
+    s=p['spec'];validate_spec(s);a=s['accepted']
+    require(all(HEX40.fullmatch(p.get(k,'')) for k in ('source','source_tree','main')),'Invalid plan source')
+    require(re.fullmatch(r'config/releases/pr[0-9]+\.json',p.get('spec_path','')),'Invalid spec path')
+    require(p['main']==(s['developmentBase'] if p['mode']=='candidate' else p['source']),'Wrong main authority')
+    prior=p.get('prior_migrations',[]);added=p.get('migrations',[])
+    require(isinstance(prior,list) and len(prior)==a['migrationCount'] and isinstance(added,list),'Invalid prior migration inventory')
+    all_rows=prior+added
+    require(all(isinstance(x,dict) and set(x)=={'file','sha256'} and re.fullmatch(r'supabase/migrations/[0-9]{14}_[a-z0-9_]+\.sql',x['file']) and HEX64.fullmatch(x['sha256']) for x in all_rows),'Invalid migration pin')
+    require([x['file'] for x in all_rows]==sorted(set(x['file'] for x in all_rows)) and [Path(x['file']).name for x in added]==s['migrations'],'Migration list not exact')
+    prev=p.get('previous',{})
+    require(set(prev)=={'directory','plan_path','summary_sha256','reference_sha256'} and all(HEX64.fullmatch(prev[k]) for k in ('summary_sha256','reference_sha256')),'Prior evidence not pinned')
+    if p['mode']=='candidate':
+        expected=[(p['source'],'push',s['candidateBranch'])]
+    else:
+        require(HEX40.fullmatch(p.get('candidate_source','')) and p['candidate_source']!=p['source'],'Missing qualified candidate source')
+        expected=[(p['candidate_source'],'push',s['candidateBranch']),(p['candidate_source'],'pull_request',s['candidateBranch']),(p['source'],'push','main')]
+    rows=p.get('ci',[])
+    require(len(rows)==len(expected) and all(set(row)=={'source','event','branch','run_id','status'} and
+      (row['source'],row['event'],row['branch'])==item and type(row['run_id']) is int and row['run_id']>0 and row['status']=='PASS'
+      for row,item in zip(rows,expected)),'CI not bound to exact release sources')
 def check_ci_records(p):
+    validate_plan_structure(p)
     for row in p['ci']:
         require(ci(row['source'],row['event'],row['branch'],row['run_id'])==row,'CI record changed')
 def build_candidate_plan(repo,spec_path,branch,previous,previous_plan):
@@ -160,6 +186,7 @@ def main():
     else:
         require(args.branch and args.previous_dir and args.previous_plan,'Candidate branch and accepted evidence required')
         p=build_candidate_plan(args.repo,args.spec,args.branch,args.previous_dir,args.previous_plan)
+    validate_plan_structure(p)
     save(args.output,p);print('Release plan:',args.output);print('Plan SHA-256:',sha(args.output));print('PLAN_READY_NO_PROVIDER_ACCESS')
 if __name__=='__main__':
     try:main()
