@@ -498,4 +498,51 @@ begin
  then raise exception 'Player saw removed notice %',r;end if;
  raise notice 'PASS PR295 communications and branding scope, history, inheritance, stale writes and revocation';
 end $$;
+-- PR297: shared branding and Platform-only moderation (synthetic accounts).
+do $
+declare
+ owner_id uuid:='11111111-1111-4111-8111-111111111111';
+ manager_id uuid:='22222222-2222-4222-8222-222222222222';
+ player_id uuid:='33333333-3333-4333-8333-333333333333';
+ outsider_id uuid:='44444444-4444-4444-8444-444444444444';
+ r jsonb; club text; v integer;
+ logo_value text:='data:image/png;base64,iVBORw0KGgo=';
+begin
+ select club_ref into club from tm_private.teams where team_id='stgeorge-mixed20';
+ select version into v from tm_private.club_branding where club_ref=club;
+ if has_function_privilege('authenticated','public.tm_stage3d5_branding_moderation(uuid,text,jsonb)','EXECUTE')
+ or has_table_privilege('authenticated','tm_private.club_branding_moderation','UPDATE')
+ then raise exception 'Moderation exposed to browser role';end if;
+ r:=public.tm_stage3d5_branding_moderation(manager_id,'branding.catalogue','{}');
+ if r->>'code'<>'scope-denied' then raise exception 'Manager could access platform catalogue';end if;
+ r:=public.tm_stage3d5_branding_moderation(owner_id,'branding.catalogue','{}');
+ if r->>'code'<>'ready' or not exists(select 1 from jsonb_array_elements(r->'clubs') b where b->>'clubRef'=club and b->'style'->>'palette'='redwhite') then raise exception 'Owner did not see persisted branding %',r;end if;
+ r:=public.tm_stage3d5_branding_owner(owner_id,'branding.authorise','{}');
+ if r->>'brandingAuthorised'<>'true' then raise exception 'Delegation prerequisite';end if;
+ r:=public.tm_stage3d5_branding_moderation(owner_id,'branding.moderation.save',jsonb_build_object('clubRef',club,'expectedVersion',v,'reason','owner-correction','style',jsonb_build_object('palette','maroon'),'logo',logo_value,'resetOverrides',false));
+ if r->>'code'<>'ready' then raise exception 'Owner replacement failed %',r;end if;
+ v:=v+1;
+ r:=public.tm_stage3d5_branding(manager_id,'stgeorge-mixed20','team_manager','branding.read','{}');
+ if r->>'code'<>'permitted' or r->'data'->>'logo'<>logo_value or r->'data'->'clubStyle'->>'palette'<>'maroon' then raise exception 'Manager shared logo/palette %',r;end if;
+ r:=public.tm_stage3d5_branding(player_id,'stgeorge-mixed20','team_player','branding.read','{}');
+ if r->>'code'<>'permitted' or r->'data'->>'logo'<>logo_value then raise exception 'Player shared logo %',r;end if;
+ r:=public.tm_stage3d5_branding_moderation(owner_id,'branding.moderation.remove',jsonb_build_object('clubRef',club,'expectedVersion',v,'reason','inappropriate-image'));
+ if r->>'code'<>'ready' then raise exception 'Owner remove failed %',r;end if;
+ r:=public.tm_stage3d5_branding(owner_id,'stgeorge-mixed20','team_coach','branding.club.save',jsonb_build_object('style',null,'logo','','expectedVersion',v+1,'resetOverrides',false));
+ if r->>'code'<>'role-denied' then raise exception 'Coach bypassed moderation lock %',r;end if;
+ r:=public.tm_stage3d5_branding(owner_id,'stgeorge-mixed20','team_coach','branding.read','{}');
+ if r->'data'->>'locked'<>'true' or r->'data'->>'logo'<>'' or r->'data'->>'canEditTeam'<>'false' then raise exception 'Lock not projected %',r;end if;
+ r:=public.tm_stage3d5_branding_moderation(manager_id,'branding.moderation.unlock',jsonb_build_object('clubRef',club,'expectedVersion',v+1,'reason','resolved'));
+ if r->>'code'<>'scope-denied' then raise exception 'Non-owner unlocked moderation';end if;
+ r:=public.tm_stage3d5_branding_moderation(owner_id,'branding.moderation.unlock',jsonb_build_object('clubRef',club,'expectedVersion',v,'reason','resolved'));
+ if r->>'code'<>'stale-version' then raise exception 'Stale moderation accepted';end if;
+ r:=public.tm_stage3d5_branding_moderation(owner_id,'branding.moderation.unlock',jsonb_build_object('clubRef',club,'expectedVersion',v+1,'reason','resolved'));
+ if r->>'code'<>'ready' then raise exception 'Owner unlock failed %',r;end if;
+ r:=public.tm_stage3d5_branding_moderation(owner_id,'branding.history',jsonb_build_object('clubRef',club));
+ if r->>'code'<>'ready' or not exists(select 1 from jsonb_array_elements(r->'events') a where a->>'reason'='inappropriate-image' and a->>'actor'=owner_id::text) then raise exception 'Missing moderation audit %',r;end if;
+ r:=public.tm_stage3d5_branding_moderation(owner_id,'branding.moderation.revoke',jsonb_build_object('clubRef',club,'expectedVersion',v+2,'reason','policy-review'));
+ if r->>'code'<>'ready' or exists(select 1 from tm_private.club_branding_grants where club_ref=club and active) then raise exception 'Revocation failed %',r;end if;
+ if not exists(select 1 from tm_private.team_branding where team_id='other-team' and style->>'palette'='bluewhite' and version=1) then raise exception 'Other club changed';end if;
+ raise notice 'PASS PR297 branding catalogue, shared role projection, moderation, audit and lock controls';
+end $;
 rollback;

@@ -81,6 +81,22 @@ def bind(ctx):
   who=actor(route.request)
   payload=json.loads(route.request.post_data or '{}')
   if who!='owner':return respond(route,{'ok':False,'code':'scope-denied'},403)
+  if payload.get('action')=='branding.catalogue':
+   clubs=sorted({c for gs in grants.values() for t,c,ss,r in gs})
+   return respond(route,{'ok':True,'code':'ready','clubs':[{'clubRef':c,'style':club_branding.get(c,{}).get('style'),'logo':club_branding.get(c,{}).get('logo',''),'version':club_branding.get(c,{}).get('version',0),'locked':club_branding.get(c,{}).get('locked',False)} for c in clubs]})
+  if payload.get('action')=='branding.history':
+   return respond(route,{'ok':True,'code':'ready','events':[]})
+  if payload.get('action','').startswith('branding.moderation.'):
+   c=payload['clubRef'];v=club_branding.get(c,{'style':None,'logo':'','version':0,'locked':False})
+   if payload['expectedVersion']!=v['version']:return respond(route,{'ok':False,'code':'stale-version'},409)
+   action=payload['action'].split('.')[-1]
+   if action=='remove':v['logo']='';v['locked']=True
+   elif action=='lock':v['locked']=True
+   elif action=='unlock':v['locked']=False
+   elif action=='save':v.update(style=payload['style'],logo=payload['logo'])
+   elif action=='revoke':branding_grant['active']=False
+   v['version']+=1;club_branding[c]=v
+   return respond(route,{'ok':True,'code':'ready'})
   if payload.get('action') in ('branding.status','branding.authorise','branding.revoke'):
    if payload['action']!='branding.status':branding_grant['active']=payload['action']=='branding.authorise'
    return respond(route,{'ok':True,'code':'ready','clubRef':'St George Oztag','brandingAuthorised':branding_grant['active']})
@@ -183,11 +199,11 @@ def bind(ctx):
    tb=team_branding.get(team,{'style':None,'version':0})
    return respond(route,{'ok':True,'code':'permitted','data':{
     'clubRef':club,'clubStyle':cb['style'],'logo':cb['logo'],'clubVersion':cb['version'],
-    'teamStyle':tb['style'],'teamVersion':tb['version'],'canEditTeam':role in ('team_coach','team_manager'),
-    'canEditClub':who=='owner' and club=='St George Oztag' and branding_grant['active']}})
+    'teamStyle':tb['style'],'teamVersion':tb['version'],'locked':cb.get('locked',False),'canEditTeam':not cb.get('locked',False) and role in ('team_coach','team_manager'),
+    'canEditClub':not cb.get('locked',False) and who=='owner' and club=='St George Oztag' and branding_grant['active']}})
   if action in ('branding.team.save','branding.club.save'):
    value=data['input'];club=next(c for t,c,ss,r in grants[who] if t==team and r==role)
-   if role not in ('team_coach','team_manager'):return respond(route,{'ok':False,'code':'role-denied'},403)
+   if role not in ('team_coach','team_manager') or club_branding.get(club,{}).get('locked',False):return respond(route,{'ok':False,'code':'role-denied'},403)
    if action=='branding.club.save' and not (who=='owner' and club=='St George Oztag' and branding_grant['active']):
     return respond(route,{'ok':False,'code':'role-denied'},403)
    target,key=(club_branding,club) if action=='branding.club.save' else (team_branding,team)
@@ -403,6 +419,20 @@ try:
    checks.ok(club_branding['St George Oztag']['style']=={'palette':'redwhite'} and
      bool(club_branding['St George Oztag']['logo']),f'[{width}] branding persisted to exact club')
    review(page,width,'branding')
+   page.locator('#club-chips').get_by_role('button',name='Platform').click()
+   page.locator('#club-chips').get_by_role('button',name='St George Oztag').locator('img').wait_for()
+   page.reload()
+   page.locator('#club-chips').get_by_role('button',name='St George Oztag').locator('img').wait_for()
+   checks.ok(page.locator('html').get_attribute('data-team-style') is None,f'[{width}] persisted club badge on fresh Platform context without changing global theme')
+   page.get_by_role('button',name='Manage club branding').click()
+   page.get_by_role('heading',name='Club branding management').wait_for()
+   page.get_by_role('button',name='St George Oztag',exact=True).last.click()
+   page.get_by_role('button',name='Lock branding changes',exact=True).click()
+   page.get_by_role('button',name='Unlock branding changes',exact=True).wait_for()
+   checks.ok(club_branding['St George Oztag']['locked'],f'[{width}] owner moderation lock persisted')
+   page.get_by_role('button',name='Unlock branding changes',exact=True).click()
+   page.get_by_role('button',name='Lock branding changes',exact=True).wait_for()
+   page.get_by_role('button',name='Back to Platform').click()
    page.locator('#club-chips').get_by_role('button',name='Rangers Club').click()
    page.locator('#team-chips button').first.click()
    page.get_by_role('heading',name='Home').wait_for()

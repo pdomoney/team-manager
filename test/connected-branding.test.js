@@ -19,8 +19,8 @@ test('logo upload accepts only bounded raster data and correct MIME signature',(
  for(const v of ['https://example.test/logo.png','data:image/svg+xml;base64,AAAA','data:image/png;base64,AAAA','data:image/jpeg;base64,iVBORw0KGgo=','data:image/png;base64,'+'a'.repeat(48000)])assert(!validConnectedLogo(v));
 });
 test('branding read includes authorised members, writes do not grant new roles',()=>{
- for(const role of ['team_coach','team_manager','team_player','team_assistant','team_volunteer'])assert(req('branding.read',{},role));
- for(const role of ['team_player','team_assistant','team_volunteer','platform_owner','club_admin']){
+ for(const role of ['team_coach','team_manager','team_player','team_assistant','team_volunteer','team_play_viewer'])assert(req('branding.read',{},role));
+ for(const role of ['team_player','team_assistant','team_volunteer','team_play_viewer','platform_owner','club_admin']){
   assert.equal(req('branding.team.save',{style:null,expectedVersion:0},role),null);
  }
  assert(req('branding.club.save',{style:null,logo:'',resetOverrides:false,expectedVersion:0}));
@@ -38,4 +38,16 @@ test('effective original palette resets when team context is cleared',()=>{
  applyConnectedStyle(null,{palette:'redwhite'},doc);assert.equal(root.dataset.teamStyle,'redwhite');assert(values.has('--pitch'));
  applyConnectedStyle({palette:'blackwhite'},{palette:'redwhite'},doc);assert.equal(root.dataset.teamStyle,'blackwhite');
  applyConnectedStyle(null,null,doc);assert.equal(root.dataset.teamStyle,undefined);for(const k of STYLE_VARS)assert(!values.has(k));
+});
+
+test('moderation requests are scoped and validate raster, version and reason',()=>{
+ const input={action:'branding.moderation.save',clubRef:'Club A',expectedVersion:1,style:{palette:'redwhite'},logo:'',resetOverrides:false,reason:'owner-correction'};
+ assert(validateOwnerAction(input));assert(validateOwnerAction({action:'branding.catalogue'}));
+ assert(validateOwnerAction({action:'branding.history',clubRef:'Club A'}));
+ assert.equal(validateOwnerAction({...input,logo:'https://example.test/logo.svg'}),null);
+ assert.equal(validateOwnerAction({...input,reason:'anything'}),null);
+ assert.equal(validateOwnerAction({...input,expectedVersion:-1}),null);
+ assert.equal(validateOwnerAction({...input,actor:'forged'}),null);
+ assert.equal(validateOwnerAction({action:'branding.catalogue',clubRef:'Club A'}),null);
+ assert.equal(req('settings.read',{},'team_play_viewer'),null);
 });
