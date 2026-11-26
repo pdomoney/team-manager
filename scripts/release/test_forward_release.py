@@ -2,7 +2,7 @@ import copy,json,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
 from consolidated_release import Stop,sha
-from forward_release_plan import validate_spec,check_source_inventory,ci
+from forward_release_plan import validate_spec,check_source_inventory,ci,validate_plan_structure,validate_control_contract,normal_merge,check_release_authority,build_candidate_plan,build_merged_plan
 from forward_release import check_additive_reference,initial_guard,exact_plan
 ROOT=Path(__file__).resolve().parents[2]
 SPEC=json.loads((ROOT/'config/releases/pr300.json').read_text())
@@ -51,4 +51,64 @@ class ForwardReleaseTests(unittest.TestCase):
             with self.assertRaises(Stop):exact_plan(path,sha(path),'qualify')
             p['release_exception']={};path.write_text(json.dumps(p))
             with self.assertRaises(Stop):exact_plan(path,sha(path),'qualify')
+class PostMergeTests(unittest.TestCase):
+    def setUp(self):
+        self.app='a'*40;self.head='b'*40;self.tree='c'*40
+        self.spec=copy.deepcopy(SPEC)
+        self.plan={'format':'TEAM_MANAGER_FORWARD_V1','mode':'postmerge','qualification_phase':'postmerge',
+          'spec_path':'config/releases/pr300.json','spec':self.spec,'source':self.app,'source_tree':self.tree,
+          'candidate_source':self.head,'main':self.app,
+          'previous':{'directory':'example','plan_path':'example','summary_sha256':'d'*64,'reference_sha256':'e'*64},
+          'prior_migrations':[{'file':'supabase/migrations/202610%02d000000_old.sql'%n,'sha256':'e'*64} for n in range(1,23)],
+          'migrations':[{'file':'supabase/migrations/'+n,'sha256':'f'*64} for n in SPEC['migrations']],
+          'ci':[self.ci(self.head,'push',SPEC['candidateBranch'],1),self.ci(self.head,'pull_request',SPEC['candidateBranch'],2),self.ci(self.app,'push','main',3)]}
+    @staticmethod
+    def ci(source,event,branch,run):
+        return {'source':source,'event':event,'branch':branch,'run_id':run,'status':'PASS'}
+    def test_postmerge_qualification_only_and_final_plan(self):
+        validate_plan_structure(self.plan)
+        with tempfile.TemporaryDirectory() as t:
+            path=Path(t)/'plan.json';path.write_text(json.dumps(self.plan))
+            self.assertEqual(exact_plan(path,sha(path),'qualify'),self.plan)
+            with self.assertRaises(Stop):exact_plan(path,sha(path),'install')
+            p=dict(self.plan,mode='merged',candidate_evidence={'summary_sha256':'a'*64,'plan_sha256':'b'*64})
+            path.write_text(json.dumps(p));self.assertEqual(exact_plan(path,sha(path),'install'),p)
+            with self.assertRaises(Stop):exact_plan(path,sha(path),'qualify')
+    def test_normal_merge_requires_exact_parents_tree_and_pr(self):
+        repo='test'
+        pr={'number':300,'merged':True,'merge_commit_sha':self.app,'head':{'sha':self.head,'ref':SPEC['candidateBranch'],'repo':{'full_name':'pdomoney/team-manager'}},'base':{'ref':'main','repo':{'full_name':'pdomoney/team-manager'}}}
+        parents=' '.join([self.app,SPEC['developmentBase'],self.head])
+        with patch('forward_release_plan.api',return_value=pr),patch('forward_release_plan.git',side_effect=[parents,self.tree,self.tree]):
+            normal_merge(repo,300,SPEC['candidateBranch'],SPEC['developmentBase'],self.head,self.app,self.tree)
+        for rows in [[parents+' '+'9'*40],[parents,self.tree,'9'*40],[' '.join([self.app,self.head,SPEC['developmentBase']])]]:
+            with patch('forward_release_plan.api',return_value=pr),patch('forward_release_plan.git',side_effect=rows),self.assertRaises(Stop):
+                normal_merge(repo,300,SPEC['candidateBranch'],SPEC['developmentBase'],self.head,self.app,self.tree)
+        with patch('forward_release_plan.api',return_value=dict(pr,merged=False)),self.assertRaises(Stop):
+            normal_merge(repo,300,SPEC['candidateBranch'],SPEC['developmentBase'],self.head,self.app,self.tree)
+    def test_control_plan_cannot_expand_scope_or_skip_ci(self):
+        c=json.loads((ROOT/'config/releases/pr300-control.json').read_text())
+        c.update(applicationSource=self.app,applicationCandidate=self.head,applicationTree=self.tree)
+        validate_control_contract(c,self.spec)
+        p=copy.deepcopy(self.plan);p['main']='8'*40;p['control']={'path':'config/releases/pr300-control.json','contract':c,'head':'7'*40,'source':'8'*40,'tree':'9'*40}
+        p['ci']+= [self.ci('7'*40,'push',c['controlBranch'],4),self.ci('7'*40,'pull_request',c['controlBranch'],5),self.ci('8'*40,'push','main',6)]
+        validate_plan_structure(p)
+        for bad in [dict(p,ci=p['ci'][:3]),dict(p,main='6'*40),dict(p,qualification_phase=None)]:
+            with self.assertRaises(Stop):validate_plan_structure(bad)
+        wrong=copy.deepcopy(p);wrong['control']['contract']['changedPaths']=sorted(c['changedPaths']+['site/cloud-team.js'])
+        with self.assertRaises(Stop):validate_plan_structure(wrong)
+        wrong=copy.deepcopy(p);wrong['control']['contract']['applicationSource']='6'*40
+        with self.assertRaises(Stop):validate_plan_structure(wrong)
+    def test_postmerge_finalization_uses_merged_source_evidence(self):
+        p=self.plan
+        with tempfile.TemporaryDirectory() as t:
+            path=Path(t)/'plan.json';path.write_text(json.dumps(p))
+            evidence={'directory':'example','summary_sha256':'a'*64,'plan_sha256':sha(path)}
+            with patch('forward_release_plan.git'),patch('forward_release_plan.check_release_authority'),patch('forward_release_plan.check_ci_records'),patch('forward_release_plan.spec_for',return_value=self.spec),patch('forward_release_plan.check_source_inventory',return_value=(p['prior_migrations'],p['migrations'])),patch('forward_release_plan.accepted_evidence',return_value=(p['previous'],{})),patch('forward_release_plan.validate_candidate_summary',return_value=evidence) as check:
+                merged=build_merged_plan('repo',path,sha(path),'example')
+                self.assertEqual(check.call_args.args[1]['source'],self.app)
+                self.assertEqual(merged['candidate_source'],self.head)
+                self.assertEqual(merged['source'],self.app)
+                self.assertEqual(merged['mode'],'merged')
+                self.assertEqual(merged['candidate_evidence'],evidence)
+                validate_plan_structure(merged)
 if __name__=='__main__':unittest.main()
