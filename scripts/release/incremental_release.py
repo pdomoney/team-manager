@@ -27,6 +27,41 @@ PREVIOUS_MIGRATIONS=[
  {'file':'supabase/migrations/20261126010000_stage3d5_communications_lifecycle.sql','sha256':'6f15ab7efebb8f964bacca070fc0285a31bc5cc9b26471779045d43d7d819daf'},
  {'file':'supabase/migrations/20261126020000_stage3d5_branding.sql','sha256':'2e31342764b1ebd389a99097786c50133a81e38d75cbd15e790c8c375bedaf2a'}]
 CANDIDATE_BRANCH='candidate/pr297-branding-consistency'
+# Narrow recovery for the observed PR297 merge-before-local-qualification.
+# Application bytes and CI pins are immutable; PR298 may change only these release files.
+RECOVERY_ID='PR298_POST_MERGE_PR297'
+RECOVERY_CANDIDATE='ff81c4d84197bf358f5346b846b8a142be1547cb'
+RECOVERY_APPLICATION='f80c2ce4a67098598f53208699e0eddf577eb844'
+RECOVERY_TREE='de882dd24fa109811f2d1453616ea27f6c67918f'
+RECOVERY_CANDIDATE_RUN=45733850693
+RECOVERY_PR_RUN=45733856857
+RECOVERY_MAIN_RUN=45735345696
+RECOVERY_PATHS={'scripts/release/incremental_release.py','scripts/release/test_incremental_release.py','scripts/release/INCREMENTAL_RELEASE.md'}
+
+def ci_matches(ci,source,event,run_id=None):
+    return isinstance(ci,dict) and ci.get('source')==source and ci.get('status')=='PASS' and all(ci.get(k) is True for k in ('node','postgres','chromium','webkit')) and type(ci.get('run_id')) is int and ci['run_id']>0 and ci.get('event')==event and (run_id is None or ci['run_id']==run_id)
+
+def check_recovery_plan(p):
+    if 'recovery' not in p:return
+    h=p['recovery']
+    require(isinstance(h,dict) and set(h)=={'id','candidate','tree','candidate_ci','pr_ci','control_source','control_ci'},'Invalid recovery record')
+    require(h['id']==RECOVERY_ID and p['source']==RECOVERY_APPLICATION and h['candidate']==RECOVERY_CANDIDATE and h['tree']==RECOVERY_TREE,'Recovery limited to exact PR297 merge')
+    require(ci_matches(h['candidate_ci'],RECOVERY_CANDIDATE,'push_candidate',RECOVERY_CANDIDATE_RUN) and ci_matches(h['pr_ci'],RECOVERY_CANDIDATE,'pull_request',RECOVERY_PR_RUN) and ci_matches(p['ci'],RECOVERY_APPLICATION,'push_main',RECOVERY_MAIN_RUN),'Recovery requires exact candidate, PR and merged CI')
+    control=h['control_source']
+    require(isinstance(control,str) and re.fullmatch('[0-9a-f]{40}',control) and control not in (BASE,BASE_CONTROL,RECOVERY_CANDIDATE,RECOVERY_APPLICATION),'Separate merged recovery controller required')
+    require(ci_matches(h['control_ci'],control,'push_main'),'Exact recovery-controller CI not qualified')
+
+def main_ref(p,candidate=False):
+    return p['recovery']['control_source'] if 'recovery' in p else BASE_CONTROL if candidate else p['source']
+
+def check_recovery_source(q,work,p):
+    if 'recovery' not in p:return
+    h=p['recovery'];control=h['control_source']
+    require(q.git(work,'rev-parse',RECOVERY_CANDIDATE+'^{tree}')==RECOVERY_TREE and q.git(work,'rev-parse',RECOVERY_APPLICATION+'^{tree}')==RECOVERY_TREE,'Recovered source tree mismatch')
+    require(q.git(work,'rev-parse',RECOVERY_APPLICATION+'^1')==BASE_CONTROL and q.git(work,'rev-parse',RECOVERY_APPLICATION+'^2')==RECOVERY_CANDIDATE,'PR297 merge parents differ')
+    require(q.git(work,'merge-base',RECOVERY_APPLICATION,control)==RECOVERY_APPLICATION and q.git(work,'rev-parse',control+'^1')==RECOVERY_APPLICATION,'Recovery controller is not the immediate successor of PR297')
+    require(set(q.git(work,'diff','--name-only','--no-renames',RECOVERY_APPLICATION,control).splitlines())==RECOVERY_PATHS,'Recovery controller contains unexpected changes')
+    require(not q.git(work,'diff','--name-only',RECOVERY_CANDIDATE,RECOVERY_APPLICATION),'Candidate and merged application content differ')
 
 def exact_plan(path,digest,candidate=False):
     require(re.fullmatch('[0-9a-f]{64}',digest or '') and sha(path)==digest,'Release plan checksum mismatch')
@@ -38,7 +73,8 @@ def exact_plan(path,digest,candidate=False):
     require(not any(k in p for k in ('script_provenance','release_exception','release_control_source','release_control_ci')),'Historical release exception cannot be transferred')
     ci=p.get('ci',{})
     require(ci.get('source')==p['source'] and ci.get('status')=='PASS' and all(ci.get(k) is True for k in ('node','postgres','chromium','webkit')) and isinstance(ci.get('run_id'),int),'Exact-source CI not qualified')
-    require(ci.get('event')==('push_candidate' if candidate else 'push_main'),'Wrong candidate/merged CI authority')
+    check_recovery_plan(p)
+    require(ci.get('event')==('push_candidate' if candidate and 'recovery' not in p else 'push_main'),'Wrong candidate/merged CI authority')
     require([x['file'] for x in p.get('migrations',[])]==['supabase/migrations/'+n for n in MIGRATIONS] and all(re.fullmatch('[0-9a-f]{64}',x.get('sha256','')) for x in p['migrations']),'Only the new branding migration is allowed')
     if not candidate:
         h=p.get('candidate_helper',{})
@@ -52,6 +88,8 @@ def verify_candidate_evidence(root,path,p):
     j=load(file)
     require(j.get('source')==h['source'] and j.get('source_tree')==h['tree'] and j.get('plan_sha256')==h['plan_sha256'] and j.get('candidate_only') is True and j.get('status')=='CANDIDATE_HELPERS_QUALIFIED_NO_PROVIDER_ACCESS' and not j.get('errors'),'Candidate qualification identity/status differs')
     require(j.get('R4')==j.get('R5')=='NOT_ATTEMPTED' and all(j.get('checks',{}).get(k)=='PASS' for k in ('tools','source','build_and_transport','synthetic_reference')),'Candidate helper checks incomplete')
+    require(j.get('recovery')==p.get('recovery'),'Candidate recovery evidence differs from release plan')
+    if 'recovery' in p:require(h['source']==RECOVERY_APPLICATION and h['tree']==RECOVERY_TREE,'Recovered qualification source/tree differs')
     candidate_check(path,j)
 
 def record_helper_contract(q,i,rec,out):
@@ -89,9 +127,9 @@ def previous_evidence(root,prior,out):
 
 def check_source(q,work,p,prior,candidate=False):
     require(q.git(work,'rev-parse','HEAD')==p['source'] and not q.git(work,'diff','--name-only','HEAD'),'Tracked source drift')
-    expected_main=BASE_CONTROL if candidate else p['source']
-    require(q.refs(work)=={'refs/heads/main':expected_main,'refs/heads/data':DATA},'Remote source/data drift')
-    if candidate:
+    require(q.refs(work)=={'refs/heads/main':main_ref(p,candidate),'refs/heads/data':DATA},'Remote source/data drift')
+    check_recovery_source(q,work,p)
+    if candidate and 'recovery' not in p:
         ref=q.git(work,'ls-remote','origin','refs/heads/'+CANDIDATE_BRANCH).split()
         require(ref==[p['source'],'refs/heads/'+CANDIDATE_BRANCH],'Candidate branch drift')
     require(q.git(work,'merge-base',BASE_CONTROL,p['source'])==BASE_CONTROL,'New source does not descend from installed release control')
@@ -101,7 +139,7 @@ def check_source(q,work,p,prior,candidate=False):
     for pattern in ('.env*','.dev.vars*'):require(not list(work.glob(pattern)),'Unexpected local environment file')
     for name in ('incremental_release.py','consolidated_release.py','asset_verification.py'):
         local=Path(__file__).resolve().with_name(name)
-        require(q.git(work,'hash-object',str(local))==q.git(work,'rev-parse',p['source']+':scripts/release/'+name),'Running release helper differs: '+name)
+        require(q.git(work,'hash-object',str(local))==q.git(work,'rev-parse',(main_ref(p,candidate) if 'recovery' in p else p['source'])+':scripts/release/'+name),'Running release helper differs: '+name)
 
 def anonymous_result(status,content_type,body,ray=None,mitigation=None):
     d={'http_status':status,'content_type':content_type,'ray_id':ray,'cloudflare_mitigation':mitigation,'expectedDenial':False}
@@ -188,6 +226,8 @@ def main():
         report=load(out/'release-summary.json');require(report['source']==p['source'] and report['plan_sha256']==args.plan_sha256 and report.get('R5')=='INSTALLED','No verified installed checkpoint; reconcile active version first')
     else:
         out.mkdir(mode=0o700);report={'source':p['source'],'plan_sha256':args.plan_sha256,'status':'PREFLIGHT_HOLD','checks':{},'errors':[],'R4':'NOT_ATTEMPTED','R5':'NOT_ATTEMPTED','database_restore_tested':False,'owner_acceptance':'NOT_RUN'}
+    if args.verify_installed:require(report.get('recovery')==p.get('recovery'),'Installed recovery checkpoint differs')
+    if 'recovery' in p:report['recovery']=p['recovery']
     report['baseline_source']=BASE;report['candidate_only']=args.candidate_only
     def checkpoint():save(out/'release-summary.json',report)
     checkpoint();env=None;print('Private release evidence:',out,flush=True)
@@ -236,8 +276,8 @@ def main():
         def source():
             repo=args.repo.expanduser().resolve()
             require(q.origin_ok(q.git(repo,'remote','get-url','origin')),'Wrong repository')
-            require(q.refs(repo)=={'refs/heads/main':BASE_CONTROL if args.candidate_only else p['source'],'refs/heads/data':DATA},'Remote source/data mismatch')
-            q.git(repo,'fetch','--no-tags','origin','main','data',*([CANDIDATE_BRANCH] if args.candidate_only else []))
+            require(q.refs(repo)=={'refs/heads/main':main_ref(p,args.candidate_only),'refs/heads/data':DATA},'Remote source/data mismatch')
+            q.git(repo,'fetch','--no-tags','origin','main','data',*([CANDIDATE_BRANCH] if args.candidate_only and 'recovery' not in p else []))
             work=out/'source';q.git(repo,'worktree','add','--detach',str(work),p['source'])
             check_source(q,work,p,prior,args.candidate_only)
             report['source_tree']=q.git(work,'rev-parse','HEAD^{tree}')
