@@ -166,7 +166,6 @@ export function createCloudManagementExperience({
       item.setAttribute('aria-label',name);
     }
     button('Club and team branding',onBranding,actions(list));
-    info('Field drawing is in the deferred Tactics stage. Legacy passwords, GitHub publishing, local backups and fictional test data are not connected account settings.',list);
   }
   async function jerseys(ctx,loading,canAdmin){
     const [members,issued]=await Promise.all([

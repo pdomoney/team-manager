@@ -34,7 +34,7 @@ function readImage(file, px, max, valid, target = max) {
   });
 }
 
-export function renderConnectedBranding({parent,ctx,value,ui,isCurrent,save,preview,restore,onBack}){
+export function renderConnectedBranding({parent,ctx,value,ui,isCurrent,save,preview,restore,onBack,clubOnly=false}){
  const {h,card,info,button,actions,form,field,message}=ui;
  const swatches=[{id:'',name:'Classic',swatch:CLASSIC.swatch},...TEAM_STYLES];
  const choice=(f,style,defaultLabel,changed)=>{
@@ -67,6 +67,7 @@ export function renderConnectedBranding({parent,ctx,value,ui,isCurrent,save,prev
   for(const input of [...inputs,dark,action,accent])input.addEventListener('input',update);
   custom.hidden=id!=='custom';return read;
  };
+ if(!clubOnly){
  const team=card('Team colours',parent);
  info('Use the club’s colours or choose a separate palette for '+ctx.season+'. These colours apply to all authorised roles.',team);
  if(value.canEditTeam){
@@ -79,12 +80,13 @@ export function renderConnectedBranding({parent,ctx,value,ui,isCurrent,save,prev
   read=choice(f,value.teamStyle,value.clubStyle?'Use club colours':'Classic',style=>preview(style,value.clubStyle,value.logo));
   h('button',{className:'btn primary',text:'Save team colours',attrs:{type:'submit'},parent:f});
  }else info('Your role can view these colours but cannot change them.',team);
+ }
  const club=card('Club logo and colours',parent);
  const badge=h('span',{className:'crest big all',parent:club});
  setConnectedCrest(badge,value.logo,ctx.club.slice(0,2).toUpperCase());
  info('The club logo is shared with all its teams. Explicit team palettes take precedence.',club);
  if(!value.canEditClub){
-  info('Club branding requires a separate authorised branding delegation. The first-club founder can explicitly authorise it in Platform administration.',club);
+  info(value.locked?'Club branding is locked by Platform administration.':'Club branding requires a separate authorised branding delegation. The first-club founder can explicitly authorise it in Platform administration.',club);
   button('Back to team settings',()=>{restore();onBack();},actions(parent));return;
  }
  let logo=value.logo,readClub,loadingLogo=false;
