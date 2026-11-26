@@ -25,11 +25,19 @@ export default {
     // Existing-Worker first-team activation preserves the legacy static app
     // while keeping Stage 4 play API out of the connected adult-only trial.
     // The historic Worker and demo have no new mode flag until approved install.
-    if(env?.STAGE3D3_EXISTING_SHARED_WORKER_MODE==='preserve-legacy-pages'&&
-       path.startsWith('/api/stage2/'))
-      return new Response('Not available in first-team management activation',{
-        status:404,headers:{'Cache-Control':'no-store',
-          'X-Content-Type-Options':'nosniff'}});
+    if(path.startsWith('/api/stage2/')){
+      const existing=env?.STAGE3D3_EXISTING_SHARED_WORKER_MODE==='preserve-legacy-pages';
+      const requested=env?.STAGE4_TACTICS_MODE==='enabled';
+      // Explicit opt-in only; do not expose old Stage 2 without current adult
+      // registration. Isolated Stage 3C remains management-only above.
+      if((existing||requested)&&!(existing&&requested&&env?.STAGE3D3_REGISTRATION_MODE==='required'))
+        return new Response('Not available in first-team management activation',{
+          status:404,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+      if(requested){
+        const denied=await stage3D3PolicyGate(request,env);
+        if(denied)return denied;
+      }
+    }
     if(path.startsWith('/api/stage3d4/')) return handleStage3D4Owner(request,env);
     if(path.startsWith('/api/stage3d5/')) {
       const denied=await stage3D3PolicyGate(request,env);

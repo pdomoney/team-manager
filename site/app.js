@@ -29,6 +29,7 @@ import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMove
 import { coachPlayConnectionNotice } from './play-link-warning.js';
 import { attachCoachTimelineSandbox } from './play-event-editor-sandbox.js';
 import { preparePlayTimelineSave } from './play-event-persistence.js';
+import {validConnectedE5Play} from './cloud-e5-payload.js';
 import { inspectPlayEventSeek } from './play-event-readonly-seek.js';
 import { advanceWatchTiming } from './play-watch-timing-clock.js';
 import { editorSnapPoint, editorSnapDetails } from './play-editor-snap.js';
@@ -112,6 +113,9 @@ import { localPeopleNamespace, localPeopleReviewView, acceptLocalPeopleLink, und
 import { prepareStaffSourceIds } from './staff-source-ids.js';
 import { REPORTED_RELATIONSHIPS, recordGuardianReview, amendGuardianReview } from './guardian-reviews.js';
 
+// Dedicated connected presentation document; never a source of account authority.
+const CONNECTED_E5=location.pathname.split('/').pop()==='cloud-e5-workspace.html';
+let connectedE5=null;
 const KEYS = { sandbox:'tm-persona-sandbox-v1', auth: 'tm-auth', draft: 'tm-coach-draft', github: 'tm-github', teamCache: 'tm-team-file', trial: 'tm-test-data', backup: 'tm-before-upgrade', seasonsBackup: 'tm-before-seasons', team: 'tm-team' };
 
 // Eight on field, symmetrical: from the centre out to each touch line, Middle, Rover, Link, Wing.
@@ -164,21 +168,21 @@ const VIEW_IDS = NAV.flatMap(g => g.views.map(v => v[0]));
 /* ---------- storage ---------- */
 const mem = {};
 const store = {
-  get(k) { try { return localStorage.getItem(k); } catch (e) { return k in mem ? mem[k] : null; } },
-  set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { mem[k] = v; return false; } },
-  del(k) { try { localStorage.removeItem(k); } catch (e) { delete mem[k]; } }
+  get(k) { if(CONNECTED_E5)return null; try { return localStorage.getItem(k); } catch (e) { return k in mem ? mem[k] : null; } },
+  set(k, v) { if(CONNECTED_E5)return false; try { localStorage.setItem(k, v); return true; } catch (e) { mem[k] = v; return false; } },
+  del(k) { if(CONNECTED_E5)return ; try { localStorage.removeItem(k); } catch (e) { delete mem[k]; } }
 };
 const readJson = k => { try { return JSON.parse(store.get(k) || 'null'); } catch (e) { return null; } };
 // Session-only token retention works even when persistent browser storage is blocked.
 const sessionStore = {
-  get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { sessionStorage.setItem(k, v); return true; } catch (e) { return false; } },
-  del(k) { try { sessionStorage.removeItem(k); } catch (e) { /* storage disabled */ } }
+  get(k) { if(CONNECTED_E5)return null; try { return sessionStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { if(CONNECTED_E5)return false; try { sessionStorage.setItem(k, v); return true; } catch (e) { return false; } },
+  del(k) { if(CONNECTED_E5)return ; try { sessionStorage.removeItem(k); } catch (e) { /* storage disabled */ } }
 };
 
 /* ---------- helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
-const DEV_SANDBOX=developmentSandbox({hostname:location.hostname,pathname:location.pathname,search:location.search});
+const DEV_SANDBOX=!CONNECTED_E5&&developmentSandbox({hostname:location.hostname,pathname:location.pathname,search:location.search});
 const LEGACY_TRIAL_PUBLISH_ALLOWED=legacyTrialPublishingAllowed(location.hostname);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => M.uid();   // random, except while the test library is built (model.js)
@@ -362,7 +366,7 @@ async function loadWs(raw, lock) {
   return pickTeam();
 }
 let V = null;         // what the current screen shows (set in render)
-let gh = { autoPublish: true, ...repoFromLocation(), ...loadGitHubSettings(store, sessionStore) };
+let gh = CONNECTED_E5?{autoPublish:false}:{ autoPublish: true, ...repoFromLocation(), ...loadGitHubSettings(store, sessionStore) };
 
 const state = {
   tab: 'home', squadFilter: 'all', squadSearch: '', squadIntakeFilter: null, showPast: false,
@@ -383,7 +387,7 @@ const state = {
   viewSeason: {},        // the season on screen for each team, when it isn't the active one
   correcting: null       // a past season the coach chose to correct ({ team, season })
 };
-const isCoach = () => S.role === 'coach' && !state.preview;
+const isCoach = () => CONNECTED_E5?connectedE5?.mode==='edit':S.role === 'coach' && !state.preview;
 // The coach sees one season of the team at a time: the active one, or a past one being looked back on
 // (read-only unless they choose to correct it). Players see their published copy (this season only).
 const viewSeasonId = () => { const want = state.viewSeason[data.id]; return M.findSeason(data, want) ? want : (M.activeSeason(data) || M.seasonsOf(data).slice(-1)[0] || {}).id; };
@@ -558,6 +562,7 @@ let draftChain = Promise.resolve();
 // is dropped first.
 let sealedBase = { of: null, file: null };
 function persistDraft() {
+  if(CONNECTED_E5)return;
   if (S.role !== 'coach' || !S.coachLock) return;
   const snapshot = JSON.parse(JSON.stringify(ws)), base = S.base;
   const meta = { baseSha: S.baseSha, remoteStamp: S.remoteStamp, dirty: S.dirty };
@@ -583,6 +588,7 @@ function persistDraft() {
 
 // Every change: keep it (encrypted) on this phone, then publish shortly after.
 function save() {
+  if(CONNECTED_E5)throw new Error('Connected play requires acknowledged cloud save');
   M.syncSportPositions(ws);            // club sport changes must also update team/player projections
   M.claimRecords(data, editingSeasonId());   // new records join the season being worked on
   M.syncJerseys(data, todayISO());            // a number given out is a jersey given out
@@ -603,6 +609,7 @@ function save() {
 
 let publishTimer = null;
 function schedulePublish() {
+  if(CONNECTED_E5)return;
   clearTimeout(publishTimer);
   if (!S.trial && ghReady() && gh.autoPublish && online()) publishTimer = setTimeout(() => publish(true), 5000);
 }
@@ -1448,6 +1455,7 @@ function workingContextStrip() {
     '</section>';
 }
 function render() {
+  if(CONNECTED_E5){renderConnectedE5();return;}
   animStop();
   if (!S.role) return renderLock();
   document.body.classList.remove('persona-mode');
@@ -1606,6 +1614,7 @@ function renderNav() {
 
 const online = () => navigator.onLine !== false;
 function renderStatus() {
+  if(CONNECTED_E5)return;
   const el = $('#status');
   if (DEV_SANDBOX&&state.qaPersona==='p12'){
     el.hidden=true;return;
@@ -3469,7 +3478,7 @@ function playSVG(play, side, opts = {}) {
     const tag = g.tags[pid], cls = ['pl', g.focus.includes(pid) && 'focus', g.ghost.includes(pid) && 'ghost', !opts.editor && !busy(pid) && 'idle'].filter(Boolean).join(' ');
     const studyClass = opts.study && spotlightIds.length ? (spotlightIds.includes(pid) ? ' study-target' : ' study-soft') : '';
     const code = g.codes[pid] ?? pid;
-    return `<g class="plg${studyClass}" data-pl="${pid}" data-code="${esc(code)}" data-x="${p[0]}" data-y="${p[1]}" transform="translate(${X(p[0])} ${Y(p[1])})${scaledArt ? ` scale(${art})` : ''}"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}${actorHit}</g>`;
+    return `<g class="plg${studyClass}" data-pl="${esc(pid)}" data-code="${esc(code)}" data-x="${esc(p[0])}" data-y="${esc(p[1])}" transform="translate(${X(p[0])} ${Y(p[1])})${scaledArt ? ` scale(${art})` : ''}"><circle class="${cls}" r="${pr}"/>${words ? `<text class="plt" y="4">${esc(code)}</text>` : ''}${tag ? `<circle class="tg" cx="${pr * .78}" cy="${-pr * .78}" r="${thumb ? 7 : 6.5}"/>${words ? `<text class="tgt" x="${pr * .78}" y="${-pr * .78 + 3.2}">${esc(tag)}</text>` : ''}` : ''}${actorHit}</g>`;
   };
   shown.filter(([pid]) => g.ghost.includes(pid)).forEach(e => { s += player(e); });
   g.moves.forEach((m, i) => {
@@ -3478,7 +3487,7 @@ function playSVG(play, side, opts = {}) {
     const faded = opts.study && (studyMoves.length || spotlightIds.length) && !highlighted;
     const head = m.t === 'shift' ? 'r' : m.key ? 'b' : 'g';
     const d = pathD(pts, m.curve);
-    s += `<path class="mv ${m.t}${m.key && m.t !== 'shift' ? ' key' : ''}${m.opt ? ' opt' : ''}${highlighted ? ' study-emphasis' : ''}${faded ? ' study-soft' : ''}" d="${d}"${m.t === 'dummy' ? '' : ` marker-end="url(#${id}-${head})"`}${opts.editor ? ` data-mv="${i}"` : ''}/>`;
+    s += `<path class="mv ${esc(m.t)}${m.key && m.t !== 'shift' ? ' key' : ''}${m.opt ? ' opt' : ''}${highlighted ? ' study-emphasis' : ''}${faded ? ' study-soft' : ''}" d="${d}"${m.t === 'dummy' ? '' : ` marker-end="url(#${id}-${head})"`}${opts.editor ? ` data-mv="${i}"` : ''}/>`;
     if (opts.editor) s += `<path class="mv-hit" d="${d}" data-mv="${i}"/>`;
   });
   if (opts.drawing && opts.drawing.pts.length) {
@@ -3519,7 +3528,7 @@ const visiblePlays = () => {
   // discoverable with a review marker rather than silently hiding saved work.
   return V.plays.filter(p => p.sport ? p.sport === sport : !p.builtin || sport === 'Oztag');
 };
-const playById = id => visiblePlays().find(p => p.id === id);
+const playById = id => (CONNECTED_E5?(V?.plays||[]):visiblePlays()).find(p => p.id === id);
 const teachingContext = p => playTeachingCompatibility(p, V.team, curClub());
 const playSteps = (play, side) => {
   const text = side !== (play.side || 'right') ? mirrorText(play.steps, textPairs(play)) : play.steps;
@@ -3737,7 +3746,7 @@ function viewPlay(p) {
     ${steps.length ? `<section class="sec"><h3 class="play-h">Steps</h3><ol class="steps">${steps.map(l => `<li>${esc(l)}</li>`).join('')}</ol></section>` : ''}`}
     ${playTimingSummary(p)}
     ${libBar('plays', p.id, p)}
-    ${coach ? `<div class="btn-row"><button class="btn" data-act="play-format-review" data-id="${esc(p.id)}">Review sport format</button><button class="btn" data-act="play-transfer" data-id="${esc(p.id)}">Adapt to another sport</button><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
+    ${coach && !CONNECTED_E5 ? `<div class="btn-row"><button class="btn" data-act="play-format-review" data-id="${esc(p.id)}">Review sport format</button><button class="btn" data-act="play-transfer" data-id="${esc(p.id)}">Adapt to another sport</button><button class="btn" data-act="play-edit" data-id="${esc(p.id)}">Edit</button><button class="btn" data-act="play-dup" data-id="${esc(p.id)}">${icon('copy', 18)}Duplicate</button><button class="btn wa" data-act="play-share" data-id="${esc(p.id)}">${icon('chat', 18)}Send</button></div>
       <button class="btn danger block" style="margin-top:10px" data-act="play-del" data-id="${esc(p.id)}">Delete this play</button>` : ''}
     </aside></div>`;
 }
@@ -7683,7 +7692,7 @@ function viewLibrary() {
 }
 // The library line on a play, game system or player list the coach is looking at.
 function libBar(kind, id, x) {
-  if (!isCoach()) return '';
+  if (CONNECTED_E5 || !isCoach()) return '';
   const st = x && x.lib ? M.libStatus(ws, kind, x) : null;
   if (!st) return `<p class="lib-bar"><button class="link-btn inline" data-act="lib-save" data-k="${kind}" data-id="${esc(id)}">Save to library</button> <span class="muted">so your other teams can use it</span></p>`;
   const li = M.libGet(ws, kind, x.lib.id);
@@ -8018,6 +8027,7 @@ function ruleSetField(T) {
     <small>Automatic follows the team's sport (or its club default) and category. Built-in official rules cover Oztag, Rugby League and League Tag; other sports can still use team-specific positions and competition by-laws. Select a different official pack only deliberately.</small></label>`;
 }
 function playRulesField(draft) {
+  if(CONNECTED_E5)return ''; // preserve references without inferring competition rule approval
   const rs = M.teamRules(data.team, M.clubOf(ws, data)); if (!rs) return '';
   const on = new Set(playRules(draft)), topics = [...new Set(rs.rules.map(r => r.topic))];
   return `<details class="rule-pick"><summary>Rules this play relies on (${on.size})</summary><p class="hint">When one of these rules changes, you’ll be asked to check this play.</p>
@@ -8373,6 +8383,7 @@ document.addEventListener('keydown', e => {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
 function requestCloseSheet() {
+  if(CONNECTED_E5&&connectedE5?.pending){toast('Waiting for cloud save response.');return;}
   // Field edits (name, sport, steps) are normal HTML form values; diagram undo
   // snapshots alone do not detect them. Warn on both before discarding.
   const E = state.sheet === 'play-editor' && state.ped;
@@ -8380,6 +8391,7 @@ function requestCloseSheet() {
   const fieldsChanged = form && E.initialForm !== JSON.stringify([...new FormData(form).entries()]);
   const timingChanged = E?.timelineController?.getPersistenceState()?.changed === true;
   if (E && (E.dirty || fieldsChanged || timingChanged) && !confirm('Close without saving the changes to this play?')) return;
+  if(CONNECTED_E5){sendConnectedE5('close');return;}
   closeSheet();
 }
 function closeSheet() {
@@ -10556,6 +10568,14 @@ document.addEventListener('submit', e => {
 },true);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
+  if(CONNECTED_E5){
+    e.preventDefault();if(!connectedE5||connectedE5.pending)return;
+    const act=el.dataset.act;
+    if(act==='play-back'){sendConnectedE5('close');return;}
+    const viewer=['play-mode','play-side','play-phase','study-prev','study-next','study-pick','watch-timing-play','watch-timing-slow','anim-play','anim-slow','anim-restart'];
+    if(viewer.includes(act)||(connectedE5.mode==='edit'&&(act==='close-sheet'||/^(ped|teach)-/.test(act))))actions[act]?.(el,e);
+    return;
+  }
   // The legacy QA screen remains isolated outside the public sandbox.
   if (state.qaPersona && !DEV_SANDBOX && !['qa-exit','qa-journey','qa-journey-back','qa-copy-acceptance','qa-p12-reset','qa-p12-workflow','qa-p12-workflow-reset','qa-p12-governance','qa-p12-governance-reset','desktop-profile-menu','desktop-profile-pick','desktop-profile-exit','qa-role-section','persona-team','persona-action','persona-fixture-save'].includes(el.dataset.act)) { e.preventDefault();return; }
   if(DEV_SANDBOX&&state.qaPersona==='p12'){
@@ -10605,6 +10625,7 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('input', e => {
   const k = e.target.dataset.input; if (!k) return;
+  if(CONNECTED_E5&&(!connectedE5||connectedE5.pending||(!['event-timing-seek','anim-seek'].includes(k)&&!(connectedE5.mode==='edit'&&/^(ped|teach)-/.test(k)))))return;
   if (k === 'managed-find') { teamFinder.text=e.target.value; const v=$('#managed-team-results'); if(v)v.innerHTML=managedTeamResults(); }
   if (k === 'directory-find') { clubFinder.text=e.target.value; clubFinder.limit=30; const v=$('#national-directory-results'); if(v)v.innerHTML=clubDirectoryResults(); }
   if (k === 'squad-search') { state.squadSearch = e.target.value; const l = $('#squad-list'); if (l) l.innerHTML = squadList(); }
@@ -10670,6 +10691,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset.change; if (!k) return;
+  if(CONNECTED_E5&&(!connectedE5||connectedE5.pending||(k!=='study-role'&&!(connectedE5.mode==='edit'&&/^(ped|teach)-/.test(k)))))return;
   if(DEV_SANDBOX&&state.qaPersona==='p12'&&k==='native-persona-context'){
     const session=nativeSessionFor(state.qaProfile,e.target.value);
     if(session?.contextId===e.target.value){
@@ -10852,6 +10874,7 @@ document.addEventListener('change', e => {
 document.addEventListener('submit', async e => {
   const form = e.target, kind = form.dataset.form; if (!kind) return;
   e.preventDefault();
+  if(CONNECTED_E5&&(kind!=='play'||connectedE5?.mode!=='edit'||connectedE5.pending||state.sheet!=='play-editor'||form!==$('#sheet form.ped')))return;
   if (state.qaPersona && !DEV_SANDBOX) return; // legacy QA cannot modify the coach workspace
   if (readOnlyView() && !/^(season|comp|club|settings|people-link|guardian-review|guardian-correct)/.test(kind)) { toast(pastMsg()); return; }
   const f = new FormData(form);
@@ -11680,6 +11703,11 @@ document.addEventListener('submit', async e => {
       if (prepared.status === 'blocked') { toast('Event timing needs correction before saving the play.'); return; }
       if (prepared.status === 'ready') E.draft = prepared.play;
     }
+    if(CONNECTED_E5){
+      if(!validConnectedE5Play(E.draft)){toast('Unsupported or invalid play. Existing data has not changed.');return;}
+      connectedE5.pending=true;$('#sheet .panel').inert=true;
+      toast('Saving draft to this team…');sendConnectedE5('save',{play:clone(E.draft)});return;
+    }
     M.libMarkEdited(E.draft);                      // and when the library version is updated
     const i = data.plays.findIndex(p => p.id === E.draft.id);
     if (i >= 0) data.plays[i] = E.draft; else data.plays.push(E.draft);
@@ -11740,6 +11768,7 @@ document.addEventListener('submit', async e => {
   }
 });
 window.addEventListener('hashchange', () => {
+  if(CONNECTED_E5)return;
   const t = location.hash.slice(1);
   if (S.role && t && t !== state.tab && VIEW_IDS.includes(t)) { state.tab = t; render(); }
 });
@@ -11751,7 +11780,7 @@ window.addEventListener('pagehide', () => { if (S.role === 'coach') persistDraft
 const APP_VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || '';
 let updating = false;
 async function checkForUpdate() {
-  if (!APP_VERSION || updating || state.busy || !$('#sheet').hidden) return;
+  if (CONNECTED_E5 || !APP_VERSION || updating || state.busy || !$('#sheet').hidden) return;
   let m;
   try { const r = await fetch(`data/manifest.json?t=${Date.now()}`, { cache: 'no-store' }); if (!r.ok) return; m = await r.json(); } catch (e) { return; }
   if (!m.version || m.version === APP_VERSION) return;
@@ -11853,9 +11882,48 @@ function startTrial() {
   });
 }
 // Exposed for automated tests only.
-window.__team = { get ws() { return ws; }, get data() { return data; }, get teamData() { return teamData; }, S, state, anim, M, planPhase: (p, i, side) => planPhase(playGeom(phaseView(p, i), side || 'right')) };
+if(!CONNECTED_E5)window.__team = { get ws() { return ws; }, get data() { return data; }, get teamData() { return teamData; }, S, state, anim, M, planPhase: (p, i, side) => planPhase(playGeom(phaseView(p, i), side || 'right')) };
 
 applyLayout();
 window.addEventListener('resize', () => applyLayout());
 if (window.ResizeObserver) new ResizeObserver(() => applyLayout()).observe($('.top'));
-boot().finally(() => checkForUpdate());
+function sendConnectedE5(type,detail={}){
+  if(connectedE5&&window.parent!==window)window.parent.postMessage({channel:'tm-connected-e5-v1',nonce:connectedE5.nonce,type,...detail},location.origin);
+}
+function renderConnectedE5(){
+  if(!connectedE5)return;
+  animStop();const p=playById(state.playId);
+  $('#view').innerHTML=p?viewPlay(p):'<p class="hint">Create a team play. Only a successful cloud draft save persists changes.</p>';
+  if(p){syncWatchArtwork();syncLearnArtwork();}applyLayout();
+}
+function bootConnectedE5(){
+  if(window.parent===window){$('#view').textContent='Open this workspace from your signed-in team Tactics page.';return;}
+  window.addEventListener('message',event=>{
+    if(event.source!==window.parent||event.origin!==location.origin)return;
+    const m=event.data;
+    if(!m||m.channel!=='tm-connected-e5-v1')return;
+    if(m.type==='init'&&!connectedE5){
+      if(!/^[a-f0-9-]{36}$/.test(m.nonce||'')||!['view','edit'].includes(m.mode)||
+        !M.SPORTS.includes(m.sport)||typeof m.teamLabel!=='string'||
+        (m.play===null?m.mode!=='edit':!validConnectedE5Play(m.play)))return;
+      connectedE5={nonce:m.nonce,mode:m.mode,pending:false};
+      const play=m.play===null?null:clone(m.play);
+      V={team:{name:m.teamLabel,sport:m.sport,field:{...FIELD_DEFAULTS}},plays:play?[play]:[],playerSets:[]};
+      S.role=m.mode==='edit'?'coach':'player';
+      state.tab='plays';state.playId=play?.id||null;state.playMode=m.mode==='view'?'learn':'watch';
+      state.playSide='right';state.studyIndex=0;state.playPhase=0;state.studyRole='all';
+      $('#team-title').textContent=m.teamLabel;
+      if(m.style&&typeof m.style==='object')for(const key of STYLE_VARS){
+        const value=m.style[key];if(typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value))document.documentElement.style.setProperty(key,value);
+      }
+      renderConnectedE5();if(m.mode==='edit')openPlayEditor(play);sendConnectedE5('mounted');
+    }else if(connectedE5&&m.nonce===connectedE5.nonce&&m.type==='request-close'&&!connectedE5.pending){
+      if(connectedE5.mode==='edit')requestCloseSheet();else sendConnectedE5('close');
+    }else if(connectedE5&&m.nonce===connectedE5.nonce&&m.type==='save-failed'&&connectedE5.pending){
+      connectedE5.pending=false;const panel=$('#sheet .panel');if(panel)panel.inert=false;
+      toast(typeof m.message==='string'?m.message:'Draft was not saved. Review and retry.');
+    }
+  });
+  window.parent.postMessage({channel:'tm-connected-e5-v1',type:'ready'},location.origin);
+}
+if(CONNECTED_E5)bootConnectedE5();else boot().finally(() => checkForUpdate());

@@ -96,6 +96,27 @@ export function buildExistingWorkerCandidate({
       if(PUBLIC_CLOUD.test(name)||extraAllowed.has(name))
         fs.copyFileSync(path.join(stage,name),path.join(out,name));
     }
+    // The existing release builder remains disabled by default. A separately
+    // qualified Stage 4 candidate explicitly selects the native E5 asset
+    // closure, never the Stage 3C isolated staging build.
+    const tactics=env.STAGE4_TACTICS_MODE==='enabled';
+    if(tactics){
+      const required=['cloud-e5-workspace.html','cloud-e5-host.js','cloud-e5-payload.js','app.js','play-event-persistence.js','cloud-play-board.js'];
+      if(!required.every(name=>fs.statSync(path.join(out,name),{throwIfNoEntry:false})?.isFile()))
+        throw Error('stage4-e5-asset-closure-missing');
+      const teamPath=path.join(out,'cloud-team.js');
+      let team=fs.readFileSync(teamPath,'utf8');
+      const first=/import \{previewCloudPlay\} from '\.\/stage3c-no-tactics\.js(\?v=[a-f0-9]+)?';/;
+      const second=/import \{loadPlayEventDraft\} from '\.\/stage3c-no-tactics\.js(\?v=[a-f0-9]+)?';/;
+      if(!first.test(team)||!second.test(team))throw Error('stage4-no-tactics-substitution-drift');
+      team=team.replace(first,(_,v)=>"import {previewCloudPlay} from './cloud-play-board.js"+(v||'')+"';")
+        .replace(second,(_,v)=>"import {loadPlayEventDraft} from './play-event-persistence.js"+(v||'')+"';");
+      fs.writeFileSync(teamPath,team);
+      const cfgPath=path.join(out,'cloud-public-config.js');
+      const cfg=fs.readFileSync(cfgPath,'utf8'),off='export const CLOUD_STAGE4_TACTICS_ENABLED=false;';
+      if(cfg.split(off).length!==2)throw Error('stage4-configuration-drift');
+      fs.writeFileSync(cfgPath,cfg.replace(off,'export const CLOUD_STAGE4_TACTICS_ENABLED=true;'));
+    }
     for(const name of before){
       // Every non-cloud legacy asset, including encrypted data and all plays,
       // remains identical. This also proves the original site was not erased.

@@ -1,0 +1,26 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {validConnectedE5Play} from '../site/cloud-e5-payload.js';
+import {classifyE5Message,CHANNEL} from '../site/cloud-e5-host.js';
+const play={id:'synthetic-step',name:'Step Out',sport:'Oztag',set:'oztag',
+ players:{LM:[24,46],RM:[27,45]},moves:[{t:'pass',pts:[[24,46],[27,45]],moveId:'m-pass-1',linkVersion:1,actorLinks:{start:'player:LM',end:'player:RM'}}],
+ phases:[{players:{RM:[27,45]},moves:[]}],steps:'Pass to the support runner'};
+test('native connected payload gate preserves supported E5 play and timing',()=>{
+ const before=JSON.stringify(play);assert(validConnectedE5Play(play));assert.equal(JSON.stringify(play),before);
+ assert(validConnectedE5Play({...play,eventTimeline:{version:1,actors:[],events:[]}}));
+});
+test('unsafe SVG, nested private fields, stale timing and unknown role set are denied without rewriting',()=>{
+ for(const x of [{...play,players:{'LM" onload="alert(1)':[24,46]}},{...play,moves:[{t:'pass" onload="alert(1)',pts:[[24,46],[27,45]]}]},
+ {...play,players:{LM:['24',46]}},{...play,view:{x0:0,x1:0,y0:10,y1:20}},{...play,set:'custom'},
+ {...play,phases:[{players:{LM:[24,46]},moves:[],phone:'private'}]},
+ {...play,eventTimeline:{version:1,actors:[{actorId:'x',type:'attacker',phases:[{phaseIndex:3,slotKey:'LM'}]}],events:[]}},
+ {...play,eventTimeline:{version:1,actors:[],events:[],private:'x'}}])assert.equal(validConnectedE5Play(x),false);
+});
+test('only mounted same-origin same-frame exact nonce editor can propose a detached save',()=>{
+ const source={},origin='https://example.test',nonce='synthetic-nonce';
+ const ctx={source,origin,nonce,mode:'edit',mounted:true,pending:false};
+ const event={source,origin,data:{channel:CHANNEL,nonce,type:'save',play}};
+ const msg=classifyE5Message(event,ctx);assert.deepEqual(msg,{type:'save',play});assert.notEqual(msg.play,play);
+ for(const bad of [{...event,source:{}},{...event,origin:'https://other.test'},{...event,data:{...event.data,nonce:'other'}}])assert.equal(classifyE5Message(bad,ctx),null);
+ for(const bad of [{...ctx,mode:'view'},{...ctx,mounted:false},{...ctx,pending:true}])assert.equal(classifyE5Message(event,bad),null);
+});

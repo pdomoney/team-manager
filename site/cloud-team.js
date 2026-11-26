@@ -1,6 +1,6 @@
 // Stage 2 connected first-team workspace. This never opens the legacy encrypted
 // demo vault or reuses its synthetic role picker as a production permission.
-import {CLOUD_SUPABASE,CLOUD_STAGE3C_MODE,CLOUD_STAGE3D3_POLICY_REQUIRED} from './cloud-public-config.js';
+import {CLOUD_SUPABASE,CLOUD_STAGE3C_MODE,CLOUD_STAGE3D3_POLICY_REQUIRED,CLOUD_STAGE4_TACTICS_ENABLED} from './cloud-public-config.js';
 import {verifiedOwnerSetup} from './cloud-owner-status.js';
 import {createCloudIdentityClient} from './cloud-identity.js';
 import {createCloudOnboardingClient} from './cloud-onboarding.js';
@@ -46,7 +46,7 @@ const canRoster=()=>hasRole('team_coach','team_manager');
 const canManage=canRoster;
 const canReadNotices=()=>hasRole('team_coach','team_manager','team_assistant','team_player','team_volunteer');
 const MANAGEMENT_PARITY=CLOUD_STAGE3D3_POLICY_REQUIRED===true;
-const playsDeferred=()=>CLOUD_STAGE3C_MODE||CLOUD_STAGE3D3_POLICY_REQUIRED;
+const playsDeferred=()=>!CLOUD_STAGE4_TACTICS_ENABLED&&(CLOUD_STAGE3C_MODE||CLOUD_STAGE3D3_POLICY_REQUIRED);
 const canViewTactics=()=>!playsDeferred()&&hasRole('team_coach','team_assistant','team_manager','team_player','team_play_viewer');
 const canDraft=()=>!playsDeferred()&&hasRole('team_coach','team_assistant');
 const isOwner=()=>state.context?.kind==='platform';
@@ -58,7 +58,9 @@ function h(tag,{className,text,attrs={},parent}={}){
   for(const [k,v] of Object.entries(attrs))e.setAttribute(k,String(v));
   parent?.append(e);return e;
 }
-function clear(){applySavedBranding();main.replaceChildren();main.dataset.view=state.tab||'home';}
+let e5Host=null;
+function clear(){e5Host?.destroy();e5Host=null;applySavedBranding();main.replaceChildren();main.dataset.view=state.tab||'home';}
+function mayLeaveE5(){return !e5Host?.editing||(!e5Host.pending()&&confirm('Leave the editor? Unsaved changes will be discarded.'));}
 function card(title,parent=main){
   const c=h('section',{className:'cloud-card',parent});if(title)h('h3',{text:title,parent:c});return c;
 }
@@ -151,6 +153,7 @@ function drawContextChips(){
     chip(clubs,club,state.activeClub===club,()=>{
       const matches=state.contexts.filter(c=>c.kind==='team'&&c.club===club);
       if(matches.length===1){selectContext(matches[0].key);return;}
+      if(!mayLeaveE5())return;
       // Clubs with more than one authorised team require exact team selection.
       // Clear previous team's private records before revealing team chips.
       state.epoch++;state.brandingGeneration++;state.brandingEditing=false;state.context=null;state.activeClub=club;state.branding=null;applySavedBranding();
@@ -173,7 +176,7 @@ function drawContextChips(){
 }
 function selectContext(key){
   const next=state.contexts.find(c=>c.key===key);
-  if(!next)return;
+  if(!next||!mayLeaveE5())return;
   state.epoch++;state.brandingGeneration++;state.brandingEditing=false;notice.hidden=true;state.context=next;state.branding=null;
   state.activeClub=next.kind==='team'?next.club:null;
   state.schedule=[];state.roster=[];state.members=[];state.duties=[];state.notices=[];state.drafts=[];
@@ -704,6 +707,8 @@ function renderSchedule(){
     const details=h('div',{className:'grow',parent:head});
     h('strong',{className:'name cloud-block',text:s.title||s.kind||'Session',parent:details});
     h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:'')+' · '+s.status,parent:details});
+    if(CLOUD_STAGE4_TACTICS_ENABLED&&['training','match'].includes(s.kind)&&canViewTactics())
+      button('Assigned plays',()=>void openSessionPlays(s),actions(row));
     if(MANAGEMENT_PARITY&&s.kind==='match'&&matchDayAccess(state.context).view)
       button('Match Day',()=>void openMatchDay(s.sessionId),actions(row));
     if(hasRole('team_player')){
@@ -872,6 +877,55 @@ async function openAttendance(s){
     button('Back to schedule',()=>void switchTab('schedule'),actions());
   }catch(e){if(epoch!==state.epoch)return;loading.textContent=explain(e);message(explain(e),true);
     button('Back to schedule',()=>void switchTab('schedule'),actions());}
+}
+async function openSessionPlays(session){
+  const ctx=state.context,epoch=++state.epoch;
+  if(!CLOUD_STAGE4_TACTICS_ENABLED||!ctx||!canViewTactics())return;
+  const current=()=>state.context===ctx&&state.epoch===epoch&&state.tab==='schedule';
+  clear();title('Assigned plays',session.title||session.kind);
+  button('Back to schedule',()=>void showTab(),actions());
+  const loading=info('Loading the selected session and play revisions…');
+  try{
+    const data=await management.call(ctx,'play.assignment.read',{sessionId:session.sessionId});
+    if(!current())return;
+    if(!Array.isArray(data.rows)||!Number.isSafeInteger(data.sessionVersion))throw Error('invalid-assignment-response');
+    const panel=card('Session play assignments'),coach=hasRole('team_coach'),canPropose=hasRole('team_coach','team_assistant');
+    loading.remove();
+    info('Assignments identify the exact published play and session revision. Changed fixtures or plays must be reviewed again.',panel);
+    let pending=false;
+    const mutate=async(action,r,revisionId=r.revisionId)=>{
+      if(!current()||pending)return;
+      pending=true;
+      try{
+        await management.call(ctx,action,{sessionId:session.sessionId,sessionVersion:data.sessionVersion,
+          playId:r.playId,revisionId,expectedVersion:r.version});
+        if(current()){message('Assignment saved.');await openSessionPlays(session);}
+      }catch(e){if(current())message(e?.code==='stale-version'?'Session, play or assignment changed. Reopen to review the latest revision.':explain(e),true);}
+      finally{pending=false;}
+    };
+    readList(panel,data.rows,(r,row)=>{
+      h('strong',{text:r.name||'Play revision requires review',parent:row});
+      info(({current:'Approved',withdrawn:'Withdrawn','session-cancelled':'Session cancelled','session-changed':'Session changed','revision-changed':'Published play changed','awaiting-coach':'Awaiting Head Coach approval'})[r.reason]||'Review required',row);
+      const a=actions(row);
+      if(coach&&r.reason==='awaiting-coach'&&data.sessionStatus==='planned')
+        button('Approve assignment',()=>{if(confirm('Approve this exact play revision for this session?'))void mutate('play.assignment.approve',r);},a);
+      if(coach&&r.state!=='withdrawn')
+        button('Withdraw assignment',()=>{if(confirm('Withdraw this play assignment?'))void mutate('play.assignment.withdraw',r);},a);
+      if(r.reason==='current')button('Open team plays',()=>switchTab('tactics'),a,{primary:true});
+    });
+    if(!canPropose||data.sessionStatus!=='planned')return;
+    const records=await action('play.published.read',ctx.teamId);
+    if(!current())return;
+    const choices=records.filter(p=>!p.unavailableReason&&!data.rows.some(r=>r.playId===p.playId&&
+      r.revisionId===p.revisionId&&r.sessionVersion===data.sessionVersion&&['current','awaiting-coach'].includes(r.reason)));
+    const propose=card('Propose a published play');
+    if(!choices.length){info('No other current published play is available for proposal.',propose);return;}
+    for(const p of choices){
+      const row=h('div',{className:'cloud-list-item',parent:propose});h('strong',{text:p.play.name,parent:row});
+      button('Propose assignment',()=>void mutate('play.assignment.propose',{playId:p.playId,
+        revisionId:p.revisionId,version:data.rows.find(r=>r.playId===p.playId)?.version??0}),actions(row));
+    }
+  }catch(e){if(current()){loading.textContent=explain(e);message(explain(e),true);}}
 }
 async function openMatchDay(sessionId){
   const ctx=state.context,access=matchDayAccess(ctx),epoch=++state.epoch;
@@ -1390,17 +1444,25 @@ function renderTactics(){
     h('strong',{text:p.play.name,parent:row});
     h('small',{text:(p.play.category||'Other')+' · Published revision '+p.revisionId,parent:row});
     if(p.play.headline)info(p.play.headline,row);
-    button('View diagram and Learn / authored timing',()=>{if(scope.current())viewPlay(p);},actions(row),{primary:true});
+    const a=actions(row);
+    if(p.unavailableReason){info('This published revision needs compatibility review. The source has not changed.',row);return;}
+    button('Watch and Learn',()=>{if(scope.current())void openE5(p,'view');},a,{primary:true});
+    if(!CLOUD_STAGE4_TACTICS_ENABLED)button('View diagram and Learn / authored timing',()=>{if(scope.current())viewPlay(p);},a);
   });
   if(!canDraft())return;
   const drafts=card('Coach play drafts');
   info('Coach drafts are never shown to Players. Assistant Coaches may save drafts; only the Head Coach can publish.',drafts);
+  button('New play',()=>{if(scope.current())void openE5(null,'edit');},actions(drafts),{primary:true});
   tacticsLibrary(drafts,state.drafts,(p,row)=>{
     h('strong',{text:p.play.name,parent:row});
     h('small',{text:(p.play.category||'Other')+' · Revision '+p.revisionId+' · '+p.revisionStatus,parent:row});
     const a=actions(row);
-    button('Preview',()=>{if(scope.current())viewPlay(p);},a);
-    button('Edit coaching instructions',()=>{if(scope.current())editPlayInstructions(p);},a);
+    button('Watch and Learn',()=>{if(scope.current())void openE5(p,'view');},a);
+    button('Edit play',()=>{if(scope.current())void openE5(p,'edit');},a);
+    if(!CLOUD_STAGE4_TACTICS_ENABLED){
+      button('Preview',()=>{if(scope.current())viewPlay(p);},a);
+      button('Edit coaching instructions',()=>{if(scope.current())editPlayInstructions(p);},a);
+    }
     if(hasRole('team_coach')&&p.revisionStatus==='draft')
       button('Publish reviewed revision',async()=>{
         if(!scope.current()||!confirm('Publish this reviewed E5 revision to the selected team?'))return;
@@ -1421,13 +1483,40 @@ function renderTactics(){
       throw Object.assign(new Error(),{code:'invalid-play'});
     let p;try{p=JSON.parse(await file.text());}catch{
       throw Object.assign(new Error(),{code:'invalid-play'});}
-    if(!validE5Play(p))throw Object.assign(new Error(),{code:'invalid-play'});
+    if(!validE5Play(p)||(CLOUD_STAGE4_TACTICS_ENABLED&&!(await import('./cloud-e5-payload.js')).validConnectedE5Play(p)))throw Object.assign(new Error(),{code:'invalid-play'});
     const saved=await scope.mutate('play.draft.edit',c.teamId,0,{command:{op:'create',play:p}});
     if(saved.stillCurrent){message('Play saved as a coach-only draft. Review before publishing.');await showTab();}
   });
   const l=h('label',{text:'Authored E5 JSON file',parent:f});
   h('input',{attrs:{type:'file',name:'playFile',accept:'application/json,.json',required:'true'},parent:l});
   h('button',{className:'cloud-btn primary',text:'Import as draft',attrs:{type:'submit'},parent:f});
+}
+async function openE5(entry,mode){
+  if(!canViewTactics()||(mode==='edit'&&!canDraft()))return;
+  const before=playScope();
+  let mount,valid;
+  try{
+    // Remains absent from management-only builds until a reviewed Stage 4
+    // asset-closure and server activation contract is accepted.
+    ({mountConnectedE5:mount}=await import('./cloud-e5-host.js'));
+    ({validConnectedE5Play:valid}=await import('./cloud-e5-payload.js'));
+  }catch{if(before.current())message('E5 workspace is unavailable.',true);return;}
+  if(!before.current())return;
+  if(entry&&!valid(entry.play)){message('Unsupported E5 record. Existing source is unchanged.',true);return;}
+  ++state.epoch;const scope=playScope(),ctx=state.context;
+  clear();title(mode==='edit'?(entry?'Edit '+entry.play.name:'New play'):entry.play.name,'Tactics');
+  const panel=card(null);
+  const sport=({'oztag':'Oztag','rugby league':'Rugby league','rugby-league':'Rugby league','league tag':'League tag','league-tag':'League tag'})[String(ctx.sport).toLowerCase()];
+  if(!sport){info('This sport has no reviewed connected E5 profile.',panel);button('Back',()=>void showTab(),actions(panel));return;}
+  const style={},computed=getComputedStyle(document.documentElement);
+  for(const key of ['--pitch','--ink','--accent','--dark','--brand','--primary']){
+    const value=computed.getPropertyValue(key).trim();if(/^#[0-9a-f]{6}$/i.test(value))style[key]=value;
+  }
+  const close=saved=>{if(!scope.current())return;if(saved)message('Coach draft saved. Publication remains separate.');void showTab();};
+  try{e5Host=mount(panel,{mode,play:entry?entry.play:null,sport,teamLabel:teamDisplayName(ctx),style,scope,
+    onClose:close,onError:e=>{const reason=explain(e);message(reason,true);return reason;},
+    onSave:play=>scope.mutate('play.draft.edit',entry?entry.playId:ctx.teamId,entry?entry.version:0,{command:{op:entry?'save':'create',play}})});
+  }catch{info('The E5 workspace could not be opened. No data changed.',panel);button('Back',()=>void showTab(),actions(panel));}
 }
 function editPlayInstructions(entry){
   ++state.epoch;const scope=playScope();
@@ -1798,6 +1887,7 @@ function renderMore(){
   },a);
 }
 function switchTab(tab,sub=''){
+  if(!mayLeaveE5())return;
   if(!visibleSections(state.context,{playsDeferred:playsDeferred()}).includes(tab))return;
   if(MANAGEMENT_PARITY&&canManage()){
     const destination=({competitions:'Competitions',tasks:'Tasks',helpers:'Helpers','match-support':'Match staff'})[sub];
@@ -1885,9 +1975,9 @@ for(const id of ['cloud-nav','cloud-desktop-nav']){
   });
 }
 $('cloud-notices-shortcut').innerHTML=teamIconSvg('clip',24);
-$('cloud-notices-shortcut').addEventListener('click',openNoticeboard);
+$('cloud-notices-shortcut').addEventListener('click',()=>{if(mayLeaveE5())openNoticeboard();});
 $('cloud-settings-shortcut').innerHTML=teamIconSvg('cog',24);
-$('cloud-settings-shortcut').addEventListener('click',()=>void managementExperience.open('Settings'));
+$('cloud-settings-shortcut').addEventListener('click',()=>{if(mayLeaveE5()){e5Host?.destroy();e5Host=null;void managementExperience.open('Settings');}});
 initialise().catch(e=>{
   clear();title('Unable to verify access','Account');info(explain(e));
   $('cloud-nav').hidden=true;

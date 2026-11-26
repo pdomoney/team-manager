@@ -3,7 +3,7 @@
 // errors. The SQL is the final authority and runs under the service-only key.
 import {adminHeaders,isApprovedProjectConfig} from './supabase-admin-key.js';
 import {delivery} from './stage3-onboarding-api.js';
-import {validateStage3D5,isStage3D5Read,COMMUNICATION_ACTIONS,BRANDING_ACTIONS,MATCHDAY_ARRIVAL_ACTIONS,MATCHDAY_ACTIONS} from '../src/stage3d5-management-contract.js';
+import {validateStage3D5,isStage3D5Read,COMMUNICATION_ACTIONS,BRANDING_ACTIONS,MATCHDAY_ARRIVAL_ACTIONS,MATCHDAY_ACTIONS,PLAY_ASSIGNMENT_ACTIONS} from '../src/stage3d5-management-contract.js';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE=new Set(['invalid-request','scope-denied','role-denied',
   'stale-version','already-assigned','participation-not-verified','invite-unavailable','verified-identity-required',
@@ -42,13 +42,14 @@ export async function handleStage3D5Team(request,env,fetchImpl=fetch){
   try{op=validateStage3D5(JSON.parse(raw));}
   catch{return deny('invalid-request',400);}
   if(!op||raw.length>6000&&op.action!=='branding.club.save')return deny('invalid-request',400);
+  if(PLAY_ASSIGNMENT_ACTIONS.includes(op.action)&&env?.STAGE4_TACTICS_MODE!=='enabled')return deny('not-found',404);
   const user=await remote(fetchImpl,env.SUPABASE_URL+'/auth/v1/user',{
     method:'GET',headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,Authorization:auth}
   });
   if(!user||!UUID.test(user.id||'')||
     !(user.email_confirmed_at||user.confirmed_at))
     return deny('unauthenticated',401);
-  const rpc=op.action==='player.team.read'?'tm_stage3d5_player_team':
+  const rpc=PLAY_ASSIGNMENT_ACTIONS.includes(op.action)?'tm_stage4_play_assignments':op.action==='player.team.read'?'tm_stage3d5_player_team':
     MATCHDAY_ACTIONS.includes(op.action)?'tm_stage3d5_matchday':
     MATCHDAY_ARRIVAL_ACTIONS.includes(op.action)?'tm_stage3d5_matchday_arrivals':
     op.action.includes('match.selection.')?'tm_stage3d5_match':

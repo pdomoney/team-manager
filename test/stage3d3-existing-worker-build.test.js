@@ -116,3 +116,28 @@ test('Shared Worker must preserve legacy root and fail closed on registered API 
   assert.equal((await worker.fetch(new Request(base+'/api/stage3d3/v1/registration'),
     env)).status,503);
 });
+
+test('Stage 4 opt-in packages the actual native editor closure without changing legacy or encrypted assets',()=>{
+  const x=fixture();
+  try{
+    const protectedNames=['index.html','app.js','styles.css','data/team.enc.json','play-event-persistence.js'];
+    const before=protectedNames.map(name=>fs.readFileSync(path.join(x.old,name)));
+    buildExistingWorkerCandidate({root,legacyDir:x.old,output:x.out,env:{...config,STAGE4_TACTICS_MODE:'enabled'}});
+    for(const [i,name] of protectedNames.entries())assert.deepEqual(fs.readFileSync(path.join(x.out,name)),before[i]);
+    const read=name=>fs.readFileSync(path.join(x.out,name),'utf8');
+    assert.match(read('cloud-public-config.js'),/CLOUD_STAGE4_TACTICS_ENABLED=true/);
+    assert.match(read('cloud-team.js'),/from '\.\/cloud-play-board\.js/);
+    assert.match(read('cloud-team.js'),/from '\.\/play-event-persistence\.js/);
+    assert.match(read('cloud-e5-workspace.html'),/src="app\.js\?v=/);
+    assert.match(read('cloud-e5-host.js'),/dialog\.showModal\(\)/);
+    assert.match(read('app.js'),/bootConnectedE5\(\)/);
+  }finally{fs.rmSync(x.tmp,{recursive:true,force:true});}
+});
+test('Stage 4 package fails closed if the native E5 document is missing',()=>{
+  const x=fixture();
+  try{
+    fs.rmSync(path.join(x.old,'cloud-e5-workspace.html'));
+    assert.throws(()=>buildExistingWorkerCandidate({root,legacyDir:x.old,output:x.out,env:{...config,STAGE4_TACTICS_MODE:'enabled'}}),/stage4-e5-asset-closure-missing/);
+    assert(!fs.existsSync(x.out));
+  }finally{fs.rmSync(x.tmp,{recursive:true,force:true});}
+});
