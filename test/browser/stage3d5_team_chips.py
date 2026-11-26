@@ -3,7 +3,7 @@
 import base64,json,os,subprocess,sys
 import harness
 from harness import Check,serve
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 sha=subprocess.check_output(['git','-c','safe.directory='+harness.REPO,'rev-parse','HEAD'],cwd=harness.REPO,text=True).strip()
 env=dict(os.environ,
@@ -426,23 +426,37 @@ try:
    checks.ok(page.locator('html').get_attribute('data-team-style') is None,f'[{width}] persisted club badge on fresh Platform context without changing global theme')
    page.get_by_role('button',name='Manage club branding').click()
    page.get_by_role('heading',name='Club branding management').wait_for()
-   page.get_by_role('button',name='St George Oztag',exact=True).last.click()
-   page.get_by_role('button',name='Lock branding changes',exact=True).click()
-   page.get_by_role('button',name='Unlock branding changes',exact=True).wait_for()
+   chooser=page.get_by_role('region',name='Select club to manage branding')
+   choice=chooser.get_by_role('button',name='St George Oztag',exact=True)
+   choice.wait_for()
+   choice.click()
+   panel=page.get_by_role('region',name='Moderation for St George Oztag')
+   panel.wait_for()
+   expect(choice).to_have_attribute('aria-pressed','true')
+   checks.ok(page.locator('#club-chips').get_by_role('button',name='Platform').get_attribute('aria-pressed')=='true',
+     f'[{width}] moderation club selection preserves Platform authority')
+   initial_version=club_branding['St George Oztag']['version']
+   expect(panel).to_have_attribute('data-branding-version',str(initial_version))
+   panel.get_by_role('button',name='Lock branding changes',exact=True).click()
+   expect(panel).to_have_attribute('data-branding-version',str(initial_version+1))
+   panel.get_by_role('button',name='Unlock branding changes',exact=True).wait_for()
    checks.ok(club_branding['St George Oztag']['locked'],f'[{width}] owner moderation lock persisted')
-   page.get_by_role('button',name='Remove inappropriate logo and lock').click()
-   page.get_by_text('Branding moderation saved.',exact=True).wait_for()
+   panel.get_by_role('button',name='Remove inappropriate logo and lock').click()
+   expect(panel).to_have_attribute('data-branding-version',str(initial_version+2))
    page.locator('#club-chips').get_by_role('button',name='St George Oztag').locator('img').wait_for(state='detached')
    checks.ok(club_branding['St George Oztag']['locked'] and not club_branding['St George Oztag']['logo'],f'[{width}] owner removed logo while retaining lock')
-   page.get_by_role('button',name='Replace club logo or colours').click()
-   owner_form=page.locator('form').filter(has=page.get_by_role('button',name='Save club branding'))
+   panel.get_by_role('button',name='Replace club logo or colours').click()
+   owner_form=panel.locator('form').filter(has=panel.get_by_role('button',name='Save club branding'))
    owner_form.locator('input[type=file]').set_input_files({'name':'test.png','mimeType':'image/png','buffer':png})
-   page.locator('.cloud-main .crest img').first.wait_for()
+   panel.locator('.crest img').first.wait_for()
    owner_form.get_by_role('button',name='Save club branding').click()
+   expect(panel).to_have_attribute('data-branding-version',str(initial_version+3))
    page.locator('#club-chips').get_by_role('button',name='St George Oztag').locator('img').wait_for()
    checks.ok(club_branding['St George Oztag']['locked'],f'[{width}] owner replacement cannot silently unlock moderation')
-   page.get_by_role('button',name='Unlock branding changes',exact=True).click()
-   page.get_by_role('button',name='Lock branding changes',exact=True).wait_for()
+   panel.get_by_role('button',name='Unlock branding changes',exact=True).click()
+   expect(panel).to_have_attribute('data-branding-version',str(initial_version+4))
+   panel.get_by_role('button',name='Lock branding changes',exact=True).wait_for()
+   checks.ok(not club_branding['St George Oztag']['locked'],f'[{width}] only owner unlock restores delegated changes')
    page.get_by_role('button',name='Back to Platform').click()
    page.locator('#club-chips').get_by_role('button',name='Rangers Club').click()
    page.locator('#team-chips button').first.click()

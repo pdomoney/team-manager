@@ -416,16 +416,23 @@ async function openOwnerBranding(selectedClub=null,editing=false){
   const current=()=>isOwner()&&state.epoch===epoch;
   clear();title('Club branding management','Platform administration');
   button('Back to Platform',()=>{state.brandingEditing=false;void showTab();},actions(main));
+  const loading=info('Loading saved club branding…');loading.setAttribute('role','status');
   try{
     const result=await ownerCall('branding.catalogue');
     if(!current())return;
     if(!Array.isArray(result.clubs)||!result.clubs.every(validClubBranding))throw Error('invalid-branding');
+    loading.remove();
     for(const brand of result.clubs)storeClubBranding(brand);
     if(!result.clubs.length){info('No active clubs to moderate.');return;}
     const selected=result.clubs.find(x=>x.clubRef===selectedClub)||result.clubs[0];
-    const list=card('Clubs');
-    for(const brand of result.clubs)button(brand.clubRef,()=>void openOwnerBranding(brand.clubRef),actions(list));
-    const panel=card(selected.clubRef);
+    const list=card('Clubs');list.setAttribute('aria-label','Select club to manage branding');
+    const choices=actions(list);
+    for(const brand of result.clubs){
+      const choice=button(brand.clubRef,()=>void openOwnerBranding(brand.clubRef),choices);
+      choice.setAttribute('aria-pressed',String(brand.clubRef===selected.clubRef));
+    }
+    const panel=card(selected.clubRef);panel.setAttribute('aria-label','Moderation for '+selected.clubRef);
+    panel.dataset.brandingVersion=String(selected.version);
     const crest=h('span',{className:'crest big all',parent:panel});setConnectedCrest(crest,selected.logo,initials(selected.clubRef));
     info(selected.locked?'Branding locked by Platform administration.':'Branding changes are available to authorised delegates.',panel);
     const reason=selectField(panel,'Moderation reason','brandingReason',[
@@ -462,7 +469,7 @@ async function openOwnerBranding(selectedClub=null,editing=false){
         for(const row of data.events)info(row.at+' · '+row.action+' · '+row.reason+' · Actor '+(row.actor||'system'),events);
       }catch(e){if(current())message(explain(e),true);}
     },actions(audit));
-  }catch(e){if(current())message(explain(e),true);}
+  }catch(e){if(current()){loading.remove();message(explain(e),true);}}
 }
 function ownerInvitationStatus(delivery){
   if(delivery==='sent')return 'Provider reported invitation sent. Team access still requires claim, review, policy acknowledgement and activation.';
