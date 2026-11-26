@@ -15,7 +15,7 @@ import {applyConnectedStyle,setConnectedCrest,validConnectedLogo,validConnectedS
 import {renderConnectedBranding} from './cloud-branding-editor.js';
 import {teamRecordedMatchesFromSchedule,namedTrainingRegister} from './cloud-original-model-adapter.js';
 import {teamIconSvg} from './shared-team-icons.js';
-import {publishedMatchSquadText,connectedMessageNeedsReview} from './shared-team-messages.js';
+import {publishedMatchSquadText,publishedMatchRecordText,connectedMessageNeedsReview} from './shared-team-messages.js';
 import {matchDayAccess,resolveMatchDayFixture,matchDayReview,matchDayRulesRequest,STATE_CUP_REFERENCE} from './cloud-matchday.js';
 import {renderMatchDayRecord} from './cloud-matchday-record.js';
 import {previewCloudPlay} from './cloud-play-board.js';
@@ -963,7 +963,17 @@ async function openMatchDay(sessionId){
           await management.call(ctx,name,{sessionId,fixtureVersion:fixture.version,expectedVersion:record.version,ruleId:record.rules.id,...input});
           if(current()){message('Match Day record updated.');await openMatchDay(sessionId);}
         }catch(e){if(current())message(explain(e),true);}
-      },refresh:()=>void openMatchDay(sessionId)});
+      },refresh:()=>void openMatchDay(sessionId),onMessage:async(kind)=>{
+        if(!current()||!access.review)return;
+        try{
+          const latest=await management.call(ctx,'matchday.read',{sessionId});
+          if(!current())return;
+          if(latest.version!==record.version||latest.fixtureVersion!==fixture.version)throw Object.assign(new Error(),{code:'stale-version'});
+          const body=publishedMatchRecordText({kind,teamName:teamContextLabel(ctx),match:fixture,record:latest});
+          if(!body||body.length>1500)throw Object.assign(new Error(),{code:'invalid-request'});
+          await managementExperience.open('Messages',{kind,body,sessionId,version:latest.version,fixtureVersion:latest.fixtureVersion});
+        }catch(e){if(current())message(explain(e),true);}
+      }});
 
   }catch(e){if(current()){loading.textContent=explain(e);message(explain(e),true);}}
 }

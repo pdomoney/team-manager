@@ -462,6 +462,8 @@ begin
  if r->>'code'<>'committed' then raise exception 'Result publish %',r;end if;
  r:=public.tm_stage3d5_matchday(player,'stgeorge-mixed20','team_player','player.matchday.read','{"sessionId":"phase1-rules-match"}');
  if r->'data'->>'state'<>'published' or r->'data'->>'homeScore'<>'0' or r->'data'->>'awayScore'<>'1' then raise exception 'Published result %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.competition.read','{"competitionId":"competition-synthetic-rules"}');
+ if r->'data'->>'published'<>'1' or r->'data'->>'losses'<>'1' or r->'data'->>'pointsAgainst'<>'1' then raise exception 'Competition summary mismatch %',r;end if;
  r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.result.reopen',
  '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":10,"ruleId":"synthetic-only","reason":"Synthetic result review"}');
  if r->>'code'<>'committed' then raise exception 'Result reopen %',r;end if;

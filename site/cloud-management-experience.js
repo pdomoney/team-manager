@@ -250,6 +250,23 @@ export function createCloudManagementExperience({
       originalCompetitionCard(h,row,entry).classList.add('cloud-competition-summary');
       const localFixtures=fixtures.filter(item=>item.competitionId===entry.competitionId);
       if(!localFixtures.length)info('No team-recorded fixtures for this competition.',row);
+      else button('Review team-recorded results',async()=>{
+        if(!ensure(ctx))return;
+        try{
+          const results=await query(ctx,'matchday.competition.read',{competitionId:entry.competitionId});
+          if(!ensure(ctx)||!row.isConnected)return;
+          if(!Array.isArray(results.fixtures)||results.shown!==results.fixtures.length||
+            !Number.isSafeInteger(results.eligible)||results.shown>results.eligible)throw Error('invalid-result-summary');
+          const old=row.querySelector('.cloud-match-results-summary');if(old)old.remove();
+          const panel=h('section',{className:'cloud-match-results-summary cloud-list-item',parent:row});
+          h('h3',{text:'Team-recorded results',parent:panel});
+          info(results.shown+' of '+results.eligible+' linked fixture records shown; '+results.published+' published.',panel);
+          info(results.wins+' wins · '+results.draws+' draws · '+results.losses+' losses · points '+results.pointsFor+' for / '+results.pointsAgainst+' against.',panel);
+          for(const f of results.fixtures)info(f.title+' · '+(f.outcome==='published'?f.homeScore+' – '+f.awayScore:
+            f.outcome==='cancelled'?'Cancelled':f.outcome==='ambiguous-link'?'Competition link requires review':'Result not published'),panel);
+          info('Team records only. No official ladder, pool points or finals progression is inferred.',panel);
+        }catch(e){if(ensure(ctx))report(e);}
+      },actions(row));
       for(const item of localFixtures){
         const fixtureRow=h('div',{className:'cloud-list-item',parent:row});
         h('strong',{text:item.title||'Team fixture',parent:fixtureRow});
@@ -338,8 +355,10 @@ export function createCloudManagementExperience({
       let popup=null;
       try{
       if(seed){
-        const latest=await query(ctx,'match.selection.read',{sessionId:seed.sessionId});
-        if(!f.isConnected||!latest.current||latest.version!==seed.version||latest.fixtureVersion!==seed.fixtureVersion)
+        const matchRecord=['lineup','result'].includes(seed.kind);
+        const latest=await query(ctx,matchRecord?'matchday.read':'match.selection.read',{sessionId:seed.sessionId});
+        const published=matchRecord?(seed.kind==='result'?latest.state==='published':['ready','playing','finished','approved','published'].includes(latest.state)):latest.current;
+        if(!f.isConnected||!published||latest.version!==seed.version||latest.fixtureVersion!==seed.fixtureVersion)
           throw Object.assign(new Error(),{code:'stale-version'});
         if(audience!=='players')throw Object.assign(new Error(),{code:'invalid-input'});
       }
@@ -369,7 +388,7 @@ export function createCloudManagementExperience({
       if(postNotice){
         try{
           const outcome=await publishMessageNotice(ctx,{
-            title:seed?'Selected match squad':templateLabels[templateKind]||'Team message',
+            title:seed?(seed.kind==='result'?'Match result':seed.kind==='lineup'?'Starting lineup':'Selected match squad'):templateLabels[templateKind]||'Team message',
             body:noticeBody,audience
           });
           noticeStatus=outcome.status;
@@ -414,7 +433,7 @@ export function createCloudManagementExperience({
       }
       }finally{if(popup&&!popup.closed)popup.close();}
     });
-    const choices=seed?[['blank','Selected match squad']]:templates;
+    const choices=seed?[['blank',seed.kind==='result'?'Match result':seed.kind==='lineup'?'Starting lineup':'Selected match squad']]:templates;
     const chips=h('div',{className:'chips',attrs:{role:'group','aria-label':'Message type'},parent:f});
     const selected=selectField(f,'Message type','template',seed?choices:allTemplates);
     selected.parentElement.hidden=true; // retained as form state, not a second visible selector

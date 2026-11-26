@@ -119,13 +119,13 @@ declare
 begin
  if p_actor is null or p_team is null or p_role is null or p_action is null or p_input is null
  or jsonb_typeof(p_input)<>'object' or length(p_input::text)>5000
- or coalesce(p_input->>'sessionId','') !~ '^[A-Za-z0-9][A-Za-z0-9:_-]{0,99}$'
- or p_action not in ('matchday.read','player.matchday.read','matchday.lineup.save','matchday.lineup.approve',
+ or (p_action<>'matchday.competition.read' and coalesce(p_input->>'sessionId','') !~ '^[A-Za-z0-9][A-Za-z0-9:_-]{0,99}$')
+ or p_action not in ('matchday.competition.read','matchday.read','player.matchday.read','matchday.lineup.save','matchday.lineup.approve',
  'matchday.clock.start','matchday.clock.pause','matchday.period.next','matchday.interchange',
  'matchday.score.record','matchday.score.void','matchday.finish','matchday.result.approve',
  'matchday.result.publish','matchday.result.reopen') then
  return jsonb_build_object('ok',false,'code','invalid-request');end if;
- v_read:=p_action in ('matchday.read','player.matchday.read');
+ v_read:=p_action in ('matchday.competition.read','matchday.read','player.matchday.read');
  v_staff:=p_role in ('team_coach','team_manager','team_assistant');
  if not ((p_role='team_player' and p_action='player.matchday.read') or (v_staff and p_action<>'player.matchday.read'))
  then return jsonb_build_object('ok',false,'code','role-denied');end if;
@@ -141,6 +141,36 @@ begin
  else
    gate:=public.tm_stage3d5_player_team(p_actor,p_team,p_role,'player.team.read','{}'::jsonb);
    if gate->>'ok' is distinct from 'true' then return jsonb_build_object('ok',false,'code','scope-denied');end if;
+ end if;
+ if p_action='matchday.competition.read' then
+  if p_role not in ('team_coach','team_manager') or p_input-'competitionId'<>'{}'::jsonb
+    or coalesce(p_input->>'competitionId','') !~ '^[A-Za-z0-9][A-Za-z0-9:_-]{0,99}$'
+  then return jsonb_build_object('ok',false,'code','role-denied');end if;
+  if not exists(select 1 from tm_private.team_competitions c where c.team_id=p_team and c.competition_id=p_input->>'competitionId')
+  then return jsonb_build_object('ok',false,'code','scope-denied');end if;
+  select count(*) into v_count from tm_private.team_competition_fixtures f where f.team_id=p_team and f.competition_id=p_input->>'competitionId';
+  if v_count>100 then return jsonb_build_object('ok',false,'code','scope-denied');end if;
+  with fixtures as (
+    select f.session_id,ss.title,ss.starts_at,ss.status,mm.home_score,mm.away_score,
+      case when ss.status='cancelled' then 'cancelled'
+      when (select count(*) from tm_private.team_competition_fixtures f2 where f2.team_id=p_team and f2.session_id=f.session_id)<>1 then 'ambiguous-link'
+      when mm.state='published' and rp.competition_id=f.competition_id then 'published'
+      else 'not-published' end as outcome
+    from tm_private.team_competition_fixtures f join tm_private.sessions ss on ss.session_id=f.session_id and ss.team_id=f.team_id
+    left join tm_private.matchday_records mm on mm.session_id=ss.session_id and mm.team_id=ss.team_id and mm.fixture_version=ss.resource_version
+    left join tm_private.matchday_rules_profiles rp on rp.rule_id=mm.rule_id and rp.team_id=f.team_id
+    where f.team_id=p_team and f.competition_id=p_input->>'competitionId' and ss.kind='match'
+  )
+  select jsonb_build_object('eligible',v_count,'shown',count(*),'published',count(*) filter(where outcome='published'),
+   'wins',count(*) filter(where outcome='published' and home_score>away_score),
+   'draws',count(*) filter(where outcome='published' and home_score=away_score),
+   'losses',count(*) filter(where outcome='published' and home_score<away_score),
+   'pointsFor',coalesce(sum(home_score) filter(where outcome='published'),0),
+   'pointsAgainst',coalesce(sum(away_score) filter(where outcome='published'),0),
+   'fixtures',coalesce(jsonb_agg(jsonb_build_object('sessionId',session_id,'title',title,'status',status,'outcome',outcome,
+     'homeScore',case when outcome='published' then home_score end,'awayScore',case when outcome='published' then away_score end)
+     order by starts_at,session_id),'[]'::jsonb)) into v_events from fixtures;
+  return jsonb_build_object('ok',true,'code','permitted','data',v_events);
  end if;
  select * into s from tm_private.sessions where team_id=p_team and session_id=p_input->>'sessionId' and kind='match';
  if not found then return jsonb_build_object('ok',false,'code','scope-denied');end if;

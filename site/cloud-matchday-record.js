@@ -1,7 +1,7 @@
 // Connected match record: only server-returned, fixture-pinned rules enable
 // controls. There is no client-side activation, score calculation or grant.
 const showTime=ms=>Math.floor(ms/60000)+':'+String(Math.floor(ms/1000)%60).padStart(2,'0');
-export function renderMatchDayRecord({record,ctx,fixture,access,current,ui,commit,refresh}){
+export function renderMatchDayRecord({record,ctx,fixture,access,current,ui,commit,refresh,onMessage}){
  const {h,card,info,button,actions,form,field,selectField}=ui;
  if(!record||typeof record.state!=='string')throw Error('invalid-matchday-record');
  if(!access.proposedRecord){
@@ -43,6 +43,11 @@ export function renderMatchDayRecord({record,ctx,fixture,access,current,ui,commi
    },250);
  }
  button('Refresh match record',refresh,actions(panel));
+ if(coach||manager){
+   if(['ready','playing','finished','approved','published'].includes(state))
+     button('Prepare lineup message',()=>void onMessage('lineup'),actions(panel));
+   if(state==='published')button('Prepare result message',()=>void onMessage('result'),actions(panel));
+ }
  if(['none','draft','ready'].includes(state)&&record.canEdit&&(coach||assistant)){
    const line=card('Starting lineup');
    info('Use independently verified competition scoring categories. This does not certify player eligibility.',line);
