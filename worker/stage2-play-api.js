@@ -3,6 +3,7 @@
 import {validateFirstTeamActionPayload} from '../src/first-team-action-contract.js';
 import {adminHeaders,isApprovedProjectConfig} from './supabase-admin-key.js';
 import {publishedPlayEventTimeline,loadPlayEventDraft} from '../site/play-event-persistence.js';
+import {validConnectedE5Play} from '../site/cloud-e5-payload.js';
 const ROLES=new Set(['team_coach','team_assistant','team_manager','team_player','team_play_viewer']);
 const ACTIONS=new Set(['play.published.read','play.draft.read','play.draft.edit','play.publish']);
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -69,11 +70,12 @@ export async function handleStage2PlayRequest(request,env,fetchImpl=fetch){
     });
     if(!user||!UUID.test(user.id||''))return deny('unauthenticated',401);
     const normalized=payload.payload;
+    const strict=env?.STAGE4_TACTICS_MODE==='enabled';
     // Stage 2 must not import a stale or malformed authored E5 timeline
     // into a published workflow merely because the JSON envelope is valid.
     if(op.action==='play.draft.edit'){
       const candidate=normalized.command?.play;
-      if(!candidate||typeof candidate!=='object'||Array.isArray(candidate)
+      if((strict&&!validConnectedE5Play(candidate))||!candidate||typeof candidate!=='object'||Array.isArray(candidate)
         ||typeof candidate.name!=='string'||!candidate.name.trim()
         ||!candidate.players||typeof candidate.players!=='object'
         ||Array.isArray(candidate.players)||!Array.isArray(candidate.moves)
@@ -86,6 +88,21 @@ export async function handleStage2PlayRequest(request,env,fetchImpl=fetch){
         new TextEncoder().encode(JSON.stringify([user.id,op.activeTeamId,op.activeRole,
           op.action,op.resourceId,normalized])))),
         b=>b.toString(16).padStart(2,'0')).join(''):null;
+    // Validate the exact latest draft before publication, including nested
+    // diagram data. The transactional RPC rechecks version and revision after
+    // this read, so a concurrent edit cannot publish an unreviewed record.
+    if(strict&&op.action==='play.publish'){
+      const check=await provider(fetchImpl,base+'/rest/v1/rpc/tm_stage2_play_operation',{
+        method:'POST',headers:{...adminHeaders(env),'Content-Type':'application/json'},
+        body:JSON.stringify({p_account:user.id,p_team:op.activeTeamId,p_role:op.activeRole,
+          p_action:'play.draft.read',p_resource:op.activeTeamId,p_payload:{},p_digest:null})
+      });
+      const row=check?.ok===true&&Array.isArray(check.data)?
+        check.data.find(x=>x.playId===op.resourceId&&x.revisionId===normalized.revisionId&&
+          x.version===normalized.expectedVersion&&x.revisionStatus==='draft'):null;
+      if(!row)return deny('stale-play',409);
+      if(!validConnectedE5Play(row.play))return deny('invalid-request',400);
+    }
     const result=await provider(fetchImpl,base+'/rest/v1/rpc/tm_stage2_play_operation',{
       method:'POST',headers:{...adminHeaders(env),'Content-Type':'application/json'},
       body:JSON.stringify({p_account:user.id,p_team:op.activeTeamId,p_role:op.activeRole,
@@ -110,12 +127,17 @@ export async function handleStage2PlayRequest(request,env,fetchImpl=fetch){
         ||!ID.test(x.revisionId||'')||!object(x.play)
         ||typeof x.play.name!=='string'||!Number.isSafeInteger(x.version)))
       return deny('service-unavailable',503);
-    const safe=result.data.map(x=>({
-      playId:x.playId,revisionId:x.revisionId,version:x.version,
-      play:op.action==='play.published.read'?publishedProjection(x.play):x.play,
-      ...(op.action==='play.draft.read'?{
-        revisionStatus:x.revisionStatus,publishedRevisionId:x.publishedRevisionId}: {})
-    }));
+    const safe=result.data.map(x=>{
+      const published=op.action==='play.published.read';
+      const projected=published?publishedProjection(x.play):x.play;
+      // One unavailable placeholder per invalid published revision, rather
+      // than dropping rows or exposing unsupported/private nested content.
+      const unavailable=strict&&published&&(!validConnectedE5Play(x.play)||!validConnectedE5Play(projected));
+      return {playId:x.playId,revisionId:x.revisionId,version:x.version,
+        play:unavailable?{id:x.playId,name:'Published play requires review'}:projected,
+        ...(unavailable?{unavailableReason:'unsupported-play-payload'}:{}),
+        ...(!published?{revisionStatus:x.revisionStatus,publishedRevisionId:x.publishedRevisionId}:{})};
+    });
     return json({ok:true,code:'permitted',data:safe});
   }catch{return deny('service-unavailable',503);}
 }

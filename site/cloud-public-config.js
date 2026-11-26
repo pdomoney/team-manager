@@ -12,3 +12,6 @@ export const CLOUD_STAGE3C_MODE = false;
 export const CLOUD_STAGE3D2_AUTH_ENABLED = false;
 // Only the isolated 3D.3 connected build enables real policy enforcement.
 export const CLOUD_STAGE3D3_POLICY_REQUIRED = false;
+
+// Only the explicitly selected existing-worker Stage 4 candidate enables this.
+export const CLOUD_STAGE4_TACTICS_ENABLED=false;

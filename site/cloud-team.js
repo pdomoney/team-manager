@@ -1,6 +1,6 @@
 // Stage 2 connected first-team workspace. This never opens the legacy encrypted
 // demo vault or reuses its synthetic role picker as a production permission.
-import {CLOUD_SUPABASE,CLOUD_STAGE3C_MODE,CLOUD_STAGE3D3_POLICY_REQUIRED} from './cloud-public-config.js';
+import {CLOUD_SUPABASE,CLOUD_STAGE3C_MODE,CLOUD_STAGE3D3_POLICY_REQUIRED,CLOUD_STAGE4_TACTICS_ENABLED} from './cloud-public-config.js';
 import {verifiedOwnerSetup} from './cloud-owner-status.js';
 import {createCloudIdentityClient} from './cloud-identity.js';
 import {createCloudOnboardingClient} from './cloud-onboarding.js';
@@ -46,7 +46,7 @@ const canRoster=()=>hasRole('team_coach','team_manager');
 const canManage=canRoster;
 const canReadNotices=()=>hasRole('team_coach','team_manager','team_assistant','team_player','team_volunteer');
 const MANAGEMENT_PARITY=CLOUD_STAGE3D3_POLICY_REQUIRED===true;
-const playsDeferred=()=>CLOUD_STAGE3C_MODE||CLOUD_STAGE3D3_POLICY_REQUIRED;
+const playsDeferred=()=>!CLOUD_STAGE4_TACTICS_ENABLED&&(CLOUD_STAGE3C_MODE||CLOUD_STAGE3D3_POLICY_REQUIRED);
 const canViewTactics=()=>!playsDeferred()&&hasRole('team_coach','team_assistant','team_manager','team_player','team_play_viewer');
 const canDraft=()=>!playsDeferred()&&hasRole('team_coach','team_assistant');
 const isOwner=()=>state.context?.kind==='platform';
@@ -1394,8 +1394,9 @@ function renderTactics(){
     h('small',{text:(p.play.category||'Other')+' · Published revision '+p.revisionId,parent:row});
     if(p.play.headline)info(p.play.headline,row);
     const a=actions(row);
+    if(p.unavailableReason){info('This published revision needs compatibility review. The source has not changed.',row);return;}
     button('Watch and Learn',()=>{if(scope.current())void openE5(p,'view');},a,{primary:true});
-    button('View diagram and Learn / authored timing',()=>{if(scope.current())viewPlay(p);},a);
+    if(!CLOUD_STAGE4_TACTICS_ENABLED)button('View diagram and Learn / authored timing',()=>{if(scope.current())viewPlay(p);},a);
   });
   if(!canDraft())return;
   const drafts=card('Coach play drafts');
@@ -1407,8 +1408,10 @@ function renderTactics(){
     const a=actions(row);
     button('Watch and Learn',()=>{if(scope.current())void openE5(p,'view');},a);
     button('Edit play',()=>{if(scope.current())void openE5(p,'edit');},a);
-    button('Preview',()=>{if(scope.current())viewPlay(p);},a);
-    button('Edit coaching instructions',()=>{if(scope.current())editPlayInstructions(p);},a);
+    if(!CLOUD_STAGE4_TACTICS_ENABLED){
+      button('Preview',()=>{if(scope.current())viewPlay(p);},a);
+      button('Edit coaching instructions',()=>{if(scope.current())editPlayInstructions(p);},a);
+    }
     if(hasRole('team_coach')&&p.revisionStatus==='draft')
       button('Publish reviewed revision',async()=>{
         if(!scope.current()||!confirm('Publish this reviewed E5 revision to the selected team?'))return;
@@ -1429,7 +1432,7 @@ function renderTactics(){
       throw Object.assign(new Error(),{code:'invalid-play'});
     let p;try{p=JSON.parse(await file.text());}catch{
       throw Object.assign(new Error(),{code:'invalid-play'});}
-    if(!validE5Play(p))throw Object.assign(new Error(),{code:'invalid-play'});
+    if(!validE5Play(p)||(CLOUD_STAGE4_TACTICS_ENABLED&&!(await import('./cloud-e5-payload.js')).validConnectedE5Play(p)))throw Object.assign(new Error(),{code:'invalid-play'});
     const saved=await scope.mutate('play.draft.edit',c.teamId,0,{command:{op:'create',play:p}});
     if(saved.stillCurrent){message('Play saved as a coach-only draft. Review before publishing.');await showTab();}
   });

@@ -36,6 +36,6 @@ export function mountConnectedE5(host,{mode,play,sport,teamLabel,style={},scope,
   finally{pending=false;}
  }
  function destroy(){disposed=true;window.removeEventListener('message',receive);frame.remove();}
- window.addEventListener('message',receive);frame.src='cloud-e5-workspace.html';host.append(frame);
+ window.addEventListener('message',receive);frame.src='cloud-e5-workspace.html'+new URL(import.meta.url).search;host.append(frame);
  return Object.freeze({destroy,editing:mode==='edit',pending:()=>pending});
 }
