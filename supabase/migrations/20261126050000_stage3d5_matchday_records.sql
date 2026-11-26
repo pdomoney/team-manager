@@ -25,6 +25,8 @@ create table tm_private.matchday_rules_profiles (
  field_max integer not null check(field_max between field_min and squad_max and field_max<=15),
  category_a_max integer not null check(category_a_max between 0 and field_max),
  category_b_min integer not null check(category_b_min between 0 and field_max),
+ category_a_label text not null check(length(trim(category_a_label)) between 1 and 50),
+ category_b_label text not null check(length(trim(category_b_label)) between 1 and 50 and category_b_label<>category_a_label),
  try_a integer not null check(try_a between 1 and 10),
  try_b integer not null check(try_b between 1 and 10),
  period_count integer not null check(period_count between 1 and 8),
@@ -113,7 +115,7 @@ declare
  v_version integer; v_rules_count integer; v_count integer; v_delta integer:=0;
  v_home integer:=0; v_away integer:=0; v_void integer; v_now timestamptz:=clock_timestamp();
  v_ready boolean:=false; v_current boolean:=false; v_reason text; v_payload jsonb;
- v_read boolean; v_staff boolean; v_period_end integer;
+ v_read boolean; v_staff boolean; v_period_end integer; v_names jsonb; v_result_current boolean;
 begin
  if p_actor is null or p_team is null or p_role is null or p_action is null or p_input is null
  or jsonb_typeof(p_input)<>'object' or length(p_input::text)>5000
@@ -167,27 +169,45 @@ begin
  if v_read then
   if p_input-'sessionId'<>'{}'::jsonb then return jsonb_build_object('ok',false,'code','invalid-request');end if;
   if p_role='team_player' then
-   if not v_current or m.state is distinct from 'published' then return jsonb_build_object('ok',true,'code','permitted','data',jsonb_build_object('state','unavailable'));end if;
-   return jsonb_build_object('ok',true,'code','permitted','data',jsonb_build_object('state','published',
-     'homeScore',m.home_score,'awayScore',m.away_score,'version',m.version,'teamRecorded',true));
+   -- Historical published aggregate is independent of later squad/access changes.
+   -- Names are shown only while the current squad and fixture remain valid.
+   v_result_current:=coalesce(m.state='published' and s.status<>'cancelled' and exists(
+    select 1 from tm_private.matchday_rules_profiles rp
+    join tm_private.team_competition_fixtures cf on cf.competition_id=rp.competition_id and cf.team_id=rp.team_id
+    where rp.rule_id=m.rule_id and rp.team_id=p_team and cf.session_id=s.session_id),false);
+   v_names:='[]'::jsonb;
+   if v_current and m.state in ('ready','playing','finished','approved','published') then
+    select coalesce(jsonb_agg(jsonb_build_object('displayName',c.display_name) order by c.display_name,c.person_id),'[]'::jsonb)
+    into v_names from tm_private.stage3d5_match_candidates(p_team,s.session_id) c where c.person_id=any(m.starting_ids);
+   end if;
+   return jsonb_build_object('ok',true,'code','permitted','data',
+    jsonb_build_object('state',case when v_result_current then 'published' when jsonb_array_length(v_names)>0 then 'lineup-published' else 'unavailable' end,
+     'startingPlayers',v_names,'teamRecorded',true) ||
+    case when v_result_current then jsonb_build_object('homeScore',m.home_score,'awayScore',m.away_score,'version',m.version) else '{}'::jsonb end);
   end if;
   if not v_current then return jsonb_build_object('ok',true,'code','permitted','data',jsonb_build_object('state','blocked',
     'reason',case when rule.rule_id is null then 'rules-unapproved' when not v_ready then 'squad-unavailable' else 'fixture-or-record-stale' end,
     'fixtureVersion',s.resource_version,'version',v_version));end if;
   select coalesce(jsonb_agg(jsonb_build_object('personId',c.person_id,'displayName',c.display_name) order by c.display_name,c.person_id),'[]'::jsonb)
     into v_players from tm_private.stage3d5_match_candidates(p_team,s.session_id) c where c.person_id=any(squad.person_ids);
-  select coalesce(jsonb_agg(jsonb_build_object('version',a.version,'action',a.action,'payload',a.payload,
+  select coalesce(jsonb_agg(jsonb_build_object('version',a.version,'action',a.action,'payload',case when a.action='matchday.lineup.save' then '{}'::jsonb else a.payload end,
     'role',a.role,'period',a.period,'elapsedMs',a.elapsed_ms,'homeDelta',a.home_delta,'awayDelta',a.away_delta,
     'voided',exists(select 1 from tm_private.matchday_events z where z.session_id=a.session_id and z.fixture_version=a.fixture_version and z.voids_version=a.version))
     order by a.version),'[]'::jsonb) into v_events
   from (select * from tm_private.matchday_events where session_id=s.session_id and fixture_version=s.resource_version order by version desc limit 40) a;
   v_delta:=case when m.running_since is null then 0 else greatest(0,least(rule.period_seconds*1000-m.elapsed_ms,
      floor(extract(epoch from (v_now-m.running_since))*1000)::bigint))::integer end;
+  if v_delta>0 then
+   foreach v_player in array m.field_ids loop
+    m.played_ms:=jsonb_set(m.played_ms,array[v_player],to_jsonb(coalesce((m.played_ms->>v_player)::integer,0)+v_delta),true);
+   end loop;
+  end if;
   return jsonb_build_object('ok',true,'code','permitted','data',jsonb_build_object(
    'state',coalesce(m.state,'none'),'version',v_version,'fixtureVersion',s.resource_version,
    'canEdit',s.status='planned','rules',jsonb_build_object('id',rule.rule_id,'edition',rule.edition,'fieldMin',rule.field_min,
     'fieldMax',rule.field_max,'categoryAMax',rule.category_a_max,'categoryBMin',rule.category_b_min,'periodCount',rule.period_count,
-    'periodSeconds',rule.period_seconds,'tryA',rule.try_a,'tryB',rule.try_b,'interchangeLimit',rule.interchange_limit),
+    'periodSeconds',rule.period_seconds,'tryA',rule.try_a,'tryB',rule.try_b,'interchangeLimit',rule.interchange_limit,
+    'categoryALabel',rule.category_a_label,'categoryBLabel',rule.category_b_label),
    'players',v_players,'categories',coalesce(m.categories,'{}'::jsonb),'startingIds',coalesce(to_jsonb(m.starting_ids),'[]'::jsonb),
    'fieldIds',coalesce(to_jsonb(m.field_ids),'[]'::jsonb),'period',coalesce(m.period,1),
    'elapsedMs',coalesce(m.elapsed_ms,0)+v_delta,'running',m.running_since is not null,
@@ -237,7 +257,7 @@ begin
   end if;
   case p_action
   when 'matchday.lineup.approve' then
-   if v_payload<>'{}'::jsonb or m.state<>'draft' then return jsonb_build_object('ok',false,'code','invalid-request');end if;
+   if v_payload-'confirmed'<>'{}'::jsonb or v_payload->'confirmed' is distinct from 'true'::jsonb or m.state<>'draft' then return jsonb_build_object('ok',false,'code','invalid-request');end if;
    m.state:='ready';
   when 'matchday.clock.start' then
    if v_payload<>'{}'::jsonb or m.state not in ('ready','playing') or m.running_since is not null or m.elapsed_ms>=v_period_end

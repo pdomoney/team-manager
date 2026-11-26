@@ -7,7 +7,7 @@ test('explicit role permissions for match record actions',()=>{
  for(const role of ['team_coach','team_manager','team_assistant']){
   assert.ok(request(role,'matchday.score.record',{...payload,side:'home',personId:'player-1'}));
   assert.ok(request(role,'matchday.clock.pause'));
-  assert.equal(!!request(role,'matchday.lineup.approve'),role==='team_coach');
+  assert.equal(!!request(role,'matchday.lineup.approve',{...payload,confirmed:true}),role==='team_coach');
   assert.equal(!!request(role,'matchday.result.approve',{...payload,confirmed:true}),role==='team_coach');
   assert.equal(!!request(role,'matchday.result.publish'),role!=='team_assistant');
  }

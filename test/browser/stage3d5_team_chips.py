@@ -217,6 +217,11 @@ def bind(ctx):
       if c==club and t in team_branding and team_branding[t]['style'] is not None:
        team_branding[t]['style']=None;team_branding[t]['version']+=1
    return respond(route,{'ok':True,'code':'committed','data':{'version':version+1}})
+  if action in ('matchday.read','player.matchday.read'):
+   fixture=next((s for s in schedule_rows if s['sessionId']==data['input']['sessionId'] and s['kind']=='match'),None)
+   if team!='stgeorge-mixed20' or not fixture:return respond(route,{'ok':False,'code':'scope-denied'},403)
+   if role=='team_player':return respond(route,{'ok':True,'code':'permitted','data':{'state':'unavailable','startingPlayers':[]}})
+   return respond(route,{'ok':True,'code':'permitted','data':{'state':'blocked','reason':'rules-unapproved','fixtureVersion':fixture.get('version',0),'version':0}})
   if action in ('matchday.arrivals.read','player.matchday.arrivals.read'):
    fixture=next((s for s in schedule_rows if s['sessionId']==data['input']['sessionId'] and s['kind']=='match'),None)
    if team!='stgeorge-mixed20' or not fixture:return respond(route,{'ok':False,'code':'scope-denied'},403)

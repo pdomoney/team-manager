@@ -374,6 +374,100 @@ begin
  '{"sessionId":"phase1-arrival-match","fixtureVersion":1,"expectedVersion":0,"arrived":true}');
  if r->>'code'<>'stale-version' then raise exception 'Cancelled arrival accepted %',r;end if;
  raise notice 'PASS PR300 match arrival scope, provenance, stale and cancelled checks';
+ -- No tournament profile is seeded. Test explicit activation only within this
+ -- rollback-only disposable transaction using wholly invented match rules.
+ if exists(select 1 from tm_private.matchday_rules_profiles) then raise exception 'Unexpected seeded rules';end if;
+ if has_table_privilege('authenticated','tm_private.matchday_records','SELECT')
+ or has_function_privilege('authenticated','public.tm_stage3d5_matchday(uuid,text,text,text,jsonb)','EXECUTE')
+ or has_table_privilege('service_role','tm_private.matchday_rules_profiles','INSERT')
+ then raise exception 'Sporting rules or records exposed';end if;
+ insert into tm_private.sessions(session_id,team_id,kind,starts_at,title)
+ values('phase1-rules-match','stgeorge-mixed20','match',now(),'Synthetic rules test only');
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.read','{"sessionId":"phase1-rules-match"}');
+ if r->'data'->>'reason'<>'rules-unapproved' then raise exception 'Unapproved rules not blocked %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.lineup.save',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":0,"ruleId":"synthetic-only","lineup":[{"personId":"player-p","category":"b","onField":true}]}');
+ if r->>'code'<>'scope-denied' then raise exception 'Lineup accepted without profile %',r;end if;
+ insert into tm_private.team_competitions(competition_id,team_id,name,format,season_ref,division,entry_status,created_by)
+ select 'competition-synthetic-rules','stgeorge-mixed20','Synthetic rules test only','tournament',season_ref,'Synthetic','entered',coach
+ from tm_private.teams where team_id='stgeorge-mixed20';
+ insert into tm_private.team_competition_fixtures(competition_id,team_id,session_id)
+ values('competition-synthetic-rules','stgeorge-mixed20','phase1-rules-match');
+ insert into tm_private.matchday_rules_profiles(rule_id,team_id,competition_id,competition_version,sport_ref,season_ref,division,
+ edition,source_url,source_sha256,approval_ref,approved_by,approved_at,format_contract,squad_max,field_min,field_max,category_a_max,category_b_min,
+ category_a_label,category_b_label,try_a,try_b,period_count,period_seconds,interchange_limit,allow_draw)
+ select 'synthetic-only','stgeorge-mixed20','competition-synthetic-rules',0,sport_ref,season_ref,'Synthetic',
+ 'SYNTHETIC','https://example.invalid/synthetic',repeat('a',64),'synthetic-test-only',coach,now(),'standard-try-periods-v1',
+ 1,1,1,0,1,'Category A','Category B',1,2,1,60,null,true
+ from tm_private.teams where team_id='stgeorge-mixed20';
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.read','{"sessionId":"phase1-rules-match"}');
+ if r->'data'->>'reason'<>'squad-unavailable' then raise exception 'Missing published squad not blocked %',r;end if;
+ r:=public.tm_stage3d5_match(coach,'stgeorge-mixed20','team_coach','match.selection.save',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":0,"personIds":["player-p"]}');
+ if r->>'code'<>'committed' then raise exception 'Synthetic squad save %',r;end if;
+ r:=public.tm_stage3d5_match(coach,'stgeorge-mixed20','team_coach','match.selection.publish',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":1}');
+ if r->>'code'<>'committed' then raise exception 'Synthetic squad publish %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.lineup.save',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":0,"ruleId":"synthetic-only","lineup":[{"personId":"player-p","category":"a","onField":true}]}');
+ if r->>'code'<>'invalid-request' then raise exception 'Invalid category composition accepted %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.lineup.save',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":0,"ruleId":"synthetic-only","lineup":[{"personId":"player-p","category":"b","onField":true}]}');
+ if r->>'code'<>'committed' then raise exception 'Synthetic lineup save %',r;end if;
+ r:=public.tm_stage3d5_matchday(player,'stgeorge-mixed20','team_player','player.matchday.read','{"sessionId":"phase1-rules-match"}');
+ if r->'data'->>'state'<>'unavailable' or jsonb_array_length(r->'data'->'startingPlayers')<>0 then raise exception 'Draft lineup leaked %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.lineup.approve',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":1,"ruleId":"synthetic-only","confirmed":true}');
+ if r->>'code'<>'committed' then raise exception 'Synthetic lineup approval %',r;end if;
+ r:=public.tm_stage3d5_matchday(player,'stgeorge-mixed20','team_player','player.matchday.read','{"sessionId":"phase1-rules-match"}');
+ if r->'data'->>'state'<>'lineup-published' or r->'data'->'startingPlayers'->0->>'displayName'<>'Verified Player'
+ or (r->'data')::text like '%player-p%' then raise exception 'Published lineup projection %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.clock.start',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":2,"ruleId":"synthetic-only"}');
+ if r->>'code'<>'committed' then raise exception 'Clock start %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.score.record',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":3,"ruleId":"synthetic-only","side":"home","personId":"player-p"}');
+ if r->>'code'<>'committed' then raise exception 'Scoring event %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.read','{"sessionId":"phase1-rules-match"}');
+ if r->'data'->>'homeScore'<>'2' or r->'data'->>'awayScore'<>'0' then raise exception 'Rule-derived score missing %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.score.record',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":3,"ruleId":"synthetic-only","side":"away","category":"a"}');
+ if r->>'code'<>'stale-version' then raise exception 'Concurrent scoring accepted %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.score.void',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":4,"ruleId":"synthetic-only","targetVersion":4,"reason":"Synthetic correction"}');
+ if r->>'code'<>'committed' then raise exception 'Score correction failed %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.score.void',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":5,"ruleId":"synthetic-only","targetVersion":4,"reason":"Duplicate correction"}');
+ if r->>'code'<>'invalid-request' then raise exception 'Duplicate void accepted %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.score.record',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":5,"ruleId":"synthetic-only","side":"away","category":"a"}');
+ if r->>'code'<>'committed' then raise exception 'Opponent score %',r;end if;
+ -- Advance only the disposable timer state instead of waiting a minute.
+ update tm_private.matchday_records set running_since=clock_timestamp()-interval '61 seconds' where session_id='phase1-rules-match';
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.clock.pause',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":6,"ruleId":"synthetic-only"}');
+ if r->>'code'<>'committed' then raise exception 'Clock pause %',r;end if;
+ if (select (played_ms->>'player-p')::int from tm_private.matchday_records where session_id='phase1-rules-match')<>60000 then raise exception 'Playing time accounting mismatch';end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.finish',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":7,"ruleId":"synthetic-only"}');
+ if r->>'code'<>'committed' then raise exception 'Match finish %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.result.publish',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":8,"ruleId":"synthetic-only"}');
+ if r->>'code'<>'invalid-request' then raise exception 'Unapproved result published %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.result.approve',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":8,"ruleId":"synthetic-only","confirmed":true}');
+ if r->>'code'<>'committed' then raise exception 'Coach result approval %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.result.publish',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":9,"ruleId":"synthetic-only"}');
+ if r->>'code'<>'committed' then raise exception 'Result publish %',r;end if;
+ r:=public.tm_stage3d5_matchday(player,'stgeorge-mixed20','team_player','player.matchday.read','{"sessionId":"phase1-rules-match"}');
+ if r->'data'->>'state'<>'published' or r->'data'->>'homeScore'<>'0' or r->'data'->>'awayScore'<>'1' then raise exception 'Published result %',r;end if;
+ r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.result.reopen',
+ '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":10,"ruleId":"synthetic-only","reason":"Synthetic result review"}');
+ if r->>'code'<>'committed' then raise exception 'Result reopen %',r;end if;
+ r:=public.tm_stage3d5_matchday(player,'stgeorge-mixed20','team_player','player.matchday.read','{"sessionId":"phase1-rules-match"}');
+ if r->'data'->>'state'<>'lineup-published' or r->'data' ? 'homeScore' then raise exception 'Withdrawn result leaked %',r;end if;
+ raise notice 'PASS PR300 rules gate, synthetic lineup, scoring, correction, time, result approval and publication';
  -- Connected match selection: saved draft, published Player view, stale and foreign denial.
  if has_table_privilege('authenticated','tm_private.team_match_selections','SELECT') or
     has_function_privilege('authenticated','public.tm_stage3d5_match(uuid,text,text,text,jsonb)','EXECUTE')

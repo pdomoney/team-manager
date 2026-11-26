@@ -74,7 +74,7 @@ export function validateStage3D5(input){
          x.side==='away'?(!['a','b'].includes(x.category)||x.personId!==undefined):true))return null;
      }else if(action==='matchday.score.void'){
        if(!keys(x,[...common,'targetVersion','reason'])||!num(x.targetVersion)||!x.targetVersion||!str(x.reason,200)||!x.reason.trim())return null;
-     }else if(action==='matchday.result.approve'){
+     }else if(['matchday.lineup.approve','matchday.result.approve'].includes(action)){
        if(!keys(x,[...common,'confirmed'])||x.confirmed!==true)return null;
      }else if(action==='matchday.result.reopen'){
        if(!keys(x,[...common,'reason'])||!str(x.reason,200)||!x.reason.trim())return null;
