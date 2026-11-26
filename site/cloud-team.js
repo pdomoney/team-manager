@@ -16,6 +16,7 @@ import {renderConnectedBranding} from './cloud-branding-editor.js';
 import {teamRecordedMatchesFromSchedule,namedTrainingRegister} from './cloud-original-model-adapter.js';
 import {teamIconSvg} from './shared-team-icons.js';
 import {publishedMatchSquadText,connectedMessageNeedsReview} from './shared-team-messages.js';
+import {matchDayAccess,resolveMatchDayFixture,matchDayReview,matchDayRulesRequest,STATE_CUP_REFERENCE} from './cloud-matchday.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
 
@@ -701,6 +702,8 @@ function renderSchedule(){
     const details=h('div',{className:'grow',parent:head});
     h('strong',{className:'name cloud-block',text:s.title||s.kind||'Session',parent:details});
     h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:'')+' · '+s.status,parent:details});
+    if(MANAGEMENT_PARITY&&s.kind==='match'&&matchDayAccess(state.context).view)
+      button('Match Day',()=>void openMatchDay(s.sessionId),actions(row));
     if(hasRole('team_player')){
       if(MANAGEMENT_PARITY&&s.kind==='match')
         button('Selected match squad',()=>void openMatchSquad(s,true),actions(row));
@@ -867,6 +870,64 @@ async function openAttendance(s){
     button('Back to schedule',()=>void switchTab('schedule'),actions());
   }catch(e){if(epoch!==state.epoch)return;loading.textContent=explain(e);message(explain(e),true);
     button('Back to schedule',()=>void switchTab('schedule'),actions());}
+}
+async function openMatchDay(sessionId){
+  const ctx=state.context,access=matchDayAccess(ctx),epoch=++state.epoch;
+  if(!MANAGEMENT_PARITY||!access.view)return;
+  const current=()=>state.context===ctx&&state.epoch===epoch;
+  clear();title('Match Day','Match preparation');
+  button('Back to schedule',()=>void switchTab('schedule','matches'),actions());
+  const loading=info('Loading this match…');
+  try{
+    const sessions=await action('schedule.read',ctx.teamId);
+    if(!current())return;
+    const fixture=resolveMatchDayFixture(ctx,sessions,sessionId);
+    const selection=access.review?await management.call(ctx,'match.selection.read',{sessionId}):
+      access.player?await management.call(ctx,'player.match.selection.read',{sessionId}):null;
+    if(!current())return;
+    const review=access.review?matchDayReview(ctx,fixture,selection):null;
+    loading.remove();
+    const details=card(fixture.title||'Match');
+    info(when(fixture.startsAt)+(fixture.locationLabel?' · '+fixture.locationLabel:'')+' · '+fixture.status,details);
+    info('Team schedule record. Confirm official fixture details with the competition authority.',details);
+    if(review){
+      const readiness=card('Match readiness');
+      info(review.shown+' of '+review.eligible+' verified participant records shown; '+review.omitted+' unavailable for named selection.',readiness);
+      info(review.selected+' selected · '+review.omittedSelected+' selected records no longer available.',readiness);
+      info(review.current?'Current published squad.':'No current published squad. Review before publication.',readiness);
+      for(const p of review.selectedRows)info(p.displayName+' · '+(p.response==='none'?'Not answered':p.response),readiness);
+      info('Venue arrivals are not recorded in the connected match workflow. Availability is not arrival or playing eligibility.',readiness);
+      const a=actions(readiness);
+      button('Match availability',()=>void openAttendance(fixture),a);
+      button('Selected match squad',()=>void openMatchSquad(fixture,false),a);
+      const rules=card('Competition rules');
+      const request=matchDayRulesRequest(ctx);
+      info('Persistent lineup, scoring, interchange, clock and results are unavailable until the exact competition rules are verified and approved.',rules);
+      if(request){
+        info('Proposed target: '+STATE_CUP_REFERENCE.competition+' · Mixed 20. Not linked or approved for this fixture.',rules);
+        for(const item of STATE_CUP_REFERENCE.pending)info(item,rules);
+        h('a',{text:'National rulebook reference',attrs:{href:STATE_CUP_REFERENCE.nationalSource,target:'_blank',rel:'noopener noreferrer'},parent:rules});
+        const label=h('label',{className:'field-l',parent:rules});
+        h('span',{text:'Organiser rules confirmation request (copy only)',parent:label});
+        const requestText=h('textarea',{attrs:{readonly:'readonly',rows:'8'},parent:label});
+        requestText.value=request.copyText;
+        button('Copy rules confirmation checklist',async()=>{
+          if(!current())return;
+          try{await navigator.clipboard.writeText(request.copyText);if(current())message('Checklist copied; nothing sent.');}
+          catch{if(current()){requestText.focus();requestText.select();message('Select and copy the checklist text.');}}
+        },actions(rules));
+      }else info('No verified competition profile for this match.',rules);
+    }else if(access.player){
+      const panel=card('Published match squad');
+      if(selection?.state==='published'&&fixture.status!=='cancelled'&&Array.isArray(selection.players)&&selection.players.length){
+        for(const p of selection.players)if(typeof p.displayName==='string'&&p.displayName.trim())info(p.displayName,panel);
+      }else info('No current published squad for this match.',panel);
+      info('My response: '+(fixture.myAvailability||'Not answered'),details);
+    }else{
+      info('Your current Assistant Coach grant includes the match schedule, not private squad or readiness data.',details);
+    }
+    info('No team-recorded result is available through this workspace.');
+  }catch(e){if(current()){loading.textContent=explain(e);message(explain(e),true);}}
 }
 async function openMatchSquad(s,player){
   const ctx=state.context,epoch=++state.epoch;
@@ -1596,6 +1657,7 @@ function renderMyMatchDates(){
         ' · '+m.status,parent:row});
       info(m.source==='team-recorded'?'Team-recorded date, not an official draw':
         'Check the competition authority for the official draw',row);
+      button('Match Day',()=>void openMatchDay(m.sessionId),actions(row));
       button('Selected match squad',()=>void openMatchSquad(m,true),actions(row));
     });
   }).catch(e=>{
