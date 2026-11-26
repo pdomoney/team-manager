@@ -7,38 +7,32 @@ import argparse, datetime as dt, json, os, re, tempfile
 from pathlib import Path
 from consolidated_release import Stop,require,sha,save,load,extract_helpers,candidate_check,strip_wrapper,expected_assets,ORIGIN,CONFIG
 from incremental_release import record_helper_contract,write_verification,check_browser_record
-from forward_release_plan import ROOT,HEX64,validate_plan_structure,spec_for,check_source_inventory,remote_refs,check_ci_records,accepted_evidence,safe_private,validate_candidate_summary
+from forward_release_plan import ROOT,HEX64,validate_plan_structure,spec_for,check_source_inventory,remote_refs,check_release_authority,check_ci_records,accepted_evidence,safe_private,validate_candidate_summary
 from asset_verification import verify_all
 
 def exact_plan(path,digest,mode):
     require(HEX64.fullmatch(digest or '') and sha(path)==digest,'Release plan checksum mismatch')
     p=load(path);require(p.get('format')=='TEAM_MANAGER_FORWARD_V1','Wrong release plan format')
     validate_plan_structure(p)
-    require(p.get('mode')==('candidate' if mode=='qualify' else 'merged'),'Wrong plan mode')
+    require(p.get('mode') in (('candidate','postmerge') if mode=='qualify' else ('merged',)),'Wrong plan mode')
     require(not any(k in p for k in ('release_exception','script_provenance','recovery')),'Prior exception/recovery may not transfer')
     if mode!='qualify':
         c=p.get('candidate_evidence',{})
         require(HEX64.fullmatch(c.get('summary_sha256','')) and HEX64.fullmatch(c.get('plan_sha256','')),'Qualified candidate evidence missing')
-        require(len(p.get('ci',[]))==3,'Candidate, PR and merged CI required')
-    else:require(len(p.get('ci',[]))==1,'Exact candidate CI required')
+        require(len(p['ci']) in (3,6),'Candidate, PR and merged CI required')
     return p
 def check_source(q,work,p,prior,mode):
     s=p['spec'];a=s['accepted'];source=p['source']
     require(q.git(work,'rev-parse','HEAD')==source and q.git(work,'rev-parse','HEAD^{tree}')==p['source_tree'] and
       not q.git(work,'diff','--name-only','HEAD'),'Tracked source or tree drift')
-    require(remote_refs(work)=={'refs/heads/main':p['main'],'refs/heads/data':a['data']},'Remote main/data drift')
-    if mode=='qualify':
-        require(p['main']==s['developmentBase'] and q.git(work,'ls-remote','origin','refs/heads/'+s['candidateBranch'])==source+'\trefs/heads/'+s['candidateBranch'],'Candidate branch drift')
-    else:
-        require(p['main']==source and q.git(work,'rev-parse',source+'^1')==s['developmentBase'] and
-          q.git(work,'rev-parse',source+'^2')==p['candidate_source'],'Merge parents differ')
+    check_release_authority(work,p)
     require(spec_for(work,source,p['spec_path'])==s,'Release specification differs')
     old,new=check_source_inventory(work,source,s)
     require(old==p['prior_migrations']==prior['migration_inventory'] and new==p['migrations'],'Migration inventory differs')
     for pattern in ('.env*','.dev.vars*'):require(not list(work.glob(pattern)),'Unexpected local environment file')
     for name in ('forward_release.py','forward_release_plan.py','incremental_release.py','consolidated_release.py','asset_verification.py'):
         path=Path(__file__).resolve().with_name(name)
-        require(q.git(work,'hash-object',str(path))==q.git(work,'rev-parse',source+':scripts/release/'+name),'Running controller differs: '+name)
+        require(q.git(work,'hash-object',str(path))==q.git(work,'rev-parse',p['main' if 'control' in p else 'source']+':scripts/release/'+name),'Running controller differs: '+name)
 def previous(q,i,rec,r,prior,p,out):
     j,assets=accepted_evidence(p['spec'],p['previous']['directory'],p['previous']['plan_path'])
     require(j==p['previous'],'Accepted evidence changed since plan preparation')
@@ -60,7 +54,7 @@ def check_qualification(p):
     c=p['candidate_evidence'];path=safe_private(c['directory']);file=path/'release-summary.json'
     require(sha(file)==c['summary_sha256'],'Candidate summary changed')
     j=load(file)
-    require(j.get('source')==p['candidate_source'] and j.get('source_tree')==p['source_tree'] and j.get('plan_sha256')==c['plan_sha256'] and
+    require(j.get('source')==(p['source'] if p.get('qualification_phase')=='postmerge' else p['candidate_source']) and j.get('source_tree')==p['source_tree'] and j.get('plan_sha256')==c['plan_sha256'] and
       j.get('candidate_only') is True and j.get('R4')==j.get('R5')=='NOT_ATTEMPTED' and j.get('status')=='CANDIDATE_HELPERS_QUALIFIED_NO_PROVIDER_ACCESS' and not j.get('errors') and
       all(j.get('checks',{}).get(k)=='PASS' for k in ('tools','source','build_and_transport','synthetic_reference')),'Candidate qualification no longer valid')
     candidate_check(path,j)
@@ -91,7 +85,7 @@ def main():
             require(j.get('R4')==j.get('R5')=='NOT_ATTEMPTED','Previous cutover attempted; reconcile, do not retry')
         out.mkdir(mode=0o700)
         report={'release_id':rid,'source':p['source'],'source_tree':p['source_tree'],'plan_sha256':args.plan_sha256,
-          'baseline_source':a['source'],'candidate_only':mode=='qualify','status':'PREFLIGHT_HOLD','checks':{},'errors':[],
+          'baseline_source':a['source'],'qualification_phase':p.get('qualification_phase','premerge'),'control_source':p.get('control',{}).get('source'),'candidate_only':mode=='qualify','status':'PREFLIGHT_HOLD','checks':{},'errors':[],
           'R4':'NOT_ATTEMPTED','R5':'NOT_ATTEMPTED','database_restore_tested':False,'owner_acceptance':'NOT_RUN'}
     def checkpoint():save(out/'release-summary.json',report)
     checkpoint();env=None;print('Private release evidence:',out,flush=True)
@@ -134,7 +128,7 @@ def main():
         check('tools',tools)
         def source():
             repo=args.repo.resolve();require(remote_refs(repo)=={'refs/heads/main':p['main'],'refs/heads/data':a['data']},'Remote source/data mismatch')
-            q.git(repo,'fetch','--no-tags','origin','main','data',*([s['candidateBranch']] if mode=='qualify' else []))
+            q.git(repo,'fetch','--no-tags','origin','main','data',*([s['candidateBranch']] if p['mode']=='candidate' else []))
             work=out/'source';q.git(repo,'worktree','add','--detach',str(work),p['source'])
             check_source(q,work,p,prior,mode)
             data=work/'data';data.mkdir(exist_ok=True)

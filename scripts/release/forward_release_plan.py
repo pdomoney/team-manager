@@ -113,12 +113,61 @@ def validate_candidate_summary(path,p):
     require(j.get('plan_sha256')==p['plan_sha256'],'Candidate qualification plan differs')
     candidate_check(path,j)
     return {'directory':str(path),'summary_sha256':sha(path/'release-summary.json'),'plan_sha256':p['plan_sha256']}
+def normal_merge(repo,pr_number,branch,base,head,merged,tree):
+    require(all(HEX40.fullmatch(v or '') for v in (base,head,merged,tree)) and len({base,head,merged})==3,'Invalid merge identities')
+    pr=api('/pulls/'+str(pr_number))
+    require(pr.get('number')==pr_number and pr.get('merged') is True and
+      pr.get('merge_commit_sha')==merged and pr.get('head',{}).get('sha')==head and
+      pr['head'].get('ref')==branch and pr['head'].get('repo',{}).get('full_name')==REPO and
+      pr.get('base',{}).get('ref')=='main' and pr['base'].get('repo',{}).get('full_name')==REPO,
+      'PR merge authority differs')
+    require(git(repo,'rev-list','--parents','-n','1',merged).split()==[merged,base,head],'Merge parents differ')
+    require(git(repo,'rev-parse',head+'^{tree}')==git(repo,'rev-parse',merged+'^{tree}')==tree,'Candidate and merged trees differ')
+def validate_control_contract(c,s):
+    require(isinstance(c,dict) and set(c)=={'applicationRelease','applicationSource','applicationCandidate','applicationTree','controlPr','controlBranch','changedPaths'},'Invalid control contract')
+    require(c['applicationRelease']==s['releaseId'] and all(HEX40.fullmatch(c[k]) for k in ('applicationSource','applicationCandidate','applicationTree')),'Control application pins differ')
+    require(type(c['controlPr']) is int and c['controlPr']>int(s['releaseId'][2:]) and re.fullmatch(r'candidate/pr'+str(c['controlPr'])+r'-[a-z0-9-]+',c['controlBranch']),'Invalid control PR identity')
+    paths=c['changedPaths']
+    require(isinstance(paths,list) and paths==sorted(set(paths)) and bool(paths),'Invalid control path list')
+    allowed={'scripts/release/forward_release_plan.py','scripts/release/forward_release.py','scripts/release/test_forward_release.py',
+      'scripts/release/forward_release_run.py','config/releases/'+s['releaseId'].lower()+'-control.json'}
+    require(all(x in allowed or re.fullmatch(r'docs/operations/pr'+s['releaseId'][2:]+r'-[a-z0-9-]+\.md',x) for x in paths),'Control contract allows non-release changes')
+    require({'scripts/release/forward_release_plan.py','scripts/release/forward_release.py','scripts/release/test_forward_release.py',
+      'config/releases/'+s['releaseId'].lower()+'-control.json'}<=set(paths),'Required control files absent')
+def control_for(repo,s,main,path,app,candidate,tree):
+    require(path=='config/releases/'+s['releaseId'].lower()+'-control.json','Wrong control contract path')
+    c=json.loads(git(repo,'show',main+':'+path,binary=True));validate_control_contract(c,s)
+    require((c['applicationSource'],c['applicationCandidate'],c['applicationTree'])==(app,candidate,tree),'Control contract does not bind this application')
+    control_head=git(repo,'rev-parse',main+'^2');control_tree=git(repo,'rev-parse',main+'^{tree}')
+    normal_merge(repo,c['controlPr'],c['controlBranch'],app,control_head,main,control_tree)
+    require(set(git(repo,'diff','--name-only','--no-renames',app,main).splitlines())==set(c['changedPaths']),'Control PR changed unexpected files')
+    require(spec_for(repo,main,'config/releases/'+s['releaseId'].lower()+'.json')==s,'Control changed release specification')
+    return {'path':path,'contract':c,'head':control_head,'source':main,'tree':control_tree}
+def check_release_authority(repo,p):
+    s=p['spec'];require(remote_refs(repo)=={'refs/heads/main':p['main'],'refs/heads/data':s['accepted']['data']},'Remote main/data drift')
+    if p['mode']=='candidate':
+        require(git(repo,'ls-remote','origin','refs/heads/'+s['candidateBranch'])==p['source']+'\trefs/heads/'+s['candidateBranch'],'Candidate branch drift')
+        return
+    normal_merge(repo,int(s['releaseId'][2:]),s['candidateBranch'],s['developmentBase'],p['candidate_source'],p['source'],p['source_tree'])
+    if 'control' in p:
+        require(control_for(repo,s,p['main'],p['control']['path'],p['source'],p['candidate_source'],p['source_tree'])==p['control'],'Control authority changed')
+    else:require(p['main']==p['source'],'Main differs without authorised control PR')
 def validate_plan_structure(p):
-    require(isinstance(p,dict) and p.get('format')=='TEAM_MANAGER_FORWARD_V1' and p.get('mode') in ('candidate','merged'),'Invalid plan format/mode')
+    require(isinstance(p,dict) and p.get('format')=='TEAM_MANAGER_FORWARD_V1' and p.get('mode') in ('candidate','postmerge','merged'),'Invalid plan format/mode')
     s=p['spec'];validate_spec(s);a=s['accepted']
     require(all(HEX40.fullmatch(p.get(k,'')) for k in ('source','source_tree','main')),'Invalid plan source')
     require(re.fullmatch(r'config/releases/pr[0-9]+\.json',p.get('spec_path','')),'Invalid spec path')
-    require(p['main']==(s['developmentBase'] if p['mode']=='candidate' else p['source']),'Wrong main authority')
+    post=p['mode']=='postmerge' or p.get('qualification_phase')=='postmerge'
+    require(p.get('qualification_phase') in (None,'postmerge') and (p['mode']!='candidate' or not post),'Invalid qualification phase')
+    require(p['mode']!='postmerge' or p.get('qualification_phase')=='postmerge','Missing post-merge qualification phase')
+    if 'control' in p:
+        require(post and p['mode']!='candidate','Control PR only permitted for post-merge qualification')
+        c=p['control'];require(set(c)=={'path','contract','head','source','tree'},'Invalid control evidence')
+        validate_control_contract(c['contract'],s)
+        require(c['path']=='config/releases/'+s['releaseId'].lower()+'-control.json' and all(HEX40.fullmatch(c[k]) for k in ('head','source','tree')) and
+          c['source']==p['main'] and c['source']!=p['source'] and
+          (c['contract']['applicationSource'],c['contract']['applicationCandidate'],c['contract']['applicationTree'])==(p['source'],p.get('candidate_source'),p['source_tree']),'Control evidence differs')
+    else:require(p['main']==(s['developmentBase'] if p['mode']=='candidate' else p['source']),'Wrong main authority')
     prior=p.get('prior_migrations',[]);added=p.get('migrations',[])
     require(isinstance(prior,list) and len(prior)==a['migrationCount'] and isinstance(added,list),'Invalid prior migration inventory')
     all_rows=prior+added
@@ -131,6 +180,9 @@ def validate_plan_structure(p):
     else:
         require(HEX40.fullmatch(p.get('candidate_source','')) and p['candidate_source']!=p['source'],'Missing qualified candidate source')
         expected=[(p['candidate_source'],'push',s['candidateBranch']),(p['candidate_source'],'pull_request',s['candidateBranch']),(p['source'],'push','main')]
+    if 'control' in p:
+        c=p['control'];b=c['contract']['controlBranch']
+        expected.extend([(c['head'],'push',b),(c['head'],'pull_request',b),(c['source'],'push','main')])
     rows=p.get('ci',[])
     require(len(rows)==len(expected) and all(set(row)=={'source','event','branch','run_id','status'} and
       (row['source'],row['event'],row['branch'])==item and type(row['run_id']) is int and row['run_id']>0 and row['status']=='PASS'
@@ -139,11 +191,43 @@ def check_ci_records(p):
     validate_plan_structure(p)
     for row in p['ci']:
         require(ci(row['source'],row['event'],row['branch'],row['run_id'])==row,'CI record changed')
-def build_candidate_plan(repo,spec_path,branch,previous,previous_plan):
-    refs=remote_refs(repo)
-    git(repo,'fetch','--no-tags','origin','main','data',branch)
-    source=git(repo,'rev-parse','origin/'+branch);spec=spec_for(repo,source,spec_path)
-    require(branch==spec['candidateBranch'] and refs=={'refs/heads/main':spec['developmentBase'],'refs/heads/data':spec['accepted']['data']},'Current main/data differs from candidate base')
+def build_candidate_plan(repo,spec_path,branch,previous,previous_plan,control_path=None):
+    refs=remote_refs(repo);main=refs['refs/heads/main']
+    git(repo,'fetch','--no-tags','origin','main','data')
+    require(git(repo,'rev-parse','origin/main')==main,'Main changed during fetch')
+    # Read the existing specification on the current main when available; before
+    # the first merge it may exist only on the candidate branch.
+    if git(repo,'ls-tree','--name-only',main,spec_path):
+        spec=spec_for(repo,main,spec_path)
+    else:
+        require(re.fullmatch(r'candidate/pr[0-9]+-[a-z0-9-]+',branch),'Invalid candidate branch')
+        git(repo,'fetch','--no-tags','origin',branch)
+        spec=spec_for(repo,git(repo,'rev-parse','origin/'+branch),spec_path)
+    require(branch==spec['candidateBranch'] and refs['refs/heads/data']==spec['accepted']['data'],'Candidate/data authority differs')
+    if main!=spec['developmentBase']:
+        pr=api('/pulls/'+spec['releaseId'][2:])
+        app=pr.get('merge_commit_sha','');candidate=pr.get('head',{}).get('sha','')
+        require(pr.get('merged') is True and HEX40.fullmatch(app or '') and HEX40.fullmatch(candidate or ''),'Main differs and application PR is not merged')
+        tree=git(repo,'rev-parse',app+'^{tree}')
+        normal_merge(repo,int(spec['releaseId'][2:]),branch,spec['developmentBase'],candidate,app,tree)
+        require(spec_for(repo,app,spec_path)==spec,'Application specification differs')
+        control=None
+        if main!=app:
+            require(control_path is not None,'Main advanced beyond application: reviewed control contract required')
+            control=control_for(repo,spec,main,control_path,app,candidate,tree)
+        else:require(control_path is None,'Unexpected separate control contract')
+        previous_record,_=accepted_evidence(spec,previous,previous_plan)
+        prior,added=check_source_inventory(repo,app,spec)
+        runs=[ci(candidate,'push',branch),ci(candidate,'pull_request',branch),ci(app,'push','main')]
+        p={'format':'TEAM_MANAGER_FORWARD_V1','mode':'postmerge','qualification_phase':'postmerge','spec_path':spec_path,'spec':spec,
+          'source':app,'candidate_source':candidate,'source_tree':tree,'main':main,'previous':previous_record,'prior_migrations':prior,'migrations':added,'ci':runs}
+        if control:
+            cb=control['contract']['controlBranch'];runs.extend([ci(control['head'],'push',cb),ci(control['head'],'pull_request',cb),ci(main,'push','main')]);p['control']=control
+        validate_plan_structure(p);check_release_authority(repo,p)
+        return p
+    require(control_path is None,'Separate control not permitted before application merge')
+    git(repo,'fetch','--no-tags','origin',branch)
+    source=git(repo,'rev-parse','origin/'+branch);require(spec_for(repo,source,spec_path)==spec,'Candidate specification differs')
     require(git(repo,'ls-remote','origin','refs/heads/'+branch)==source+'\trefs/heads/'+branch,'Candidate branch changed')
     previous_record,_=accepted_evidence(spec,previous,previous_plan)
     prior,added=check_source_inventory(repo,source,spec)
@@ -152,16 +236,25 @@ def build_candidate_plan(repo,spec_path,branch,previous,previous_plan):
       'prior_migrations':prior,'migrations':added,'ci':[ci(source,'push',branch)]}
 def build_merged_plan(repo,candidate_plan,candidate_digest,evidence):
     require(HEX64.fullmatch(candidate_digest or '') and sha(candidate_plan)==candidate_digest,'Candidate plan checksum differs')
-    p=load(candidate_plan);require(p.get('format')=='TEAM_MANAGER_FORWARD_V1' and p.get('mode')=='candidate','Not a candidate plan')
-    spec=p['spec'];validate_spec(spec)
+    p=load(candidate_plan);validate_plan_structure(p)
+    require(p['mode'] in ('candidate','postmerge'),'Not a qualification plan')
+    spec=p['spec']
     c=dict(p,plan_sha256=candidate_digest);q=validate_candidate_summary(evidence,c)
+    if p['mode']=='postmerge':
+        git(repo,'fetch','--no-tags','origin','main','data')
+        check_release_authority(repo,p);check_ci_records(p)
+        require(spec_for(repo,p['source'],p['spec_path'])==spec,'Application specification changed')
+        prior,added=check_source_inventory(repo,p['source'],spec)
+        require(prior==p['prior_migrations'] and added==p['migrations'],'Merged migration inventory differs')
+        prev,_=accepted_evidence(spec,p['previous']['directory'],p['previous']['plan_path'])
+        require(prev==p['previous'],'Accepted baseline evidence changed')
+        return dict(p,mode='merged',candidate_evidence=q)
     pr=api('/pulls/'+spec['releaseId'][2:])
     require(pr.get('merged') is True and pr.get('head',{}).get('sha')==p['source'] and pr.get('base',{}).get('ref')=='main','PR not merged from qualified candidate')
     source=pr.get('merge_commit_sha','');require(HEX40.fullmatch(source),'Invalid merge commit')
     refs=remote_refs(repo);require(refs=={'refs/heads/main':source,'refs/heads/data':spec['accepted']['data']},'Merged main/data differs')
     git(repo,'fetch','--no-tags','origin','main','data')
-    require(git(repo,'rev-parse',source+'^1')==spec['developmentBase'] and git(repo,'rev-parse',source+'^2')==p['source'] and
-      git(repo,'rev-parse',source+'^{tree}')==p['source_tree'],'Merge must preserve the exact qualified tree and parents')
+    normal_merge(repo,int(spec['releaseId'][2:]),spec['candidateBranch'],spec['developmentBase'],p['source'],source,p['source_tree'])
     require(spec_for(repo,source,p['spec_path'])==spec,'Merged specification differs')
     prior,added=check_source_inventory(repo,source,spec)
     require(prior==p['prior_migrations'] and added==p['migrations'],'Merged migration inventory differs')
@@ -174,7 +267,7 @@ def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--repo',type=Path,default=Path.home()/'src/team-manager')
     ap.add_argument('--output',type=Path,required=True)
-    ap.add_argument('--spec',default='config/releases/pr300.json');ap.add_argument('--branch')
+    ap.add_argument('--spec',default='config/releases/pr300.json');ap.add_argument('--branch');ap.add_argument('--control-contract')
     ap.add_argument('--previous-dir',type=Path);ap.add_argument('--previous-plan',type=Path)
     ap.add_argument('--candidate-plan',type=Path);ap.add_argument('--candidate-plan-sha256');ap.add_argument('--candidate-evidence',type=Path)
     args=ap.parse_args();os.umask(0o077)
@@ -185,7 +278,7 @@ def main():
         p=build_merged_plan(args.repo,args.candidate_plan,args.candidate_plan_sha256,args.candidate_evidence)
     else:
         require(args.branch and args.previous_dir and args.previous_plan,'Candidate branch and accepted evidence required')
-        p=build_candidate_plan(args.repo,args.spec,args.branch,args.previous_dir,args.previous_plan)
+        p=build_candidate_plan(args.repo,args.spec,args.branch,args.previous_dir,args.previous_plan,args.control_contract)
     validate_plan_structure(p)
     save(args.output,p);print('Release plan:',args.output);print('Plan SHA-256:',sha(args.output));print('PLAN_READY_NO_PROVIDER_ACCESS')
 if __name__=='__main__':

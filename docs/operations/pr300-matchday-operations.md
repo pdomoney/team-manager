@@ -20,3 +20,7 @@ Use config/releases/pr300.json as the accepted baseline and additive transition 
 4. A failed provider checkpoint must be reconciled, not retried. Browser attestation uses the same strict installed-version and nonce checks as PR298. No historic exception is transferred. Owner functional acceptance follows separately.
 
 No live provider actions or rule activation authorised by this document.
+
+## PR301 release-only sequencing correction
+
+The accepted PR297/298 baseline and PR300 application source remain unchanged. Qualification may occur before the application PR merges or after its exact normal merge, without provider writes. A post-merge qualification plan binds the application candidate, merge parents, equal tree, all three application CI runs and actual current main. If main is an approved separate control merge, its contract must pin the application identities and exact release-only paths; verify both merge parents, equal control tree and three additional control CI runs. No arbitrary later main, squash merge, data drift or application change is accepted. `config/releases/pr300-control.json` is the reviewed PR301 contract. `forward_release_run.py qualify` creates one private qualification handoff; `preflight`, `install` and `verify` use that same handoff and do not regenerate an existing merged plan. Install remains separately authorised. No previous controller or historical evidence is rewritten. The controller still builds PR300, not PR301.

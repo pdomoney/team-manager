@@ -1,0 +1,16 @@
+{
+  "applicationRelease": "PR300",
+  "applicationSource": "e695f72e3d2124c5ea19678a10aeca38f3061988",
+  "applicationCandidate": "70faddf87518f620660f47f91e1c1878aaafa63b",
+  "applicationTree": "1755a1f7fcf84887336203e8f1f14ce6502d74d6",
+  "controlPr": 301,
+  "controlBranch": "candidate/pr301-forward-release-recovery",
+  "changedPaths": [
+    "config/releases/pr300-control.json",
+    "docs/operations/pr300-matchday-operations.md",
+    "scripts/release/forward_release.py",
+    "scripts/release/forward_release_plan.py",
+    "scripts/release/forward_release_run.py",
+    "scripts/release/test_forward_release.py"
+  ]
+}
