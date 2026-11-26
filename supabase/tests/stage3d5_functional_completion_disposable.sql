@@ -343,6 +343,37 @@ begin
  if r->>'code'<>'committed' then raise exception 'Notice archive failed %',r; end if;
  r:=public.tm_stage3b_operation(player,'stgeorge-mixed20','team_player','notices.read','stgeorge-mixed20','{}'::jsonb,null);
  if r->>'code'<>'permitted' or jsonb_array_length(r->'data')<>0 then raise exception 'Archived notice still visible %',r; end if;
+ -- PR300 arrivals use actual fixture date and independent record version.
+ if has_table_privilege('authenticated','tm_private.matchday_arrivals','SELECT')
+ or has_function_privilege('authenticated','public.tm_stage3d5_matchday_arrivals(uuid,text,text,text,jsonb)','EXECUTE')
+ then raise exception 'Matchday arrivals directly exposed';end if;
+ r:=public.tm_stage3d5_matchday_arrivals(coach,'stgeorge-mixed20','team_coach','matchday.arrivals.read','{"sessionId":"phase1-foreign"}');
+ if r->>'code'<>'scope-denied' then raise exception 'Foreign arrival read %',r;end if;
+ insert into tm_private.sessions(session_id,team_id,kind,starts_at,title)
+ values('phase1-arrival-match','stgeorge-mixed20','match',now(),'Synthetic match day');
+ r:=public.tm_stage3d5_matchday_arrivals(coach,'stgeorge-mixed20','team_coach','matchday.arrivals.record',
+ '{"sessionId":"phase1-arrival-match","fixtureVersion":0,"expectedVersion":0,"personId":"player-p","arrived":true}');
+ if r->>'code'<>'committed' then raise exception 'Coach arrival failed %',r;end if;
+ r:=public.tm_stage3d5_matchday_arrivals(player,'stgeorge-mixed20','team_player','player.matchday.arrivals.read','{"sessionId":"phase1-arrival-match"}');
+ if r->'data'->'rows'->0->>'arrived'<>'true' or (r->'data')::text like '%player-p%' then raise exception 'Player own arrival projection %',r;end if;
+ r:=public.tm_stage3d5_matchday_arrivals(player,'stgeorge-mixed20','team_player','player.matchday.arrivals.record',
+ '{"sessionId":"phase1-arrival-match","fixtureVersion":0,"expectedVersion":1,"personId":"player-p","arrived":false}');
+ if r->>'code'<>'invalid-request' then raise exception 'Player supplied actor person %',r;end if;
+ r:=public.tm_stage3d5_matchday_arrivals(player,'stgeorge-mixed20','team_player','player.matchday.arrivals.record',
+ '{"sessionId":"phase1-arrival-match","fixtureVersion":0,"expectedVersion":1,"arrived":false}');
+ if r->>'code'<>'committed' then raise exception 'Own arrival correction failed %',r;end if;
+ r:=public.tm_stage3d5_matchday_arrivals(coach,'stgeorge-mixed20','team_coach','matchday.arrivals.record',
+ '{"sessionId":"phase1-arrival-match","fixtureVersion":0,"expectedVersion":1,"personId":"player-p","arrived":true}');
+ if r->>'code'<>'stale-version' then raise exception 'Stale arrival accepted %',r;end if;
+ if (select count(*) from tm_private.matchday_arrival_events where session_id='phase1-arrival-match')<>2 then raise exception 'Arrival audit history missing';end if;
+ update tm_private.sessions set resource_version=1 where session_id='phase1-arrival-match';
+ r:=public.tm_stage3d5_matchday_arrivals(player,'stgeorge-mixed20','team_player','player.matchday.arrivals.read','{"sessionId":"phase1-arrival-match"}');
+ if r->'data'->'rows'->0->>'version'<>'0' then raise exception 'Old arrival carried forward %',r;end if;
+ update tm_private.sessions set status='cancelled' where session_id='phase1-arrival-match';
+ r:=public.tm_stage3d5_matchday_arrivals(player,'stgeorge-mixed20','team_player','player.matchday.arrivals.record',
+ '{"sessionId":"phase1-arrival-match","fixtureVersion":1,"expectedVersion":0,"arrived":true}');
+ if r->>'code'<>'stale-version' then raise exception 'Cancelled arrival accepted %',r;end if;
+ raise notice 'PASS PR300 match arrival scope, provenance, stale and cancelled checks';
  -- Connected match selection: saved draft, published Player view, stale and foreign denial.
  if has_table_privilege('authenticated','tm_private.team_match_selections','SELECT') or
     has_function_privilege('authenticated','public.tm_stage3d5_match(uuid,text,text,text,jsonb)','EXECUTE')

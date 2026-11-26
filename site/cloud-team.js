@@ -886,6 +886,11 @@ async function openMatchDay(sessionId){
       access.player?await management.call(ctx,'player.match.selection.read',{sessionId}):null;
     if(!current())return;
     const review=access.review?matchDayReview(ctx,fixture,selection):null;
+    const arrivalAction=access.proposedRecord?'matchday.arrivals':access.player?'player.matchday.arrivals':null;
+    const arrivals=arrivalAction?await management.call(ctx,arrivalAction+'.read',{sessionId}):null;
+    if(!current())return;
+    if(arrivals&&(!Array.isArray(arrivals.rows)||arrivals.fixtureVersion!==fixture.version||
+      typeof arrivals.canRecord!=='boolean'))throw Object.assign(new Error(),{code:'stale-version'});
     loading.remove();
     const details=card(fixture.title||'Match');
     info(when(fixture.startsAt)+(fixture.locationLabel?' · '+fixture.locationLabel:'')+' · '+fixture.status,details);
@@ -896,7 +901,7 @@ async function openMatchDay(sessionId){
       info(review.selected+' selected · '+review.omittedSelected+' selected records no longer available.',readiness);
       info(review.current?'Current published squad.':'No current published squad. Review before publication.',readiness);
       for(const p of review.selectedRows)info(p.displayName+' · '+(p.response==='none'?'Not answered':p.response),readiness);
-      info('Venue arrivals are not recorded in the connected match workflow. Availability is not arrival or playing eligibility.',readiness);
+      info('Availability is not arrival or playing eligibility.',readiness);
       const a=actions(readiness);
       button('Match availability',()=>void openAttendance(fixture),a);
       button('Selected match squad',()=>void openMatchSquad(fixture,false),a);
@@ -924,7 +929,27 @@ async function openMatchDay(sessionId){
       }else info('No current published squad for this match.',panel);
       info('My response: '+(fixture.myAvailability||'Not answered'),details);
     }else{
-      info('Your current Assistant Coach grant includes the match schedule, not private squad or readiness data.',details);
+      info('Assistant Coach can record venue arrivals, not approve or publish match squads.',details);
+    }
+    if(arrivals){
+      const panel=card('Venue arrivals');
+      info('Venue presence only. Records apply to this fixture version, not registration or sporting eligibility.',panel);
+      info(arrivals.canRecord?'Record on the match date.':'Read-only outside the scheduled match date or after cancellation.',panel);
+      if(!arrivals.rows.length)info('No verified participant records available.',panel);
+      for(const p of arrivals.rows){
+        const row=h('div',{className:'cloud-list-item',parent:panel});
+        h('strong',{text:arrivalAction.startsWith('player.')?'My arrival':p.displayName,parent:row});
+        info(p.arrived===true?'Arrived':p.arrived===false?'Not arrived':'Not recorded',row);
+        if(!arrivals.canRecord)continue;
+        for(const arrived of [true,false])button(arrived?'Mark arrived':'Mark not arrived',async()=>{
+          if(!current())return;
+          try{
+            await management.call(ctx,arrivalAction+'.record',{sessionId,fixtureVersion:fixture.version,
+              expectedVersion:p.version,arrived,...(arrivalAction.startsWith('player.')?{}:{personId:p.personId})});
+            if(current()){message('Venue arrival recorded.');await openMatchDay(sessionId);}
+          }catch(e){if(current())message(explain(e),true);}
+        },actions(row));
+      }
     }
     info('No team-recorded result is available through this workspace.');
   }catch(e){if(current()){loading.textContent=explain(e);message(explain(e),true);}}

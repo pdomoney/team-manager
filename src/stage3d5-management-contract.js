@@ -11,14 +11,15 @@ const MSG=/^message-[0-9a-f]{32}$/;
 const EVIDENCE=/^evidence-ref\/[A-Za-z0-9._/-]{12,100}$/;
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const COMMUNICATION_ACTIONS=Object.freeze(['messages.archived','messages.archive','messages.remove','notice.archived','notice.remove','notice.correct','notice.edit']);
+export const MATCHDAY_ARRIVAL_ACTIONS=Object.freeze(['matchday.arrivals.read','matchday.arrivals.record','player.matchday.arrivals.read','player.matchday.arrivals.record']);
 export const BRANDING_ACTIONS=Object.freeze(['branding.read','branding.team.save','branding.club.save']);
-const ACTIONS=new Set([...COMMUNICATION_ACTIONS,...BRANDING_ACTIONS,'settings.read','settings.save','jerseys.read','jerseys.issue',
+const ACTIONS=new Set([...COMMUNICATION_ACTIONS,...BRANDING_ACTIONS,...MATCHDAY_ARRIVAL_ACTIONS,'settings.read','settings.save','jerseys.read','jerseys.issue',
  'jerseys.return','competitions.read','competitions.create','competitions.update',
  'competitions.fixture','competitions.fixtures','messages.read','messages.prepare','messages.confirm',
  'team.members','volunteers.list','admin.status','duties.board','duties.assign','duties.withdraw','invite.list','invite.issue','invite.review-adult',
  'invite.activate','invite.revoke','player.team.read',
  'match.selection.read','match.selection.save','match.selection.publish','match.selection.withdraw','player.match.selection.read']);
-const reads=new Set(['branding.read','messages.archived','notice.archived','settings.read','jerseys.read','competitions.read','competitions.fixtures',
+const reads=new Set(['matchday.arrivals.read','player.matchday.arrivals.read','branding.read','messages.archived','notice.archived','settings.read','jerseys.read','competitions.read','competitions.fixtures',
  'messages.read','team.members','volunteers.list','admin.status','duties.board','invite.list','player.team.read',
  'match.selection.read','player.match.selection.read']);
 const keys=(o,k)=>Object.keys(o).every(key=>k.includes(key));
@@ -48,6 +49,17 @@ export function validateStage3D5(input){
  const action=input.action,x=input.input;
  // A verified Player may read only the curated team summary, never management
  // settings, invitation records or another role's operations.
+ if(MATCHDAY_ARRIVAL_ACTIONS.includes(action)){
+   const player=action.startsWith('player.'),write=action.endsWith('.record');
+   if(player?input.role!=='team_player':!['team_coach','team_manager','team_assistant'].includes(input.role))return null;
+   if(typeof x.sessionId!=='string'||!ID.test(x.sessionId))return null;
+   if(write){
+     if(!keys(x,['sessionId','fixtureVersion','expectedVersion','arrived',...(player?[]:['personId'])])||
+       !num(x.fixtureVersion)||!num(x.expectedVersion)||typeof x.arrived!=='boolean'||
+       (!player&&(typeof x.personId!=='string'||!ID.test(x.personId))))return null;
+   }else if(!keys(x,['sessionId']))return null;
+   return Object.freeze({teamId:input.teamId,role:input.role,action,input:Object.freeze({...x})});
+ }
  const playerRead=['player.team.read','player.match.selection.read'].includes(action);
  if(action!=='branding.read'&&((input.role==='team_player')!==playerRead||['team_assistant','team_volunteer','team_play_viewer'].includes(input.role)))return null;
  if(action==='match.selection.read'||action==='player.match.selection.read'){

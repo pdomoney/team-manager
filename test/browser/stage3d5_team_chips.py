@@ -217,6 +217,11 @@ def bind(ctx):
       if c==club and t in team_branding and team_branding[t]['style'] is not None:
        team_branding[t]['style']=None;team_branding[t]['version']+=1
    return respond(route,{'ok':True,'code':'committed','data':{'version':version+1}})
+  if action in ('matchday.arrivals.read','player.matchday.arrivals.read'):
+   fixture=next((s for s in schedule_rows if s['sessionId']==data['input']['sessionId'] and s['kind']=='match'),None)
+   if team!='stgeorge-mixed20' or not fixture:return respond(route,{'ok':False,'code':'scope-denied'},403)
+   rows=[{'arrived':None,'version':0}] if role=='team_player' else [{'personId':'person-example','displayName':'Verified Example Player','arrived':None,'version':0}]
+   return respond(route,{'ok':True,'code':'permitted','data':{'fixtureVersion':fixture.get('version',0),'canRecord':False,'rows':rows}})
   if action=='admin.status':
    return respond(route,{'ok':True,'code':'permitted','data':{
     'canAdmin':admin_right(team,role),'role':role}})
@@ -780,7 +785,7 @@ try:
    page.get_by_role('heading',name='Match readiness').wait_for()
    page.get_by_role('heading',name='Competition rules').wait_for()
    checks.ok(page.get_by_text('Persistent lineup, scoring, interchange, clock and results are unavailable',exact=False).count()==1 and
-     page.get_by_text('Venue arrivals are not recorded',exact=False).count()==1 and
+     page.get_by_role('heading',name='Venue arrivals').count()==1 and
      page.get_by_role('button',name='Copy rules confirmation checklist').count()==1,
      f'[{width}] Match Day reuses actual squad preparation and exposes the unapproved rule gate')
    page.get_by_role('button',name='Selected match squad').click()
