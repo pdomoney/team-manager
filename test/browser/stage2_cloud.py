@@ -191,10 +191,16 @@ with sync_playwright() as p:
     editor.get_by_role('button',name='Advanced diagram').wait_for(timeout=15000)
     checks.ok(editor.locator('#ped-field svg.editor').count()==1,
         'Native E5 diagram workspace mounted in the authenticated team shell')
+    checks.ok(coach.locator('dialog.cloud-e5-dialog').evaluate('(d)=>d.matches(":modal")'),
+        'Editor is a modal full-screen workspace, not a clipped nested card')
     editor.get_by_role('button',name='Play details',exact=True).click()
     editor.locator('[name=steps]').fill('Pass to the support runner\nThen move into space')
+    save=editor.get_by_role('button',name='Save play',exact=True)
+    box=save.bounding_box()
+    checks.ok(box is not None and box['y']>=0 and box['y']+box['height']<=coach.viewport_size['height']+1,
+        'Save footer is fully inside the actual phone viewport')
     reject_next_play_save=True
-    editor.get_by_role('button',name='Save play',exact=True).click()
+    save.click()
     editor.locator('#toast').get_by_text('This record changed on another device.',exact=False).wait_for(timeout=15000)
     checks.ok(plays[0]['play']['steps']=='Pass to the support runner',
         'Rejected stale cloud save preserves the original record and open editor')
@@ -202,6 +208,8 @@ with sync_playwright() as p:
         'Failed cloud save preserves unsaved coaching edits')
     editor.get_by_role('button',name='Save play',exact=True).click()
     coach.get_by_role('heading',name='Coach play drafts').wait_for(timeout=15000)
+    checks.ok(coach.locator('dialog.cloud-e5-dialog').count()==0 and coach.locator('body').evaluate('(b)=>b.style.overflow')=='',
+        'Successful save dismisses workspace and restores parent scrolling')
     checks.ok(plays[0]['play']['steps'].endswith('Then move into space') and
         plays[0]['play']['moves'][0]['pts']==[[24.6,49.6],[25,46]] and
         plays[0]['play']['eventTimeline']=={'version':1,'actors':[],'events':[]},

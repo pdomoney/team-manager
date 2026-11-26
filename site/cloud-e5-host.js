@@ -17,8 +17,16 @@ export function mountConnectedE5(host,{mode,play,sport,teamLabel,style={},scope,
  if(!host||!['view','edit'].includes(mode)||(play===null?mode!=='edit':!validConnectedE5Play(play))||
  !scope?.current()||typeof onClose!=='function'||typeof onError!=='function'||(mode==='edit'&&typeof onSave!=='function'))throw Error('invalid-play');
  const origin=location.origin,nonce=crypto.randomUUID(),frame=document.createElement('iframe');
+ // E5 was designed for a full viewport. A shorter iframe inside a scrolling
+ // management card clips the fixed editor footer in Chromium. Native modal
+ // top-layer hosting gives the original workspace its actual screen area and
+ // prevents background navigation while an editor holds unsaved changes.
+ const dialog=document.createElement('dialog');
+ dialog.className='cloud-e5-dialog';dialog.setAttribute('aria-label',mode==='edit'?'Play Editor workspace':'Watch and Learn workspace');
  frame.title=mode==='edit'?'Play Editor':'Watch and Learn';
- frame.style.cssText='display:block;width:100%;height:85dvh;min-height:460px;border:0;border-radius:10px';
+ frame.setAttribute('referrerpolicy','no-referrer');
+ frame.className='cloud-e5-frame';
+ dialog.append(frame);
  let disposed=false,mounted=false,pending=false,initialised=false;
  const init={type:'init',mode,play:structuredClone(play),sport,teamLabel,style};
  function send(m){if(!disposed)frame.contentWindow?.postMessage({channel:CHANNEL,nonce,...m},origin);}
@@ -35,7 +43,27 @@ export function mountConnectedE5(host,{mode,play,sport,teamLabel,style={},scope,
   catch(e){if(!disposed&&scope.current())send({type:'save-failed',message:onError(e)||'Draft was not saved.'});}
   finally{pending=false;}
  }
- function destroy(){disposed=true;window.removeEventListener('message',receive);frame.remove();}
- window.addEventListener('message',receive);frame.src='cloud-e5-workspace.html'+new URL(import.meta.url).search;host.append(frame);
+ const previousOverflow=document.body.style.overflow,previousFocus=document.activeElement;
+ function destroy(){
+  if(disposed)return;
+  disposed=true;window.removeEventListener('message',receive);
+  if(dialog.open)dialog.close();dialog.remove();
+  document.body.style.overflow=previousOverflow;
+  if(previousFocus?.isConnected)previousFocus.focus({preventScroll:true});
+ }
+ // Escape must use the original editor's dirty-check, never native dismissal.
+ dialog.addEventListener('cancel',e=>{
+  e.preventDefault();
+  if(!pending){
+   if(mounted)send({type:'request-close'});
+   else onClose(false);
+  }
+ });
+ window.addEventListener('message',receive);
+ frame.src='cloud-e5-workspace.html'+new URL(import.meta.url).search;
+ host.append(dialog);
+ try{dialog.showModal();document.body.style.overflow='hidden';}
+ catch(e){destroy();throw e;}
+
  return Object.freeze({destroy,editing:mode==='edit',pending:()=>pending});
 }

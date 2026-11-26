@@ -11917,6 +11917,8 @@ function bootConnectedE5(){
         const value=m.style[key];if(typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value))document.documentElement.style.setProperty(key,value);
       }
       renderConnectedE5();if(m.mode==='edit')openPlayEditor(play);sendConnectedE5('mounted');
+    }else if(connectedE5&&m.nonce===connectedE5.nonce&&m.type==='request-close'&&!connectedE5.pending){
+      if(connectedE5.mode==='edit')requestCloseSheet();else sendConnectedE5('close');
     }else if(connectedE5&&m.nonce===connectedE5.nonce&&m.type==='save-failed'&&connectedE5.pending){
       connectedE5.pending=false;const panel=$('#sheet .panel');if(panel)panel.inert=false;
       toast(typeof m.message==='string'?m.message:'Draft was not saved. Review and retry.');
