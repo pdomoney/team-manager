@@ -18,3 +18,7 @@ Approved scope: P2.1–P2.10. One consolidated PR after the full connected journ
 
 ## Current candidate limits
 Only the searchable connected revision library, reason-coded reconciliation and exact-context asynchronous mutation boundary are implemented in this initial candidate increment. Original E5 editor, Watch/Learn and publishing paths are not enabled in production by this change. Assignment and owner template implementation, integrated security tests, and local/production qualification remain outstanding. No PR yet; no premature partial release.
+
+## PR303 native workspace candidate
+
+Source-only development based on exact PR302 merge. The connected document reuses the actual app.js E5 renderer, editor and timeline, with no legacy boot, local draft, role preview, GitHub publication or vault. Same-origin document separation is not an authentication boundary; the parent validates the exact message peer and captured team/role/revision scope. The supported-payload gate is non-mutating and blocks unsupported custom sets and unrecognised fields rather than silently dropping them. Management-only and production activation gates remain closed. Complete native-browser journeys, policy/role and projection hardening, exact build closure, training/match assignments and authorised owner template handling before opening the consolidated release PR. PR300 acceptance evidence remains a release prerequisite; historical pins are unchanged. Competition rules remain separate.

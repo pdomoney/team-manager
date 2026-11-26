@@ -58,7 +58,9 @@ function h(tag,{className,text,attrs={},parent}={}){
   for(const [k,v] of Object.entries(attrs))e.setAttribute(k,String(v));
   parent?.append(e);return e;
 }
-function clear(){applySavedBranding();main.replaceChildren();main.dataset.view=state.tab||'home';}
+let e5Host=null;
+function clear(){e5Host?.destroy();e5Host=null;applySavedBranding();main.replaceChildren();main.dataset.view=state.tab||'home';}
+function mayLeaveE5(){return !e5Host?.editing||(!e5Host.pending()&&confirm('Leave the editor? Unsaved changes will be discarded.'));}
 function card(title,parent=main){
   const c=h('section',{className:'cloud-card',parent});if(title)h('h3',{text:title,parent:c});return c;
 }
@@ -173,7 +175,7 @@ function drawContextChips(){
 }
 function selectContext(key){
   const next=state.contexts.find(c=>c.key===key);
-  if(!next)return;
+  if(!next||!mayLeaveE5())return;
   state.epoch++;state.brandingGeneration++;state.brandingEditing=false;notice.hidden=true;state.context=next;state.branding=null;
   state.activeClub=next.kind==='team'?next.club:null;
   state.schedule=[];state.roster=[];state.members=[];state.duties=[];state.notices=[];state.drafts=[];
@@ -1390,15 +1392,20 @@ function renderTactics(){
     h('strong',{text:p.play.name,parent:row});
     h('small',{text:(p.play.category||'Other')+' · Published revision '+p.revisionId,parent:row});
     if(p.play.headline)info(p.play.headline,row);
-    button('View diagram and Learn / authored timing',()=>{if(scope.current())viewPlay(p);},actions(row),{primary:true});
+    const a=actions(row);
+    button('Watch and Learn',()=>{if(scope.current())void openE5(p,'view');},a,{primary:true});
+    button('View diagram and Learn / authored timing',()=>{if(scope.current())viewPlay(p);},a);
   });
   if(!canDraft())return;
   const drafts=card('Coach play drafts');
   info('Coach drafts are never shown to Players. Assistant Coaches may save drafts; only the Head Coach can publish.',drafts);
+  button('New play',()=>{if(scope.current())void openE5(null,'edit');},actions(drafts),{primary:true});
   tacticsLibrary(drafts,state.drafts,(p,row)=>{
     h('strong',{text:p.play.name,parent:row});
     h('small',{text:(p.play.category||'Other')+' · Revision '+p.revisionId+' · '+p.revisionStatus,parent:row});
     const a=actions(row);
+    button('Watch and Learn',()=>{if(scope.current())void openE5(p,'view');},a);
+    button('Edit play',()=>{if(scope.current())void openE5(p,'edit');},a);
     button('Preview',()=>{if(scope.current())viewPlay(p);},a);
     button('Edit coaching instructions',()=>{if(scope.current())editPlayInstructions(p);},a);
     if(hasRole('team_coach')&&p.revisionStatus==='draft')
@@ -1428,6 +1435,33 @@ function renderTactics(){
   const l=h('label',{text:'Authored E5 JSON file',parent:f});
   h('input',{attrs:{type:'file',name:'playFile',accept:'application/json,.json',required:'true'},parent:l});
   h('button',{className:'cloud-btn primary',text:'Import as draft',attrs:{type:'submit'},parent:f});
+}
+async function openE5(entry,mode){
+  if(!canViewTactics()||(mode==='edit'&&!canDraft()))return;
+  const before=playScope();
+  let mount,valid;
+  try{
+    // Remains absent from management-only builds until a reviewed Stage 4
+    // asset-closure and server activation contract is accepted.
+    ({mountConnectedE5:mount}=await import('./cloud-e5-host.js'));
+    ({validConnectedE5Play:valid}=await import('./cloud-e5-payload.js'));
+  }catch{if(before.current())message('E5 workspace is unavailable.',true);return;}
+  if(!before.current())return;
+  if(entry&&!valid(entry.play)){message('Unsupported E5 record. Existing source is unchanged.',true);return;}
+  ++state.epoch;const scope=playScope(),ctx=state.context;
+  clear();title(mode==='edit'?(entry?'Edit '+entry.play.name:'New play'):entry.play.name,'Tactics');
+  const panel=card(null);
+  const sport=({'oztag':'Oztag','rugby league':'Rugby league','rugby-league':'Rugby league','league tag':'League tag','league-tag':'League tag'})[String(ctx.sport).toLowerCase()];
+  if(!sport){info('This sport has no reviewed connected E5 profile.',panel);button('Back',()=>void showTab(),actions(panel));return;}
+  const style={},computed=getComputedStyle(document.documentElement);
+  for(const key of ['--pitch','--ink','--accent','--dark','--brand','--primary']){
+    const value=computed.getPropertyValue(key).trim();if(/^#[0-9a-f]{6}$/i.test(value))style[key]=value;
+  }
+  const close=saved=>{if(!scope.current())return;if(saved)message('Coach draft saved. Publication remains separate.');void showTab();};
+  try{e5Host=mount(panel,{mode,play:entry?entry.play:null,sport,teamLabel:teamDisplayName(ctx),style,scope,
+    onClose:close,onError:e=>{const reason=explain(e);message(reason,true);return reason;},
+    onSave:play=>scope.mutate('play.draft.edit',entry?entry.playId:ctx.teamId,entry?entry.version:0,{command:{op:entry?'save':'create',play}})});
+  }catch{info('The E5 workspace could not be opened. No data changed.',panel);button('Back',()=>void showTab(),actions(panel));}
 }
 function editPlayInstructions(entry){
   ++state.epoch;const scope=playScope();
@@ -1798,6 +1832,7 @@ function renderMore(){
   },a);
 }
 function switchTab(tab,sub=''){
+  if(!mayLeaveE5())return;
   if(!visibleSections(state.context,{playsDeferred:playsDeferred()}).includes(tab))return;
   if(MANAGEMENT_PARITY&&canManage()){
     const destination=({competitions:'Competitions',tasks:'Tasks',helpers:'Helpers','match-support':'Match staff'})[sub];
