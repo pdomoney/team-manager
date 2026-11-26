@@ -201,7 +201,7 @@ begin
   if p_role='team_player' then
    -- Historical published aggregate is independent of later squad/access changes.
    -- Names are shown only while the current squad and fixture remain valid.
-   v_result_current:=coalesce(m.state='published' and s.status<>'cancelled' and exists(
+   v_result_current:=coalesce(m.state='published' and s.status<>'cancelled' and v_rules_count=1 and exists(
     select 1 from tm_private.matchday_rules_profiles rp
     join tm_private.team_competition_fixtures cf on cf.competition_id=rp.competition_id and cf.team_id=rp.team_id
     where rp.rule_id=m.rule_id and rp.team_id=p_team and cf.session_id=s.session_id),false);
@@ -215,6 +215,12 @@ begin
      'startingPlayers',v_names,'teamRecorded',true) ||
     case when v_result_current then jsonb_build_object('homeScore',m.home_score,'awayScore',m.away_score,'version',m.version) else '{}'::jsonb end);
   end if;
+  if not v_current and m.state='published' and s.status<>'cancelled' and v_rules_count=1 and exists(
+    select 1 from tm_private.matchday_rules_profiles rp join tm_private.team_competition_fixtures cf
+    on cf.competition_id=rp.competition_id and cf.team_id=rp.team_id
+    where rp.rule_id=m.rule_id and rp.team_id=p_team and cf.session_id=s.session_id)
+  then return jsonb_build_object('ok',true,'code','permitted','data',jsonb_build_object('state','historical-published',
+   'homeScore',m.home_score,'awayScore',m.away_score,'version',m.version,'fixtureVersion',s.resource_version,'teamRecorded',true));end if;
   if not v_current then return jsonb_build_object('ok',true,'code','permitted','data',jsonb_build_object('state','blocked',
     'reason',case when rule.rule_id is null then 'rules-unapproved' when not v_ready then 'squad-unavailable' else 'fixture-or-record-stale' end,
     'fixtureVersion',s.resource_version,'version',v_version));end if;
@@ -234,7 +240,7 @@ begin
   end if;
   return jsonb_build_object('ok',true,'code','permitted','data',jsonb_build_object(
    'state',coalesce(m.state,'none'),'version',v_version,'fixtureVersion',s.resource_version,
-   'canEdit',s.status='planned','rules',jsonb_build_object('id',rule.rule_id,'edition',rule.edition,'fieldMin',rule.field_min,
+   'canEdit',s.status='planned','canStart',s.status='planned' and (s.starts_at at time zone 'Australia/Sydney')::date=(v_now at time zone 'Australia/Sydney')::date,'rules',jsonb_build_object('id',rule.rule_id,'edition',rule.edition,'fieldMin',rule.field_min,
     'fieldMax',rule.field_max,'categoryAMax',rule.category_a_max,'categoryBMin',rule.category_b_min,'periodCount',rule.period_count,
     'periodSeconds',rule.period_seconds,'tryA',rule.try_a,'tryB',rule.try_b,'interchangeLimit',rule.interchange_limit,
     'categoryALabel',rule.category_a_label,'categoryBLabel',rule.category_b_label),

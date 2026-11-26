@@ -276,6 +276,7 @@ declare
  coach uuid:='11111111-1111-4111-8111-111111111111';
  player uuid:='33333333-3333-4333-8333-333333333333';
  outsider uuid:='44444444-4444-4444-8444-444444444444';
+ manager uuid:='22222222-2222-4222-8222-222222222222';
  r jsonb; notice_id_value text; volunteer_notice text;
 begin
  if has_function_privilege('authenticated',
@@ -374,6 +375,8 @@ begin
  '{"sessionId":"phase1-arrival-match","fixtureVersion":1,"expectedVersion":0,"arrived":true}');
  if r->>'code'<>'stale-version' then raise exception 'Cancelled arrival accepted %',r;end if;
  raise notice 'PASS PR300 match arrival scope, provenance, stale and cancelled checks';
+ -- Test delegated match recording using the already verified synthetic Manager.
+ update tm_private.role_grants set status='active' where grant_id='grant-manager';
  -- No tournament profile is seeded. Test explicit activation only within this
  -- rollback-only disposable transaction using wholly invented match rules.
  if exists(select 1 from tm_private.matchday_rules_profiles) then raise exception 'Unexpected seeded rules';end if;
@@ -425,7 +428,7 @@ begin
  r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.clock.start',
  '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":2,"ruleId":"synthetic-only"}');
  if r->>'code'<>'committed' then raise exception 'Clock start %',r;end if;
- r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.score.record',
+ r:=public.tm_stage3d5_matchday(manager,'stgeorge-mixed20','team_manager','matchday.score.record',
  '{"sessionId":"phase1-rules-match","fixtureVersion":0,"expectedVersion":3,"ruleId":"synthetic-only","side":"home","personId":"player-p"}');
  if r->>'code'<>'committed' then raise exception 'Scoring event %',r;end if;
  r:=public.tm_stage3d5_matchday(coach,'stgeorge-mixed20','team_coach','matchday.read','{"sessionId":"phase1-rules-match"}');
@@ -469,6 +472,9 @@ begin
  if r->>'code'<>'committed' then raise exception 'Result reopen %',r;end if;
  r:=public.tm_stage3d5_matchday(player,'stgeorge-mixed20','team_player','player.matchday.read','{"sessionId":"phase1-rules-match"}');
  if r->'data'->>'state'<>'lineup-published' or r->'data' ? 'homeScore' then raise exception 'Withdrawn result leaked %',r;end if;
+ update tm_private.role_grants set status='revoked' where grant_id='grant-manager';
+ r:=public.tm_stage3d5_matchday(manager,'stgeorge-mixed20','team_manager','matchday.read','{"sessionId":"phase1-rules-match"}');
+ if r->>'code'<>'scope-denied' then raise exception 'Revoked Manager retained match access %',r;end if;
  raise notice 'PASS PR300 rules gate, synthetic lineup, scoring, correction, time, result approval and publication';
  -- Connected match selection: saved draft, published Player view, stale and foreign denial.
  if has_table_privilege('authenticated','tm_private.team_match_selections','SELECT') or

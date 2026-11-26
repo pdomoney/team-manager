@@ -14,6 +14,11 @@ export function renderMatchDayRecord({record,ctx,fixture,access,current,ui,commi
    else info('No published team result.',panel);
    return;
  }
+ if(record.state==='historical-published'){
+   const panel=card('Historical published result');
+   info('Team-recorded final result: '+record.homeScore+' – '+record.awayScore+'. The current squad or rules have changed. This result is read-only.',panel);
+   return;
+ }
  if(record.state==='blocked'){
    const panel=card('Match controls');
    info(record.reason==='squad-unavailable'?'Publish a current match squad within the verified competition limits first.':
@@ -82,7 +87,7 @@ export function renderMatchDayRecord({record,ctx,fixture,access,current,ui,commi
  }
  if(record.canEdit){
    const a=actions(panel);
-   if((state==='ready'||state==='playing')&&!record.running&&record.elapsedMs<r.periodSeconds*1000)
+   if(record.canStart===true&&(state==='ready'||state==='playing')&&!record.running&&record.elapsedMs<r.periodSeconds*1000)
      button(state==='ready'?'Start match clock':'Resume clock',()=>run('matchday.clock.start'),a);
    if(state==='playing'&&record.running)button('Pause clock',()=>run('matchday.clock.pause'),a);
    if(state==='playing'&&!record.running&&record.elapsedMs>=r.periodSeconds*1000&&record.period<r.periodCount)
