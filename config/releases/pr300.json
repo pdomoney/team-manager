@@ -1,0 +1,38 @@
+{
+  "releaseId": "PR300",
+  "candidateBranch": "candidate/pr300-match-day-operations",
+  "developmentBase": "9a66b06849c688dede50178d70ddec3b37287e48",
+  "accepted": {
+    "source": "f80c2ce4a67098598f53208699e0eddf577eb844",
+    "control": "487862b1a71602faef72793b6e53ed680f7bebfa",
+    "data": "068c27f8cf2185c1100b6acf0940b686e4295bc2",
+    "migrationCount": 22,
+    "manifest": "349ba459ee027f0205ce67dbbc3b4fffdff334bcd6829851f9e4a42dc92fab75",
+    "plan": "a72532c0219f43df541c88a25f51a6c88750858678d5823153b345b02fa649cf",
+    "worker": {
+      "version_id": "0abd7e8b-ec79-4249-9c81-f47bdff5d253",
+      "deployment_id": "a926ed85-b900-4412-aed2-88c5dc17f267"
+    },
+    "assets": 166,
+    "encryptedAssets": 8,
+    "ownerAcceptance": {
+      "date": "2026-11-26",
+      "checks": 16,
+      "passed": 16,
+      "status": "OWNER_ACCEPTED"
+    }
+  },
+  "migrations": [
+    "20261126040000_stage3d5_matchday_arrivals.sql",
+    "20261126050000_stage3d5_matchday_records.sql"
+  ],
+  "newEmptyTables": [
+    "matchday_arrivals",
+    "matchday_arrival_events",
+    "matchday_rules_profiles",
+    "matchday_records",
+    "matchday_events"
+  ],
+  "existingSchemaChanges": [],
+  "ruleActivation": "NOT_APPROVED_NO_PROFILE_SEEDED"
+}
