@@ -278,3 +278,8 @@
 .cloud-team-page .style-sw{cursor:pointer}
 .cloud-team-page .cloud-form input[type=color]{width:100%;min-height:44px;padding:3px}
 .cloud-team-page .cloud-form input[type=file]{max-width:100%;min-width:0}
+
+/* A club chip retains its own identity in every active context. */
+.cloud-context-controls .scope-club{color:var(--club-chip-dark,var(--pitch))}
+.cloud-context-controls .scope-club .crest.all{background:var(--club-chip-dark,var(--pitch));color:#fff}
+.cloud-context-controls .scope-club[aria-pressed="true"]{border-color:var(--club-chip-dark,var(--pitch));box-shadow:inset 0 0 0 1px var(--club-chip-dark,var(--pitch))}

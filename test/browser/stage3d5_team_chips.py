@@ -3,7 +3,7 @@
 import base64,json,os,subprocess,sys
 import harness
 from harness import Check,serve
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 sha=subprocess.check_output(['git','-c','safe.directory='+harness.REPO,'rev-parse','HEAD'],cwd=harness.REPO,text=True).strip()
 env=dict(os.environ,
@@ -81,6 +81,22 @@ def bind(ctx):
   who=actor(route.request)
   payload=json.loads(route.request.post_data or '{}')
   if who!='owner':return respond(route,{'ok':False,'code':'scope-denied'},403)
+  if payload.get('action')=='branding.catalogue':
+   clubs=sorted({c for gs in grants.values() for t,c,ss,r in gs})
+   return respond(route,{'ok':True,'code':'ready','clubs':[{'clubRef':c,'style':club_branding.get(c,{}).get('style'),'logo':club_branding.get(c,{}).get('logo',''),'version':club_branding.get(c,{}).get('version',0),'locked':club_branding.get(c,{}).get('locked',False)} for c in clubs]})
+  if payload.get('action')=='branding.history':
+   return respond(route,{'ok':True,'code':'ready','events':[]})
+  if payload.get('action','').startswith('branding.moderation.'):
+   c=payload['clubRef'];v=club_branding.get(c,{'style':None,'logo':'','version':0,'locked':False})
+   if payload['expectedVersion']!=v['version']:return respond(route,{'ok':False,'code':'stale-version'},409)
+   action=payload['action'].split('.')[-1]
+   if action=='remove':v['logo']='';v['locked']=True
+   elif action=='lock':v['locked']=True
+   elif action=='unlock':v['locked']=False
+   elif action=='save':v.update(style=payload['style'],logo=payload['logo'])
+   elif action=='revoke':branding_grant['active']=False
+   v['version']+=1;club_branding[c]=v
+   return respond(route,{'ok':True,'code':'ready'})
   if payload.get('action') in ('branding.status','branding.authorise','branding.revoke'):
    if payload['action']!='branding.status':branding_grant['active']=payload['action']=='branding.authorise'
    return respond(route,{'ok':True,'code':'ready','clubRef':'St George Oztag','brandingAuthorised':branding_grant['active']})
@@ -183,11 +199,11 @@ def bind(ctx):
    tb=team_branding.get(team,{'style':None,'version':0})
    return respond(route,{'ok':True,'code':'permitted','data':{
     'clubRef':club,'clubStyle':cb['style'],'logo':cb['logo'],'clubVersion':cb['version'],
-    'teamStyle':tb['style'],'teamVersion':tb['version'],'canEditTeam':role in ('team_coach','team_manager'),
-    'canEditClub':who=='owner' and club=='St George Oztag' and branding_grant['active']}})
+    'teamStyle':tb['style'],'teamVersion':tb['version'],'locked':cb.get('locked',False),'canEditTeam':not cb.get('locked',False) and role in ('team_coach','team_manager'),
+    'canEditClub':not cb.get('locked',False) and who=='owner' and club=='St George Oztag' and branding_grant['active']}})
   if action in ('branding.team.save','branding.club.save'):
    value=data['input'];club=next(c for t,c,ss,r in grants[who] if t==team and r==role)
-   if role not in ('team_coach','team_manager'):return respond(route,{'ok':False,'code':'role-denied'},403)
+   if role not in ('team_coach','team_manager') or club_branding.get(club,{}).get('locked',False):return respond(route,{'ok':False,'code':'role-denied'},403)
    if action=='branding.club.save' and not (who=='owner' and club=='St George Oztag' and branding_grant['active']):
     return respond(route,{'ok':False,'code':'role-denied'},403)
    target,key=(club_branding,club) if action=='branding.club.save' else (team_branding,team)
@@ -403,6 +419,50 @@ try:
    checks.ok(club_branding['St George Oztag']['style']=={'palette':'redwhite'} and
      bool(club_branding['St George Oztag']['logo']),f'[{width}] branding persisted to exact club')
    review(page,width,'branding')
+   page.locator('#club-chips').get_by_role('button',name='Platform').click()
+   page.locator('#club-chips').get_by_role('button',name='St George Oztag').locator('img').wait_for()
+   page.reload()
+   page.locator('#club-chips').get_by_role('button',name='St George Oztag').locator('img').wait_for()
+   checks.ok(page.locator('html').get_attribute('data-team-style') is None,f'[{width}] persisted club badge on fresh Platform context without changing global theme')
+   page.get_by_role('button',name='Manage club branding').click()
+   page.get_by_role('heading',name='Club branding management').wait_for()
+   chooser=page.get_by_role('region',name='Select club to manage branding')
+   choice=chooser.get_by_role('button',name='St George Oztag',exact=True)
+   choice.wait_for()
+   choice.click()
+   panel=page.get_by_role('region',name='Moderation for St George Oztag')
+   panel.wait_for()
+   expect(choice).to_have_attribute('aria-pressed','true')
+   checks.ok(page.locator('#club-chips').get_by_role('button',name='Platform').get_attribute('aria-pressed')=='true',
+     f'[{width}] moderation club selection preserves Platform authority')
+   initial_version=club_branding['St George Oztag']['version']
+   expect(panel).to_have_attribute('data-branding-version',str(initial_version))
+   panel.get_by_role('button',name='Lock branding changes',exact=True).click()
+   expect(panel).to_have_attribute('data-branding-version',str(initial_version+1))
+   panel.get_by_role('button',name='Unlock branding changes',exact=True).wait_for()
+   checks.ok(club_branding['St George Oztag']['locked'],f'[{width}] owner moderation lock persisted')
+   panel.get_by_role('button',name='Remove inappropriate logo and lock').click()
+   expect(panel).to_have_attribute('data-branding-version',str(initial_version+2))
+   page.locator('#club-chips').get_by_role('button',name='St George Oztag').locator('img').wait_for(state='detached')
+   checks.ok(club_branding['St George Oztag']['locked'] and not club_branding['St George Oztag']['logo'],f'[{width}] owner removed logo while retaining lock')
+   panel.get_by_role('button',name='Replace club logo or colours').click()
+   # Playwright evaluates the inner has locator relative to each form.
+   # Including the outer moderation region in that locator matches nothing.
+   owner_form=panel.locator('form').filter(has=page.get_by_role('button',name='Save club branding',exact=True))
+   expect(owner_form).to_have_count(1)
+   expect(owner_form.locator('input[type=file]')).to_have_count(1)
+   owner_form.locator('input[type=file]').set_input_files({'name':'test.png','mimeType':'image/png','buffer':png})
+   # Both crests were removed, so the first image must be a new preview.
+   panel.locator('.crest img').first.wait_for()
+   owner_form.get_by_role('button',name='Save club branding',exact=True).click()
+   expect(panel).to_have_attribute('data-branding-version',str(initial_version+3))
+   page.locator('#club-chips').get_by_role('button',name='St George Oztag').locator('img').wait_for()
+   checks.ok(club_branding['St George Oztag']['locked'],f'[{width}] owner replacement cannot silently unlock moderation')
+   panel.get_by_role('button',name='Unlock branding changes',exact=True).click()
+   expect(panel).to_have_attribute('data-branding-version',str(initial_version+4))
+   panel.get_by_role('button',name='Lock branding changes',exact=True).wait_for()
+   checks.ok(not club_branding['St George Oztag']['locked'],f'[{width}] only owner unlock restores delegated changes')
+   page.get_by_role('button',name='Back to Platform').click()
    page.locator('#club-chips').get_by_role('button',name='Rangers Club').click()
    page.locator('#team-chips button').first.click()
    page.get_by_role('heading',name='Home').wait_for()
@@ -802,5 +862,15 @@ try:
      f'[{width}] Player reads published notices but cannot mutate them')
    c.close()
   browser.close()
+except Exception:
+ # This suite uses synthetic accounts/data only. Capture the current UI before
+ # closing the browser where possible, without printing request credentials.
+ try:
+  if 'page' in locals() and not page.is_closed():
+   page.screenshot(path=os.path.join(review_dir,'failed-stage3d5.png'),full_page=True,animations='disabled',timeout=5000)
+ except Exception:
+  pass
+ print('Stage3D5 failure: engine='+engine+'; viewport='+str(locals().get('width','initial')),file=sys.stderr)
+ raise
 finally:server.shutdown()
 sys.exit(0 if checks.done(errors) else 1)

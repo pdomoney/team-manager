@@ -35,3 +35,13 @@ export function setConnectedCrest(element,logo,fallback){
  if(valid){const img=element.ownerDocument.createElement('img');img.src=logo;img.alt='';element.append(img);}
  else element.textContent=fallback;
 }
+
+export function validClubBranding(v){
+ return !!v&&typeof v.clubRef==='string'&&v.clubRef.length>0&&v.clubRef.length<=120&&
+ validConnectedLogo(v.logo)&&validConnectedStyle(v.style)&&Number.isSafeInteger(v.version)&&v.version>=0&&typeof v.locked==='boolean';
+}
+export function paintClubChip(el,brand,fallback){
+ const style=validConnectedStyle(brand?.style??null)?resolveStyle(brand?.style??null):null;
+ el.style.setProperty('--club-chip-dark',style?.dark||CLASSIC.dark);
+ const crest=el.querySelector('.crest');if(crest)setConnectedCrest(crest,brand?.logo||'',fallback);
+}
