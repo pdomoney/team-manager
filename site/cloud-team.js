@@ -919,9 +919,9 @@ async function openMatchDay(sessionId){
       }else info('No verified competition profile for this match.',rules);
     }else if(access.player){
       const panel=card('Published match squad');
-      if(selection?.state==='published'&&fixture.status!=='cancelled'&&Array.isArray(selection.players))
-        for(const p of selection.players)if(typeof p.displayName==='string')info(p.displayName,panel);
-      else info('No current published squad for this match.',panel);
+      if(selection?.state==='published'&&fixture.status!=='cancelled'&&Array.isArray(selection.players)&&selection.players.length){
+        for(const p of selection.players)if(typeof p.displayName==='string'&&p.displayName.trim())info(p.displayName,panel);
+      }else info('No current published squad for this match.',panel);
       info('My response: '+(fixture.myAvailability||'Not answered'),details);
     }else{
       info('Your current Assistant Coach grant includes the match schedule, not private squad or readiness data.',details);
