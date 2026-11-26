@@ -96,7 +96,9 @@ jobs:
             supabase/migrations/20261126030000_stage3d5_branding_moderation.sql \
             supabase/migrations/20261126040000_stage3d5_matchday_arrivals.sql \
             supabase/migrations/20261126050000_stage3d5_matchday_records.sql \
-            supabase/tests/stage3d5_functional_completion_disposable.sql
+            supabase/migrations/20261127010000_stage4_play_assignments.sql \
+            supabase/tests/stage3d5_functional_completion_disposable.sql \
+            supabase/tests/stage4_play_assignments_disposable.sql
           do
             echo "Stage 1 isolated PostgreSQL: $script"
             psql -X -v ON_ERROR_STOP=1 -f "$script"

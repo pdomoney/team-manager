@@ -707,6 +707,8 @@ function renderSchedule(){
     const details=h('div',{className:'grow',parent:head});
     h('strong',{className:'name cloud-block',text:s.title||s.kind||'Session',parent:details});
     h('small',{text:when(s.startsAt)+(s.locationLabel?' · '+s.locationLabel:'')+' · '+s.status,parent:details});
+    if(CLOUD_STAGE4_TACTICS_ENABLED&&['training','match'].includes(s.kind)&&canViewTactics())
+      button('Assigned plays',()=>void openSessionPlays(s),actions(row));
     if(MANAGEMENT_PARITY&&s.kind==='match'&&matchDayAccess(state.context).view)
       button('Match Day',()=>void openMatchDay(s.sessionId),actions(row));
     if(hasRole('team_player')){
@@ -875,6 +877,55 @@ async function openAttendance(s){
     button('Back to schedule',()=>void switchTab('schedule'),actions());
   }catch(e){if(epoch!==state.epoch)return;loading.textContent=explain(e);message(explain(e),true);
     button('Back to schedule',()=>void switchTab('schedule'),actions());}
+}
+async function openSessionPlays(session){
+  const ctx=state.context,epoch=++state.epoch;
+  if(!CLOUD_STAGE4_TACTICS_ENABLED||!ctx||!canViewTactics())return;
+  const current=()=>state.context===ctx&&state.epoch===epoch&&state.tab==='schedule';
+  clear();title('Assigned plays',session.title||session.kind);
+  button('Back to schedule',()=>void showTab(),actions());
+  const loading=info('Loading the selected session and play revisions…');
+  try{
+    const data=await management.call(ctx,'play.assignment.read',{sessionId:session.sessionId});
+    if(!current())return;
+    if(!Array.isArray(data.rows)||!Number.isSafeInteger(data.sessionVersion))throw Error('invalid-assignment-response');
+    const panel=card('Session play assignments'),coach=hasRole('team_coach'),canPropose=hasRole('team_coach','team_assistant');
+    loading.remove();
+    info('Assignments identify the exact published play and session revision. Changed fixtures or plays must be reviewed again.',panel);
+    let pending=false;
+    const mutate=async(action,r,revisionId=r.revisionId)=>{
+      if(!current()||pending)return;
+      pending=true;
+      try{
+        await management.call(ctx,action,{sessionId:session.sessionId,sessionVersion:data.sessionVersion,
+          playId:r.playId,revisionId,expectedVersion:r.version});
+        if(current()){message('Assignment saved.');await openSessionPlays(session);}
+      }catch(e){if(current())message(e?.code==='stale-version'?'Session, play or assignment changed. Reopen to review the latest revision.':explain(e),true);}
+      finally{pending=false;}
+    };
+    readList(panel,data.rows,(r,row)=>{
+      h('strong',{text:r.name||'Play revision requires review',parent:row});
+      info(({current:'Approved',withdrawn:'Withdrawn','session-cancelled':'Session cancelled','session-changed':'Session changed','revision-changed':'Published play changed','awaiting-coach':'Awaiting Head Coach approval'})[r.reason]||'Review required',row);
+      const a=actions(row);
+      if(coach&&r.reason==='awaiting-coach'&&data.sessionStatus==='planned')
+        button('Approve assignment',()=>{if(confirm('Approve this exact play revision for this session?'))void mutate('play.assignment.approve',r);},a);
+      if(coach&&r.state!=='withdrawn')
+        button('Withdraw assignment',()=>{if(confirm('Withdraw this play assignment?'))void mutate('play.assignment.withdraw',r);},a);
+      if(r.reason==='current')button('Open team plays',()=>switchTab('tactics'),a,{primary:true});
+    });
+    if(!canPropose||data.sessionStatus!=='planned')return;
+    const records=await action('play.published.read',ctx.teamId);
+    if(!current())return;
+    const choices=records.filter(p=>!p.unavailableReason&&!data.rows.some(r=>r.playId===p.playId&&
+      r.revisionId===p.revisionId&&r.sessionVersion===data.sessionVersion&&['current','awaiting-coach'].includes(r.reason)));
+    const propose=card('Propose a published play');
+    if(!choices.length){info('No other current published play is available for proposal.',propose);return;}
+    for(const p of choices){
+      const row=h('div',{className:'cloud-list-item',parent:propose});h('strong',{text:p.play.name,parent:row});
+      button('Propose assignment',()=>void mutate('play.assignment.propose',{playId:p.playId,
+        revisionId:p.revisionId,version:data.rows.find(r=>r.playId===p.playId)?.version??0}),actions(row));
+    }
+  }catch(e){if(current()){loading.textContent=explain(e);message(explain(e),true);}}
 }
 async function openMatchDay(sessionId){
   const ctx=state.context,access=matchDayAccess(ctx),epoch=++state.epoch;
