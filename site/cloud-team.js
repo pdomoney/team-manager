@@ -20,6 +20,7 @@ import {matchDayAccess,resolveMatchDayFixture,matchDayReview,matchDayRulesReques
 import {renderMatchDayRecord} from './cloud-matchday-record.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
+import {connectedPlayLibrary,capturePlayScope} from './cloud-tactics-library.js';
 
 const $=id=>document.getElementById(id);
 const main=$('cloud-main'),notice=$('cloud-alert');
@@ -1359,30 +1360,58 @@ function validE5Play(play){
     &&(!Object.hasOwn(play,'eventTimeline')||loadPlayEventDraft(play).status==='ready')
     &&!Object.keys(play).some(x=>/^(phone|email|medical|guardian|password|token|accountId|personId)$/i.test(x));
 }
+function playScope(){
+  return capturePlayScope({context:state.context,epoch:state.epoch,current:()=>state,
+    operation:(ctx,name,resource,payload)=>ops.operation(ctx,name,resource,payload),mutationId:newMutationId});
+}
+function tacticsLibrary(parent,records,render){
+  const filters=h('div',{className:'cloud-form',parent});
+  const q=field(filters,'Search plays','query',{type:'search',required:false});
+  const categories=connectedPlayLibrary(records).categories;
+  const category=selectField(filters,'Category','category',[['','All categories'],...categories.map(x=>[x,x])]);
+  const summary=h('p',{className:'cloud-muted',attrs:{role:'status','aria-live':'polite'},parent});
+  const results=h('div',{parent});
+  function refresh(){
+    const lib=connectedPlayLibrary(records,{query:q.value,filter:category.value});
+    summary.textContent=lib.shown+' of '+lib.eligible+' revisions shown'
+      +(lib.reasons.invalidRecord?' · '+lib.reasons.invalidRecord+' invalid records':'')
+      +(lib.reasons.duplicateRevision?' · '+lib.reasons.duplicateRevision+' duplicate revisions':'')
+      +(lib.reasons.filtered?' · '+lib.reasons.filtered+' filtered':'');
+    results.replaceChildren();
+    readList(results,lib.rows,render);
+  }
+  q.addEventListener('input',refresh);category.addEventListener('change',refresh);refresh();
+}
 function renderTactics(){
   const c=state.context;
   if(!canViewTactics()){info('No published-play permission is assigned to your selected role.');return;}
-  const published=card('Published team plays');
-  readList(published,state.published,(p,row)=>{
+  const scope=playScope(),published=card('Published team plays');
+  tacticsLibrary(published,state.published,(p,row)=>{
     h('strong',{text:p.play.name,parent:row});
-    h('small',{text:'Published revision '+p.revisionId,parent:row});
-    button('View diagram and Learn / authored timing',()=>viewPlay(p),actions(row),{primary:true});
+    h('small',{text:(p.play.category||'Other')+' · Published revision '+p.revisionId,parent:row});
+    if(p.play.headline)info(p.play.headline,row);
+    button('View diagram and Learn / authored timing',()=>{if(scope.current())viewPlay(p);},actions(row),{primary:true});
   });
   if(!canDraft())return;
   const drafts=card('Coach play drafts');
   info('Coach drafts are never shown to Players. Assistant Coaches may save drafts; only the Head Coach can publish.',drafts);
-  readList(drafts,state.drafts,(p,row)=>{
+  tacticsLibrary(drafts,state.drafts,(p,row)=>{
     h('strong',{text:p.play.name,parent:row});
-    h('small',{text:'Revision '+p.revisionId+' · '+p.revisionStatus,parent:row});
+    h('small',{text:(p.play.category||'Other')+' · Revision '+p.revisionId+' · '+p.revisionStatus,parent:row});
     const a=actions(row);
-    button('Preview',()=>viewPlay(p),a);
-    button('Edit coaching instructions',()=>editPlayInstructions(p),a);
+    button('Preview',()=>{if(scope.current())viewPlay(p);},a);
+    button('Edit coaching instructions',()=>{if(scope.current())editPlayInstructions(p);},a);
     if(hasRole('team_coach')&&p.revisionStatus==='draft')
       button('Publish reviewed revision',async()=>{
-        if(!confirm('Publish this reviewed E5 revision to the selected team?'))return;
-        try{await mutation('play.publish',p.playId,p.version,{revisionId:p.revisionId});
-          message('Reviewed revision published.');await showTab();}
-        catch(e){message(explain(e),true);}},a,{primary:true});
+        if(!scope.current()||!confirm('Publish this reviewed E5 revision to the selected team?'))return;
+        if(state.busy)return;
+        state.busy=true;
+        try{
+          const saved=await scope.mutate('play.publish',p.playId,p.version,{revisionId:p.revisionId});
+          if(saved.stillCurrent){message('Reviewed revision published.');await showTab();}
+        }catch(e){if(scope.current())message(explain(e),true);}
+        finally{state.busy=false;}
+      },a,{primary:true});
   });
   const importer=card('Bring an authored E5 play into this team');
   info('Import an exported E5 play JSON object. The original diagram, phases, movements and event timing are preserved without conversion. Do not import an encrypted workspace backup or any personal information.',importer);
@@ -1393,14 +1422,15 @@ function renderTactics(){
     let p;try{p=JSON.parse(await file.text());}catch{
       throw Object.assign(new Error(),{code:'invalid-play'});}
     if(!validE5Play(p))throw Object.assign(new Error(),{code:'invalid-play'});
-    await mutation('play.draft.edit',c.teamId,0,{command:{op:'create',play:p}});
-    message('Play saved as a coach-only draft. Review before publishing.');await showTab();
+    const saved=await scope.mutate('play.draft.edit',c.teamId,0,{command:{op:'create',play:p}});
+    if(saved.stillCurrent){message('Play saved as a coach-only draft. Review before publishing.');await showTab();}
   });
   const l=h('label',{text:'Authored E5 JSON file',parent:f});
   h('input',{attrs:{type:'file',name:'playFile',accept:'application/json,.json',required:'true'},parent:l});
   h('button',{className:'cloud-btn primary',text:'Import as draft',attrs:{type:'submit'},parent:f});
 }
 function editPlayInstructions(entry){
+  ++state.epoch;const scope=playScope();
   clear();title('Edit play instructions','Coach draft');
   const panel=card(entry.play.name);
   info('This edits coaching text only. All E5 diagram geometry, paths, phases and timeline fields remain unchanged.',panel);
@@ -1410,9 +1440,9 @@ function editPlayInstructions(entry){
     play.headline=String(d.get('headline')).trim();
     play.steps=String(d.get('steps'));
     if(!validE5Play(play))throw Object.assign(new Error(),{code:'invalid-play'});
-    await mutation('play.draft.edit',entry.playId,entry.version,
+    const saved=await scope.mutate('play.draft.edit',entry.playId,entry.version,
       {command:{op:'save',play}});
-    message('Coach draft saved; published revision remains unchanged.');await showTab();
+    if(saved.stillCurrent){message('Coach draft saved; published revision remains unchanged.');await showTab();}
   });
   field(f,'Play name','name',{value:entry.play.name});
   field(f,'Coaching headline','headline',{value:entry.play.headline||'',required:false});
@@ -1423,7 +1453,7 @@ function editPlayInstructions(entry){
   button('Back',()=>void showTab(),panel);
 }
 function viewPlay(entry){
-  clear();title(entry.play.name,'Tactics · authored E5 play');
+  ++state.epoch;clear();title(entry.play.name,'Tactics · authored E5 play');
   const panel=card(entry.play.headline||'Team play');
   const viewer=h('div',{parent:panel});
   previewCloudPlay(entry.play,viewer);
