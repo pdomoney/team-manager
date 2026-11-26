@@ -776,7 +776,14 @@ try:
    page.locator('#club-chips').get_by_role('button',name='St George Oztag').click()
    page.locator('#team-chips button').first.click()
    page.get_by_role('button',name='Schedule',exact=True).first.click()
-   page.locator('.cloud-list-item').filter(has_text='Example friendly').get_by_role('button',name='Selected match squad').click()
+   page.locator('.cloud-list-item').filter(has_text='Example friendly').get_by_role('button',name='Match Day',exact=True).click()
+   page.get_by_role('heading',name='Match readiness').wait_for()
+   page.get_by_role('heading',name='Competition rules').wait_for()
+   checks.ok(page.get_by_text('Persistent lineup, scoring, interchange, clock and results are unavailable',exact=False).count()==1 and
+     page.get_by_text('Venue arrivals are not recorded',exact=False).count()==1 and
+     page.get_by_role('button',name='Copy rules confirmation checklist').count()==1,
+     f'[{width}] Match Day reuses actual squad preparation and exposes the unapproved rule gate')
+   page.get_by_role('button',name='Selected match squad').click()
    page.get_by_role('button',name='Save squad draft').wait_for()
    page.locator('input[name=personIds][value=person-example]').check()
    page.get_by_role('button',name='Save squad draft').click()
@@ -821,7 +828,14 @@ try:
    checks.ok(schedule_rows[0]['myAvailabilityVersion']==1 and
      ('player','stgeorge-mixed20','team_player','availability.reply') in operations,
      f'[{width}] exact Player reply persisted and read back')
-   match.get_by_role('button',name='Selected match squad').click()
+   match.get_by_role('button',name='Match Day',exact=True).click()
+   page.get_by_role('heading',name='Published match squad').wait_for()
+   page.get_by_text('Verified Example Player',exact=True).wait_for()
+   checks.ok(page.get_by_role('heading',name='Match readiness').count()==0 and
+     page.get_by_role('button',name='Copy rules confirmation checklist').count()==0,
+     f'[{width}] Match Day Player projection excludes staff readiness and rules controls')
+   page.get_by_role('button',name='Back to schedule').click()
+   page.locator('.cloud-list-item').filter(has_text='Example friendly').get_by_role('button',name='Selected match squad').click()
    page.get_by_role('heading',name='Published match squad').wait_for()
    page.get_by_text('Verified Example Player',exact=True).wait_for()
    checks.ok(page.get_by_role('button',name='Save squad draft').count()==0,
