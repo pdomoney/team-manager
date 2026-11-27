@@ -38,6 +38,7 @@ duties = [{
 }]
 operations = []
 reject_next_play_save = False
+assignment_mock = None
 def signed_role(headers):
     auth = headers.get('authorization', '')
     if OWNER_TOKEN in auth:return 'owner'
@@ -136,6 +137,18 @@ def bind(ctx):
             reply={'ok':False,'code':'role-denied'};code=403
         route.fulfill(status=code,content_type='application/json',
             body=json.dumps(reply))
+    def assignments_endpoint(route):
+        payload=route.request.post_data_json
+        permitted=(signed_role(route.request.headers)=='player' and payload.get('role')=='team_player'
+          and payload.get('teamId')==TEAM and payload.get('action')=='play.assignment.read'
+          and payload.get('input')=={'sessionId':'training-original'})
+        if permitted:
+            reply={'ok':True,'code':'permitted','data':{'sessionVersion':0,'sessionStatus':'planned',
+                'rows':[assignment_mock] if assignment_mock else []}}
+        else:
+            reply={'ok':False,'code':'scope-denied'}
+        route.fulfill(status=200 if permitted else 403,content_type='application/json',body=json.dumps(reply))
+    ctx.route('**/api/stage3d5/v1/team',assignments_endpoint)
     ctx.route('**/auth/v1/user',auth_endpoint)
     ctx.route('**/rest/v1/rpc/tm_my_team_context',contexts_endpoint)
     ctx.route('**/rest/v1/rpc/tm_my_operator_context',operator_endpoint)
@@ -144,9 +157,18 @@ def bind(ctx):
     ctx.route('**/fonts.googleapis.com/**',lambda route:route.abort())
     ctx.route('**/fonts.gstatic.com/**',lambda route:route.abort())
 
-def new_page(browser,token,width=390):
+def new_page(browser,token,width=390,stage4=False):
     ctx=browser.new_context(viewport={'width':width,'height':820})
     bind(ctx)
+    if stage4:
+        # Synthetic test only: enable the feature in this browser context;
+        # the default build and all production flags remain unchanged.
+        def stage4_config(route):
+            response=route.fetch()
+            body=response.text()
+            assert body.count('CLOUD_STAGE4_TACTICS_ENABLED=false')==1
+            route.fulfill(response=response,body=body.replace('CLOUD_STAGE4_TACTICS_ENABLED=false','CLOUD_STAGE4_TACTICS_ENABLED=true'))
+        ctx.route('**/cloud-public-config.js*',stage4_config)
     ctx.add_init_script("""(() => {
       const token = TOKEN_LITERAL;
       sessionStorage.setItem('tm-cloud-identity-preview-v1',
@@ -256,6 +278,34 @@ with sync_playwright() as p:
     checks.ok('Pass to the support runner' in player.locator('main').inner_text(),
         'Published E5 teaching instructions retained')
     player_ctx.close()
+
+    # Exercise the real Stage 4 schedule entry with a separate player context.
+    assignment_mock={'playId':published[0]['playId'],'revisionId':published[0]['revisionId'],
+        'version':1,'sessionVersion':0,'state':'approved','reason':'current','name':published[0]['play']['name']}
+    assigned_ctx,assigned=new_page(browser,PLAYER_TOKEN,stage4=True)
+    assigned.locator('#cloud-nav').get_by_role('button',name='Schedule',exact=True).click()
+    assigned.locator('.cloud-session-row').filter(has_text='Fictional drills').get_by_role('button',name='Assigned plays').click()
+    assigned.get_by_role('heading',name='Session play assignments').wait_for()
+    assigned.get_by_role('button',name='Watch and Learn',exact=True).click()
+    assigned_viewer=assigned.frame_locator('iframe[title="Watch and Learn"]')
+    assigned_viewer.get_by_role('button',name='Watch animation').wait_for(timeout=15000)
+    checks.ok(assigned_viewer.locator('svg.pf.study').count()==1 and
+        assigned_viewer.get_by_role('button',name='Save play',exact=True).count()==0,
+        'Assigned play opens the original E5 read-only Learn workspace directly')
+    assigned_viewer.get_by_role('button',name='All plays',exact=False).click()
+    assigned.get_by_role('heading',name='Session play assignments').wait_for(timeout=15000)
+    checks.ok(assigned.locator('dialog.cloud-e5-dialog').count()==0 and
+        assigned.locator('#cloud-nav [data-tab=schedule]').get_attribute('aria-current')=='page',
+        'Closing assigned play returns to the originating session on Schedule')
+    # Simulate revocation after the assignment list has already been shown.
+    assignment_mock=None
+    assigned.get_by_role('button',name='Watch and Learn',exact=True).click()
+    assigned.get_by_text('This assignment or published revision has changed or is unavailable.',exact=False).wait_for()
+    checks.ok(assigned.locator('dialog.cloud-e5-dialog').count()==0,
+        'A withdrawn assignment cannot open a stale published play')
+    checks.ok(all(not(r=='player' and a in ('play.draft.read','play.draft.edit','play.publish'))
+        for r,_,_,a in operations),'Player assignment viewing grants no draft or publication authority')
+    assigned_ctx.close()
 
     vol_ctx,volunteer=new_page(browser,VOL_TOKEN)
     volunteer.get_by_role('button',name='View your duties').click()

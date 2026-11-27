@@ -33,16 +33,35 @@ export function connectedPlayLibrary(records,{query='',filter=''}={}){
   return {eligible:records.length,shown:rows.length,rows,categories,reasons};
 }
 
+// Resolve a schedule selection against fresh assignment and published snapshots.
+ // Never fall back to another revision, a draft, an unavailable projection or
+ // ambiguous duplicate records. The two reads are snapshots, not a new grant.
+export function resolveAssignedPlay(snapshot,selected,records){
+  if(!recordOk({playId:selected?.playId,revisionId:selected?.revisionId,version:selected?.version,play:{name:'selection'}})||
+     !Number.isSafeInteger(selected.sessionVersion)||selected.sessionVersion<0||
+     selected.state!=='approved'||selected.reason!=='current'||
+     !snapshot||snapshot.sessionStatus==='cancelled'||snapshot.sessionVersion!==selected.sessionVersion||
+     !Array.isArray(snapshot.rows)||!Array.isArray(records))return null;
+  const rows=snapshot.rows.filter(r=>r?.playId===selected.playId);
+  if(rows.length!==1)return null;
+  const row=rows[0];
+  if(row.state!=='approved'||row.reason!=='current'||row.revisionId!==selected.revisionId||
+     row.version!==selected.version||row.sessionVersion!==selected.sessionVersion)return null;
+  const published=records.filter(r=>r?.playId===selected.playId);
+  return published.length===1&&recordOk(published[0])&&published[0].revisionId===selected.revisionId&&
+    !published[0].unavailableReason?published[0]:null;
+}
+
 // Capture the actual navigation context and epoch, rather than using whatever
 // team happens to be selected when an asynchronous import/editor callback fires.
 // The existing client and trusted SQL still recheck the role and version.
-export function capturePlayScope({context,epoch,current,operation,mutationId}){
+export function capturePlayScope({context,epoch,current,operation,mutationId,tab='tactics'}){
   if(context?.kind!=='team'||!ID.test(context.teamId||'')||
-     typeof current!=='function'||typeof operation!=='function'||typeof mutationId!=='function')
+     typeof current!=='function'||typeof operation!=='function'||typeof mutationId!=='function'||!['tactics','schedule'].includes(tab))
     throw safeError('scope-denied');
-  const currentScope=()=>{const s=current();return s.context===context&&s.epoch===epoch&&s.tab==='tactics';};
+  const currentScope=()=>{const s=current();return s.context===context&&s.epoch===epoch&&s.tab===tab;};
   async function mutate(action,resource,expectedVersion,detail){
-    if(!currentScope())throw safeError('scope-denied');
+    if(!currentScope()||tab!=='tactics')throw safeError('scope-denied');
     if(!['play.draft.edit','play.publish'].includes(action)||!ID.test(resource||'')||
        !Number.isSafeInteger(expectedVersion)||expectedVersion<0||
        !detail||typeof detail!=='object'||Array.isArray(detail)||
