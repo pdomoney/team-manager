@@ -108,4 +108,29 @@ begin
  if r->>'code' is distinct from 'scope-denied' then raise exception 'revoked player read %',r;end if;
  raise notice 'PASS Stage 4 exact-session play assignment proposal, coach approval, stale/cross-team/revoked denials';
 end $$;
+do $$
+declare o uuid:='11111111-1111-4111-8111-111111111111';
+ x uuid:='44444444-4444-8444-8444-444444444444';
+ tid text:='template-0123456789abcdef0123456789abcdef'; r jsonb;
+ p jsonb:='{"id":"step","name":"Step","players":{"LM":[24,46]},"moves":[]}'::jsonb;
+begin
+ if has_table_privilege('authenticated','tm_private.owner_play_templates','SELECT') or
+ has_function_privilege('authenticated','public.tm_stage4_owner_templates(uuid,text,jsonb)','EXECUTE') then raise exception 'template ACL';end if;
+ r:=public.tm_stage4_owner_templates(x,'template.list','{}');
+ if r->>'code' is distinct from 'scope-denied' then raise exception 'outsider read';end if;
+ r:=public.tm_stage4_owner_templates(o,'template.create',jsonb_build_object('templateId',tid,'play',p,'ownerAuthored',false));
+ if r->>'code' is distinct from 'invalid-request' then raise exception 'missing declaration';end if;
+ r:=public.tm_stage4_owner_templates(o,'template.create',jsonb_build_object('templateId',tid,'play',p,'ownerAuthored',true));
+ if r->>'code' is distinct from 'ready' then raise exception 'create %',r;end if;
+ r:=public.tm_stage4_owner_templates(o,'template.list','{}');
+ if jsonb_array_length(r->'templates')<>1 or r->'templates'->0->>'origin' is distinct from 'owner-authored' then raise exception 'list %',r;end if;
+ r:=public.tm_stage4_owner_templates(o,'template.read',jsonb_build_object('templateId',tid));
+ if r->'play' is distinct from p then raise exception 'read %',r;end if;
+ r:=public.tm_stage4_owner_templates(o,'template.archive',jsonb_build_object('templateId',tid,'expectedVersion',2));
+ if r->>'code' is distinct from 'stale-version' then raise exception 'stale archive %',r;end if;
+ r:=public.tm_stage4_owner_templates(o,'template.archive',jsonb_build_object('templateId',tid,'expectedVersion',1));
+ if r->>'code' is distinct from 'ready' then raise exception 'archive %',r;end if;
+ r:=public.tm_stage4_owner_templates(o,'template.read',jsonb_build_object('templateId',tid));
+ if r->>'code' is distinct from 'scope-denied' then raise exception 'archived read %',r;end if;
+end $$;
 rollback;
