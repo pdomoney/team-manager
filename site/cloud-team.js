@@ -1491,20 +1491,43 @@ function renderTactics(){
       },a,{primary:true});
   });
   const importer=card('Bring an authored E5 play into this team');
-  info('Import an exported E5 play JSON object. The original diagram, phases, movements and event timing are preserved without conversion. Do not import an encrypted workspace backup or any personal information.',importer);
+  info('Import an E5 play JSON object or select one play from an original Team Manager library export. Geometry, phases and authored timing are preserved. No encrypted backup or personal information.',importer);
   const f=form(importer,async d=>{
     const file=d.get('playFile');
-    if(!(file instanceof File)||file.size>65536||file.size===0)
+    if(!(file instanceof File)||file.size>(CLOUD_STAGE4_TACTICS_ENABLED?2000000:65536)||file.size===0)
       throw Object.assign(new Error(),{code:'invalid-play'});
     let p;try{p=JSON.parse(await file.text());}catch{
       throw Object.assign(new Error(),{code:'invalid-play'});}
-    if(!validE5Play(p)||(CLOUD_STAGE4_TACTICS_ENABLED&&!(await import('./cloud-e5-payload.js')).validConnectedE5Play(p)))throw Object.assign(new Error(),{code:'invalid-play'});
-    const saved=await scope.mutate('play.draft.edit',c.teamId,0,{command:{op:'create',play:p}});
-    if(saved.stillCurrent){message('Play saved as a coach-only draft. Review before publishing.');await showTab();}
+    if(!CLOUD_STAGE4_TACTICS_ENABLED){
+      if(!validE5Play(p))throw Object.assign(new Error(),{code:'invalid-play'});
+      const saved=await scope.mutate('play.draft.edit',c.teamId,0,{command:{op:'create',play:p}});
+      if(saved.stillCurrent){message('Play saved as a coach-only draft. Review before publishing.');await showTab();}
+      return;
+    }
+    const {inspectPlayImport}=await import('./cloud-play-import.js');
+    const result=inspectPlayImport(p);
+    if(!scope.current())return;
+    if(!result.ok)throw Object.assign(new Error(),{code:'invalid-play'});
+    selection.replaceChildren();
+    info(result.rows.length+' eligible plays · '+result.omitted.length+' held for review',selection);
+    for(const omitted of result.omitted)info((omitted.id||'Unidentified record')+' · '+omitted.reason,selection);
+    readList(selection,result.rows,(row,item)=>{
+      h('strong',{text:row.name,parent:item});
+      button('Import selected play as draft',async()=>{
+        if(!scope.current()||state.busy||!confirm('Create a coach-only copy of '+row.name+' in this team?'))return;
+        state.busy=true;
+        try{
+          const saved=await scope.mutate('play.draft.edit',c.teamId,0,{command:{op:'create',play:row.play}});
+          if(saved.stillCurrent){message('Play saved as a coach-only draft. Review before publishing.');await showTab();}
+        }catch(e){if(scope.current())message(explain(e),true);}
+        finally{state.busy=false;}
+      },actions(item));
+    });
   });
   const l=h('label',{text:'Authored E5 JSON file',parent:f});
   h('input',{attrs:{type:'file',name:'playFile',accept:'application/json,.json',required:'true'},parent:l});
-  h('button',{className:'cloud-btn primary',text:'Import as draft',attrs:{type:'submit'},parent:f});
+  h('button',{className:'cloud-btn primary',text:CLOUD_STAGE4_TACTICS_ENABLED?'Review import':'Import as draft',attrs:{type:'submit'},parent:f});
+  const selection=h('div',{parent:importer});
 }
 async function openE5(entry,mode,{returnTo}={}){
   const originTab=returnTo?'schedule':'tactics';
