@@ -374,9 +374,26 @@ with sync_playwright() as p:
     library_owner.locator('input[name=playFile]').set_input_files({'name':'library.json','mimeType':'application/json','buffer':json.dumps(legacy).encode()})
     library_owner.get_by_role('button',name='Review import').click()
     library_owner.get_by_text('1 eligible plays · 1 held for review').wait_for(timeout=15000)
-    library_owner.get_by_role('button',name='Import selected play as draft').click()
-    library_owner.get_by_text('Legacy support',exact=True).wait_for(timeout=15000)
+    # The review panel already contains the play name before the write.
+    # Observe the exact committed create response, then the refreshed draft
+    # row (with editor controls), not that pre-existing preview text.
+    def imported_response(response):
+        request=response.request
+        if not response.url.endswith('/api/stage2/v1/play') or request.method!='POST':
+            return False
+        data=request.post_data_json or {}
+        return (data.get('action')=='play.draft.edit' and data.get('activeTeamId')==TEAM
+            and data.get('activeRole')=='team_coach' and data.get('resourceId')==TEAM
+            and data.get('payload',{}).get('command',{}).get('op')=='create')
+    with library_owner.expect_response(imported_response,timeout=15000) as committed:
+        library_owner.get_by_role('button',name='Import selected play as draft').click()
+    response=committed.value
+    assert response.status==200 and response.json().get('code')=='committed', 'Exact-team draft creation was not committed'
+    library_owner.get_by_role('button',name='Import selected play as draft').wait_for(state='detached',timeout=15000)
+    imported_row=library_owner.locator('.cloud-list-item').filter(has=library_owner.get_by_text('Legacy support',exact=True)).filter(has=library_owner.get_by_role('button',name='Edit play',exact=True))
+    imported_row.get_by_role('button',name='Edit play',exact=True).wait_for(timeout=15000)
     checks.ok(len(plays)==2 and plays[-1]['play']['setDef']['labels'][0]['code']=='A1' and
+        plays[-1]['revisionStatus']=='draft' and plays[-1]['publishedRevisionId'] is None and
         all(p['play']['name']!='Legacy support' for p in published),
         'Historical library selection imports one exact custom-set coach draft without publication')
     library_ctx.close()
