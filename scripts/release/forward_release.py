@@ -10,6 +10,47 @@ from incremental_release import record_helper_contract,write_verification,check_
 from forward_release_plan import ROOT,HEX64,validate_plan_structure,spec_for,check_source_inventory,remote_refs,check_release_authority,check_ci_records,accepted_evidence,safe_private,validate_candidate_summary
 from asset_verification import verify_all
 
+def stage4_checker_command(node,source):
+    # Use the original read-only checker with the same descriptor as the
+    # archived builder and transport. Do not edit any frozen source file.
+    js = ("import {verifyExistingWorkerRelease} from './scripts/stage3d3-existing-worker-release-check.mjs';"
+          "import path from 'node:path';"
+          "const root=process.cwd();"
+          "const result=verifyExistingWorkerRelease({root,sourceSha:process.argv[1],"
+          "configPath:path.join(root,'wrangler.stage3d4-existing.jsonc')});"
+          "if(result.stage4TacticsEnabled!==true||result.encryptedFilesVerified!==8)"
+          "throw Error('Stage 4 package not enabled or protected inventory differs');"
+          "console.log(JSON.stringify(result));")
+    return [node,'--input-type=module','-e',js,source]
+
+def build_stage4_candidate(q,work,out,report,source):
+    # The hash-pinned archived helper uses its historical default checker CLI.
+    # Adapt exactly that read-only invocation, not the archived bytes, config,
+    # build, dry run, manifest, ciphertext checks or deployment command.
+    node=q.tool('node')
+    original=q.run
+    expected=[str(node),'scripts/stage3d3-existing-worker-release-check.mjs']
+    adapted=0
+    def run(argv,*args,**kwargs):
+        nonlocal adapted
+        if list(map(str,argv))==expected:
+            require(Path(kwargs.get('cwd','')).resolve()==work.resolve() and adapted==0,
+              'Unexpected archived checker invocation')
+            adapted+=1
+            argv=stage4_checker_command(node,source)
+        return original(argv,*args,**kwargs)
+    q.run=run
+    try:
+        q.worker_candidate(work,out,report)
+    finally:
+        q.run=original
+    require(adapted==1,'Archived production checker invocation not observed')
+    result=json.loads(original(stage4_checker_command(node,source),cwd=work,
+      label='explicit Stage 4 production descriptor verification',log=out/'stage4-check.log',timeout=120))
+    require(result.get('stage4TacticsEnabled') is True and result.get('encryptedFilesVerified')==8,
+      'Stage 4 package not enabled or protected inventory differs')
+    save(out/'stage4-descriptor-verification.json',result)
+
 def exact_plan(path,digest,mode):
     require(HEX64.fullmatch(digest or '') and sha(path)==digest,'Release plan checksum mismatch')
     p=load(path);require(p.get('format')=='TEAM_MANAGER_FORWARD_V1','Wrong release plan format')
@@ -93,7 +134,11 @@ def main():
         try:
             value=fn();report['checks'][name]='PASS';checkpoint();return value
         except Exception as e:
-            report['checks'][name]='HOLD';report['errors'].append({'check':name,'reason':str(e) if isinstance(e,Stop) else type(e).__name__});checkpoint();raise
+            reason=str(e) if isinstance(e,Stop) else type(e).__name__
+            report['checks'][name]='HOLD';report['errors'].append({'check':name,'reason':reason})
+            print('HOLD:',name,reason,flush=True)
+            if name=='build_and_transport':print('Inspect private worker-build.log, stage4-check.log and transport-private.log where present.',flush=True)
+            checkpoint();raise
     try:
         if mode=='verify':
             with tempfile.TemporaryDirectory(prefix='verify-helpers-',dir=out) as tmp:
@@ -140,12 +185,11 @@ def main():
             return work
         work=check('source',source);cli=[q.tool('npx'),'--yes','wrangler@4.167.0'];psql=q.tool('psql')
         def build():
-            q.worker_candidate(work,out,report)
             if 'stage4' in s:
-                # The archived helper remains immutable; independently require
-                # exact paired runtime/client activation and native closure.
-                result=json.loads(q.run([q.tool('node'),str(work/'scripts/stage3d3-existing-worker-release-check.mjs')],cwd=work))
-                require(result.get('stage4TacticsEnabled') is True and result.get('encryptedFilesVerified')==8,'Stage 4 package not enabled or protected inventory differs')
+                require('control' in p and p['control']['contract']['controlPr']==309,
+                  'PR308 production checker correction not authorised')
+                build_stage4_candidate(q,work,out,report,p['source'])
+            else:q.worker_candidate(work,out,report)
             entry=i.bundle_entry(out)
             dest=out/'transport-dry-run';dest.mkdir()
             q.run(cli+['deploy',str(entry),'--no-bundle','--keep-vars','--config',CONFIG,'--dry-run','--outdir',str(dest)],cwd=work,label='transport dry run',timeout=600,log=out/'transport-private.log')

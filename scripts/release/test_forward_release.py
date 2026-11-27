@@ -143,4 +143,49 @@ class Stage4ReleaseTests(unittest.TestCase):
                 for key,val in [('http_status',403),('nonce','different'),('version_id','wrong')]:
                     f.write_text(json.dumps(dict(record,**{key:val})))
                     with self.assertRaises(Stop):accepted_evidence(s,p,plan)
+class Stage4ArchivedCheckerTests(unittest.TestCase):
+    def test_explicit_checker_preserves_archived_helper_and_frozen_source(self):
+        import subprocess
+        from types import SimpleNamespace
+        from forward_release import build_stage4_candidate
+        with tempfile.TemporaryDirectory() as t:
+            root=Path(t);work=root/'source';work.mkdir()
+            (work/'scripts').mkdir()
+            module=work/'scripts/stage3d3-existing-worker-release-check.mjs'
+            module.write_text("export function verifyExistingWorkerRelease(o){"
+              "if(o.configPath!==o.root+'/wrangler.stage3d4-existing.jsonc'||o.sourceSha!=='"+"a"*40+"')throw Error('wrong descriptor or source');"
+              "return {stage4TacticsEnabled:true,encryptedFilesVerified:8};}")
+            calls=[]
+            def run(argv,**kw):
+                calls.append(list(map(str,argv)))
+                if argv[1]=='src/build.js':return 'original build'
+                return subprocess.check_output(argv,cwd=kw['cwd'],text=True)
+            def worker_candidate(w,o,r):
+                q.run(['node','src/build.js'],cwd=w)
+                result=json.loads(q.run(['node','scripts/stage3d3-existing-worker-release-check.mjs'],cwd=w))
+                self.assertTrue(result['stage4TacticsEnabled'])
+            q=SimpleNamespace(tool=lambda n:n,run=run,worker_candidate=worker_candidate)
+            build_stage4_candidate(q,work,root,{},'a'*40)
+            self.assertIs(q.run,run)
+            self.assertEqual(calls[0],['node','src/build.js'])
+            self.assertEqual(calls[1],calls[2])
+            self.assertTrue((root/'stage4-descriptor-verification.json').is_file())
+            q.worker_candidate=lambda *a:None
+            with self.assertRaisesRegex(Stop,'not observed'):
+                build_stage4_candidate(q,work,root,{},'a'*40)
+            self.assertIs(q.run,run)
+            def wrong_dir(w,o,r):q.run(['node','scripts/stage3d3-existing-worker-release-check.mjs'],cwd=root)
+            q.worker_candidate=wrong_dir
+            with self.assertRaisesRegex(Stop,'Unexpected archived checker'):
+                build_stage4_candidate(q,work,root,{},'a'*40)
+            self.assertIs(q.run,run)
+    def test_correction_contract_binds_only_reviewed_release_paths(self):
+        s=json.loads((ROOT/'config/releases/pr308.json').read_text())
+        c=json.loads((ROOT/'config/releases/pr308-control.json').read_text())
+        validate_control_contract(c,s)
+        for change in ('identity','path'):
+            p=copy.deepcopy(c)
+            if change=='identity':p['controlPr']=310
+            else:p['changedPaths']=sorted(p['changedPaths']+['site/app.js'])
+            with self.assertRaises(Stop):validate_control_contract(p,s)
 if __name__=='__main__':unittest.main()

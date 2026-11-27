@@ -1,0 +1,15 @@
+{
+  "applicationRelease": "PR308",
+  "applicationSource": "1d99eefebd63c494b9d65a76bdf53376d6a2ed8e",
+  "applicationCandidate": "765875f26ab1f385178f2d25fe10b0017ffd989f",
+  "applicationTree": "c001f9ca42a55bdb4886a15b58a17e23a87b89a1",
+  "controlPr": 309,
+  "controlBranch": "candidate/pr309-pr308-checker-correction",
+  "changedPaths": [
+    "config/releases/pr308-control.json",
+    "docs/operations/pr308-checker-correction.md",
+    "scripts/release/forward_release.py",
+    "scripts/release/forward_release_plan.py",
+    "scripts/release/test_forward_release.py"
+  ]
+}
