@@ -582,6 +582,11 @@ async function renderOwnerDashboard(epoch){
   const moderation=card('Club branding management',grid);
   info('Review saved club logos and colours, or moderate inappropriate branding. This does not grant team access.',moderation);
   button('Manage club branding',()=>void openOwnerBranding(),actions(moderation));
+  if(CLOUD_STAGE4_TACTICS_ENABLED){
+    const templates=card('Play template library',grid);
+    info('Owner-authored reusable plays. Collection of Free Account plays is disabled until licence and account eligibility are verified.',templates);
+    button('Manage play templates',()=>void openOwnerTemplates(),actions(templates));
+  }
   const invite=card('Invite an adult',grid);
   info('Invite a Manager, Coach, Assistant Coach, adult Player or Volunteer to the existing team. Invitation is not an active team role.',invite);
   const f=form(invite,async d=>{
@@ -610,6 +615,55 @@ async function renderOwnerDashboard(epoch){
     attrs:{href:'cloud-owner.html'},parent:actions(help)});
 }
 
+async function openOwnerTemplates(){
+  if(!isOwner()||!CLOUD_STAGE4_TACTICS_ENABLED)return;
+  const epoch=++state.epoch,current=()=>isOwner()&&state.epoch===epoch;
+  clear();title('Play template library','Platform Owner');
+  button('Back to Platform',()=>void showTab(),actions());
+  const panel=card('Owner-authored templates');
+  info('Only upload your own original, privacy-reviewed tactics. No team, member, paid account or private draft collection is enabled. Export a reusable copy and import it as a team draft from its Coach context.',panel);
+  const loading=info('Loading templates…',panel);
+  try{
+    const result=await ownerCall('template.list');
+    if(!current())return;loading.remove();
+    readList(panel,result.templates,(t,row)=>{
+      h('strong',{text:t.name,parent:row});
+      h('small',{text:(t.sport||'Sport not specified')+' · '+t.state+' · '+t.origin+' · version '+t.version,parent:row});
+      if(t.state!=='active')return;
+      button('Download play JSON',async()=>{
+        try{
+          if(!current())return;
+          const data=await ownerCall('template.read',{templateId:t.templateId});
+          if(!current()||data.version!==t.version)throw Object.assign(new Error(),{code:'stale-version'});
+          const url=URL.createObjectURL(new Blob([JSON.stringify(data.play,null,2)],{type:'application/json'}));
+          const a=document.createElement('a');a.href=url;a.download=t.templateId+'.json';document.body.append(a);a.click();a.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),1000);
+        }catch(e){if(current())message(explain(e),true);}
+      },actions(row));
+      button('Archive template',async()=>{
+        if(!current()||!confirm('Archive this template? Existing exported copies are unchanged.'))return;
+        try{await ownerCall('template.archive',{templateId:t.templateId,expectedVersion:t.version});if(current())void openOwnerTemplates();}
+        catch(e){if(current())message(explain(e),true);}
+      },actions(row));
+    });
+  }catch(e){if(current())loading.textContent=explain(e);return;}
+  const f=form(panel,async d=>{
+    const file=d.get('templateFile');
+    if(!(file instanceof File)||file.size>65536||!file.size||d.get('ownerAuthored')!=='yes')throw Object.assign(new Error(),{code:'invalid-play'});
+    const {validConnectedE5Play}=await import('./cloud-e5-payload.js');
+    let play;try{play=JSON.parse(await file.text());}catch{throw Object.assign(new Error(),{code:'invalid-play'});}
+    if(!current()||!validConnectedE5Play(play))throw Object.assign(new Error(),{code:'invalid-play'});
+    if(!confirm('Save this owner-authored play to the private template catalogue?'))return;
+    await ownerCall('template.create',{templateId:'template-'+crypto.randomUUID().replaceAll('-',''),ownerAuthored:true,play});
+    if(current())void openOwnerTemplates();
+  });
+  const l=h('label',{text:'Owner-authored E5 JSON file',parent:f});
+  h('input',{attrs:{type:'file',name:'templateFile',accept:'application/json,.json',required:'true'},parent:l});
+  const consent=h('label',{parent:f});
+  h('input',{attrs:{type:'checkbox',name:'ownerAuthored',value:'yes',required:'true'},parent:consent});
+  consent.append(document.createTextNode(' I authored this play, have the necessary rights, and checked all content for personal or confidential information.'));
+  h('button',{className:'cloud-btn primary',text:'Save owner template',attrs:{type:'submit'},parent:f});
+}
 function renderHome(){
   const c=state.context;
   const [left,right]=originalColumns(h,main,'home-cols cloud-home-cols');
