@@ -20,7 +20,7 @@ import {matchDayAccess,resolveMatchDayFixture,matchDayReview,matchDayRulesReques
 import {renderMatchDayRecord} from './cloud-matchday-record.js';
 import {previewCloudPlay} from './cloud-play-board.js';
 import {loadPlayEventDraft} from './play-event-persistence.js';
-import {connectedPlayLibrary,capturePlayScope} from './cloud-tactics-library.js';
+import {connectedPlayLibrary,capturePlayScope,resolveAssignedPlay} from './cloud-tactics-library.js';
 
 const $=id=>document.getElementById(id);
 const main=$('cloud-main'),notice=$('cloud-alert');
@@ -911,7 +911,22 @@ async function openSessionPlays(session){
         button('Approve assignment',()=>{if(confirm('Approve this exact play revision for this session?'))void mutate('play.assignment.approve',r);},a);
       if(coach&&r.state!=='withdrawn')
         button('Withdraw assignment',()=>{if(confirm('Withdraw this play assignment?'))void mutate('play.assignment.withdraw',r);},a);
-      if(r.reason==='current')button('Open team plays',()=>switchTab('tactics'),a,{primary:true});
+      if(r.reason==='current')button('Watch and Learn',async()=>{
+        if(!current()||pending)return;
+        pending=true;
+        try{
+          // Refresh the published projection and assignment independently;
+          // the exact selected revision must still be approved and current.
+          const records=await action('play.published.read',ctx.teamId);
+          if(!current())return;
+          const fresh=await management.call(ctx,'play.assignment.read',{sessionId:session.sessionId});
+          if(!current())return;
+          const entry=resolveAssignedPlay(fresh,r,records);
+          if(!entry){message('This assignment or published revision has changed or is unavailable. Reopen assigned plays to review the current selection.',true);return;}
+          await openE5(entry,'view',{returnTo:()=>void openSessionPlays(session)});
+        }catch(e){if(current())message(explain(e),true);}
+        finally{pending=false;}
+      },a,{primary:true});
     });
     if(!canPropose||data.sessionStatus!=='planned')return;
     const records=await action('play.published.read',ctx.teamId);
@@ -1414,8 +1429,8 @@ function validE5Play(play){
     &&(!Object.hasOwn(play,'eventTimeline')||loadPlayEventDraft(play).status==='ready')
     &&!Object.keys(play).some(x=>/^(phone|email|medical|guardian|password|token|accountId|personId)$/i.test(x));
 }
-function playScope(){
-  return capturePlayScope({context:state.context,epoch:state.epoch,current:()=>state,
+function playScope(tab='tactics'){
+  return capturePlayScope({context:state.context,epoch:state.epoch,tab,current:()=>state,
     operation:(ctx,name,resource,payload)=>ops.operation(ctx,name,resource,payload),mutationId:newMutationId});
 }
 function tacticsLibrary(parent,records,render){
@@ -1491,9 +1506,11 @@ function renderTactics(){
   h('input',{attrs:{type:'file',name:'playFile',accept:'application/json,.json',required:'true'},parent:l});
   h('button',{className:'cloud-btn primary',text:'Import as draft',attrs:{type:'submit'},parent:f});
 }
-async function openE5(entry,mode){
-  if(!canViewTactics()||(mode==='edit'&&!canDraft()))return;
-  const before=playScope();
+async function openE5(entry,mode,{returnTo}={}){
+  const originTab=returnTo?'schedule':'tactics';
+  if(!canViewTactics()||(mode==='edit'&&!canDraft())||
+     (returnTo&&(mode!=='view'||typeof returnTo!=='function')))return;
+  const before=playScope(originTab);
   let mount,valid;
   try{
     // Remains absent from management-only builds until a reviewed Stage 4
@@ -1503,20 +1520,21 @@ async function openE5(entry,mode){
   }catch{if(before.current())message('E5 workspace is unavailable.',true);return;}
   if(!before.current())return;
   if(entry&&!valid(entry.play)){message('Unsupported E5 record. Existing source is unchanged.',true);return;}
-  ++state.epoch;const scope=playScope(),ctx=state.context;
+  ++state.epoch;const scope=playScope(originTab),ctx=state.context;
+  const back=returnTo||(()=>void showTab());
   clear();title(mode==='edit'?(entry?'Edit '+entry.play.name:'New play'):entry.play.name,'Tactics');
   const panel=card(null);
   const sport=({'oztag':'Oztag','rugby league':'Rugby league','rugby-league':'Rugby league','league tag':'League tag','league-tag':'League tag'})[String(ctx.sport).toLowerCase()];
-  if(!sport){info('This sport has no reviewed connected E5 profile.',panel);button('Back',()=>void showTab(),actions(panel));return;}
+  if(!sport){info('This sport has no reviewed connected E5 profile.',panel);button('Back',back,actions(panel));return;}
   const style={},computed=getComputedStyle(document.documentElement);
   for(const key of ['--pitch','--ink','--accent','--dark','--brand','--primary']){
     const value=computed.getPropertyValue(key).trim();if(/^#[0-9a-f]{6}$/i.test(value))style[key]=value;
   }
-  const close=saved=>{if(!scope.current())return;if(saved)message('Coach draft saved. Publication remains separate.');void showTab();};
+  const close=saved=>{if(!scope.current())return;if(saved)message('Coach draft saved. Publication remains separate.');back();};
   try{e5Host=mount(panel,{mode,play:entry?entry.play:null,sport,teamLabel:teamDisplayName(ctx),style,scope,
     onClose:close,onError:e=>{const reason=explain(e);message(reason,true);return reason;},
     onSave:play=>scope.mutate('play.draft.edit',entry?entry.playId:ctx.teamId,entry?entry.version:0,{command:{op:entry?'save':'create',play}})});
-  }catch{info('The E5 workspace could not be opened. No data changed.',panel);button('Back',()=>void showTab(),actions(panel));}
+  }catch{info('The E5 workspace could not be opened. No data changed.',panel);button('Back',back,actions(panel));}
 }
 function editPlayInstructions(entry){
   ++state.epoch;const scope=playScope();

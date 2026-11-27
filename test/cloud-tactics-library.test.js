@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {connectedPlayLibrary,capturePlayScope} from '../site/cloud-tactics-library.js';
+import {connectedPlayLibrary,capturePlayScope,resolveAssignedPlay} from '../site/cloud-tactics-library.js';
 const record=(id,revision,category,name)=>({playId:id,revisionId:revision,version:2,play:{name,category,players:{LM:[24,46]},moves:[]}});
 const first=record('play-1','rev-1','Attack','Step In');
 const next=record('play-1','rev-2','Attack','Step Out');
@@ -65,4 +65,34 @@ test('stale editor epoch and forged version/identity fields fail closed',async()
   h.state.epoch++;
   await assert.rejects(h.scope.mutate('play.publish','play-1',2,{revisionId:'rev-1'}),{code:'scope-denied'});
   assert.equal(h.calls.length,0);
+});
+
+test('assigned play uses only the exact current approved published revision',()=>{
+  const selected={playId:first.playId,revisionId:first.revisionId,version:3,sessionVersion:4,state:'approved',reason:'current'};
+  const snapshot={sessionVersion:4,sessionStatus:'planned',rows:[selected]};
+  assert.equal(resolveAssignedPlay(snapshot,selected,[first,defence]),first);
+  for(const changed of [
+    {...snapshot,sessionStatus:'cancelled'},
+    {...snapshot,sessionVersion:5},
+    {...snapshot,rows:[]},
+    {...snapshot,rows:[{...selected,state:'withdrawn',reason:'withdrawn'}]},
+    {...snapshot,rows:[{...selected,version:4}]},
+    {...snapshot,rows:[{...selected,revisionId:next.revisionId}]},
+    {...snapshot,rows:[selected,selected]}
+  ])assert.equal(resolveAssignedPlay(changed,selected,[first]),null);
+  for(const published of [[next],[],[first,first],[first,next],[{...first,unavailableReason:'unsupported-play-payload'}]])
+    assert.equal(resolveAssignedPlay(snapshot,selected,published),null);
+  assert.equal(resolveAssignedPlay(snapshot,{...selected,state:'proposed'},[first]),null);
+});
+test('schedule play workspace is view-only and scoped to the original navigation epoch',async()=>{
+  const context={kind:'team',teamId:'team-a',roles:['team_coach']};
+  const state={context,epoch:1,tab:'schedule'};
+  const calls=[];
+  const scope=capturePlayScope({context,epoch:1,tab:'schedule',current:()=>state,
+    operation:(...args)=>calls.push(args),mutationId:()=> 'synthetic-mutation-0001'});
+  assert.equal(scope.current(),true);
+  await assert.rejects(scope.mutate('play.draft.edit','play-1',2,{command:{op:'save',play:first.play}}),{code:'scope-denied'});
+  assert.equal(calls.length,0);
+  state.tab='tactics';
+  assert.equal(scope.current(),false);
 });
