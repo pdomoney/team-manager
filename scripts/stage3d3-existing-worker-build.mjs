@@ -101,7 +101,7 @@ export function buildExistingWorkerCandidate({
     // closure, never the Stage 3C isolated staging build.
     const tactics=env.STAGE4_TACTICS_MODE==='enabled';
     if(tactics){
-      const required=['cloud-e5-workspace.html','cloud-e5-host.js','cloud-e5-payload.js','app.js','play-event-persistence.js','cloud-play-board.js','cloud-play-import.js','cloud-tactics-library.js'];
+      const required=['cloud-e5-workspace.html','cloud-e5-host.js','cloud-e5-payload.js','app.js','play-event-persistence.js','cloud-play-board.js','cloud-play-import.js','cloud-tactics-library.js','play-starters.js'];
       if(!required.every(name=>fs.statSync(path.join(out,name),{throwIfNoEntry:false})?.isFile()))
         throw Error('stage4-e5-asset-closure-missing');
       const teamPath=path.join(out,'cloud-team.js');

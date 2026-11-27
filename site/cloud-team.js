@@ -103,6 +103,7 @@ function explain(err){
   if(['access-revoked','scope-denied','role-denied','account-inactive',
     'person-not-verified','participation-not-verified'].includes(code))
     return 'Your current role or team is not authorised for this action.';
+  if(code==='invalid-play'||code==='invalid-request')return 'Select a supported E5 play or Team Manager play-library JSON. Review the selected play before saving; no change was confirmed.';
   if(code==='already-pending')return 'There is already an invitation awaiting action for this email and role.';
   if(code==='self-approval-denied')return 'A different authorised reviewer must approve this request.';
   if(code==='invitation-unavailable')return 'This invitation is no longer available. Refresh the list.';
@@ -620,6 +621,8 @@ async function openOwnerTemplates(){
   const epoch=++state.epoch,current=()=>isOwner()&&state.epoch===epoch;
   clear();title('Play template library','Platform Owner');
   button('Back to Platform',()=>void showTab(),actions());
+  const starters=card('Original starter library');
+  void renderStarterLibrary(starters,{scope:{current},owner:true}).catch(()=>{if(current())info('Starter library unavailable.',starters);});
   const panel=card('Owner-authored templates');
   info('Only upload your own original, privacy-reviewed tactics. No team, member, paid account or private draft collection is enabled. Export a reusable copy and import it as a team draft from its Coach context.',panel);
   const loading=info('Loading templates…',panel);
@@ -631,6 +634,12 @@ async function openOwnerTemplates(){
       h('strong',{text:t.name,parent:row});
       h('small',{text:(t.sport||'Sport not specified')+' · '+t.state+' · '+t.origin+' · version '+t.version,parent:row});
       if(t.state!=='active')return;
+      button('Watch template',async()=>{
+        try{const data=await ownerCall('template.read',{templateId:t.templateId});
+          if(current()&&data.version===t.version)await openOwnerPlay(data.play,current);
+          else if(current())message('Template changed. Review the latest version.',true);
+        }catch(e){if(current())message(explain(e),true);}
+      },actions(row));
       button('Download play JSON',async()=>{
         try{
           if(!current())return;
@@ -648,22 +657,43 @@ async function openOwnerTemplates(){
       },actions(row));
     });
   }catch(e){if(current())loading.textContent=explain(e);return;}
-  const f=form(panel,async d=>{
-    const file=d.get('templateFile');
-    if(!(file instanceof File)||file.size>65536||!file.size||d.get('ownerAuthored')!=='yes')throw Object.assign(new Error(),{code:'invalid-play'});
-    const {validConnectedE5Play}=await import('./cloud-e5-payload.js');
-    let play;try{play=JSON.parse(await file.text());}catch{throw Object.assign(new Error(),{code:'invalid-play'});}
-    if(!current()||!validConnectedE5Play(play))throw Object.assign(new Error(),{code:'invalid-play'});
-    if(!confirm('Save this owner-authored play to the private template catalogue?'))return;
+  let generation=0;
+  async function saveTemplate(play){
+    if(!current()||!attestation.checked||!confirm('Save '+play.name+' as an owner-authored private template?'))return;
     await ownerCall('template.create',{templateId:'template-'+crypto.randomUUID().replaceAll('-',''),ownerAuthored:true,play});
     if(current())void openOwnerTemplates();
+  }
+  const f=form(panel,async d=>{
+    const selected=++generation;selection.replaceChildren();
+    const file=d.get('templateFile');
+    if(!(file instanceof File)||file.size>2000000||!file.size||d.get('ownerAuthored')!=='yes')throw Object.assign(new Error(),{code:'invalid-play'});
+    const {inspectPlayImport}=await import('./cloud-play-import.js');
+    let value;try{value=JSON.parse(await file.text());}catch{throw Object.assign(new Error(),{code:'invalid-play'});}
+    const result=inspectPlayImport(value);
+    if(!current()||selected!==generation)return;
+    if(!result.ok)throw Object.assign(new Error(),{code:'invalid-play'});
+    if(value.format!=='team-manager-library'&&result.rows.length===1){await saveTemplate(result.rows[0].play);return;}
+    info(result.rows.length+' eligible plays · '+result.omitted.length+' held for review',selection);
+    for(const omitted of result.omitted)info((omitted.id||'Unidentified record')+' · '+omitted.reason,selection);
+    readList(selection,result.rows,(entry,row)=>{
+      h('strong',{text:entry.name,parent:row});
+      button('Save selected owner template',async()=>{
+        if(!current()||generation!==selected||state.busy)return;
+        if(!attestation.checked){message('Confirm authorship and rights before saving.',true);return;}
+        state.busy=true;
+        try{await saveTemplate(entry.play);}catch(e){if(current())message(explain(e),true);}
+        finally{state.busy=false;}
+      },actions(row));
+    });
   });
-  const l=h('label',{text:'Owner-authored E5 JSON file',parent:f});
-  h('input',{attrs:{type:'file',name:'templateFile',accept:'application/json,.json',required:'true'},parent:l});
+  const l=h('label',{text:'Owner-authored E5 play or library JSON file',parent:f});
+  const fileInput=h('input',{attrs:{type:'file',name:'templateFile',accept:'application/json,.json',required:'true'},parent:l});
   const consent=h('label',{parent:f});
-  h('input',{attrs:{type:'checkbox',name:'ownerAuthored',value:'yes',required:'true'},parent:consent});
-  consent.append(document.createTextNode(' I authored this play, have the necessary rights, and checked all content for personal or confidential information.'));
+  const attestation=h('input',{attrs:{type:'checkbox',name:'ownerAuthored',value:'yes',required:'true'},parent:consent});
+  consent.append(document.createTextNode(' I authored the selected play, have the necessary rights, and checked all content for personal or confidential information.'));
   h('button',{className:'cloud-btn primary',text:'Save owner template',attrs:{type:'submit'},parent:f});
+  const selection=h('div',{parent:panel});
+  fileInput.addEventListener('change',()=>{generation++;selection.replaceChildren();attestation.checked=false;});
 }
 function renderHome(){
   const c=state.context;
@@ -1490,11 +1520,11 @@ function playScope(tab='tactics'){
 }
 // Use the original native playSVG thumbnail, not a second diagram renderer.
 // The transient, lazy frames get only their already-authorised revision.
-async function nativePlayThumbnail(row,entry,scope){
+async function nativePlayThumbnail(row,entry,scope,presentation=null){
   if(!CLOUD_STAGE4_TACTICS_ENABLED||entry.unavailableReason)return;
   const slot=h('div',{className:'cloud-native-thumbnail',parent:row});
   slot.setAttribute('aria-label','Play diagram preview');
-  const ctx=state.context,sport=({'oztag':'Oztag','rugby league':'Rugby league','rugby-league':'Rugby league','league tag':'League tag','league-tag':'League tag'})[String(ctx?.sport).toLowerCase()];
+  const ctx=state.context,sport=presentation?.sport||({'oztag':'Oztag','rugby league':'Rugby league','rugby-league':'Rugby league','league tag':'League tag','league-tag':'League tag'})[String(ctx?.sport).toLowerCase()];
   const {validConnectedE5Play}=await import('./cloud-e5-payload.js');
   if(!scope.current()||!slot.isConnected)return;
   if(!sport||!validConnectedE5Play(entry.play)){info('Diagram needs compatibility review.',slot);return;}
@@ -1508,7 +1538,7 @@ async function nativePlayThumbnail(row,entry,scope){
   frame.addEventListener('load',()=>{
     if(scope.current()&&frame.isConnected)frame.contentWindow?.postMessage({
       channel:'tm-connected-e5-v1',type:'init',nonce,mode:'thumbnail',play:entry.play,
-      sport,teamLabel:teamDisplayName(ctx),style
+      sport,teamLabel:presentation?.teamLabel||teamDisplayName(ctx),style
     },location.origin);
   },{once:true});
   frame.src='cloud-e5-workspace.html'+new URL(import.meta.url).search;
@@ -1521,7 +1551,14 @@ function tacticsLibrary(parent,records,render){
   const category=selectField(filters,'Category','category',[['','All categories'],...categories.map(x=>[x,x])]);
   const summary=h('p',{className:'cloud-muted',attrs:{role:'status','aria-live':'polite'},parent});
   const results=h('div',{parent});
-  const pager=actions(parent);let page=0;
+  const pager=actions(parent);let page=0,cardMode=CLOUD_STAGE4_TACTICS_ENABLED;
+  if(CLOUD_STAGE4_TACTICS_ENABLED){
+    const controls=actions(parent);
+    const cards=button('Cards',()=>{cardMode=true;refresh();},controls);
+    const list=button('List',()=>{cardMode=false;refresh();},controls);
+    const sync=()=>{cards.setAttribute('aria-pressed',String(cardMode));list.setAttribute('aria-pressed',String(!cardMode));};
+    controls.addEventListener('click',sync);sync();
+  }
   function refresh(){
     const lib=connectedPlayLibrary(records,{query:q.value,filter:category.value});
     summary.textContent=lib.shown+' of '+lib.eligible+' revisions shown'
@@ -1537,10 +1574,51 @@ function tacticsLibrary(parent,records,render){
       button('Previous page',()=>{page--;refresh();},pager,{disabled:page===0});
       button('Next page',()=>{page++;refresh();},pager,{disabled:page+1>=pages});
     }
-    readList(results,visible,render);
+    const list=readList(results,visible,render);
+    if(CLOUD_STAGE4_TACTICS_ENABLED)list.classList.add('plays-grid','cloud-play-catalogue',cardMode?'view-cards':'view-list');
   }
   const reset=()=>{page=0;refresh();};
   q.addEventListener('input',reset);category.addEventListener('change',reset);refresh();
+}
+async function renderStarterLibrary(panel,{scope,owner=false,teamId=null}){
+  const {starterPlays}=await import('./play-starters.js');
+  const {validConnectedE5Play}=await import('./cloud-e5-payload.js');
+  if(!scope.current()||!panel.isConnected)return;
+  const source=starterPlays(),records=source.map(play=>({playId:play.id,revisionId:'starter-'+play.rev,version:play.rev,
+    play:{...play,sport:'Oztag',set:'oztag'}}));
+  info('Original Oztag starter collection. Copy an individual play to a team draft; the original and existing team plays are not overwritten.',panel);
+  tacticsLibrary(panel,records,(entry,row)=>{
+    const valid=validConnectedE5Play(entry.play);
+    h('strong',{text:entry.play.name,parent:row});
+    h('small',{text:entry.play.category+' · Original starter · revision '+entry.version,parent:row});
+    if(!valid){info('Original play requires compatibility review; its source is unchanged.',row);return;}
+    void nativePlayThumbnail(row,entry,scope,owner?{sport:'Oztag',teamLabel:'Starter library'}:null).catch(()=>{});
+    if(entry.play.headline)info(entry.play.headline,row);
+    const a=actions(row);
+    button('Watch starter',()=>{if(scope.current())void (owner?openOwnerPlay(entry.play,scope.current):openE5(entry,'view'));},a);
+    if(!owner)button('Copy to coach drafts',async()=>{
+      if(!scope.current()||state.busy||!confirm('Create an independent draft of '+entry.play.name+'?'))return;
+      state.busy=true;
+      try{
+        const play=structuredClone(entry.play);play.builtin=false;
+        const saved=await scope.mutate('play.draft.edit',teamId,0,{command:{op:'create',play}});
+        if(saved.stillCurrent){message('Starter copied to your coach drafts. Review before publishing.');await showTab();}
+      }catch(e){if(scope.current())message(explain(e),true);}
+      finally{state.busy=false;}
+    },a,{primary:true});
+  });
+}
+async function openOwnerPlay(play,current){
+  if(!isOwner()||!current())return;
+  const {mountConnectedE5}=await import('./cloud-e5-host.js');
+  const {validConnectedE5Play}=await import('./cloud-e5-payload.js');
+  if(!current()||!validConnectedE5Play(play))return;
+  const epoch=++state.epoch,scope={current:()=>isOwner()&&state.epoch===epoch};
+  clear();title(play.name,'Platform Owner · template review');
+  const panel=card(null),sport=play.sport||'Oztag';
+  try{e5Host=mountConnectedE5(panel,{mode:'view',play,sport,teamLabel:'Template library',scope,
+    onClose:()=>{if(scope.current())void openOwnerTemplates();},onError:explain});}
+  catch{info('The E5 workspace could not be opened. No data changed.',panel);button('Back',()=>void openOwnerTemplates(),actions(panel));}
 }
 function renderTactics(){
   const c=state.context;
@@ -1583,6 +1661,10 @@ function renderTactics(){
         finally{state.busy=false;}
       },a,{primary:true});
   });
+  if(CLOUD_STAGE4_TACTICS_ENABLED&&String(c.sport).toLowerCase()==='oztag'){
+    const starters=card('Original starter plays');
+    void renderStarterLibrary(starters,{scope,teamId:c.teamId}).catch(()=>{if(scope.current())info('Starter library unavailable.',starters);});
+  }
   const importer=card('Bring an authored E5 play into this team');
   info('Import an E5 play JSON object or select one play from an original Team Manager library export. Geometry, phases and authored timing are preserved. No encrypted backup or personal information.',importer);
   let importGeneration=0;
