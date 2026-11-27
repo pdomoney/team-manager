@@ -51,6 +51,70 @@ def build_stage4_candidate(q,work,out,report,source):
       'Stage 4 package not enabled or protected inventory differs')
     save(out/'stage4-descriptor-verification.json',result)
 
+def stage4_sql_sequence(work,p):
+    workflow=(work/'.github/workflows/test.yml').read_text()
+    matches=re.findall(r'for script in \\\n(.*?)\n\s*do\n',workflow,re.S)
+    require(len(matches)==1,'Unique Stage 4 SQL sequence absent')
+    paths=re.findall(r'supabase/[a-zA-Z0-9_./-]+\.sql',matches[0])
+    require(len(paths)==len(set(paths))==41 and
+      paths[0]=='supabase/tests/stage1_bootstrap_disposable.sql' and
+      paths[-1]=='supabase/tests/stage4_play_assignments_disposable.sql','Frozen Stage 4 SQL sequence differs')
+    inventory=p['prior_migrations']+p['migrations']
+    require(len(inventory)==26 and [x for x in paths if x.startswith('supabase/migrations/')]==
+      [x['file'] for x in inventory],'Stage 4 migration sequence differs')
+    for name in paths:
+        path=work/name
+        require(path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(work.resolve()) and
+          re.fullmatch(r'supabase/(?:tests|migrations)/[a-zA-Z0-9_]+\.sql',name),'Unsafe reference SQL path')
+    for item in inventory:
+        require(sha(work/item['file'])==item['sha256'],'SQL migration checksum differs: '+item['file'])
+    return paths
+
+def stage4_reference(q,work,out,pg_bin,psql,p):
+    paths=stage4_sql_sequence(work,p)
+    baseline=p['prior_migrations'][-1]['file'];candidate=p['migrations'][-1]['file']
+    # The archived helper already creates a short private Unix socket.
+    # Preserve its local connection parameters; enforce the proven locale
+    # at the child-process boundary, including initdb and pg_ctl.
+    original=q.run
+    permitted={'HOME','PATH','TMPDIR','USER','LOGNAME','PGHOST','PGPORT','PGUSER','PGDATABASE',
+      'PGOPTIONS','PGCONNECT_TIMEOUT','PGCLIENTENCODING','PGAPPNAME'}
+    def local_env(env):
+        selected={k:v for k,v in env.items() if k in permitted}
+        require(not selected.get('PGHOST') or selected['PGHOST'].startswith('/'),
+          'Synthetic database must use a Unix socket')
+        selected.update(LC_ALL='C',LANG='C',LC_CTYPE='C',TZ='UTC')
+        return selected
+    def local_run(argv,*args,**kwargs):
+        supplied=kwargs.get('env')
+        kwargs['env']=local_env(os.environ if supplied is None else supplied)
+        return original(argv,*args,**kwargs)
+    q.run=local_run
+    base=target=None;completed=0;step='local PostgreSQL startup'
+    try:
+        with q.local_cluster(pg_bin,out,'reference-synthetic',psql) as (env,directory):
+            require(str(env.get('PGHOST','')).startswith('/'),'Synthetic database socket absent')
+            env=local_env(env)
+            for name in paths:
+                step=name
+                q.sqlfile(psql,env,work/name,directory/'ci-sql.log')
+                if name==baseline:base=q.catalogue(psql,env)['objects']
+                if name==candidate:target=q.catalogue(psql,env)['objects']
+                completed+=1
+            step='local PostgreSQL shutdown'
+        require(base and target and completed==len(paths),'Stage 4 reference checkpoints incomplete')
+    except Stop:raise
+    except Exception as e:
+        raise Stop('Synthetic reference failed at '+step+' ('+type(e).__name__+'); '+str(completed)+'/'+str(len(paths))+
+          ' scripts completed. Inspect private reference-synthetic logs.') from e
+    finally:
+        q.run=original
+    save(out/'reference-baseline-private.json',base)
+    save(out/'reference-candidate-private.json',target)
+    save(out/'reference-replay.json',{'locale':'C','timezone':'UTC','scripts':paths,'completed':completed,
+      'baseline':baseline,'candidate':candidate,'connection':'LOCAL_UNIX_SOCKET_ONLY'})
+    return base,target
+
 def exact_plan(path,digest,mode):
     require(HEX64.fullmatch(digest or '') and sha(path)==digest,'Release plan checksum mismatch')
     p=load(path);require(p.get('format')=='TEAM_MANAGER_FORWARD_V1','Wrong release plan format')
@@ -60,7 +124,7 @@ def exact_plan(path,digest,mode):
     if mode!='qualify':
         c=p.get('candidate_evidence',{})
         require(HEX64.fullmatch(c.get('summary_sha256','')) and HEX64.fullmatch(c.get('plan_sha256','')),'Qualified candidate evidence missing')
-        require(len(p['ci']) in (3,6),'Candidate, PR and merged CI required')
+        require(len(p['ci']) in (3,6,9),'Candidate, PR and merged CI required')
     return p
 def check_source(q,work,p,prior,mode):
     s=p['spec'];a=s['accepted'];source=p['source']
@@ -138,6 +202,7 @@ def main():
             report['checks'][name]='HOLD';report['errors'].append({'check':name,'reason':reason})
             print('HOLD:',name,reason,flush=True)
             if name=='build_and_transport':print('Inspect private worker-build.log, stage4-check.log and transport-private.log where present.',flush=True)
+            if name=='synthetic_reference':print('Inspect private reference-synthetic logs and reference-schema-comparison.json where present.',flush=True)
             checkpoint();raise
     try:
         if mode=='verify':
@@ -186,7 +251,7 @@ def main():
         work=check('source',source);cli=[q.tool('npx'),'--yes','wrangler@4.167.0'];psql=q.tool('psql')
         def build():
             if 'stage4' in s:
-                require('control' in p and p['control']['contract']['controlPr']==309,
+                require('control' in p and p['control']['contract']['controlPr']==310,
                   'PR308 production checker correction not authorised')
                 build_stage4_candidate(q,work,out,report,p['source'])
             else:q.worker_candidate(work,out,report)
@@ -198,12 +263,21 @@ def main():
             return entry
         entry=check('build_and_transport',build)
         def reference():
-            base,target=q.reference(work,out,args.pg_bin,psql)
+            if 'stage4' in s:base,target=stage4_reference(q,work,out,args.pg_bin,psql,p)
+            else:base,target=q.reference(work,out,args.pg_bin,psql)
             known={k:{'definition_md5':v,'execute':{'anon':[False,False],'authenticated':[True,False],'service_role':[True,False]}} for k,v in r.FOUR.items()}
             base,target=rec.overlay(base,known),rec.overlay(target,known)
             old=load(old_dir/'reference-candidate-private.json')
             if 'objects' in old:old=old['objects']
-            check_additive_reference(base,target,rec.overlay(old,known),i,s)
+            accepted=rec.overlay(old,known)
+            save(out/'reference-schema-comparison.json',{'baseline':q.diff(i.canonical(accepted),i.canonical(base)),
+              'existing':q.diff(i.canonical(base),i.canonical({k:target[k] for k in base if k in target})),
+              'new_objects':sorted(set(target)-set(base))})
+            check_additive_reference(base,target,accepted,i,s)
+            if 'stage4' in s:
+                require(set(target)-set(base)=={'relation:owner_play_templates','relation:play_assignments',
+                  'function:public.tm_stage4_owner_templates(p_actor uuid, p_action text, p_input jsonb)',
+                  'function:public.tm_stage4_play_assignments(p_actor uuid, p_team text, p_role text, p_action text, p_input jsonb)'},'Stage 4 new schema objects differ from verified diagnostic')
             return base,target
         base,target=check('synthetic_reference',reference)
         rows=candidate_check(out,report);check_source(q,work,p,prior,mode)

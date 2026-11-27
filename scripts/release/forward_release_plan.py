@@ -151,10 +151,15 @@ def normal_merge(repo,pr_number,branch,base,head,merged,tree):
     require(git(repo,'rev-list','--parents','-n','1',merged).split()==[merged,base,head],'Merge parents differ')
     require(git(repo,'rev-parse',head+'^{tree}')==git(repo,'rev-parse',merged+'^{tree}')==tree,'Candidate and merged trees differ')
 def validate_control_contract(c,s):
-    require(isinstance(c,dict) and set(c)=={'applicationRelease','applicationSource','applicationCandidate','applicationTree','controlPr','controlBranch','changedPaths'},'Invalid control contract')
+    keys={'applicationRelease','applicationSource','applicationCandidate','applicationTree','controlPr','controlBranch','changedPaths'}
+    chained=s['releaseId']=='PR308' and isinstance(c,dict) and c.get('controlPr')==310
+    require(isinstance(c,dict) and set(c)==(keys|{'priorControl'} if chained else keys),'Invalid control contract')
     require(c['applicationRelease']==s['releaseId'] and all(HEX40.fullmatch(c[k]) for k in ('applicationSource','applicationCandidate','applicationTree')),'Control application pins differ')
     if s['releaseId']=='PR308':
-        require(c['controlPr']==309 and c['controlBranch']=='candidate/pr309-pr308-checker-correction','Unexpected Stage 4 corrective control identity')
+        require((c['controlPr'],c['controlBranch']) in ((309,'candidate/pr309-pr308-checker-correction'),(310,'candidate/pr310-pr308-reference-qualification')),'Unexpected Stage 4 corrective control identity')
+        if chained:
+            require(c['priorControl']=={"source":"985cafdebc6252dd907ee867bd23f856474a14ee","head":"d8c90ddaea6d93840a326ec99d9dc0026473e7a1","tree":"dab39e55bc43d3e8062b37866749b520cf9ea3e0","pr":309,"branch":"candidate/pr309-pr308-checker-correction"},'PR309 historical control identity differs')
+            require(c['changedPaths']==["config/releases/pr308-control.json","docs/operations/pr308-reference-qualification.md","scripts/release/forward_release.py","scripts/release/forward_release_plan.py","scripts/release/test_forward_release.py"],'PR310 corrective scope differs')
     require(type(c['controlPr']) is int and c['controlPr']>int(s['releaseId'][2:]) and re.fullmatch(r'candidate/pr'+str(c['controlPr'])+r'-[a-z0-9-]+',c['controlBranch']),'Invalid control PR identity')
     paths=c['changedPaths']
     require(isinstance(paths,list) and paths==sorted(set(paths)) and bool(paths),'Invalid control path list')
@@ -168,8 +173,18 @@ def control_for(repo,s,main,path,app,candidate,tree):
     c=json.loads(git(repo,'show',main+':'+path,binary=True));validate_control_contract(c,s)
     require((c['applicationSource'],c['applicationCandidate'],c['applicationTree'])==(app,candidate,tree),'Control contract does not bind this application')
     control_head=git(repo,'rev-parse',main+'^2');control_tree=git(repo,'rev-parse',main+'^{tree}')
-    normal_merge(repo,c['controlPr'],c['controlBranch'],app,control_head,main,control_tree)
-    require(set(git(repo,'diff','--name-only','--no-renames',app,main).splitlines())==set(c['changedPaths']),'Control PR changed unexpected files')
+    base=app
+    if 'priorControl' in c:
+        prior=c['priorControl'];base=prior['source']
+        historical=json.loads(git(repo,'show',base+':'+path,binary=True))
+        validate_control_contract(historical,s)
+        require(historical['controlPr']==prior['pr'] and historical['controlBranch']==prior['branch'] and
+          (historical['applicationSource'],historical['applicationCandidate'],historical['applicationTree'])==(app,candidate,tree),'Historical control authority differs')
+        normal_merge(repo,prior['pr'],prior['branch'],app,prior['head'],base,prior['tree'])
+        require(set(git(repo,'diff','--name-only','--no-renames',app,base).splitlines())==set(historical['changedPaths']),'Historical control changed unexpected paths')
+        require(spec_for(repo,base,'config/releases/'+s['releaseId'].lower()+'.json')==s,'Historical control changed release specification')
+    normal_merge(repo,c['controlPr'],c['controlBranch'],base,control_head,main,control_tree)
+    require(set(git(repo,'diff','--name-only','--no-renames',base,main).splitlines())==set(c['changedPaths']),'Control PR changed unexpected files')
     require(spec_for(repo,main,'config/releases/'+s['releaseId'].lower()+'.json')==s,'Control changed release specification')
     return {'path':path,'contract':c,'head':control_head,'source':main,'tree':control_tree}
 def check_release_authority(repo,p):
@@ -181,6 +196,13 @@ def check_release_authority(repo,p):
     if 'control' in p:
         require(control_for(repo,s,p['main'],p['control']['path'],p['source'],p['candidate_source'],p['source_tree'])==p['control'],'Control authority changed')
     else:require(p['main']==p['source'],'Main differs without authorised control PR')
+def control_ci_sources(c):
+    contract=c['contract'];rows=[]
+    if 'priorControl' in contract:
+        h=contract['priorControl'];rows.extend([(h['head'],'push',h['branch']),(h['head'],'pull_request',h['branch']),(h['source'],'push','main')])
+    b=contract['controlBranch']
+    return rows+[(c['head'],'push',b),(c['head'],'pull_request',b),(c['source'],'push','main')]
+
 def validate_plan_structure(p):
     require(isinstance(p,dict) and p.get('format')=='TEAM_MANAGER_FORWARD_V1' and p.get('mode') in ('candidate','postmerge','merged'),'Invalid plan format/mode')
     s=p['spec'];validate_spec(s);a=s['accepted']
@@ -213,8 +235,7 @@ def validate_plan_structure(p):
         require(HEX40.fullmatch(p.get('candidate_source','')) and p['candidate_source']!=p['source'],'Missing qualified candidate source')
         expected=[(p['candidate_source'],'push',s['candidateBranch']),(p['candidate_source'],'pull_request',s['candidateBranch']),(p['source'],'push','main')]
     if 'control' in p:
-        c=p['control'];b=c['contract']['controlBranch']
-        expected.extend([(c['head'],'push',b),(c['head'],'pull_request',b),(c['source'],'push','main')])
+        expected.extend(control_ci_sources(p['control']))
     rows=p.get('ci',[])
     require(len(rows)==len(expected) and all(set(row)=={'source','event','branch','run_id','status'} and
       (row['source'],row['event'],row['branch'])==item and type(row['run_id']) is int and row['run_id']>0 and row['status']=='PASS'
@@ -254,7 +275,7 @@ def build_candidate_plan(repo,spec_path,branch,previous,previous_plan,control_pa
         p={'format':'TEAM_MANAGER_FORWARD_V1','mode':'postmerge','qualification_phase':'postmerge','spec_path':spec_path,'spec':spec,
           'source':app,'candidate_source':candidate,'source_tree':tree,'main':main,'previous':previous_record,'prior_migrations':prior,'migrations':added,'ci':runs}
         if control:
-            cb=control['contract']['controlBranch'];runs.extend([ci(control['head'],'push',cb),ci(control['head'],'pull_request',cb),ci(main,'push','main')]);p['control']=control
+            runs.extend(ci(source,event,branch) for source,event,branch in control_ci_sources(control));p['control']=control
         validate_plan_structure(p);check_release_authority(repo,p)
         return p
     require(control_path is None,'Separate control not permitted before application merge')
