@@ -106,6 +106,25 @@ begin
  update tm_private.role_grants set status='revoked' where grant_id='synthetic-player';
  r:=public.tm_stage4_play_assignments(player,t,'team_player','play.assignment.read','{"sessionId":"session-training"}');
  if r->>'code' is distinct from 'scope-denied' then raise exception 'revoked player read %',r;end if;
- raise notice 'PASS Stage 4 exact-session play assignment proposal, coach approval, stale/cross-team/revoked denials';
+ -- Template catalogue is independent of team permissions and contains no seeded private plays.
+ if has_table_privilege('authenticated','tm_private.owner_play_templates','SELECT') or
+ has_function_privilege('authenticated','public.tm_stage4_owner_templates(uuid,text,jsonb)','EXECUTE')
+ then raise exception 'template ACL failure';end if;
+ r:=public.tm_stage4_owner_templates(assistant,'template.list','{}');
+ if r->>'code' is distinct from 'scope-denied' then raise exception 'assistant template access %',r;end if;
+ r:=public.tm_stage4_owner_templates(coach,'template.list','{}');
+ if r->>'code' is distinct from 'ready' or jsonb_array_length(r->'templates')<>0 then raise exception 'unexpected initial templates %',r;end if;
+ x:='{"templateId":"tpl-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","play":{"id":"step","name":"Step","players":{"LM":[24,46]},"moves":[]},"rightsConfirmed":true,"privacyReviewed":true}';
+ r:=public.tm_stage4_owner_templates(coach,'template.add',x-'rightsConfirmed');
+ if r->>'code' is distinct from 'invalid-request' then raise exception 'missing rights accepted %',r;end if;
+ r:=public.tm_stage4_owner_templates(coach,'template.add',x);
+ if r->>'code' is distinct from 'ready' then raise exception 'template upload %',r;end if;
+ r:=public.tm_stage4_owner_templates(coach,'template.get',jsonb_build_object('templateId',x->>'templateId'));
+ if r->'play' is distinct from x->'play' then raise exception 'template payload changed %',r;end if;
+ r:=public.tm_stage4_owner_templates(coach,'template.withdraw',jsonb_build_object('templateId',x->>'templateId'));
+ if r->>'code' is distinct from 'ready' then raise exception 'withdraw %',r;end if;
+ r:=public.tm_stage4_owner_templates(coach,'template.get',jsonb_build_object('templateId',x->>'templateId'));
+ if r->>'code' is distinct from 'scope-denied' then raise exception 'withdrawn export %',r;end if;
+ raise notice 'PASS Stage 4 exact-session assignments and owner-only reviewed template lifecycle';
 end $$;
 rollback;

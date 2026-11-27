@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validConnectedE5Play} from '../site/cloud-e5-payload.js';
+import {validConnectedE5Play,authoredPlayImportCandidates} from '../site/cloud-e5-payload.js';
 import {classifyE5Message,CHANNEL} from '../site/cloud-e5-host.js';
 const play={id:'synthetic-step',name:'Step Out',sport:'Oztag',set:'oztag',
  players:{LM:[24,46],RM:[27,45]},moves:[{t:'pass',pts:[[24,46],[27,45]],moveId:'m-pass-1',linkVersion:1,actorLinks:{start:'player:LM',end:'player:RM'}}],
@@ -35,4 +35,12 @@ test('self-contained custom role definition preserves original labels and reject
  {...custom,setDef:{...custom.setDef,slots:{LM:'X'}}},
  {...custom,setDef:{...custom.setDef,labels:[...custom.setDef.labels,custom.setDef.labels[0]]}},
  {...custom,set:'oztag'}])assert.equal(validConnectedE5Play(bad),false);
+});
+
+test('original library exports expose one independently reviewed candidate per source play',()=>{
+ const custom={...play,set:'custom-role',setDef:{name:'Roles',labels:[{code:'A',name:'Support'}]},who:{LM:'A'}};
+ const exported={format:'team-manager-library',version:1,exportedAt:'2026-11-27',library:{plays:[{...custom,at:'2026-11-27',libraryOrigin:{teamId:'private-team'}},{...play,set:'missing'}]}};
+ const before=JSON.stringify(exported),result=authoredPlayImportCandidates(exported);
+ assert.equal(result.length,2);assert.deepEqual(result[0].play,custom);assert.equal(result[1].play,null);
+ assert.equal(JSON.stringify(exported),before);assert.deepEqual(authoredPlayImportCandidates({schema:4,plays:[play]}),[]);
 });

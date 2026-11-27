@@ -64,3 +64,22 @@ export function validConnectedE5Play(p){
   return new TextEncoder().encode(JSON.stringify(p)).length<=60000;
  }catch{return false;}
 }
+
+/** Read a single authored play or a legacy library export. Never import a
+ * workspace backup, automatically choose a play, or carry local team links.
+ * Existing setDef is the authoritative exported definition. */
+export function authoredPlayImportCandidates(value){
+  if(validConnectedE5Play(value))return [{name:value.name,play:JSON.parse(JSON.stringify(value)),reason:null}];
+  if(!obj(value)||value.format!=='team-manager-library'||value.version!==1||
+    !obj(value.library)||!Array.isArray(value.library.plays)||value.library.plays.length>200||
+    Object.keys(value).some(k=>!['format','version','exportedAt','library'].includes(k)))return [];
+  return value.library.plays.map(item=>{
+    if(!obj(item))return {name:'Unsupported play',play:null,reason:'invalid-record'};
+    const {at,libraryOrigin,lib,...candidate}=item;
+    // Known local library bookkeeping is not a cloud permission or play field.
+    // Nothing within diagram, instructions, roles or timing is rewritten.
+    const ok=validConnectedE5Play(candidate);
+    return {name:str(item.name,120)?item.name:'Unsupported play',play:ok?JSON.parse(JSON.stringify(candidate)):null,
+      reason:ok?null:'unsupported-play-payload'};
+  });
+}

@@ -97,6 +97,7 @@ jobs:
             supabase/migrations/20261126040000_stage3d5_matchday_arrivals.sql \
             supabase/migrations/20261126050000_stage3d5_matchday_records.sql \
             supabase/migrations/20261127010000_stage4_play_assignments.sql \
+            supabase/migrations/20261127020000_stage4_owner_templates.sql \
             supabase/tests/stage3d5_functional_completion_disposable.sql \
             supabase/tests/stage4_play_assignments_disposable.sql
           do

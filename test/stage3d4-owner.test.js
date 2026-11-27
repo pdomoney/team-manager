@@ -152,3 +152,23 @@ test('Source preserves owner bootstrap restriction, policy gate, revocation and 
   assert.match(build,/cloud-owner\.js/);
   assert.match(legacy,/existing-worker-protected-asset-changed/);
 });
+
+test('owner template actions require explicit rights and privacy review and reject source-team fields',async()=>{
+ const play={id:'synthetic-play',name:'Step',players:{LM:[24,46]},moves:[]};
+ const input={action:'template.add',play,rightsConfirmed:true,privacyReviewed:true};
+ assert(validateOwnerAction(input));
+ assert.equal(validateOwnerAction({...input,rightsConfirmed:false}),null);
+ assert.equal(validateOwnerAction({...input,teamId:'private-team'}),null);
+ const disabled=fake();assert.equal((await handleStage3D4Owner(req(input),env,disabled.fetchImpl)).status,503);
+ const calls=[];
+ const enabled={...env,STAGE4_TACTICS_MODE:'enabled'};
+ const fetchImpl=async(url,opts)=>{
+  const path=new URL(url).pathname;
+  if(path==='/auth/v1/user')return response({id:USER,email:ACCOUNT,email_confirmed_at:'2026-11-21'});
+  const body=JSON.parse(opts.body);calls.push({path,body});
+  return response({ok:true,code:'ready',templateId:body.p_input.templateId});
+ };
+ const res=await handleStage3D4Owner(req(input),enabled,fetchImpl);
+ assert.equal(res.status,200);assert.equal(calls[0].path,'/rest/v1/rpc/tm_stage4_owner_templates');
+ assert.equal(calls[0].body.p_actor,USER);assert.deepEqual(calls[0].body.p_input.play,play);
+});
