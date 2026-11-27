@@ -185,7 +185,82 @@ class Stage4ArchivedCheckerTests(unittest.TestCase):
         validate_control_contract(c,s)
         for change in ('identity','path'):
             p=copy.deepcopy(c)
-            if change=='identity':p['controlPr']=310
+            if change=='identity':p['controlPr']=311
             else:p['changedPaths']=sorted(p['changedPaths']+['site/app.js'])
             with self.assertRaises(Stop):validate_control_contract(p,s)
+class Stage4ReferenceTests(unittest.TestCase):
+    def plan(self):
+        rows=[{'file':str(p.relative_to(ROOT)),'sha256':sha(p)} for p in sorted((ROOT/'supabase/migrations').glob('*.sql'))]
+        self.assertEqual(len(rows),26)
+        return {'prior_migrations':rows[:24],'migrations':rows[24:]}
+    def test_sequence_and_checksums(self):
+        from forward_release import stage4_sql_sequence
+        p=self.plan();paths=stage4_sql_sequence(ROOT,p)
+        self.assertEqual(len(paths),41)
+        self.assertEqual(paths[-1],'supabase/tests/stage4_play_assignments_disposable.sql')
+        p['migrations'][0]['sha256']='0'*64
+        with self.assertRaisesRegex(Stop,'checksum'):stage4_sql_sequence(ROOT,p)
+    def test_replay_locale_checkpoints_and_failure(self):
+        from contextlib import contextmanager
+        from types import SimpleNamespace
+        from forward_release import stage4_reference
+        p=self.plan()
+        with tempfile.TemporaryDirectory() as t:
+            out=Path(t);executed=[]
+            def run(argv,**kw):
+                env=kw['env']
+                self.assertEqual((env['LC_ALL'],env['LANG'],env['LC_CTYPE'],env['TZ']),('C','C','C','UTC'))
+                self.assertNotIn('UNRELATED_SETTING',env)
+            @contextmanager
+            def cluster(pg,d,name,psql):
+                q.run(['pg_ctl','start'],env={'HOME':'/tmp','UNRELATED_SETTING':'synthetic','LC_ALL':'bad'})
+                try:yield {'PGHOST':'/tmp/private-socket','PGDATABASE':'postgres'},d
+                finally:q.run(['pg_ctl','stop'],env={'HOME':'/tmp'})
+            def sqlfile(psql,env,path,log):
+                self.assertEqual(env['PGHOST'],'/tmp/private-socket')
+                q.run(['psql','-f',str(path)],env=env)
+                executed.append(path.name)
+            def catalogue(psql,env):return {'objects':{'checkpoint':executed[-1]}}
+            q=SimpleNamespace(run=run,local_cluster=cluster,sqlfile=sqlfile,catalogue=catalogue)
+            base,target=stage4_reference(q,ROOT,out,Path('/pg'),'/psql',p)
+            self.assertEqual(len(executed),41)
+            self.assertEqual(base['checkpoint'],Path(p['prior_migrations'][-1]['file']).name)
+            self.assertEqual(target['checkpoint'],Path(p['migrations'][-1]['file']).name)
+            self.assertIs(q.run,run)
+            self.assertEqual(json.loads((out/'reference-replay.json').read_text())['completed'],41)
+            def fail(*a):raise RuntimeError('synthetic failure')
+            q.sqlfile=fail
+            with self.assertRaisesRegex(Stop,'0/41 scripts completed'):stage4_reference(q,ROOT,out,Path('/pg'),'/psql',p)
+            self.assertIs(q.run,run)
+            @contextmanager
+            def remote(*a):yield {'PGHOST':'nonlocal.example'},out
+            q.local_cluster=remote
+            with self.assertRaisesRegex(Stop,'socket absent'):stage4_reference(q,ROOT,out,Path('/pg'),'/psql',p)
+            self.assertIs(q.run,run)
+    def test_control_chain_and_ci(self):
+        from forward_release_plan import control_for,control_ci_sources
+        s=json.loads((ROOT/'config/releases/pr308.json').read_text())
+        c=json.loads((ROOT/'config/releases/pr308-control.json').read_text())
+        h=c['priorControl'];app=c['applicationSource'];candidate=c['applicationCandidate'];tree=c['applicationTree']
+        historical=dict(c,controlPr=h['pr'],controlBranch=h['branch'],changedPaths=[
+          'config/releases/pr308-control.json','docs/operations/pr308-checker-correction.md',
+          'scripts/release/forward_release.py','scripts/release/forward_release_plan.py','scripts/release/test_forward_release.py'])
+        del historical['priorControl']
+        main='a'*40;head='b'*40;mt='c'*40
+        def git_call(repo,*args,**kw):
+            if args[0]=='show':return json.dumps(historical if args[1].startswith(h['source']+':') else c).encode()
+            if args[0]=='rev-parse':return head if args[1].endswith('^2') else mt
+            if args[0]=='diff':return '\n'.join(historical['changedPaths'] if args[-1]==h['source'] else c['changedPaths'])
+            raise AssertionError(args)
+        with patch('forward_release_plan.git',side_effect=git_call),patch('forward_release_plan.normal_merge') as merge,patch('forward_release_plan.spec_for',return_value=s):
+            actual=control_for('repo',s,main,'config/releases/pr308-control.json',app,candidate,tree)
+            self.assertEqual(merge.call_count,2)
+            self.assertEqual(merge.call_args_list[0].args[3],app)
+            self.assertEqual(merge.call_args_list[1].args[3],h['source'])
+            rows=control_ci_sources(actual)
+            self.assertEqual(len(rows),6)
+            self.assertEqual(rows[2],(h['source'],'push','main'))
+            self.assertEqual(rows[-1],(main,'push','main'))
+        bad=copy.deepcopy(c);bad['priorControl']['source']='0'*40
+        with self.assertRaises(Stop):validate_control_contract(bad,s)
 if __name__=='__main__':unittest.main()

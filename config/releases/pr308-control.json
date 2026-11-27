@@ -3,13 +3,20 @@
   "applicationSource": "1d99eefebd63c494b9d65a76bdf53376d6a2ed8e",
   "applicationCandidate": "765875f26ab1f385178f2d25fe10b0017ffd989f",
   "applicationTree": "c001f9ca42a55bdb4886a15b58a17e23a87b89a1",
-  "controlPr": 309,
-  "controlBranch": "candidate/pr309-pr308-checker-correction",
+  "controlPr": 310,
+  "controlBranch": "candidate/pr310-pr308-reference-qualification",
   "changedPaths": [
     "config/releases/pr308-control.json",
-    "docs/operations/pr308-checker-correction.md",
+    "docs/operations/pr308-reference-qualification.md",
     "scripts/release/forward_release.py",
     "scripts/release/forward_release_plan.py",
     "scripts/release/test_forward_release.py"
-  ]
+  ],
+  "priorControl": {
+    "source": "985cafdebc6252dd907ee867bd23f856474a14ee",
+    "head": "d8c90ddaea6d93840a326ec99d9dc0026473e7a1",
+    "tree": "dab39e55bc43d3e8062b37866749b520cf9ea3e0",
+    "pr": 309,
+    "branch": "candidate/pr309-pr308-checker-correction"
+  }
 }
