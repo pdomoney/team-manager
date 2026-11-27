@@ -215,6 +215,19 @@ with sync_playwright() as p:
         'Native E5 diagram workspace mounted in the authenticated team shell')
     checks.ok(coach.locator('dialog.cloud-e5-dialog').evaluate('(d)=>d.matches(":modal")'),
         'Editor is a modal full-screen workspace, not a clipped nested card')
+    editor.get_by_role('button',name='Duplicate previous phase',exact=True).click()
+    phase_track=editor.locator('#ped-phases')
+    checks.ok(phase_track.get_by_role('button',name='Phase 3',exact=True).get_attribute('aria-pressed')=='true',
+        'Coach duplicates the last phase and opens the new independent phase')
+    editor.get_by_role('button',name='Undo',exact=True).click()
+    checks.ok(phase_track.get_by_role('button',name='Phase 3',exact=True).count()==0,
+        'Undo removes only the duplicated phase')
+    editor.get_by_role('button',name='Redo phase duplication',exact=True).click()
+    checks.ok(phase_track.get_by_role('button',name='Phase 3',exact=True).get_attribute('aria-pressed')=='true',
+        'Redo restores the duplicated phase')
+    editor.get_by_role('button',name='Undo',exact=True).click()
+    checks.ok(phase_track.get_by_role('button',name='Phase 3',exact=True).count()==0,
+        'Undo restores the prior authored phase count before the original save journey')
     editor.get_by_role('button',name='Play details',exact=True).click()
     editor.locator('[name=steps]').fill('Pass to the support runner\nThen move into space')
     save=editor.get_by_role('button',name='Save play',exact=True)
