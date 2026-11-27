@@ -29,6 +29,7 @@ import { actorEndpointLinks, followActorEndpoints, newLinkedMovement, rebindMove
 import { coachPlayConnectionNotice } from './play-link-warning.js';
 import { attachCoachTimelineSandbox } from './play-event-editor-sandbox.js';
 import { preparePlayTimelineSave } from './play-event-persistence.js';
+import { duplicatePreviousPhase } from './play-movement-link-audit.js';
 import {validConnectedE5Play} from './cloud-e5-payload.js';
 import { inspectPlayEventSeek } from './play-event-readonly-seek.js';
 import { advanceWatchTiming } from './play-watch-timing-clock.js';
@@ -4343,6 +4344,7 @@ const PED_WORDS = ['headline', 'when', 'steps'];
 const pedWords = () => Object.fromEntries(PED_WORDS.map(k => { const f = $(`#sheet [name=${k}]`); return [k, f ? f.value : '']; }));
 function pedSnap(words = null) {
   const E = state.ped; if (!E) return;
+  E.redoPhase = null;
   E.undo.push({ draft: JSON.stringify(E.draft), words }); if (E.undo.length > 60) E.undo.shift();
   E.dirty = true;
 }
@@ -4373,6 +4375,7 @@ function pedSetList(id) {
   SLOT_IDS.forEach(s => { const a = wordFor(from, whoOf(d, s)), b = wordFor(to, who[s]); if (a && b) map[a] = b; });
   pedSnap(pedWords());
   d.set = to.id; d.who = who;
+  if(CONNECTED_E5){if(to.builtin)delete d.setDef;else d.setDef=clone({name:to.name,labels:to.labels,...(to.slots?{slots:to.slots}:{})});}
   pedRenameWords(map);
 }
 function pedSelect(sel) { const E = state.ped; E.sel = sel; E.selH = null; E.textSnap = false; }
@@ -4858,6 +4861,8 @@ function refreshPlayEditor() {
   const inspectorBtn = $('[data-act="ped-inspector"]');
   if (inspectorBtn) { inspectorBtn.setAttribute('aria-expanded', String(!!E.inspectorOpen)); inspectorBtn.textContent = E.inspectorOpen ? 'Hide properties' : 'Show properties'; }
   $('#ped-phases').innerHTML = `<span class="ped-phase-label">Phase track</span><div class="seg phase-bar" role="group" aria-label="Phase">${Array.from({ length: n }, (_, j) => `<button type="button" data-act="ped-phase" data-i="${j}" aria-pressed="${j === E.phase && !E.placing}">Phase ${j + 1}</button>`).join('')}<button type="button" data-act="ped-phase-add" aria-pressed="${!!E.placing}">+ Phase</button></div>
+    <button type="button" class="btn sm" data-act="ped-phase-duplicate" ${E.placing || n >= 32 ? 'disabled' : ''}>Duplicate previous phase</button>
+    <button type="button" class="btn sm" data-act="ped-phase-redo" ${E.redoPhase && E.redoPhase.base === JSON.stringify(E.draft) ? '' : 'disabled'}>Redo phase duplication</button>
     ${E.phase ? `<button type="button" class="link-btn ped-phase-del" data-act="ped-phase-del">Delete phase ${E.phase + 1}</button>` : ''}`;
   $('#ped-ptitle-l').textContent = n > 1 ? `Phase ${E.phase + 1}` : 'Phase 1 (add more phases for the next rucks)';
   const tools = $('#ped-tools'), toolScroll = tools?.scrollLeft || 0;
@@ -4914,11 +4919,35 @@ function pedAddPhase(at) {
   pedSetPhase(E.draft.phases.length);
   const t = $('#ped-ptitle'); if (t) t.focus();
 }
+function pedDuplicatePhase() {
+  const E=state.ped;
+  if(!E||E.placing)return;
+  E.cancelPointerGesture?.();
+  const result=duplicatePreviousPhase(E.draft,()=> 'm-'+uid());
+  if(!result.ok){toast('Review the previous phase and its movement links before duplicating.');return;}
+  pedSnap();
+  E.undo.at(-1).phaseDuplication=true;
+  E.undo.at(-1).previousPhase=E.phase;
+  E.draft.phases.push(result.phase);
+  pedSetPhase(E.draft.phases.length);
+  toast('Previous phase copied. Review and author any new timing separately.');
+}
+function pedRedoPhase() {
+  const E=state.ped,redo=E?.redoPhase;
+  if(!redo||E.placing||E.cancelPointerGesture?.()||redo.base!==JSON.stringify(E.draft))return;
+  pedSnap();
+  E.undo.at(-1).phaseDuplication=true;
+  E.undo.at(-1).previousPhase=E.phase;
+  E.draft=JSON.parse(redo.draft);
+  pedSetPhase(E.draft.phases.length);
+}
 function pedUndo() {
   const E = state.ped;
   if (E?.cancelPointerGesture?.()) return; // first Undo cancels an unfinished gesture
   if (!E || !E.undo.length) return;
   const step = E.undo.pop();
+  E.redoPhase=step.phaseDuplication?{base:step.draft,draft:JSON.stringify(E.draft)}:null;
+  if(step.phaseDuplication)E.phase=step.previousPhase;
   E.draft = JSON.parse(step.draft); E.selH = null; E.drawing = null; E.textSnap = false;
   // A complete undo returns the play to its original draft; ordinary form
   // field edits are independently compared when the coach leaves the editor.
@@ -9956,6 +9985,8 @@ const actions = {
   }),
   'ped-phase': coachOnly(el => pedSetPhase(Number(el.dataset.i))),
   'ped-phase-add': coachOnly(() => { const E = state.ped; if (E.placing) return; E.wasWhole = E.whole; E.placing = true; pedSelect(null); refreshPlayEditor(); }),
+  'ped-phase-duplicate': coachOnly(() => pedDuplicatePhase()),
+  'ped-phase-redo': coachOnly(() => pedRedoPhase()),
   'ped-phase-cancel': coachOnly(() => { const E = state.ped; E.placing = false; E.whole = E.wasWhole || false; refreshPlayEditor(); }),
   'ped-phase-del': coachOnly(() => {
     const E = state.ped; if (!E.phase || !confirm(`Delete phase ${E.phase + 1}?`)) return;
@@ -11908,7 +11939,7 @@ function bootConnectedE5(){
         (m.play===null?m.mode!=='edit':!validConnectedE5Play(m.play)))return;
       connectedE5={nonce:m.nonce,mode:m.mode,pending:false};
       const play=m.play===null?null:clone(m.play);
-      V={team:{name:m.teamLabel,sport:m.sport,field:{...FIELD_DEFAULTS}},plays:play?[play]:[],playerSets:[]};
+      V={team:{name:m.teamLabel,sport:m.sport,field:{...FIELD_DEFAULTS}},plays:play?[play]:[],playerSets:play?.setDef?[{...clone(play.setDef),id:play.set}]:[]};
       S.role=m.mode==='edit'?'coach':'player';
       state.tab='plays';state.playId=play?.id||null;state.playMode=m.mode==='view'?'learn':'watch';
       state.playSide='right';state.studyIndex=0;state.playPhase=0;state.studyRole='all';

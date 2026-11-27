@@ -224,3 +224,32 @@ export function inspectPlayPhaseContinuity(play, declarations = []) {
     timingVerified: false, possessionVerified: false
   });
 }
+
+/** Append an independent copy of the last phase. The root's play-wide
+ * metadata and timing are deliberately not phase-local. Existing authored
+ * timing stays at the existing indices; the new phase has no timing mapping.
+ * Invalid links are held rather than repaired or discarded automatically.
+ */
+export function duplicatePreviousPhase(play, nextId){
+  if(!object(play)||!Array.isArray(play.phases)||play.phases.length>=31||typeof nextId!=='function')
+    return {ok:false,reason:'invalid-phase-or-limit'};
+  const source=play.phases.at(-1)||play;
+  if(!object(source)||!object(source.players)||!Array.isArray(source.moves)||
+     inspectPlayMovementLinks(source).status==='invalid')
+    return {ok:false,reason:'review-phase-links'};
+  const used=new Set([play,...play.phases].flatMap(p=>Array.isArray(p?.moves)?p.moves.map(m=>m?.moveId).filter(Boolean):[]));
+  // Reserve explicit event references too, even if no current diagram contains one.
+  for(const e of play.eventTimeline?.events||[])if(e.movementId)used.add(e.movementId);
+  const phase={};
+  for(const key of ['players','defence','moves','focus','ghost','notes','labels','view','tags','title','study'])
+    if(Object.hasOwn(source,key))phase[key]=JSON.parse(JSON.stringify(source[key]));
+  for(const move of phase.moves){
+    if(!object(move))return {ok:false,reason:'review-phase-links'};
+    if(move.moveId!==undefined||move.linkVersion!==undefined){
+      const id=nextId();
+      if(!movementId(id)||used.has(id))return {ok:false,reason:'movement-id-conflict'};
+      move.moveId=id;used.add(id);
+    }
+  }
+  return {ok:true,phase};
+}

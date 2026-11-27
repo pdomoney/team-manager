@@ -24,3 +24,15 @@ test('only mounted same-origin same-frame exact nonce editor can propose a detac
  for(const bad of [{...event,source:{}},{...event,origin:'https://other.test'},{...event,data:{...event.data,nonce:'other'}}])assert.equal(classifyE5Message(bad,ctx),null);
  for(const bad of [{...ctx,mode:'view'},{...ctx,mounted:false},{...ctx,pending:true}])assert.equal(classifyE5Message(event,bad),null);
 });
+
+test('self-contained custom role definition preserves original labels and rejects unresolved or unsafe definitions',()=>{
+ const custom={...play,set:'custom-role-set',setDef:{name:'Custom',labels:[{code:'A1',name:'Left support'},{code:'A2',name:'Right support'}],slots:{LM:'A1',RM:'A2'}},who:{LM:'A1',RM:'A2'}};
+ const before=JSON.stringify(custom);
+ assert.equal(validConnectedE5Play(custom),true);
+ assert.equal(JSON.stringify(custom),before);
+ for(const bad of [{...custom,setDef:undefined},{...custom,who:{LM:'X'}},
+ {...custom,setDef:{...custom.setDef,labels:[{code:'A1',name:'constructor'}]}},
+ {...custom,setDef:{...custom.setDef,slots:{LM:'X'}}},
+ {...custom,setDef:{...custom.setDef,labels:[...custom.setDef.labels,custom.setDef.labels[0]]}},
+ {...custom,set:'oztag'}])assert.equal(validConnectedE5Play(bad),false);
+});
