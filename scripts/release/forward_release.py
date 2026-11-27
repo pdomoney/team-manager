@@ -140,7 +140,13 @@ def main():
             return work
         work=check('source',source);cli=[q.tool('npx'),'--yes','wrangler@4.167.0'];psql=q.tool('psql')
         def build():
-            q.worker_candidate(work,out,report);entry=i.bundle_entry(out)
+            q.worker_candidate(work,out,report)
+            if 'stage4' in s:
+                # The archived helper remains immutable; independently require
+                # exact paired runtime/client activation and native closure.
+                result=json.loads(q.run([q.tool('node'),str(work/'scripts/stage3d3-existing-worker-release-check.mjs')],cwd=work))
+                require(result.get('stage4TacticsEnabled') is True and result.get('encryptedFilesVerified')==8,'Stage 4 package not enabled or protected inventory differs')
+            entry=i.bundle_entry(out)
             dest=out/'transport-dry-run';dest.mkdir()
             q.run(cli+['deploy',str(entry),'--no-bundle','--keep-vars','--config',CONFIG,'--dry-run','--outdir',str(dest)],cwd=work,label='transport dry run',timeout=600,log=out/'transport-private.log')
             emitted=[x for x in dest.rglob('*') if x.is_file() and x.suffix in ('.js','.mjs')]

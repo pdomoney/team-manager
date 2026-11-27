@@ -101,7 +101,7 @@ export function buildExistingWorkerCandidate({
     // closure, never the Stage 3C isolated staging build.
     const tactics=env.STAGE4_TACTICS_MODE==='enabled';
     if(tactics){
-      const required=['cloud-e5-workspace.html','cloud-e5-host.js','cloud-e5-payload.js','app.js','play-event-persistence.js','cloud-play-board.js'];
+      const required=['cloud-e5-workspace.html','cloud-e5-host.js','cloud-e5-payload.js','app.js','play-event-persistence.js','cloud-play-board.js','cloud-play-import.js','cloud-tactics-library.js'];
       if(!required.every(name=>fs.statSync(path.join(out,name),{throwIfNoEntry:false})?.isFile()))
         throw Error('stage4-e5-asset-closure-missing');
       const teamPath=path.join(out,'cloud-team.js');
@@ -145,7 +145,13 @@ export function buildExistingWorkerCandidate({
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   try{
-    const result=buildExistingWorkerCandidate();
+    // Only the existing production CLI reads the reviewed deployment
+    // descriptor. Programmatic/synthetic builds retain the explicit opt-in.
+    const config=JSON.parse(fs.readFileSync(path.join(process.cwd(),'wrangler.stage3d4-existing.jsonc'),'utf8').replace(/^\s*\/\/.*$/gm,''));
+    const selected=config.vars?.STAGE4_TACTICS_MODE||'disabled';
+    if(!['enabled','disabled'].includes(selected)||(process.env.STAGE4_TACTICS_MODE&&process.env.STAGE4_TACTICS_MODE!==selected))
+      throw Error('stage4-worker-config-build-selection-mismatch');
+    const result=buildExistingWorkerCandidate({env:{...process.env,STAGE4_TACTICS_MODE:selected}});
     console.log('Existing Worker candidate built from '+result.sourceSha+
       '. Encrypted data preserved: '+result.encryptedDataFilesPreserved+
       '. NOT DEPLOYED.');

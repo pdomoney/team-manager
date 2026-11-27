@@ -96,6 +96,19 @@ export function verifyExistingWorkerRelease({
      !publicConfig.includes('CLOUD_STAGE3D2_AUTH_ENABLED=false')||
      /sb_secret_|SUPABASE_SERVICE_ROLE_KEY/.test(publicConfig))
     fail('unsafe-connected-client-config');
+  const mode=vars.STAGE4_TACTICS_MODE||'disabled';
+  if(!['enabled','disabled'].includes(mode))fail('invalid-stage4-mode');
+  const stage4=mode==='enabled';
+  const clientOn=publicConfig.includes('CLOUD_STAGE4_TACTICS_ENABLED=true');
+  if(clientOn!==stage4)fail('stage4-client-worker-mismatch');
+  if(stage4){
+    for(const n of ['cloud-e5-workspace.html','cloud-e5-host.js','cloud-e5-payload.js','cloud-play-import.js','cloud-tactics-library.js','play-event-persistence.js','cloud-play-board.js'])
+      if(!fs.statSync(getFile(candidateDir,n),{throwIfNoEntry:false})?.isFile())fail('stage4-native-closure-missing');
+    const team=fs.readFileSync(getFile(candidateDir,'cloud-team.js'),'utf8');
+    if(!/import \{previewCloudPlay\} from '\.\/cloud-play-board\.js(?:\?v=[a-f0-9]+)?';/.test(team)||
+       !/import \{loadPlayEventDraft\} from '\.\/play-event-persistence\.js(?:\?v=[a-f0-9]+)?';/.test(team)||
+       !fs.readFileSync(getFile(candidateDir,'app.js'),'utf8').includes('bootConnectedE5'))fail('stage4-native-import-mismatch');
+  }
   const registration=fs.readFileSync(getFile(candidateDir,'cloud-registration.html'),'utf8');
   if(!registration.includes('Team Manager · Account registration')||
      registration.includes('St George Oztag · Mixed 20'))
@@ -103,7 +116,7 @@ export function verifyExistingWorkerRelease({
   return Object.freeze({
     status:'LOCAL_CANDIDATE_QUALIFIED_NOT_DEPLOYED',sourceSha,
     worker:'team-manager',encryptedFilesVerified:legacy.files.length,
-    publicBindingsVerified:true,providerControlsEnabled:false,
+    publicBindingsVerified:true,providerControlsEnabled:false,stage4TacticsEnabled:stage4,
     liveWorkerVerified:false,rollbackVerified:false,secretConfigured:'UNKNOWN'
   });
 }

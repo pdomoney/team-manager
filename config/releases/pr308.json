@@ -1,0 +1,59 @@
+{
+  "releaseId": "PR308",
+  "candidateBranch": "candidate/pr308-stage4-production-release",
+  "developmentBase": "aec46f6af1bb42db616ccde2bd337e2d5c254c0f",
+  "accepted": {
+    "source": "e695f72e3d2124c5ea19678a10aeca38f3061988",
+    "control": "5480ec4ec5957e61c11b0897c37e6e29fd672eb3",
+    "data": "068c27f8cf2185c1100b6acf0940b686e4295bc2",
+    "migrationCount": 24,
+    "manifest": "21e848988eb6174501f911851fa75ee03203fa4e82a8e63974ace168ecdd8498",
+    "plan": "0500f75b7c6689faf8321f5dc0ad1143bde53dcae3ce9711d4e9f97482cb0a7b",
+    "worker": {
+      "version_id": "4f8f1abc-64cf-48f5-acbc-2c69d0ff39ef",
+      "deployment_id": "e1fa5a23-0fcc-4dae-a891-1fc890254bef"
+    },
+    "assets": 168,
+    "encryptedAssets": 8,
+    "ownerAcceptance": {
+      "date": "2026-11-27",
+      "checks": 1,
+      "passed": 1,
+      "status": "OWNER_ACCEPTED",
+      "scope": "Explicit owner acceptance of installed PR300 functionality; not a claim of a new scripted acceptance suite"
+    },
+    "browserRecovery": {
+      "verificationSha256": "c5014b63383e22b2a48cf4f984ac87f5b6c8821f1159fc6eafb4661f4b71a89d",
+      "recordFile": "pr308-baseline-browser.json"
+    }
+  },
+  "migrations": [
+    "20261127010000_stage4_play_assignments.sql",
+    "20261127020000_stage4_owner_templates.sql"
+  ],
+  "newEmptyTables": [
+    "play_assignments",
+    "owner_play_templates"
+  ],
+  "existingSchemaChanges": [],
+  "ruleActivation": "NOT_APPROVED_NO_PROFILE_SEEDED",
+  "stage4": {
+    "applicationSource": "aec46f6af1bb42db616ccde2bd337e2d5c254c0f",
+    "applicationCandidate": "180961c3e6c41e871c756e95d96e19a036dceb03",
+    "applicationBase": "1ae63ad632979139019679d366c13e9d2ce596fc",
+    "applicationTree": "b48b78f7822f59428d935cb383d5d8bd15882921",
+    "applicationBranch": "candidate/pr306-stage4-templates-imports",
+    "releasePaths": [
+      "config/releases/pr308.json",
+      "docs/operations/pr308-stage4-production-release.md",
+      "scripts/release/forward_release.py",
+      "scripts/release/forward_release_plan.py",
+      "scripts/release/test_forward_release.py",
+      "scripts/stage3d3-existing-worker-build.mjs",
+      "scripts/stage3d3-existing-worker-release-check.mjs",
+      "test/stage3d3-existing-worker-release-check.test.js",
+      "wrangler.stage3d4-existing.jsonc"
+    ],
+    "freeAccountCollection": "DISABLED"
+  }
+}
