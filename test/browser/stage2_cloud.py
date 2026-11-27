@@ -39,6 +39,7 @@ duties = [{
 operations = []
 reject_next_play_save = False
 assignment_mock = None
+templates = []
 def signed_role(headers):
     auth = headers.get('authorization', '')
     if OWNER_TOKEN in auth:return 'owner'
@@ -119,7 +120,11 @@ def bind(ctx):
             else:
                 cmd=payload['payload']['command']
                 data=plays[0]
-                if cmd['op']!='save' or payload['resourceId']!=data['playId'] or payload['payload']['expectedVersion']!=data['version']:
+                if cmd['op']=='create' and payload['resourceId']==TEAM and payload['payload']['expectedVersion']==0:
+                    created={'playId':'imported-qa','revisionId':'rev-imported','version':0,'revisionStatus':'draft','publishedRevisionId':None,'play':cmd['play']}
+                    plays.append(created)
+                    reply={'ok':True,'code':'committed','resourceId':created['playId'],'version':0,'revisionId':created['revisionId']};code=200
+                elif cmd['op']!='save' or payload['resourceId']!=data['playId'] or payload['payload']['expectedVersion']!=data['version']:
                     reply={'ok':False,'code':'stale-play'};code=409
                 else:
                     data['play']=cmd['play'];data['version']+=1;data['revisionId']='rev-edited'
@@ -148,6 +153,26 @@ def bind(ctx):
         else:
             reply={'ok':False,'code':'scope-denied'}
         route.fulfill(status=200 if permitted else 403,content_type='application/json',body=json.dumps(reply))
+    def owner_endpoint(route):
+        payload=route.request.post_data_json
+        action=payload.get('action')
+        role=signed_role(route.request.headers)
+        reply={'ok':False,'code':'scope-denied'};code=403
+        if role=='owner':
+            if action=='status':
+                reply={'ok':True,'code':'ready','team':{'clubRef':'Fictional Comets','teamId':TEAM,'seasonRef':'2026','sportRef':'oztag'},'coachAssigned':True,'policyReady':True,'invitations':[]};code=200
+            elif action=='template.list':
+                reply={'ok':True,'code':'ready','templates':[dict(templateId=t['templateId'],version=t['version'],state=t['state'],origin='owner-authored',name=t['play']['name'],sport=t['play'].get('sport')) for t in templates]};code=200
+            elif action=='template.create' and payload.get('ownerAuthored') is True and set(payload)=={'action','templateId','ownerAuthored','play'}:
+                templates.append(dict(templateId=payload['templateId'],version=1,state='active',play=payload['play']))
+                reply={'ok':True,'code':'ready'};code=200
+            elif action=='template.archive':
+                item=next((t for t in templates if t['templateId']==payload.get('templateId') and t['version']==payload.get('expectedVersion') and t['state']=='active'),None)
+                if item:
+                    item['state']='archived';item['version']+=1
+                    reply={'ok':True,'code':'ready'};code=200
+        route.fulfill(status=code,content_type='application/json',body=json.dumps(reply))
+    ctx.route('**/api/stage3d4/v1/owner',owner_endpoint)
     ctx.route('**/api/stage3d5/v1/team',assignments_endpoint)
     ctx.route('**/auth/v1/user',auth_endpoint)
     ctx.route('**/rest/v1/rpc/tm_my_team_context',contexts_endpoint)
@@ -325,6 +350,36 @@ with sync_playwright() as p:
     checks.ok(all(not(r=='player' and a in ('play.draft.read','play.draft.edit','play.publish'))
         for r,_,_,a in operations),'Player assignment viewing grants no draft or publication authority')
     assigned_ctx.close()
+
+    library_ctx,library_owner=new_page(browser,OWNER_TOKEN,stage4=True)
+    library_owner.get_by_role('button',name='Manage play templates').click()
+    library_owner.get_by_role('heading',name='Owner-authored templates').wait_for()
+    original={'id':'owner-example','name':'Owner original','sport':'Oztag','players':{'LM':[24,46]},'moves':[]}
+    library_owner.locator('input[name=templateFile]').set_input_files({'name':'owner.json','mimeType':'application/json','buffer':json.dumps(original).encode()})
+    library_owner.locator('input[name=ownerAuthored]').check()
+    library_owner.get_by_role('button',name='Save owner template').click()
+    library_owner.get_by_text('Owner original',exact=True).wait_for(timeout=15000)
+    checks.ok(len(templates)==1 and templates[0]['play']==original,
+        'Platform Owner stores only explicitly declared own-authored play')
+    library_owner.get_by_role('button',name='Archive template').click()
+    library_owner.get_by_text('Oztag · archived · owner-authored · version 2').wait_for(timeout=15000)
+    checks.ok(library_owner.get_by_role('button',name='Download play JSON').count()==0,
+        'Archived template is not offered for reuse')
+    library_owner.get_by_role('button',name='Back to Platform').click()
+    library_owner.get_by_role('button',name='Fictional Comets',exact=True).click()
+    library_owner.locator('#team-chips button').first.click()
+    library_owner.locator('#cloud-nav').get_by_role('button',name='Tactics',exact=True).click()
+    library_owner.get_by_role('heading',name='Coach play drafts').wait_for()
+    legacy={'format':'team-manager-library','version':1,'library':{'plays':[dict(original,id='legacy-example',name='Legacy support',set='support',who={'LM':'A1'}),dict(original,id='unsupported',set='missing')],'playerSets':[{'id':'support','name':'Support','labels':[{'code':'A1','name':'First support'}]}]}}
+    library_owner.locator('input[name=playFile]').set_input_files({'name':'library.json','mimeType':'application/json','buffer':json.dumps(legacy).encode()})
+    library_owner.get_by_role('button',name='Review import').click()
+    library_owner.get_by_text('1 eligible plays · 1 held for review').wait_for(timeout=15000)
+    library_owner.get_by_role('button',name='Import selected play as draft').click()
+    library_owner.get_by_text('Legacy support',exact=True).wait_for(timeout=15000)
+    checks.ok(len(plays)==2 and plays[-1]['play']['setDef']['labels'][0]['code']=='A1' and
+        all(p['play']['name']!='Legacy support' for p in published),
+        'Historical library selection imports one exact custom-set coach draft without publication')
+    library_ctx.close()
 
     vol_ctx,volunteer=new_page(browser,VOL_TOKEN)
     volunteer.get_by_role('button',name='View your duties').click()

@@ -626,7 +626,8 @@ async function openOwnerTemplates(){
   try{
     const result=await ownerCall('template.list');
     if(!current())return;loading.remove();
-    readList(panel,result.templates,(t,row)=>{
+    if(!result.templates.length)info('No owner-authored templates yet.',panel);
+    else readList(panel,result.templates,(t,row)=>{
       h('strong',{text:t.name,parent:row});
       h('small',{text:(t.sport||'Sport not specified')+' · '+t.state+' · '+t.origin+' · version '+t.version,parent:row});
       if(t.state!=='active')return;
@@ -1584,7 +1585,9 @@ function renderTactics(){
   });
   const importer=card('Bring an authored E5 play into this team');
   info('Import an E5 play JSON object or select one play from an original Team Manager library export. Geometry, phases and authored timing are preserved. No encrypted backup or personal information.',importer);
+  let importGeneration=0;
   const f=form(importer,async d=>{
+    const generation=++importGeneration;selection.replaceChildren();
     const file=d.get('playFile');
     if(!(file instanceof File)||file.size>(CLOUD_STAGE4_TACTICS_ENABLED?2000000:65536)||file.size===0)
       throw Object.assign(new Error(),{code:'invalid-play'});
@@ -1598,7 +1601,7 @@ function renderTactics(){
     }
     const {inspectPlayImport}=await import('./cloud-play-import.js');
     const result=inspectPlayImport(p);
-    if(!scope.current())return;
+    if(!scope.current()||generation!==importGeneration)return;
     if(!result.ok)throw Object.assign(new Error(),{code:'invalid-play'});
     selection.replaceChildren();
     info(result.rows.length+' eligible plays · '+result.omitted.length+' held for review',selection);
@@ -1606,7 +1609,7 @@ function renderTactics(){
     readList(selection,result.rows,(row,item)=>{
       h('strong',{text:row.name,parent:item});
       button('Import selected play as draft',async()=>{
-        if(!scope.current()||state.busy||!confirm('Create a coach-only copy of '+row.name+' in this team?'))return;
+        if(!scope.current()||generation!==importGeneration||state.busy||!confirm('Create a coach-only copy of '+row.name+' in this team?'))return;
         state.busy=true;
         try{
           const saved=await scope.mutate('play.draft.edit',c.teamId,0,{command:{op:'create',play:row.play}});
@@ -1617,7 +1620,8 @@ function renderTactics(){
     });
   });
   const l=h('label',{text:'Authored E5 JSON file',parent:f});
-  h('input',{attrs:{type:'file',name:'playFile',accept:'application/json,.json',required:'true'},parent:l});
+  const input=h('input',{attrs:{type:'file',name:'playFile',accept:'application/json,.json',required:'true'},parent:l});
+  input.addEventListener('change',()=>{++importGeneration;selection.replaceChildren();});
   h('button',{className:'cloud-btn primary',text:CLOUD_STAGE4_TACTICS_ENABLED?'Review import':'Import as draft',attrs:{type:'submit'},parent:f});
   const selection=h('div',{parent:importer});
 }
