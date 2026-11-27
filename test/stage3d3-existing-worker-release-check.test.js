@@ -111,3 +111,20 @@ test('committed Worker release descriptor matches the client public config and c
   assert.equal(cfg.vars.SUPABASE_PUBLISHABLE_KEY,CLOUD_SUPABASE.publishableKey);
   assert(!Object.keys(cfg.vars).some(k=>/secret|service.role|token|password/i.test(k)));
 });
+
+test('Stage 4 production configuration and client asset flag must agree',()=>{
+  const x=fixture();
+  try{
+    mutateJson(x.configPath,c=>{c.vars.STAGE4_TACTICS_MODE='enabled';});
+    assert.throws(x.verify,/stage4-client-worker-mismatch/);
+    fs.appendFileSync(path.join(x.candidate,'cloud-public-config.js'),' CLOUD_STAGE4_TACTICS_ENABLED=true');
+    assert.throws(x.verify,/stage4-native-closure-missing/);
+    for(const n of ['cloud-e5-workspace.html','cloud-e5-host.js','cloud-e5-payload.js','cloud-play-import.js','cloud-tactics-library.js','play-event-persistence.js'])
+      fs.writeFileSync(path.join(x.candidate,n),'fixture');
+    fs.writeFileSync(path.join(x.candidate,'cloud-team.js'),"import {previewCloudPlay} from './cloud-play-board.js';\nimport {loadPlayEventDraft} from './play-event-persistence.js';");
+    fs.writeFileSync(path.join(x.candidate,'app.js'),'function bootConnectedE5(){}');
+    assert.equal(x.verify().stage4TacticsEnabled,true);
+    mutateJson(x.configPath,c=>{delete c.vars.STAGE4_TACTICS_MODE;});
+    assert.throws(x.verify,/stage4-client-worker-mismatch/);
+  }finally{fs.rmSync(x.root,{recursive:true,force:true});}
+});

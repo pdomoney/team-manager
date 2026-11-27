@@ -111,4 +111,36 @@ class PostMergeTests(unittest.TestCase):
                 self.assertEqual(merged['mode'],'merged')
                 self.assertEqual(merged['candidate_evidence'],evidence)
                 validate_plan_structure(merged)
+class Stage4ReleaseTests(unittest.TestCase):
+    def test_reviewed_release_contract(self):
+        s=json.loads((ROOT/'config/releases/pr308.json').read_text())
+        validate_spec(s)
+        for change in ('path','collection','recovery'):
+            p=copy.deepcopy(s)
+            if change=='path':p['stage4']['releasePaths'].append('site/app.js')
+            if change=='collection':p['stage4']['freeAccountCollection']='ENABLED'
+            if change=='recovery':p['accepted']['browserRecovery']['recordFile']='../outside.json'
+            with self.assertRaises(Stop):validate_spec(p)
+    def test_hold_reconciliation_requires_exact_browser_evidence(self):
+        from forward_release_plan import accepted_evidence
+        s=json.loads((ROOT/'config/releases/pr308.json').read_text())
+        a=s['accepted']
+        with tempfile.TemporaryDirectory() as t:
+            p=Path(t);plan=p/'plan.json';plan.write_text('{}');a['plan']=sha(plan)
+            v=p/'asset-verification.json';v.write_text('{}');a['browserRecovery']['verificationSha256']=sha(v)
+            summary={'source':a['source'],'plan_sha256':a['plan'],'candidate_manifest_sha256':a['manifest'],'R4':'VERIFIED','R5':'INSTALLED','encrypted_assets_verified':8,
+              'status':'INSTALLED_VERIFICATION_HOLD_NO_REDEPLOY','checks':{k:'PASS' for k in ('tools','source','build_and_transport','synthetic_reference','database_baseline','worker_baseline','live_baseline_assets')},
+              'new_worker':dict(a['worker'],required_secret_present=True,prior_version_available=True),'verification':{'passed':168,'total':168,'holds':[],'anonymousAuth':{'browser_fallback_eligible':True}},
+              'verification_evidence_sha256':sha(v),'browser_nonce':'synthetic-nonce'}
+            (p/'release-summary.json').write_text(json.dumps(summary));(p/'reference-candidate-private.json').write_text('{}')
+            record={'origin':'https://team-manager.paul-domoney.workers.dev','version_id':a['worker']['version_id'],'manifest_sha256':a['manifest'],'nonce':summary['browser_nonce'],'http_status':401,'content_type':'application/json','ray_id':'0123456789abcdef-SYD','ok':False,'code':'unauthenticated','canProceed':False}
+            f=p/'pr308-baseline-browser.json';f.write_text(json.dumps(record))
+            with patch('forward_release_plan.safe_private',side_effect=lambda p,**kw:Path(p)),patch('forward_release_plan.candidate_check',return_value=[]),patch('forward_release_plan.expected_assets',return_value={str(n):'x' for n in range(168)}):
+                before=sha(p/'release-summary.json')
+                result,_=accepted_evidence(s,p,plan)
+                self.assertEqual(result['browser_record_sha256'],sha(f))
+                self.assertEqual(before,sha(p/'release-summary.json'))
+                for key,val in [('http_status',403),('nonce','different'),('version_id','wrong')]:
+                    f.write_text(json.dumps(dict(record,**{key:val})))
+                    with self.assertRaises(Stop):accepted_evidence(s,p,plan)
 if __name__=='__main__':unittest.main()

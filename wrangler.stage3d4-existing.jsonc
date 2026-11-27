@@ -18,6 +18,7 @@
     "SUPABASE_URL": "https://uyjxvaobshaahzipzzds.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_8PDTyf-b1ro34cK9dB8_dQ_GQlDBNLT",
     "STAGE3D4_OWNER_ADMIN_MODE": "enabled",
+    "STAGE4_TACTICS_MODE": "enabled",
     "ONBOARDING_REDIRECT_URL": "https://team-manager.paul-domoney.workers.dev/cloud-access.html"
   }
 }

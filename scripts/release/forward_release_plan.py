@@ -55,7 +55,16 @@ def spec_for(repo,source,path):
     validate_spec(s)
     return s
 def validate_spec(s):
-    require(isinstance(s,dict) and set(s)=={'releaseId','candidateBranch','developmentBase','accepted','migrations','newEmptyTables','existingSchemaChanges','ruleActivation'},'Invalid release specification')
+    keys={'releaseId','candidateBranch','developmentBase','accepted','migrations','newEmptyTables','existingSchemaChanges','ruleActivation'}
+    require(isinstance(s,dict) and set(s)==(keys|{'stage4'} if s.get('releaseId')=='PR308' else keys),'Invalid release specification')
+    if s.get('releaseId')=='PR308':
+        x=s['stage4'];b=s['accepted'].get('browserRecovery',{})
+        require(set(x)=={'applicationSource','applicationCandidate','applicationBase','applicationTree','applicationBranch','releasePaths','freeAccountCollection'} and
+          x['applicationSource']==s['developmentBase'] and all(HEX40.fullmatch(x[k]) for k in ('applicationSource','applicationCandidate','applicationBase','applicationTree')) and
+          x['applicationBranch']=='candidate/pr306-stage4-templates-imports' and x['freeAccountCollection']=='DISABLED','Invalid Stage 4 authority')
+        require(x['releasePaths']==["config/releases/pr308.json","docs/operations/pr308-stage4-production-release.md","scripts/release/forward_release.py","scripts/release/forward_release_plan.py","scripts/release/test_forward_release.py","scripts/stage3d3-existing-worker-build.mjs","scripts/stage3d3-existing-worker-release-check.mjs","test/stage3d3-existing-worker-release-check.test.js","wrangler.stage3d4-existing.jsonc"],'Stage 4 release-only paths differ')
+        require(set(b)=={'verificationSha256','recordFile'} and HEX64.fullmatch(b['verificationSha256']) and b['recordFile']=='pr308-baseline-browser.json','Invalid baseline recovery contract')
+    else:require('browserRecovery' not in s['accepted'],'Historical recovery cannot transfer')
     require(re.fullmatch(r'PR[0-9]+',s['releaseId']) and s['candidateBranch'].startswith('candidate/'+s['releaseId'].lower()+'-') and
       re.fullmatch(r'candidate/[a-z0-9-]+',s['candidateBranch']),'Invalid release identity')
     a=s['accepted'];require(all(HEX40.fullmatch(a.get(k,'')) for k in ('source','control','data')) and HEX40.fullmatch(s['developmentBase']),'Invalid baseline commit')
@@ -71,6 +80,10 @@ def check_source_inventory(repo,source,spec):
     a=spec['accepted']
     for parent,child in ((a['source'],a['control']),(a['control'],spec['developmentBase']),(spec['developmentBase'],source)):
         require(git(repo,'merge-base',parent,child)==parent,'Release source ancestry differs')
+    if 'stage4' in spec:
+        x=spec['stage4']
+        normal_merge(repo,306,x['applicationBranch'],x['applicationBase'],x['applicationCandidate'],x['applicationSource'],x['applicationTree'])
+        require(set(git(repo,'diff','--name-only','--no-renames',x['applicationSource'],source).splitlines())==set(x['releasePaths']),'Stage 4 release changed unexpected source paths')
     prior=inventory(repo,a['source']);current=inventory(repo,source)
     require(len(prior)==a['migrationCount'] and current[:len(prior)]==prior,'Historical migration drift')
     added=current[len(prior):]
@@ -90,11 +103,23 @@ def accepted_evidence(spec,previous,previous_plan):
     j=load(file);w=j.get('new_worker',{});v=j.get('verification',{})
     require(j.get('source')==a['source'] and j.get('plan_sha256')==a['plan'] and j.get('candidate_manifest_sha256')==a['manifest'] and
       j.get('R4')=='VERIFIED' and j.get('R5')=='INSTALLED' and j.get('encrypted_assets_verified')==a['encryptedAssets'],'Accepted installation checkpoint differs')
-    require(j.get('status') in ('INSTALLED_SMOKE_PASS_OWNER_ACCEPTANCE_PENDING','INSTALLED_BROWSER_SMOKE_PASS_OWNER_ACCEPTANCE_PENDING'),'Accepted technical verification absent')
+    recovery=a.get('browserRecovery')
+    recovered=j.get('status')=='INSTALLED_VERIFICATION_HOLD_NO_REDEPLOY' and spec['releaseId']=='PR308' and recovery is not None
+    require(recovered or j.get('status') in ('INSTALLED_SMOKE_PASS_OWNER_ACCEPTANCE_PENDING','INSTALLED_BROWSER_SMOKE_PASS_OWNER_ACCEPTANCE_PENDING'),'Accepted technical verification absent')
     require(all(j.get('checks',{}).get(k)=='PASS' for k in ('tools','source','build_and_transport','synthetic_reference','database_baseline','worker_baseline','live_baseline_assets')),'Accepted preflight evidence incomplete')
     require(all(w.get(k)==value for k,value in a['worker'].items()) and w.get('required_secret_present') is True and w.get('prior_version_available') is True,'Accepted Worker checkpoint differs')
     require(v.get('passed')==v.get('total')==a['assets'] and v.get('holds')==[],'Accepted asset verification differs')
-    if j['status']=='INSTALLED_BROWSER_SMOKE_PASS_OWNER_ACCEPTANCE_PENDING':
+    record_digest=None
+    if recovered:
+        # Keep the original HOLD report unchanged. Reconcile the recorded
+        # browser denial using the exact prior nonce, manifest and version.
+        from incremental_release import check_browser_record
+        evidence=safe_private(previous/'asset-verification.json',kind='file')
+        require(sha(evidence)==j.get('verification_evidence_sha256')==recovery['verificationSha256'],'PR300 verification evidence differs')
+        record=safe_private(previous/recovery['recordFile'],kind='file')
+        check_browser_record(j,load(record))
+        record_digest=sha(record)
+    elif j['status']=='INSTALLED_BROWSER_SMOKE_PASS_OWNER_ACCEPTANCE_PENDING':
         b=j.get('browser_verification',{})
         require(b.get('status')=='OWNER_ATTESTED_EXPECTED_401' and HEX64.fullmatch(b.get('evidence_sha256','')) and
           v.get('anonymousAuth',{}).get('browser_fallback_eligible') is True,'Accepted browser evidence absent')
@@ -103,7 +128,9 @@ def accepted_evidence(spec,previous,previous_plan):
     rows=candidate_check(previous,j);assets=expected_assets(rows)
     require(len(assets)==a['assets'],'Accepted asset inventory differs')
     ref=previous/'reference-candidate-private.json';require(ref.is_file() and not ref.is_symlink(),'Accepted schema reference absent')
-    return {'directory':str(previous),'plan_path':str(previous_plan),'summary_sha256':sha(file),'reference_sha256':sha(ref)},assets
+    result={'directory':str(previous),'plan_path':str(previous_plan),'summary_sha256':sha(file),'reference_sha256':sha(ref)}
+    if record_digest:result['browser_record_sha256']=record_digest
+    return result,assets
 def validate_candidate_summary(path,p):
     path=safe_private(path);j=load(path/'release-summary.json')
     require(j.get('status')=='CANDIDATE_HELPERS_QUALIFIED_NO_PROVIDER_ACCESS' and j.get('candidate_only') is True and
@@ -174,7 +201,10 @@ def validate_plan_structure(p):
     require(all(isinstance(x,dict) and set(x)=={'file','sha256'} and re.fullmatch(r'supabase/migrations/[0-9]{14}_[a-z0-9_]+\.sql',x['file']) and HEX64.fullmatch(x['sha256']) for x in all_rows),'Invalid migration pin')
     require([x['file'] for x in all_rows]==sorted(set(x['file'] for x in all_rows)) and [Path(x['file']).name for x in added]==s['migrations'],'Migration list not exact')
     prev=p.get('previous',{})
-    require(set(prev)=={'directory','plan_path','summary_sha256','reference_sha256'} and all(HEX64.fullmatch(prev[k]) for k in ('summary_sha256','reference_sha256')),'Prior evidence not pinned')
+    prev_keys={'directory','plan_path','summary_sha256','reference_sha256'}
+    if s['releaseId']=='PR308' and 'browser_record_sha256' in prev:
+        prev_keys.add('browser_record_sha256')
+    require(set(prev)==prev_keys and all(HEX64.fullmatch(prev[k]) for k in prev_keys if k.endswith('sha256')),'Prior evidence not pinned')
     if p['mode']=='candidate':
         expected=[(p['source'],'push',s['candidateBranch'])]
     else:
