@@ -153,6 +153,8 @@ def normal_merge(repo,pr_number,branch,base,head,merged,tree):
 def validate_control_contract(c,s):
     require(isinstance(c,dict) and set(c)=={'applicationRelease','applicationSource','applicationCandidate','applicationTree','controlPr','controlBranch','changedPaths'},'Invalid control contract')
     require(c['applicationRelease']==s['releaseId'] and all(HEX40.fullmatch(c[k]) for k in ('applicationSource','applicationCandidate','applicationTree')),'Control application pins differ')
+    if s['releaseId']=='PR308':
+        require(c['controlPr']==309 and c['controlBranch']=='candidate/pr309-pr308-checker-correction','Unexpected Stage 4 corrective control identity')
     require(type(c['controlPr']) is int and c['controlPr']>int(s['releaseId'][2:]) and re.fullmatch(r'candidate/pr'+str(c['controlPr'])+r'-[a-z0-9-]+',c['controlBranch']),'Invalid control PR identity')
     paths=c['changedPaths']
     require(isinstance(paths,list) and paths==sorted(set(paths)) and bool(paths),'Invalid control path list')
