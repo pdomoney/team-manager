@@ -21,7 +21,23 @@ const study=s=>keys(s,['title','text','moves','roles'])&&str(s.title,200)&&str(s
 const note=n=>keys(n,['text','side'])&&str(n.text)&&opt(n,'side',side);
 const label=l=>keys(l,['at','text','side','dot'])&&pt(l.at)&&str(l.text)&&opt(l,'side',side)&&opt(l,'dot',bool);
 const phaseKeys=['players','defence','moves','focus','ghost','notes','labels','view','tags','title','study'];
-const rootKeys=[...phaseKeys,'id','name','sport','category','headline','when','steps','side','builtin','rev','edited','phases','set','who','rules','eventTimeline'];
+const rootKeys=[...phaseKeys,'id','name','sport','category','headline','when','steps','side','builtin','rev','edited','phases','set','setDef','who','rules','eventTimeline'];
+const builtinSets=new Set(['oztag','league']);
+const slotKeys=new Set(['LW','LL','LR','LM','RM','RR','RL','RW']);
+const safeRoleCode=c=>typeof c==='string'&&/^[A-Za-z0-9][A-Za-z0-9_-]{0,3}$/.test(c)&&!['__proto__','constructor','prototype'].includes(c);
+function validSetDefinition(p){
+  if(!p.set||builtinSets.has(p.set))return !Object.hasOwn(p,'setDef');
+  const d=p.setDef;
+  if(!id(p.set)||!keys(d,['name','labels','slots'])||!str(d.name,120)||!d.name.trim()||
+     !list(d.labels,l=>keys(l,['code','name'])&&safeRoleCode(l.code)&&str(l.name,120)&&l.name.trim()&&
+       !['__proto__','constructor','prototype'].includes(l.name.toLowerCase()),32)||!d.labels.length)return false;
+  const codes=new Set(d.labels.map(l=>l.code));
+  if(codes.size!==d.labels.length)return false;
+  if(Object.hasOwn(d,'slots')&&(!map(d.slots,c=>codes.has(c),8)||
+     Object.keys(d.slots).some(k=>!slotKeys.has(k))))return false;
+  if(Object.hasOwn(p,'who')&&(!map(p.who,c=>codes.has(c),8)||Object.keys(p.who).some(k=>!slotKeys.has(k))))return false;
+  return true;
+}
 function phase(p,root=false){
  return keys(p,root?rootKeys:phaseKeys)&&map(p.players,pt,32)&&list(p.moves,move)&&
  opt(p,'defence',d=>keys(d,['marker','line'])&&opt(d,'marker',x=>x===null||pt(x))&&opt(d,'line',x=>list(x,pt,32)))&&
@@ -41,7 +57,7 @@ export function validConnectedE5Play(p){
   if(!phase(p,true)||!id(p.id)||!str(p.name,120)||!p.name.trim()||
     !['sport','category','headline','when','steps'].every(k=>opt(p,k,x=>str(x)))||
     !opt(p,'side',x=>['left','right'].includes(x))||!opt(p,'builtin',bool)||!opt(p,'edited',bool)||
-    !opt(p,'rev',x=>Number.isSafeInteger(x)&&x>=0)||!opt(p,'set',x=>['oztag','league'].includes(x))||
+    !opt(p,'rev',x=>Number.isSafeInteger(x)&&x>=0)||!opt(p,'set',id)||!validSetDefinition(p)||
     !opt(p,'who',x=>map(x,id,32))||!opt(p,'rules',x=>list(x,id,128))||!opt(p,'phases',x=>list(x,ph=>phase(ph),31))||
     !opt(p,'eventTimeline',timeline))return false;
   if(Object.hasOwn(p,'eventTimeline')&&loadPlayEventDraft(p).status!=='ready')return false;

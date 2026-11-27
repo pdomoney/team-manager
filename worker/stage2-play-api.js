@@ -11,7 +11,7 @@ const ID=/^[A-Za-z0-9][A-Za-z0-9:_-]{0,99}$/;
 const PLAYER_PLAY_FIELDS=new Set(['id','name','sport','category','headline',
   'when','steps','side','builtin','rev','edited','players','defence',
   'moves','focus','ghost','view','tags','notes','labels','title',
-  'phases','set','who','study','rules','eventTimeline']);
+  'phases','set','setDef','who','study','rules','eventTimeline']);
 function publishedProjection(play){
   const out=Object.fromEntries(Object.entries(play).filter(([k])=>PLAYER_PLAY_FIELDS.has(k)));
   if(Object.hasOwn(out,'eventTimeline')){

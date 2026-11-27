@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { inspectPlayPhaseContinuity } from '../site/play-movement-link-audit.js';
+import { inspectPlayPhaseContinuity, duplicatePreviousPhase } from '../site/play-movement-link-audit.js';
 
 const copy = x => JSON.parse(JSON.stringify(x));
 const golden = JSON.parse(readFileSync(new URL('./fixtures/play-engine-e0-golden.json', import.meta.url), 'utf8'));
@@ -113,4 +113,38 @@ test('E4.10 legacy multi-phase E0 goldens remain exactly unchanged and unresolve
   assert.equal(JSON.stringify(workspace), before);
   assert.equal(workspace.schema, 4);
   assert.equal(workspace.library.plays[0].rev, 2);
+});
+
+test('duplicate previous phase copies only phase data, fresh movement identity, no inferred timing',()=>{
+  const p=play();
+  p.name='Source';p.phases=[];p.notes={LM:{text:'Run straight'}};
+  p.study=[{title:'Pass',text:'Pass to RM',moves:[0],roles:['LM','RM']}];
+  p.eventTimeline={version:1,actors:[],events:[]};
+  const before=JSON.stringify(p);
+  const result=duplicatePreviousPhase(p,()=> 'm-copy-pass');
+  assert.equal(result.ok,true);
+  assert.deepEqual(result.phase.players,p.players);
+  assert.deepEqual(result.phase.notes,p.notes);
+  assert.deepEqual(result.phase.study,p.study);
+  assert.deepEqual(result.phase.moves[0].actorLinks,p.moves[0].actorLinks);
+  assert.equal(result.phase.moves[0].moveId,'m-copy-pass');
+  assert.equal(Object.hasOwn(result.phase,'eventTimeline'),false);
+  assert.equal(Object.hasOwn(result.phase,'name'),false);
+  result.phase.players.LM[0]=2;
+  assert.equal(JSON.stringify(p),before);
+  p.phases.push(result.phase);
+  assert.equal(inspectPlayPhaseContinuity(p).actorIdentityVerified,false);
+});
+test('duplicate last legacy phase keeps original paths and rejects malformed links and ID collisions',()=>{
+  const p=play();
+  p.phases[0].moves=[{t:'run',pts:[[17,30],[20,25]]}];
+  const before=JSON.stringify(p);
+  assert.deepEqual(duplicatePreviousPhase(p,()=> 'unused').phase.moves,p.phases[0].moves);
+  assert.equal(JSON.stringify(p),before);
+  p.phases=[];
+  assert.equal(duplicatePreviousPhase(p,()=> 'm-phase-pass').reason,'movement-id-conflict');
+  p.moves[0].actorLinks.end='player:ABSENT';
+  assert.equal(duplicatePreviousPhase(p,()=> 'm-next-pass').reason,'review-phase-links');
+  p.phases=Array(31).fill({players:{},moves:[]});
+  assert.equal(duplicatePreviousPhase(p,()=> 'm-next-pass').ok,false);
 });
