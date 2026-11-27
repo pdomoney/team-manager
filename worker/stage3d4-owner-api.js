@@ -3,6 +3,7 @@
 // from client input, and can operate only on the existing approved Worker.
 import {adminHeaders,isApprovedProjectConfig} from './supabase-admin-key.js';
 import {delivery} from './stage3-onboarding-api.js';
+import {validConnectedE5Play} from '../site/cloud-e5-payload.js';
 import {validConnectedLogo,validConnectedStyle,validClubBranding} from '../site/connected-branding.js';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -13,7 +14,8 @@ const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EVIDENCE=/^evidence-ref\/[A-Za-z0-9._/-]{12,100}$/;
 const ROLES=new Set(['team_coach','team_manager','team_assistant',
   'team_player','team_volunteer']);
-const ACTIONS=new Set(['status','team.create','coach.assign',
+const TEMPLATE=/^template-[a-f0-9]{32}$/;
+const ACTIONS=new Set(['template.list','template.read','template.create','template.archive','status','team.create','coach.assign',
   'invite.issue','invite.approve','invite.review-adult',
   'invite.activate','invite.cancel','invite.revoke','branding.status','branding.authorise','branding.revoke','branding.catalogue','branding.history','branding.moderation.save','branding.moderation.remove','branding.moderation.lock','branding.moderation.unlock','branding.moderation.revoke']);
 const own=o=>o&&typeof o==='object'&&!Array.isArray(o)&&
@@ -23,12 +25,13 @@ const output=(data,status=200)=>new Response(JSON.stringify(data),{status,header
   'X-Content-Type-Options':'nosniff'}});
 const deny=(code,status=403)=>output({ok:false,code},status);
 const allowed=new Set(['action','teamId','clubRef','sportRef','seasonRef',
-  'email','role','invitationId','evidenceRef','style','logo','resetOverrides','expectedVersion','reason']);
+  'email','role','invitationId','evidenceRef','style','logo','resetOverrides','expectedVersion','reason','templateId','play','ownerAuthored']);
 export function validateOwnerAction(value){
   if(!own(value)||!ACTIONS.has(value.action)||
      Object.keys(value).some(k=>!allowed.has(k)))return null;
   const keys=Object.keys(value).sort().join(',');
   const expect={
+    'template.list':'action','template.read':'action,templateId','template.create':'action,ownerAuthored,play,templateId','template.archive':'action,expectedVersion,templateId',
     status:'action','branding.status':'action','branding.authorise':'action','branding.revoke':'action',
     'branding.catalogue':'action','branding.history':'action,clubRef',
     'branding.moderation.save':'action,clubRef,expectedVersion,logo,reason,resetOverrides,style',
@@ -46,6 +49,11 @@ export function validateOwnerAction(value){
     'invite.revoke':'action,invitationId'
   }[value.action];
   if(keys!==expect)return null;
+  if(value.action.startsWith('template.')){
+    if(value.action!=='template.list'&&!TEMPLATE.test(value.templateId||''))return null;
+    if(value.action==='template.create'&&(value.ownerAuthored!==true||!validConnectedE5Play(value.play)))return null;
+    if(value.action==='template.archive'&&(!Number.isSafeInteger(value.expectedVersion)||value.expectedVersion<1||value.expectedVersion>999999999))return null;
+  }
   if(value.action==='branding.history'||value.action.startsWith('branding.moderation.')){
     if(typeof value.clubRef!=='string'||value.clubRef.length<1||value.clubRef.length>120||value.clubRef.trim()!==value.clubRef||/[\u0000-\u001f\u007f]/.test(value.clubRef))return null;
     if(value.action.startsWith('branding.moderation.')&&(!Number.isSafeInteger(value.expectedVersion)||value.expectedVersion<0||value.expectedVersion>999999999||!['inappropriate-image','incorrect-branding','policy-review','owner-correction','resolved'].includes(value.reason)))return null;
@@ -102,10 +110,12 @@ export async function handleStage3D4Owner(request,env,fetchImpl=fetch){
     if(!/^Bearer [A-Za-z0-9._~-]{12,8192}$/.test(bearer))
       return deny('unauthenticated',401);
     const raw=await request.text();
-    if(raw.length>52000)return deny('invalid-request',400);
+    if(raw.length>66000)return deny('invalid-request',400);
     let input;try{input=validateOwnerAction(JSON.parse(raw));}
     catch{return deny('invalid-request',400);}
-    if(!input||raw.length>2048&&input.action!=='branding.moderation.save')return deny('invalid-request',400);
+    if(!input||raw.length>2048&&!['branding.moderation.save','template.create'].includes(input.action)||raw.length>52000&&input.action==='branding.moderation.save')return deny('invalid-request',400);
+    const template=input.action.startsWith('template.');
+    if(template&&env.STAGE4_TACTICS_MODE!=='enabled')return deny('service-unavailable',503);
     const user=await remote(fetchImpl,env.SUPABASE_URL+'/auth/v1/user',{
       method:'GET',headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,
         Authorization:bearer}});
@@ -115,13 +125,25 @@ export async function handleStage3D4Owner(request,env,fetchImpl=fetch){
     const payload={...input};delete payload.action;
     const branding=input.action.startsWith('branding.');
     const moderation=input.action==='branding.catalogue'||input.action==='branding.history'||input.action.startsWith('branding.moderation.');
-    const data=await rpc(fetchImpl,env,moderation?'tm_stage3d5_branding_moderation':branding?'tm_stage3d5_branding_owner':'tm_stage3d4_owner',{
+    const data=await rpc(fetchImpl,env,template?'tm_stage4_owner_templates':moderation?'tm_stage3d5_branding_moderation':branding?'tm_stage3d5_branding_owner':'tm_stage3d4_owner',{
       p_actor:user.id,p_action:input.action,p_input:payload});
     if(!own(data)||typeof data.ok!=='boolean'||!codes.has(data.code))
       return deny('service-unavailable',503);
     if(!data.ok)return deny(data.code,
       data.code==='registration-required'?403:
         (/preflight/.test(data.code)||data.code==='stale-version')?409:403);
+    if(template){
+      if(data.code!=='ready')return deny('service-unavailable',503);
+      if(input.action==='template.list'){
+        if(!Array.isArray(data.templates)||data.templates.length>200||data.templates.some(t=>!own(t)||!TEMPLATE.test(t.templateId||'')||!Number.isSafeInteger(t.version)||t.version<1||!['active','archived'].includes(t.state)||t.origin!=='owner-authored'||typeof t.name!=='string'||t.name.length>120||!(t.sport===null||typeof t.sport==='string')))return deny('service-unavailable',503);
+        return output({ok:true,code:'ready',templates:data.templates.map(({templateId,version,state,origin,name,sport})=>({templateId,version,state,origin,name,sport}))});
+      }
+      if(input.action==='template.read'){
+        if(data.origin!=='owner-authored'||!Number.isSafeInteger(data.version)||data.version<1||!validConnectedE5Play(data.play))return deny('service-unavailable',503);
+        return output({ok:true,code:'ready',play:data.play,version:data.version,origin:data.origin});
+      }
+      return output({ok:true,code:'ready'});
+    }
     if(moderation){
       if(data.code!=='ready')return deny('service-unavailable',503);
       if(input.action==='branding.catalogue'){

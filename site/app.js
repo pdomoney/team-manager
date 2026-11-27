@@ -11934,7 +11934,7 @@ function bootConnectedE5(){
     const m=event.data;
     if(!m||m.channel!=='tm-connected-e5-v1')return;
     if(m.type==='init'&&!connectedE5){
-      if(!/^[a-f0-9-]{36}$/.test(m.nonce||'')||!['view','edit'].includes(m.mode)||
+      if(!/^[a-f0-9-]{36}$/.test(m.nonce||'')||!['view','edit','thumbnail'].includes(m.mode)||
         !M.SPORTS.includes(m.sport)||typeof m.teamLabel!=='string'||
         (m.play===null?m.mode!=='edit':!validConnectedE5Play(m.play)))return;
       connectedE5={nonce:m.nonce,mode:m.mode,pending:false};
@@ -11946,6 +11946,11 @@ function bootConnectedE5(){
       $('#team-title').textContent=m.teamLabel;
       if(m.style&&typeof m.style==='object')for(const key of STYLE_VARS){
         const value=m.style[key];if(typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value))document.documentElement.style.setProperty(key,value);
+      }
+      if(m.mode==='thumbnail'){
+        document.body.classList.add('connected-e5-thumbnail');
+        $('#view').innerHTML=playSVG(play,'right',{thumb:true});
+        sendConnectedE5('mounted');return;
       }
       renderConnectedE5();if(m.mode==='edit')openPlayEditor(play);sendConnectedE5('mounted');
     }else if(connectedE5&&m.nonce===connectedE5.nonce&&m.type==='request-close'&&!connectedE5.pending){

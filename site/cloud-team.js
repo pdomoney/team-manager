@@ -582,6 +582,11 @@ async function renderOwnerDashboard(epoch){
   const moderation=card('Club branding management',grid);
   info('Review saved club logos and colours, or moderate inappropriate branding. This does not grant team access.',moderation);
   button('Manage club branding',()=>void openOwnerBranding(),actions(moderation));
+  if(CLOUD_STAGE4_TACTICS_ENABLED){
+    const templates=card('Play template library',grid);
+    info('Owner-authored reusable plays. Collection of Free Account plays is disabled until licence and account eligibility are verified.',templates);
+    button('Manage play templates',()=>void openOwnerTemplates(),actions(templates));
+  }
   const invite=card('Invite an adult',grid);
   info('Invite a Manager, Coach, Assistant Coach, adult Player or Volunteer to the existing team. Invitation is not an active team role.',invite);
   const f=form(invite,async d=>{
@@ -610,6 +615,56 @@ async function renderOwnerDashboard(epoch){
     attrs:{href:'cloud-owner.html'},parent:actions(help)});
 }
 
+async function openOwnerTemplates(){
+  if(!isOwner()||!CLOUD_STAGE4_TACTICS_ENABLED)return;
+  const epoch=++state.epoch,current=()=>isOwner()&&state.epoch===epoch;
+  clear();title('Play template library','Platform Owner');
+  button('Back to Platform',()=>void showTab(),actions());
+  const panel=card('Owner-authored templates');
+  info('Only upload your own original, privacy-reviewed tactics. No team, member, paid account or private draft collection is enabled. Export a reusable copy and import it as a team draft from its Coach context.',panel);
+  const loading=info('Loading templates…',panel);
+  try{
+    const result=await ownerCall('template.list');
+    if(!current())return;loading.remove();
+    if(!result.templates.length)info('No owner-authored templates yet.',panel);
+    else readList(panel,result.templates,(t,row)=>{
+      h('strong',{text:t.name,parent:row});
+      h('small',{text:(t.sport||'Sport not specified')+' · '+t.state+' · '+t.origin+' · version '+t.version,parent:row});
+      if(t.state!=='active')return;
+      button('Download play JSON',async()=>{
+        try{
+          if(!current())return;
+          const data=await ownerCall('template.read',{templateId:t.templateId});
+          if(!current()||data.version!==t.version)throw Object.assign(new Error(),{code:'stale-version'});
+          const url=URL.createObjectURL(new Blob([JSON.stringify(data.play,null,2)],{type:'application/json'}));
+          const a=document.createElement('a');a.href=url;a.download=t.templateId+'.json';document.body.append(a);a.click();a.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),1000);
+        }catch(e){if(current())message(explain(e),true);}
+      },actions(row));
+      button('Archive template',async()=>{
+        if(!current()||!confirm('Archive this template? Existing exported copies are unchanged.'))return;
+        try{await ownerCall('template.archive',{templateId:t.templateId,expectedVersion:t.version});if(current())void openOwnerTemplates();}
+        catch(e){if(current())message(explain(e),true);}
+      },actions(row));
+    });
+  }catch(e){if(current())loading.textContent=explain(e);return;}
+  const f=form(panel,async d=>{
+    const file=d.get('templateFile');
+    if(!(file instanceof File)||file.size>65536||!file.size||d.get('ownerAuthored')!=='yes')throw Object.assign(new Error(),{code:'invalid-play'});
+    const {validConnectedE5Play}=await import('./cloud-e5-payload.js');
+    let play;try{play=JSON.parse(await file.text());}catch{throw Object.assign(new Error(),{code:'invalid-play'});}
+    if(!current()||!validConnectedE5Play(play))throw Object.assign(new Error(),{code:'invalid-play'});
+    if(!confirm('Save this owner-authored play to the private template catalogue?'))return;
+    await ownerCall('template.create',{templateId:'template-'+crypto.randomUUID().replaceAll('-',''),ownerAuthored:true,play});
+    if(current())void openOwnerTemplates();
+  });
+  const l=h('label',{text:'Owner-authored E5 JSON file',parent:f});
+  h('input',{attrs:{type:'file',name:'templateFile',accept:'application/json,.json',required:'true'},parent:l});
+  const consent=h('label',{parent:f});
+  h('input',{attrs:{type:'checkbox',name:'ownerAuthored',value:'yes',required:'true'},parent:consent});
+  consent.append(document.createTextNode(' I authored this play, have the necessary rights, and checked all content for personal or confidential information.'));
+  h('button',{className:'cloud-btn primary',text:'Save owner template',attrs:{type:'submit'},parent:f});
+}
 function renderHome(){
   const c=state.context;
   const [left,right]=originalColumns(h,main,'home-cols cloud-home-cols');
@@ -1433,6 +1488,32 @@ function playScope(tab='tactics'){
   return capturePlayScope({context:state.context,epoch:state.epoch,tab,current:()=>state,
     operation:(ctx,name,resource,payload)=>ops.operation(ctx,name,resource,payload),mutationId:newMutationId});
 }
+// Use the original native playSVG thumbnail, not a second diagram renderer.
+// The transient, lazy frames get only their already-authorised revision.
+async function nativePlayThumbnail(row,entry,scope){
+  if(!CLOUD_STAGE4_TACTICS_ENABLED||entry.unavailableReason)return;
+  const slot=h('div',{className:'cloud-native-thumbnail',parent:row});
+  slot.setAttribute('aria-label','Play diagram preview');
+  const ctx=state.context,sport=({'oztag':'Oztag','rugby league':'Rugby league','rugby-league':'Rugby league','league tag':'League tag','league-tag':'League tag'})[String(ctx?.sport).toLowerCase()];
+  const {validConnectedE5Play}=await import('./cloud-e5-payload.js');
+  if(!scope.current()||!slot.isConnected)return;
+  if(!sport||!validConnectedE5Play(entry.play)){info('Diagram needs compatibility review.',slot);return;}
+  const frame=document.createElement('iframe'),nonce=crypto.randomUUID();
+  frame.title='Diagram: '+entry.play.name;frame.loading='lazy';frame.tabIndex=-1;
+  frame.setAttribute('referrerpolicy','no-referrer');
+  const style={},computed=getComputedStyle(document.documentElement);
+  for(const key of ['--pitch','--ink','--accent','--dark','--brand','--primary']){
+    const value=computed.getPropertyValue(key).trim();if(/^#[0-9a-f]{6}$/i.test(value))style[key]=value;
+  }
+  frame.addEventListener('load',()=>{
+    if(scope.current()&&frame.isConnected)frame.contentWindow?.postMessage({
+      channel:'tm-connected-e5-v1',type:'init',nonce,mode:'thumbnail',play:entry.play,
+      sport,teamLabel:teamDisplayName(ctx),style
+    },location.origin);
+  },{once:true});
+  frame.src='cloud-e5-workspace.html'+new URL(import.meta.url).search;
+  slot.append(frame);
+}
 function tacticsLibrary(parent,records,render){
   const filters=h('div',{className:'cloud-form',parent});
   const q=field(filters,'Search plays','query',{type:'search',required:false});
@@ -1440,22 +1521,33 @@ function tacticsLibrary(parent,records,render){
   const category=selectField(filters,'Category','category',[['','All categories'],...categories.map(x=>[x,x])]);
   const summary=h('p',{className:'cloud-muted',attrs:{role:'status','aria-live':'polite'},parent});
   const results=h('div',{parent});
+  const pager=actions(parent);let page=0;
   function refresh(){
     const lib=connectedPlayLibrary(records,{query:q.value,filter:category.value});
     summary.textContent=lib.shown+' of '+lib.eligible+' revisions shown'
       +(lib.reasons.invalidRecord?' · '+lib.reasons.invalidRecord+' invalid records':'')
       +(lib.reasons.duplicateRevision?' · '+lib.reasons.duplicateRevision+' duplicate revisions':'')
       +(lib.reasons.filtered?' · '+lib.reasons.filtered+' filtered':'');
-    results.replaceChildren();
-    readList(results,lib.rows,render);
+    results.replaceChildren();pager.replaceChildren();
+    const size=CLOUD_STAGE4_TACTICS_ENABLED?12:Math.max(1,lib.rows.length);
+    const pages=Math.max(1,Math.ceil(lib.rows.length/size));page=Math.min(page,pages-1);
+    const visible=lib.rows.slice(page*size,(page+1)*size);
+    if(pages>1){
+      summary.textContent+=' · page '+(page+1)+' of '+pages;
+      button('Previous page',()=>{page--;refresh();},pager,{disabled:page===0});
+      button('Next page',()=>{page++;refresh();},pager,{disabled:page+1>=pages});
+    }
+    readList(results,visible,render);
   }
-  q.addEventListener('input',refresh);category.addEventListener('change',refresh);refresh();
+  const reset=()=>{page=0;refresh();};
+  q.addEventListener('input',reset);category.addEventListener('change',reset);refresh();
 }
 function renderTactics(){
   const c=state.context;
   if(!canViewTactics()){info('No published-play permission is assigned to your selected role.');return;}
   const scope=playScope(),published=card('Published team plays');
   tacticsLibrary(published,state.published,(p,row)=>{
+    void nativePlayThumbnail(row,p,scope).catch(()=>{});
     h('strong',{text:p.play.name,parent:row});
     h('small',{text:(p.play.category||'Other')+' · Published revision '+p.revisionId,parent:row});
     if(p.play.headline)info(p.play.headline,row);
@@ -1469,6 +1561,7 @@ function renderTactics(){
   info('Coach drafts are never shown to Players. Assistant Coaches may save drafts; only the Head Coach can publish.',drafts);
   button('New play',()=>{if(scope.current())void openE5(null,'edit');},actions(drafts),{primary:true});
   tacticsLibrary(drafts,state.drafts,(p,row)=>{
+    void nativePlayThumbnail(row,p,scope).catch(()=>{});
     h('strong',{text:p.play.name,parent:row});
     h('small',{text:(p.play.category||'Other')+' · Revision '+p.revisionId+' · '+p.revisionStatus,parent:row});
     const a=actions(row);
@@ -1491,20 +1584,46 @@ function renderTactics(){
       },a,{primary:true});
   });
   const importer=card('Bring an authored E5 play into this team');
-  info('Import an exported E5 play JSON object. The original diagram, phases, movements and event timing are preserved without conversion. Do not import an encrypted workspace backup or any personal information.',importer);
+  info('Import an E5 play JSON object or select one play from an original Team Manager library export. Geometry, phases and authored timing are preserved. No encrypted backup or personal information.',importer);
+  let importGeneration=0;
   const f=form(importer,async d=>{
+    const generation=++importGeneration;selection.replaceChildren();
     const file=d.get('playFile');
-    if(!(file instanceof File)||file.size>65536||file.size===0)
+    if(!(file instanceof File)||file.size>(CLOUD_STAGE4_TACTICS_ENABLED?2000000:65536)||file.size===0)
       throw Object.assign(new Error(),{code:'invalid-play'});
     let p;try{p=JSON.parse(await file.text());}catch{
       throw Object.assign(new Error(),{code:'invalid-play'});}
-    if(!validE5Play(p)||(CLOUD_STAGE4_TACTICS_ENABLED&&!(await import('./cloud-e5-payload.js')).validConnectedE5Play(p)))throw Object.assign(new Error(),{code:'invalid-play'});
-    const saved=await scope.mutate('play.draft.edit',c.teamId,0,{command:{op:'create',play:p}});
-    if(saved.stillCurrent){message('Play saved as a coach-only draft. Review before publishing.');await showTab();}
+    if(!CLOUD_STAGE4_TACTICS_ENABLED){
+      if(!validE5Play(p))throw Object.assign(new Error(),{code:'invalid-play'});
+      const saved=await scope.mutate('play.draft.edit',c.teamId,0,{command:{op:'create',play:p}});
+      if(saved.stillCurrent){message('Play saved as a coach-only draft. Review before publishing.');await showTab();}
+      return;
+    }
+    const {inspectPlayImport}=await import('./cloud-play-import.js');
+    const result=inspectPlayImport(p);
+    if(!scope.current()||generation!==importGeneration)return;
+    if(!result.ok)throw Object.assign(new Error(),{code:'invalid-play'});
+    selection.replaceChildren();
+    info(result.rows.length+' eligible plays · '+result.omitted.length+' held for review',selection);
+    for(const omitted of result.omitted)info((omitted.id||'Unidentified record')+' · '+omitted.reason,selection);
+    readList(selection,result.rows,(row,item)=>{
+      h('strong',{text:row.name,parent:item});
+      button('Import selected play as draft',async()=>{
+        if(!scope.current()||generation!==importGeneration||state.busy||!confirm('Create a coach-only copy of '+row.name+' in this team?'))return;
+        state.busy=true;
+        try{
+          const saved=await scope.mutate('play.draft.edit',c.teamId,0,{command:{op:'create',play:row.play}});
+          if(saved.stillCurrent){message('Play saved as a coach-only draft. Review before publishing.');await showTab();}
+        }catch(e){if(scope.current())message(explain(e),true);}
+        finally{state.busy=false;}
+      },actions(item));
+    });
   });
   const l=h('label',{text:'Authored E5 JSON file',parent:f});
-  h('input',{attrs:{type:'file',name:'playFile',accept:'application/json,.json',required:'true'},parent:l});
-  h('button',{className:'cloud-btn primary',text:'Import as draft',attrs:{type:'submit'},parent:f});
+  const input=h('input',{attrs:{type:'file',name:'playFile',accept:'application/json,.json',required:'true'},parent:l});
+  input.addEventListener('change',()=>{++importGeneration;selection.replaceChildren();});
+  h('button',{className:'cloud-btn primary',text:CLOUD_STAGE4_TACTICS_ENABLED?'Review import':'Import as draft',attrs:{type:'submit'},parent:f});
+  const selection=h('div',{parent:importer});
 }
 async function openE5(entry,mode,{returnTo}={}){
   const originTab=returnTo?'schedule':'tactics';
