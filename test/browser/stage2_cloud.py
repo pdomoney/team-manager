@@ -296,6 +296,12 @@ with sync_playwright() as p:
     assignment_mock={'playId':published[0]['playId'],'revisionId':published[0]['revisionId'],
         'version':1,'sessionVersion':0,'state':'approved','reason':'current','name':published[0]['play']['name']}
     assigned_ctx,assigned=new_page(browser,PLAYER_TOKEN,stage4=True)
+    assigned.locator('#cloud-nav').get_by_role('button',name='Tactics',exact=True).click()
+    assigned.get_by_role('heading',name='Published team plays').wait_for()
+    thumb=assigned.frame_locator('iframe[title="Diagram: Step Out"]')
+    thumb.locator('svg.pf.thumb').wait_for(timeout=15000)
+    checks.ok(thumb.locator('svg.pf.thumb').count()==1 and thumb.get_by_role('button',name='Save play',exact=True).count()==0,
+        'Stage 4 library uses native E5 thumbnails, no editor controls')
     assigned.locator('#cloud-nav').get_by_role('button',name='Schedule',exact=True).click()
     assigned.locator('.cloud-session-row').filter(has_text='Fictional drills').get_by_role('button',name='Assigned plays').click()
     assigned.get_by_role('heading',name='Session play assignments').wait_for()

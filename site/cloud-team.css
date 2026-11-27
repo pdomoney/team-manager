@@ -296,3 +296,7 @@
 .cloud-e5-dialog .cloud-e5-frame{
   display:block;width:100%;height:100%;min-height:0;border:0;
 }
+
+/* Stage 4: original E5 SVG diagrams above each revision's actions. */
+.cloud-native-thumbnail{margin:0 0 8px;max-width:340px;min-height:0;overflow:hidden;border-radius:8px}
+.cloud-native-thumbnail iframe{display:block;border:0;width:100%;height:156px;pointer-events:none;background:transparent}

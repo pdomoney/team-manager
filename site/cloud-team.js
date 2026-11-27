@@ -1487,6 +1487,32 @@ function playScope(tab='tactics'){
   return capturePlayScope({context:state.context,epoch:state.epoch,tab,current:()=>state,
     operation:(ctx,name,resource,payload)=>ops.operation(ctx,name,resource,payload),mutationId:newMutationId});
 }
+// Use the original native playSVG thumbnail, not a second diagram renderer.
+// The transient, lazy frames get only their already-authorised revision.
+async function nativePlayThumbnail(row,entry,scope){
+  if(!CLOUD_STAGE4_TACTICS_ENABLED||entry.unavailableReason)return;
+  const slot=h('div',{className:'cloud-native-thumbnail',parent:row});
+  slot.setAttribute('aria-label','Play diagram preview');
+  const ctx=state.context,sport=({'oztag':'Oztag','rugby league':'Rugby league','rugby-league':'Rugby league','league tag':'League tag','league-tag':'League tag'})[String(ctx?.sport).toLowerCase()];
+  const {validConnectedE5Play}=await import('./cloud-e5-payload.js');
+  if(!scope.current()||!slot.isConnected)return;
+  if(!sport||!validConnectedE5Play(entry.play)){info('Diagram needs compatibility review.',slot);return;}
+  const frame=document.createElement('iframe'),nonce=crypto.randomUUID();
+  frame.title='Diagram: '+entry.play.name;frame.loading='lazy';frame.tabIndex=-1;
+  frame.setAttribute('referrerpolicy','no-referrer');
+  const style={},computed=getComputedStyle(document.documentElement);
+  for(const key of ['--pitch','--ink','--accent','--dark','--brand','--primary']){
+    const value=computed.getPropertyValue(key).trim();if(/^#[0-9a-f]{6}$/i.test(value))style[key]=value;
+  }
+  frame.addEventListener('load',()=>{
+    if(scope.current()&&frame.isConnected)frame.contentWindow?.postMessage({
+      channel:'tm-connected-e5-v1',type:'init',nonce,mode:'thumbnail',play:entry.play,
+      sport,teamLabel:teamDisplayName(ctx),style
+    },location.origin);
+  },{once:true});
+  frame.src='cloud-e5-workspace.html'+new URL(import.meta.url).search;
+  slot.append(frame);
+}
 function tacticsLibrary(parent,records,render){
   const filters=h('div',{className:'cloud-form',parent});
   const q=field(filters,'Search plays','query',{type:'search',required:false});
@@ -1494,22 +1520,33 @@ function tacticsLibrary(parent,records,render){
   const category=selectField(filters,'Category','category',[['','All categories'],...categories.map(x=>[x,x])]);
   const summary=h('p',{className:'cloud-muted',attrs:{role:'status','aria-live':'polite'},parent});
   const results=h('div',{parent});
+  const pager=actions(parent);let page=0;
   function refresh(){
     const lib=connectedPlayLibrary(records,{query:q.value,filter:category.value});
     summary.textContent=lib.shown+' of '+lib.eligible+' revisions shown'
       +(lib.reasons.invalidRecord?' · '+lib.reasons.invalidRecord+' invalid records':'')
       +(lib.reasons.duplicateRevision?' · '+lib.reasons.duplicateRevision+' duplicate revisions':'')
       +(lib.reasons.filtered?' · '+lib.reasons.filtered+' filtered':'');
-    results.replaceChildren();
-    readList(results,lib.rows,render);
+    results.replaceChildren();pager.replaceChildren();
+    const size=CLOUD_STAGE4_TACTICS_ENABLED?12:Math.max(1,lib.rows.length);
+    const pages=Math.max(1,Math.ceil(lib.rows.length/size));page=Math.min(page,pages-1);
+    const visible=lib.rows.slice(page*size,(page+1)*size);
+    if(pages>1){
+      summary.textContent+=' · page '+(page+1)+' of '+pages;
+      button('Previous page',()=>{page--;refresh();},pager,{disabled:page===0});
+      button('Next page',()=>{page++;refresh();},pager,{disabled:page+1>=pages});
+    }
+    readList(results,visible,render);
   }
-  q.addEventListener('input',refresh);category.addEventListener('change',refresh);refresh();
+  const reset=()=>{page=0;refresh();};
+  q.addEventListener('input',reset);category.addEventListener('change',reset);refresh();
 }
 function renderTactics(){
   const c=state.context;
   if(!canViewTactics()){info('No published-play permission is assigned to your selected role.');return;}
   const scope=playScope(),published=card('Published team plays');
   tacticsLibrary(published,state.published,(p,row)=>{
+    void nativePlayThumbnail(row,p,scope).catch(()=>{});
     h('strong',{text:p.play.name,parent:row});
     h('small',{text:(p.play.category||'Other')+' · Published revision '+p.revisionId,parent:row});
     if(p.play.headline)info(p.play.headline,row);
@@ -1523,6 +1560,7 @@ function renderTactics(){
   info('Coach drafts are never shown to Players. Assistant Coaches may save drafts; only the Head Coach can publish.',drafts);
   button('New play',()=>{if(scope.current())void openE5(null,'edit');},actions(drafts),{primary:true});
   tacticsLibrary(drafts,state.drafts,(p,row)=>{
+    void nativePlayThumbnail(row,p,scope).catch(()=>{});
     h('strong',{text:p.play.name,parent:row});
     h('small',{text:(p.play.category||'Other')+' · Revision '+p.revisionId+' · '+p.revisionStatus,parent:row});
     const a=actions(row);
