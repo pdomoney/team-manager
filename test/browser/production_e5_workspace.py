@@ -5,12 +5,13 @@ import functools
 import http.server
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
 import threading
 from urllib.parse import urlsplit, urlunsplit
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 from harness import REPO, Check
 
 checks=Check()
@@ -59,47 +60,68 @@ buildExistingWorkerCandidate({root:process.cwd(),legacyDir:legacy,output,env:{
             page=context.new_page()
             errors=[]
             page.on('pageerror',lambda e:errors.append(str(e)))
-            page.goto(origin+'/cloud-e5-workspace.html')
-            page.get_by_text('Open this workspace from your signed-in team Tactics page.').wait_for()
-            checks.ok(page.url.endswith('/cloud-e5-workspace'),'Canonical standalone route does not boot legacy authentication')
-            page.goto(origin+'/__e5-test')
-            page.evaluate("""async()=>{const {mountConnectedE5}=await import('/cloud-e5-host.js');
-              const {starterPlays}=await import('/play-starters.js');
-              window.qa={saved:null,closed:0,starter:{...starterPlays()[0],sport:'Oztag',set:'oztag'}};
-              window.qa.open=(mode,play)=>{window.qa.host=mountConnectedE5(document.querySelector('#host'),{mode,play,sport:'Oztag',teamLabel:'Synthetic team',
-                scope:{current:()=>true},onSave:async play=>{window.qa.saved=play;return {stillCurrent:true};},
-                onError:()=> 'Save failed',onClose:()=>{window.qa.closed++;window.qa.host.destroy();}});};
-              window.qa.open('edit',null);}""")
-            frame=page.frame_locator('iframe[title="Play Editor"]')
-            frame.get_by_role('button',name='Advanced diagram').wait_for(timeout=15000)
-            checks.ok(frame.locator('#ped-field svg.editor').count()==1,'New play uses original diagram on canonical production package route')
-            frame.locator('[name=name]').fill('Synthetic new play')
-            frame.get_by_role('button',name='Save play',exact=True).click()
-            page.locator('dialog.cloud-e5-dialog').wait_for(state='detached')
-            checks.ok(page.evaluate("()=>qa.saved?.name")== 'Synthetic new play','New play passes the real native save gate')
-            page.evaluate("()=>qa.open('edit',qa.starter)")
-            frame=page.frame_locator('iframe[title="Play Editor"]')
-            frame.get_by_role('button',name='Advanced diagram').wait_for()
-            checks.ok(frame.locator('#ped-field svg.editor').count()==1,'Existing starter opens in original editor')
-            page.keyboard.press('Escape')
-            page.locator('dialog.cloud-e5-dialog').wait_for(state='detached')
-            page.evaluate("()=>qa.open('view',qa.starter)")
-            frame=page.frame_locator('iframe[title="Watch and Learn"]')
-            frame.get_by_role('button',name='Watch',exact=True).wait_for()
-            frame.get_by_role('button',name='Watch',exact=True).click()
-            checks.ok(frame.locator('svg.pf').count()>0,'Native Watch renders the existing diagram')
-            frame.get_by_role('button',name='All plays',exact=False).click()
-            page.locator('dialog.cloud-e5-dialog').wait_for(state='detached')
-            checks.ok(page.evaluate("()=>document.body.style.overflow")== '', 'Normal close restores parent scrolling')
-            # An iframe which cannot load its module must never lock the coach
-            # out of the management shell.
-            context.route('**/app.js*',lambda route:route.abort())
-            page.evaluate("()=>qa.open('edit',null)")
-            page.get_by_text('The play workspace could not start.',exact=False).wait_for(timeout=20000)
-            page.get_by_role('button',name='Back to plays',exact=True).click()
-            page.locator('dialog.cloud-e5-dialog').wait_for(state='detached')
-            checks.ok(page.evaluate("()=>document.body.style.overflow")== '', 'Failed startup allows return without refresh')
-            checks.ok(not errors,'No uncaught page errors in native journeys')
+            console_errors=[]
+            page.on('console',lambda msg:console_errors.append(msg.text) if msg.type=='error' else None)
+            try:
+                page.goto(origin+'/cloud-e5-workspace.html')
+                page.get_by_text('Open this workspace from your signed-in team Tactics page.').wait_for()
+                checks.ok(page.url.endswith('/cloud-e5-workspace'),'Canonical standalone route does not boot legacy authentication')
+                page.goto(origin+'/__e5-test')
+                page.evaluate("""async()=>{const {mountConnectedE5}=await import('/cloud-e5-host.js');
+                  const {starterPlays}=await import('/play-starters.js');
+                  window.qa={saved:null,closed:0,starter:{...starterPlays()[0],sport:'Oztag',set:'oztag'}};
+                  window.qa.open=(mode,play)=>{window.qa.host=mountConnectedE5(document.querySelector('#host'),{mode,play,sport:'Oztag',teamLabel:'Synthetic team',
+                    scope:{current:()=>true},onSave:async play=>{window.qa.saved=play;return {stillCurrent:true};},
+                    onError:()=> 'Save failed',onClose:()=>{window.qa.closed++;window.qa.host.destroy();}});};
+                  window.qa.open('edit',null);}""")
+                frame=page.frame_locator('iframe[title="Play Editor"]')
+                frame.get_by_role('button',name='Advanced diagram').wait_for(timeout=15000)
+                checks.ok(frame.locator('#ped-field svg.editor').count()==1,'New play uses original diagram on canonical production package route')
+                frame.locator('[name=name]').fill('Synthetic new play')
+                frame.get_by_role('button',name='Save play',exact=True).click()
+                page.locator('dialog.cloud-e5-dialog').wait_for(state='detached')
+                checks.ok(page.evaluate("()=>qa.saved?.name")== 'Synthetic new play','New play passes the real native save gate')
+                page.evaluate("()=>qa.open('edit',qa.starter)")
+                frame=page.frame_locator('iframe[title="Play Editor"]')
+                frame.get_by_role('button',name='Advanced diagram').wait_for()
+                checks.ok(frame.locator('#ped-field svg.editor').count()==1,'Existing starter opens in original editor')
+                page.keyboard.press('Escape')
+                page.locator('dialog.cloud-e5-dialog').wait_for(state='detached')
+                page.evaluate("()=>qa.open('view',qa.starter)")
+                frame=page.frame_locator('iframe[title="Watch and Learn"]')
+                frame.get_by_role('button',name='Watch animation',exact=True).wait_for(timeout=15000)
+                checks.ok(frame.locator('svg.pf.study').count()==1,'Native Learn renders the original teaching diagram')
+                checks.ok(frame.get_by_role('button',name='Edit',exact=True).count()==0 and
+                          frame.get_by_role('button',name='Save play',exact=True).count()==0,
+                          'Read-only viewer has no authoring actions')
+                frame.get_by_role('button',name='Watch animation',exact=True).click()
+                frame.get_by_role('button',name='Attacking left',exact=True).click()
+                expect(frame.locator('#play-fig svg.pf')).to_have_attribute('aria-label',re.compile(r'attacking left$'))
+                frame.get_by_role('button',name='Play',exact=True).click()
+                expect(frame.locator('#anim-pct')).to_have_text(re.compile(r'^(?:[1-9][0-9]?|100)%$'),timeout=10000)
+                checks.ok(True,'Native Watch animates the original play and advances its timeline')
+                frame.get_by_role('button',name='Learn step by step',exact=True).click()
+                expect(frame.locator('svg.pf.study')).to_be_visible()
+                checks.ok(True,'Watch returns to the original Learn mode')
+                frame.get_by_role('button',name='All plays',exact=False).click()
+                page.locator('dialog.cloud-e5-dialog').wait_for(state='detached')
+                checks.ok(page.evaluate("()=>document.body.style.overflow")== '', 'Normal close restores parent scrolling')
+                # An iframe which cannot load its module must never lock the coach
+                # out of the management shell.
+                context.route('**/app.js*',lambda route:route.abort())
+                page.evaluate("()=>qa.open('edit',null)")
+                page.get_by_text('The play workspace could not start.',exact=False).wait_for(timeout=20000)
+                page.get_by_role('button',name='Back to plays',exact=True).click()
+                page.locator('dialog.cloud-e5-dialog').wait_for(state='detached')
+                checks.ok(page.evaluate("()=>document.body.style.overflow")== '', 'Failed startup allows return without refresh')
+                checks.ok(not errors,'No uncaught page errors in native journeys')
+            except Exception:
+                print('Synthetic workspace failure: completed checks',checks.n, 'failures',len(checks.fails),flush=True)
+                for child in page.frames:
+                    try:print('Synthetic frame:',child.url,child.locator('body').inner_text(timeout=1000)[:1500],flush=True)
+                    except Exception:pass
+                print('Page errors:',errors,'Console errors:',console_errors[-10:],flush=True)
+                raise
             browser.close()
     finally:
         server.shutdown()
