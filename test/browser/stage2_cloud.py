@@ -39,6 +39,7 @@ duties = [{
 operations = []
 reject_next_play_save = False
 assignment_mock = None
+templates = []
 def signed_role(headers):
     auth = headers.get('authorization', '')
     if OWNER_TOKEN in auth:return 'owner'
@@ -148,6 +149,25 @@ def bind(ctx):
         else:
             reply={'ok':False,'code':'scope-denied'}
         route.fulfill(status=200 if permitted else 403,content_type='application/json',body=json.dumps(reply))
+    def owner_endpoint(route):
+        data=route.request.post_data_json
+        role=signed_role(route.request.headers)
+        action=data.get('action')
+        reply={'ok':False,'code':'scope-denied'}
+        if role=='owner':
+            if action=='status':
+                reply={'ok':True,'code':'ready','team':{'teamId':TEAM,'clubRef':'Fictional Comets','sportRef':'oztag','seasonRef':'2026'},'coachAssigned':True,'policyReady':True,'invitations':[]}
+            elif action=='template.list':
+                reply={'ok':True,'code':'ready','collectionEnabled':False,'templates':[{k:v for k,v in item.items() if k!='play'} for item in templates]}
+            elif action=='template.add' and data.get('rightsConfirmed') is True and data.get('privacyReviewed') is True:
+                item={'templateId':'tpl-'+'a'*32,'name':data['play']['name'],'state':'active','source':'owner-authorised-upload','play':data['play']}
+                templates.append(item)
+                reply={'ok':True,'code':'ready','templateId':item['templateId']}
+            elif action=='template.withdraw' and templates and data.get('templateId')==templates[0]['templateId']:
+                templates[0]['state']='withdrawn'
+                reply={'ok':True,'code':'ready','templateId':templates[0]['templateId']}
+        route.fulfill(status=200 if reply['ok'] else 403,content_type='application/json',body=json.dumps(reply))
+    ctx.route('**/api/stage3d4/v1/owner',owner_endpoint)
     ctx.route('**/api/stage3d5/v1/team',assignments_endpoint)
     ctx.route('**/auth/v1/user',auth_endpoint)
     ctx.route('**/rest/v1/rpc/tm_my_team_context',contexts_endpoint)
@@ -319,6 +339,35 @@ with sync_playwright() as p:
     checks.ok(all(not(r=='player' and a in ('play.draft.read','play.draft.edit','play.publish'))
         for r,_,_,a in operations),'Player assignment viewing grants no draft or publication authority')
     assigned_ctx.close()
+
+    # Stage 4 owner catalogue: same signed-in account, separate platform context.
+    template_ctx,template_page=new_page(browser,OWNER_TOKEN,stage4=True)
+    template_page.get_by_role('button',name='Manage play templates').wait_for(timeout=15000)
+    template_page.get_by_role('button',name='Manage play templates').click()
+    template_page.get_by_role('heading',name='Saved templates').wait_for()
+    sample={'id':'synthetic-template','name':'Fictional support template','sport':'Oztag','players':{'LM':[24,46]},'moves':[]}
+    template_page.locator('input[name=playFile]').set_input_files({'name':'play.json','mimeType':'application/json','buffer':json.dumps(sample).encode()})
+    template_page.locator('input[name=rights]').check()
+    template_page.locator('input[name=privacy]').check()
+    template_page.get_by_role('button',name='Save reusable template').click()
+    template_page.get_by_role('button',name='Withdraw template').wait_for(timeout=15000)
+    checks.ok(len(templates)==1 and templates[0]['play']==sample,
+        'Owner uploads only a manually selected rights-reviewed template')
+    template_page.get_by_role('button',name='Withdraw template').click()
+    template_page.get_by_text('Withdrawn',exact=True).wait_for()
+    checks.ok(templates[0]['state']=='withdrawn' and template_page.get_by_role('button',name='Export play JSON').count()==0,
+        'Withdrawn template cannot be exported from the owner catalogue')
+    template_page.locator('#club-chips').get_by_role('button',name='Fictional Comets').click()
+    template_page.locator('#team-chips button').first.click()
+    template_page.get_by_role('button',name='Tactics').click()
+    template_page.get_by_role('heading',name='Bring an authored E5 play into this team').wait_for()
+    legacy={'format':'team-manager-library','version':1,'library':{'plays':[sample,dict(sample,name='Missing roles',set='missing')]}}
+    template_page.locator('input[name=playFile]').set_input_files({'name':'library.json','mimeType':'application/json','buffer':json.dumps(legacy).encode()})
+    template_page.get_by_role('button',name='Review library file').click()
+    template_page.get_by_text('1 of 2 plays supported.',exact=False).wait_for()
+    checks.ok(template_page.get_by_role('button',name='Import this play as draft').count()==1,
+        'Only supported library records are selectable for exact-team draft import')
+    template_ctx.close()
 
     vol_ctx,volunteer=new_page(browser,VOL_TOKEN)
     volunteer.get_by_role('button',name='View your duties').click()
