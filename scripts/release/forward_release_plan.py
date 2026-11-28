@@ -56,7 +56,7 @@ def spec_for(repo,source,path):
     return s
 def validate_spec(s):
     keys={'releaseId','candidateBranch','developmentBase','accepted','migrations','newEmptyTables','existingSchemaChanges','ruleActivation'}
-    require(isinstance(s,dict) and set(s)==(keys|{'stage4'} if s.get('releaseId')=='PR308' else keys),'Invalid release specification')
+    require(isinstance(s,dict) and set(s)==(keys|{'stage4'} if s.get('releaseId')=='PR308' else keys|{'corrective'} if s.get('releaseId')=='PR311' else keys),'Invalid release specification')
     if s.get('releaseId')=='PR308':
         x=s['stage4'];b=s['accepted'].get('browserRecovery',{})
         require(set(x)=={'applicationSource','applicationCandidate','applicationBase','applicationTree','applicationBranch','releasePaths','freeAccountCollection'} and
@@ -69,15 +69,35 @@ def validate_spec(s):
       re.fullmatch(r'candidate/[a-z0-9-]+',s['candidateBranch']),'Invalid release identity')
     a=s['accepted'];require(all(HEX40.fullmatch(a.get(k,'')) for k in ('source','control','data')) and HEX40.fullmatch(s['developmentBase']),'Invalid baseline commit')
     require(all(HEX64.fullmatch(a.get(k,'')) for k in ('manifest','plan')) and type(a.get('migrationCount')) is int and a['migrationCount']>0,'Invalid accepted evidence pins')
-    require(a.get('ownerAcceptance',{}).get('status')=='OWNER_ACCEPTED' and a['ownerAcceptance'].get('passed')==a['ownerAcceptance'].get('checks') and a['ownerAcceptance'].get('checks',0)>0,'Prior owner acceptance missing')
+    if s['releaseId']=='PR311':
+        validate_corrective_spec(s)
+    else:
+        require(a.get('ownerAcceptance',{}).get('status')=='OWNER_ACCEPTED' and a['ownerAcceptance'].get('passed')==a['ownerAcceptance'].get('checks') and a['ownerAcceptance'].get('checks',0)>0,'Prior owner acceptance missing')
     require(type(a.get('assets')) is int and a['assets']>0 and a.get('encryptedAssets')==8,'Unexpected baseline asset inventory')
     require(set(a.get('worker',{}))=={'version_id','deployment_id'} and all(re.fullmatch(r'[a-f0-9-]{36}',v) for v in a['worker'].values()),'Invalid Worker identity')
     require(isinstance(s['migrations'],list) and s['migrations']==sorted(set(s['migrations'])) and all(MIG.fullmatch(n) for n in s['migrations']),'Invalid migration list')
     require(isinstance(s['newEmptyTables'],list) and len(set(s['newEmptyTables']))==len(s['newEmptyTables']) and all(SAFE_TABLE.fullmatch(n) for n in s['newEmptyTables']),'Invalid new table list')
     require(s['existingSchemaChanges']==[],'This forward controller supports additive schemas only; use a reviewed compatibility path for other changes')
     require(s['ruleActivation']=='NOT_APPROVED_NO_PROFILE_SEEDED','Rule activation requires a separate reviewed release contract')
+def validate_corrective_spec(s):
+    # The only exception is the owner-authorised PR311 application-only
+    # correction. All historical specifications and acceptance gates stay intact.
+    expected=json.loads("{\"releaseId\":\"PR311\",\"candidateBranch\":\"candidate/pr311-tactics-restoration\",\"developmentBase\":\"f86ac0c5ac6ca0e4e724bf8b306bbed3e5e6dabe\",\"accepted\":{\"source\":\"1d99eefebd63c494b9d65a76bdf53376d6a2ed8e\",\"control\":\"f86ac0c5ac6ca0e4e724bf8b306bbed3e5e6dabe\",\"data\":\"068c27f8cf2185c1100b6acf0940b686e4295bc2\",\"migrationCount\":26,\"manifest\":\"ac388d665dd32a20230cfb90baa72c4e5651069ac3138fdb1ab15594302a2436\",\"plan\":\"15c565e77d4693df5a29958e57891d5ddddb0ff70266924c21619edd641f3048\",\"worker\":{\"version_id\":\"47cc8977-03e9-4cb5-9d1e-5c0df01dd528\",\"deployment_id\":\"29a8c98c-2588-4848-9f06-c2ad17c23621\"},\"assets\":173,\"encryptedAssets\":8,\"ownerAcceptance\":{\"status\":\"OWNER_FUNCTIONAL_ACCEPTANCE_FAILED\",\"scope\":\"PR308 new/edit/watch startup and owner import failed; corrective release only\"}},\"migrations\":[],\"newEmptyTables\":[],\"existingSchemaChanges\":[],\"ruleActivation\":\"NOT_APPROVED_NO_PROFILE_SEEDED\",\"corrective\":{\"applicationSource\":\"812129a9a71e29f09b822b4c97097d759dc04aa3\",\"applicationCandidate\":\"e92f9c0975d5d1ecd66f72184ac18d58dd1b7cd0\",\"applicationTree\":\"bd9454b79d83e1c37fe51cb74cb903f49c77d750\",\"summarySha256\":\"2fa41aa34fec1a8a97900ca0b62ce34577e6f0aced8a7e4ecc552e0ca6492543\",\"referenceSha256\":\"51c5cccdcaa7f0cc9341972e0b1ab36637821578b88942dd68629e9dab13e20d\",\"verificationSha256\":\"7cb0f6dfb50906173863557ca6bb4d68189d0bf87b6ab1436e3012f240140bc0\",\"freeAccountCollection\":\"DISABLED\"}}")
+    require(s==expected,'PR311 corrective scope or evidence pins differ')
+
+def application_spec_for(repo,s,app,main,path):
+    if s['releaseId']=='PR311':
+        require(main!=app and app==s['corrective']['applicationSource'],
+          'PR311 requires a separate merged corrective controller')
+        require(not git(repo,'ls-tree','--name-only',app,path),
+          'PR311 application unexpectedly contains the later release specification')
+        return spec_for(repo,main,path)
+    return spec_for(repo,app,path)
+
 def check_source_inventory(repo,source,spec):
     a=spec['accepted']
+    if spec['releaseId']=='PR311':
+        require(source==spec['corrective']['applicationSource'],'Corrective application source differs')
     for parent,child in ((a['source'],a['control']),(a['control'],spec['developmentBase']),(spec['developmentBase'],source)):
         require(git(repo,'merge-base',parent,child)==parent,'Release source ancestry differs')
     if 'stage4' in spec:
@@ -101,6 +121,14 @@ def accepted_evidence(spec,previous,previous_plan):
     require(sha(previous_plan)==a['plan'],'Accepted installation plan changed')
     file=previous/'release-summary.json';require(file.is_file() and not file.is_symlink(),'Accepted summary missing')
     j=load(file);w=j.get('new_worker',{});v=j.get('verification',{})
+    if spec['releaseId']=='PR311':
+        x=spec['corrective']
+        require(sha(file)==x['summarySha256'] and j.get('control_source')==a['control'] and
+          j.get('release_id')=='PR308' and j.get('status')=='INSTALLED_BROWSER_SMOKE_PASS_OWNER_ACCEPTANCE_PENDING',
+          'PR308 corrective baseline summary differs')
+        verified=safe_private(previous/'asset-verification.json',kind='file')
+        require(sha(verified)==j.get('verification_evidence_sha256')==x['verificationSha256'],
+          'PR308 technical verification evidence differs')
     require(j.get('source')==a['source'] and j.get('plan_sha256')==a['plan'] and j.get('candidate_manifest_sha256')==a['manifest'] and
       j.get('R4')=='VERIFIED' and j.get('R5')=='INSTALLED' and j.get('encrypted_assets_verified')==a['encryptedAssets'],'Accepted installation checkpoint differs')
     recovery=a.get('browserRecovery')
@@ -128,6 +156,8 @@ def accepted_evidence(spec,previous,previous_plan):
     rows=candidate_check(previous,j);assets=expected_assets(rows)
     require(len(assets)==a['assets'],'Accepted asset inventory differs')
     ref=previous/'reference-candidate-private.json';require(ref.is_file() and not ref.is_symlink(),'Accepted schema reference absent')
+    if spec['releaseId']=='PR311':
+        require(sha(ref)==spec['corrective']['referenceSha256'],'PR308 schema reference differs')
     result={'directory':str(previous),'plan_path':str(previous_plan),'summary_sha256':sha(file),'reference_sha256':sha(ref)}
     if record_digest:result['browser_record_sha256']=record_digest
     return result,assets
@@ -162,9 +192,12 @@ def validate_control_contract(c,s):
             require(c['changedPaths']==["config/releases/pr308-control.json","docs/operations/pr308-reference-qualification.md","scripts/release/forward_release.py","scripts/release/forward_release_plan.py","scripts/release/test_forward_release.py"],'PR310 corrective scope differs')
     require(type(c['controlPr']) is int and c['controlPr']>int(s['releaseId'][2:]) and re.fullmatch(r'candidate/pr'+str(c['controlPr'])+r'-[a-z0-9-]+',c['controlBranch']),'Invalid control PR identity')
     paths=c['changedPaths']
+    if s['releaseId']=='PR311':
+        require(c==json.loads("{\"applicationRelease\":\"PR311\",\"applicationSource\":\"812129a9a71e29f09b822b4c97097d759dc04aa3\",\"applicationCandidate\":\"e92f9c0975d5d1ecd66f72184ac18d58dd1b7cd0\",\"applicationTree\":\"bd9454b79d83e1c37fe51cb74cb903f49c77d750\",\"controlPr\":312,\"controlBranch\":\"candidate/pr312-pr311-corrective-release\",\"changedPaths\":[\"config/releases/pr311-control.json\",\"config/releases/pr311.json\",\"docs/operations/pr311-corrective-release.md\",\"scripts/release/forward_release.py\",\"scripts/release/forward_release_plan.py\",\"scripts/release/test_forward_release.py\"]}"),'PR311 corrective controller authority differs')
     require(isinstance(paths,list) and paths==sorted(set(paths)) and bool(paths),'Invalid control path list')
     allowed={'scripts/release/forward_release_plan.py','scripts/release/forward_release.py','scripts/release/test_forward_release.py',
       'scripts/release/forward_release_run.py','config/releases/'+s['releaseId'].lower()+'-control.json'}
+    if s['releaseId']=='PR311':allowed.add('config/releases/pr311.json')
     require(all(x in allowed or re.fullmatch(r'docs/operations/pr'+s['releaseId'][2:]+r'-[a-z0-9-]+\.md',x) for x in paths),'Control contract allows non-release changes')
     require({'scripts/release/forward_release_plan.py','scripts/release/forward_release.py','scripts/release/test_forward_release.py',
       'config/releases/'+s['releaseId'].lower()+'-control.json'}<=set(paths),'Required control files absent')
@@ -209,6 +242,11 @@ def validate_plan_structure(p):
     require(all(HEX40.fullmatch(p.get(k,'')) for k in ('source','source_tree','main')),'Invalid plan source')
     require(re.fullmatch(r'config/releases/pr[0-9]+\.json',p.get('spec_path','')),'Invalid spec path')
     post=p['mode']=='postmerge' or p.get('qualification_phase')=='postmerge'
+    if s['releaseId']=='PR311':
+        x=s['corrective']
+        require(post and 'control' in p and p.get('qualification_phase')=='postmerge' and
+          (p['source'],p.get('candidate_source'),p['source_tree'])==(x['applicationSource'],x['applicationCandidate'],x['applicationTree']),
+          'PR311 requires the exact postmerge corrective release')
     require(p.get('qualification_phase') in (None,'postmerge') and (p['mode']!='candidate' or not post),'Invalid qualification phase')
     require(p['mode']!='postmerge' or p.get('qualification_phase')=='postmerge','Missing post-merge qualification phase')
     if 'control' in p:
@@ -229,6 +267,9 @@ def validate_plan_structure(p):
     if s['releaseId']=='PR308' and 'browser_record_sha256' in prev:
         prev_keys.add('browser_record_sha256')
     require(set(prev)==prev_keys and all(HEX64.fullmatch(prev[k]) for k in prev_keys if k.endswith('sha256')),'Prior evidence not pinned')
+    if s['releaseId']=='PR311':
+        require(prev['summary_sha256']==s['corrective']['summarySha256'] and prev['reference_sha256']==s['corrective']['referenceSha256'],
+          'PR311 previous evidence pins differ')
     if p['mode']=='candidate':
         expected=[(p['source'],'push',s['candidateBranch'])]
     else:
@@ -263,7 +304,7 @@ def build_candidate_plan(repo,spec_path,branch,previous,previous_plan,control_pa
         require(pr.get('merged') is True and HEX40.fullmatch(app or '') and HEX40.fullmatch(candidate or ''),'Main differs and application PR is not merged')
         tree=git(repo,'rev-parse',app+'^{tree}')
         normal_merge(repo,int(spec['releaseId'][2:]),branch,spec['developmentBase'],candidate,app,tree)
-        require(spec_for(repo,app,spec_path)==spec,'Application specification differs')
+        require(application_spec_for(repo,spec,app,main,spec_path)==spec,'Application specification differs')
         control=None
         if main!=app:
             require(control_path is not None,'Main advanced beyond application: reviewed control contract required')
@@ -296,7 +337,7 @@ def build_merged_plan(repo,candidate_plan,candidate_digest,evidence):
     if p['mode']=='postmerge':
         git(repo,'fetch','--no-tags','origin','main','data')
         check_release_authority(repo,p);check_ci_records(p)
-        require(spec_for(repo,p['source'],p['spec_path'])==spec,'Application specification changed')
+        require(application_spec_for(repo,spec,p['source'],p['main'],p['spec_path'])==spec,'Application specification changed')
         prior,added=check_source_inventory(repo,p['source'],spec)
         require(prior==p['prior_migrations'] and added==p['migrations'],'Merged migration inventory differs')
         prev,_=accepted_evidence(spec,p['previous']['directory'],p['previous']['plan_path'])

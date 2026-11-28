@@ -7,7 +7,7 @@ import argparse, datetime as dt, json, os, re, tempfile
 from pathlib import Path
 from consolidated_release import Stop,require,sha,save,load,extract_helpers,candidate_check,strip_wrapper,expected_assets,ORIGIN,CONFIG
 from incremental_release import record_helper_contract,write_verification,check_browser_record
-from forward_release_plan import ROOT,HEX64,validate_plan_structure,spec_for,check_source_inventory,remote_refs,check_release_authority,check_ci_records,accepted_evidence,safe_private,validate_candidate_summary
+from forward_release_plan import ROOT,HEX64,validate_plan_structure,spec_for,check_source_inventory,application_spec_for,remote_refs,check_release_authority,check_ci_records,accepted_evidence,safe_private,validate_candidate_summary
 from asset_verification import verify_all
 
 def stage4_checker_command(node,source):
@@ -72,7 +72,7 @@ def stage4_sql_sequence(work,p):
 
 def stage4_reference(q,work,out,pg_bin,psql,p):
     paths=stage4_sql_sequence(work,p)
-    baseline=p['prior_migrations'][-1]['file'];candidate=p['migrations'][-1]['file']
+    baseline=p['prior_migrations'][-1]['file'];candidate=p['migrations'][-1]['file'] if p['migrations'] else baseline
     # The archived helper already creates a short private Unix socket.
     # Preserve its local connection parameters; enforce the proven locale
     # at the child-process boundary, including initdb and pg_ctl.
@@ -131,7 +131,7 @@ def check_source(q,work,p,prior,mode):
     require(q.git(work,'rev-parse','HEAD')==source and q.git(work,'rev-parse','HEAD^{tree}')==p['source_tree'] and
       not q.git(work,'diff','--name-only','HEAD'),'Tracked source or tree drift')
     check_release_authority(work,p)
-    require(spec_for(work,source,p['spec_path'])==s,'Release specification differs')
+    require(application_spec_for(work,s,source,p['main'],p['spec_path'])==s,'Release specification differs')
     old,new=check_source_inventory(work,source,s)
     require(old==p['prior_migrations']==prior['migration_inventory'] and new==p['migrations'],'Migration inventory differs')
     for pattern in ('.env*','.dev.vars*'):require(not list(work.glob(pattern)),'Unexpected local environment file')
@@ -153,6 +153,8 @@ def check_additive_reference(base,target,old,i,spec):
     require(i.canonical(old)==i.canonical(base),'Synthetic baseline differs from accepted schema reference')
     require(set(base)<=set(target),'Existing catalogue objects disappeared')
     require(i.canonical(base)==i.canonical({k:target[k] for k in base}),'Existing schema objects changed; additive controller refuses')
+    if spec['releaseId']=='PR311':
+        require(i.canonical(base)==i.canonical(target),'PR311 must not change any schema object')
     expected={'relation:'+x for x in spec['newEmptyTables']}
     require({k for k in set(target)-set(base) if k.startswith('relation:')}==expected,'Unexpected new relation inventory')
 def check_qualification(p):
@@ -254,6 +256,9 @@ def main():
                 require('control' in p and p['control']['contract']['controlPr']==310,
                   'PR308 production checker correction not authorised')
                 build_stage4_candidate(q,work,out,report,p['source'])
+            elif rid=='PR311':
+                require(p['control']['contract']['controlPr']==312,'PR311 corrective control required')
+                build_stage4_candidate(q,work,out,report,p['source'])
             else:q.worker_candidate(work,out,report)
             entry=i.bundle_entry(out)
             dest=out/'transport-dry-run';dest.mkdir()
@@ -263,7 +268,7 @@ def main():
             return entry
         entry=check('build_and_transport',build)
         def reference():
-            if 'stage4' in s:base,target=stage4_reference(q,work,out,args.pg_bin,psql,p)
+            if 'stage4' in s or rid=='PR311':base,target=stage4_reference(q,work,out,args.pg_bin,psql,p)
             else:base,target=q.reference(work,out,args.pg_bin,psql)
             known={k:{'definition_md5':v,'execute':{'anon':[False,False],'authenticated':[True,False],'service_role':[True,False]}} for k,v in r.FOUR.items()}
             base,target=rec.overlay(base,known),rec.overlay(target,known)
