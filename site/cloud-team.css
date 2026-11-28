@@ -300,3 +300,16 @@
 /* Stage 4: original E5 SVG diagrams above each revision's actions. */
 .cloud-native-thumbnail{margin:0 0 8px;max-width:340px;min-height:0;overflow:hidden;border-radius:8px}
 .cloud-native-thumbnail iframe{display:block;border:0;width:100%;height:156px;pointer-events:none;background:transparent}
+
+/* Startup recovery belongs to the host, not the embedded editor. Once the
+   original E5 mounts it retains the complete, unclipped viewport. */
+.cloud-e5-startup{position:absolute;z-index:2;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;background:var(--chalk);text-align:center}
+.cloud-e5-startup[hidden]{display:none}
+.cloud-e5-startup p{max-width:38rem}
+
+/* Connected catalogue uses the established play-card and list proportions. */
+.cloud-main .cloud-play-catalogue.view-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:12px;background:transparent;border:0;overflow:visible}
+.cloud-main .cloud-play-catalogue.view-cards .cloud-list-item{border:1px solid var(--line);border-radius:10px;margin:0;min-width:0}
+.cloud-main .cloud-play-catalogue .cloud-native-thumbnail{max-width:none;background:#eef2ec}
+.cloud-main .cloud-play-catalogue.view-list .cloud-native-thumbnail{display:none}
+.cloud-main .cloud-play-catalogue.view-cards .cloud-native-thumbnail iframe{height:172px}

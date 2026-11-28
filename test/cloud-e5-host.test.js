@@ -36,3 +36,12 @@ test('self-contained custom role definition preserves original labels and reject
  {...custom,setDef:{...custom.setDef,labels:[...custom.setDef.labels,custom.setDef.labels[0]]}},
  {...custom,set:'oztag'}])assert.equal(validConnectedE5Play(bad),false);
 });
+
+test('workspace failure is accepted only from the unmounted exact peer and nonce',()=>{
+ const source={},origin='https://example.test',nonce='synthetic';
+ const ctx={source,origin,nonce,mode:'edit',mounted:false,pending:false};
+ const event={source,origin,data:{channel:CHANNEL,nonce,type:'mount-failed'}};
+ assert.deepEqual(classifyE5Message(event,ctx),{type:'mount-failed'});
+ assert.equal(classifyE5Message({...event,data:{...event.data,nonce:'wrong'}},ctx),null);
+ assert.equal(classifyE5Message(event,{...ctx,mounted:true}),null);
+});
