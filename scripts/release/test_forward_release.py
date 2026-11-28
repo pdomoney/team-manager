@@ -263,4 +263,38 @@ class Stage4ReferenceTests(unittest.TestCase):
             self.assertEqual(rows[-1],(main,'push','main'))
         bad=copy.deepcopy(c);bad['priorControl']['source']='0'*40
         with self.assertRaises(Stop):validate_control_contract(bad,s)
+class PR311CorrectiveReleaseTests(unittest.TestCase):
+    def setUp(self):
+        self.spec=json.loads((ROOT/'config/releases/pr311.json').read_text())
+        self.control=json.loads((ROOT/'config/releases/pr311-control.json').read_text())
+    def test_only_exact_rejected_baseline_can_be_corrected(self):
+        validate_spec(self.spec)
+        validate_control_contract(self.control,self.spec)
+        for key,value in [('migrations',['20261129010000_unapproved.sql']),('newEmptyTables',['extra']),('releaseId','PR313')]:
+            bad=copy.deepcopy(self.spec);bad[key]=value
+            with self.assertRaises(Stop):validate_spec(bad)
+        for key in self.spec['corrective']:
+            bad=copy.deepcopy(self.spec);bad['corrective'][key]='changed'
+            with self.assertRaises(Stop):validate_spec(bad)
+        bad=copy.deepcopy(self.spec);bad['accepted']['ownerAcceptance']['status']='OWNER_ACCEPTED'
+        with self.assertRaises(Stop):validate_spec(bad)
+        bad=copy.deepcopy(self.control);bad['changedPaths']=sorted(bad['changedPaths']+['site/app.js'])
+        with self.assertRaises(Stop):validate_control_contract(bad,self.spec)
+    def test_application_spec_only_on_merged_control(self):
+        from forward_release_plan import application_spec_for
+        app=self.spec['corrective']['applicationSource'];main='c'*40
+        with patch('forward_release_plan.git',return_value=''),patch('forward_release_plan.spec_for',return_value=self.spec) as read:
+            self.assertEqual(application_spec_for('repo',self.spec,app,main,'config/releases/pr311.json'),self.spec)
+            read.assert_called_once_with('repo',main,'config/releases/pr311.json')
+            with self.assertRaises(Stop):application_spec_for('repo',self.spec,app,app,'config/releases/pr311.json')
+        with patch('forward_release_plan.git',return_value='config/releases/pr311.json'),self.assertRaises(Stop):
+            application_spec_for('repo',self.spec,app,main,'config/releases/pr311.json')
+    def test_zero_schema_change_and_full_replay(self):
+        from forward_release import stage4_sql_sequence
+        old={'relation:old':{'kind':'r'}}
+        check_additive_reference(old,old,old,Canon,self.spec)
+        with self.assertRaises(Stop):check_additive_reference(old,dict(old,**{'function:unexpected':{}}),old,Canon,self.spec)
+        rows=[{'file':str(p.relative_to(ROOT)),'sha256':sha(p)} for p in sorted((ROOT/'supabase/migrations').glob('*.sql'))]
+        self.assertEqual(len(rows),26)
+        self.assertEqual(len(stage4_sql_sequence(ROOT,{'prior_migrations':rows,'migrations':[]})),41)
 if __name__=='__main__':unittest.main()

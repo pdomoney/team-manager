@@ -1,0 +1,16 @@
+{
+  "applicationRelease": "PR311",
+  "applicationSource": "812129a9a71e29f09b822b4c97097d759dc04aa3",
+  "applicationCandidate": "e92f9c0975d5d1ecd66f72184ac18d58dd1b7cd0",
+  "applicationTree": "bd9454b79d83e1c37fe51cb74cb903f49c77d750",
+  "controlPr": 312,
+  "controlBranch": "candidate/pr312-pr311-corrective-release",
+  "changedPaths": [
+    "config/releases/pr311-control.json",
+    "config/releases/pr311.json",
+    "docs/operations/pr311-corrective-release.md",
+    "scripts/release/forward_release.py",
+    "scripts/release/forward_release_plan.py",
+    "scripts/release/test_forward_release.py"
+  ]
+}

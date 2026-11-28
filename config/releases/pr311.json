@@ -1,0 +1,36 @@
+{
+  "releaseId": "PR311",
+  "candidateBranch": "candidate/pr311-tactics-restoration",
+  "developmentBase": "f86ac0c5ac6ca0e4e724bf8b306bbed3e5e6dabe",
+  "accepted": {
+    "source": "1d99eefebd63c494b9d65a76bdf53376d6a2ed8e",
+    "control": "f86ac0c5ac6ca0e4e724bf8b306bbed3e5e6dabe",
+    "data": "068c27f8cf2185c1100b6acf0940b686e4295bc2",
+    "migrationCount": 26,
+    "manifest": "ac388d665dd32a20230cfb90baa72c4e5651069ac3138fdb1ab15594302a2436",
+    "plan": "15c565e77d4693df5a29958e57891d5ddddb0ff70266924c21619edd641f3048",
+    "worker": {
+      "version_id": "47cc8977-03e9-4cb5-9d1e-5c0df01dd528",
+      "deployment_id": "29a8c98c-2588-4848-9f06-c2ad17c23621"
+    },
+    "assets": 173,
+    "encryptedAssets": 8,
+    "ownerAcceptance": {
+      "status": "OWNER_FUNCTIONAL_ACCEPTANCE_FAILED",
+      "scope": "PR308 new/edit/watch startup and owner import failed; corrective release only"
+    }
+  },
+  "migrations": [],
+  "newEmptyTables": [],
+  "existingSchemaChanges": [],
+  "ruleActivation": "NOT_APPROVED_NO_PROFILE_SEEDED",
+  "corrective": {
+    "applicationSource": "812129a9a71e29f09b822b4c97097d759dc04aa3",
+    "applicationCandidate": "e92f9c0975d5d1ecd66f72184ac18d58dd1b7cd0",
+    "applicationTree": "bd9454b79d83e1c37fe51cb74cb903f49c77d750",
+    "summarySha256": "2fa41aa34fec1a8a97900ca0b62ce34577e6f0aced8a7e4ecc552e0ca6492543",
+    "referenceSha256": "51c5cccdcaa7f0cc9341972e0b1ab36637821578b88942dd68629e9dab13e20d",
+    "verificationSha256": "7cb0f6dfb50906173863557ca6bb4d68189d0bf87b6ab1436e3012f240140bc0",
+    "freeAccountCollection": "DISABLED"
+  }
+}
